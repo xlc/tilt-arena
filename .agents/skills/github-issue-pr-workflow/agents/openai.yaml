@@ -1,0 +1,5 @@
+interface:
+  display_name: "GitHub Issue PR Workflow"
+  short_description: "Issue-first branch and PR workflow."
+  default_prompt: "Use $github-issue-pr-workflow to plan issue-tracked work, branch before implementation, link PRs, close completed issues, and clean up after merge."
+
