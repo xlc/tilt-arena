@@ -12,6 +12,17 @@ final class ChaserEnemyTests: XCTestCase {
         XCTAssertEqual(enemy.position.y, 0, accuracy: 0.0001)
     }
 
+    func testChaserDoesNotMoveWithNegativeSpeedOrDeltaTime() {
+        var enemy = ChaserEnemy(id: 1, position: CGPoint(x: 10, y: 0), radius: 8, speed: -100)
+
+        enemy.advance(toward: CGPoint(x: 30, y: 0), deltaTime: 1)
+        XCTAssertEqual(enemy.position.x, 10, accuracy: 0.0001)
+
+        enemy.speed = 100
+        enemy.advance(toward: CGPoint(x: 30, y: 0), deltaTime: -1)
+        XCTAssertEqual(enemy.position.x, 10, accuracy: 0.0001)
+    }
+
     func testSpawnPlannerSkipsPositionsInsidePlayerSafetyRadius() {
         var planner = ChaserSpawnPlanner()
         let config = ClassicRunConfiguration(playerSafetyRadius: 120)
@@ -29,6 +40,24 @@ final class ChaserEnemyTests: XCTestCase {
         }
 
         XCTAssertTrue(planner.isSafeSpawn(enemy.position, avoiding: playerPosition, safetyRadius: 120))
+    }
+
+    func testSpawnPlannerChecksFullEdgeCandidateCycle() {
+        var planner = ChaserSpawnPlanner()
+        let config = ClassicRunConfiguration(playerSafetyRadius: 355)
+        let playableRect = CGRect(x: 0, y: 0, width: 280, height: 280)
+
+        let enemy = planner.spawnChaser(
+            in: playableRect,
+            avoiding: .zero,
+            configuration: config
+        )
+
+        guard let enemy else {
+            return XCTFail("Expected a safe candidate in the final edge lane.")
+        }
+
+        XCTAssertTrue(planner.isSafeSpawn(enemy.position, avoiding: .zero, safetyRadius: 355))
     }
 
     func testCircleCollisionUsesCombinedRadii() {

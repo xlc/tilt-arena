@@ -52,6 +52,17 @@ final class ClassicRunControllerTests: XCTestCase {
         XCTAssertEqual(spawnCount, 1)
     }
 
+    func testSpawnScheduleDoesNotAccumulateDebtWhileAtEnemyCap() {
+        var controller = ClassicRunController(
+            configuration: ClassicRunConfiguration(spawnInterval: 0.5, maxActiveChasers: 5)
+        )
+
+        controller.start()
+        XCTAssertEqual(controller.update(deltaTime: 2, activeEnemyCount: 5), 0)
+        XCTAssertEqual(controller.update(deltaTime: 0.1, activeEnemyCount: 0), 0)
+        XCTAssertEqual(controller.update(deltaTime: 0.4, activeEnemyCount: 0), 1)
+    }
+
     func testNonPositiveSpawnIntervalDoesNotScheduleEnemies() {
         var controller = ClassicRunController(
             configuration: ClassicRunConfiguration(spawnInterval: 0)

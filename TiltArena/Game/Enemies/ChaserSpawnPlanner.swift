@@ -1,6 +1,9 @@
 import CoreGraphics
 
 struct ChaserSpawnPlanner {
+    private static let candidateSideCount = 4
+    private static let candidateLaneCount = 7
+
     private(set) var nextEnemyID = 1
     private var nextCandidateIndex = 0
 
@@ -18,7 +21,7 @@ struct ChaserSpawnPlanner {
             return nil
         }
 
-        for _ in 0..<24 {
+        for _ in 0..<(Self.candidateSideCount * Self.candidateLaneCount) {
             let position = candidatePosition(in: playableRect, index: nextCandidateIndex)
             nextCandidateIndex += 1
 
@@ -44,8 +47,9 @@ struct ChaserSpawnPlanner {
     }
 
     private func candidatePosition(in rect: CGRect, index: Int) -> CGPoint {
-        let side = index % 4
-        let lane = CGFloat(((index / 4) % 7) + 1) / 8
+        let side = index % Self.candidateSideCount
+        let lane = CGFloat(((index / Self.candidateSideCount) % Self.candidateLaneCount) + 1)
+            / CGFloat(Self.candidateLaneCount + 1)
 
         switch side {
         case 0:

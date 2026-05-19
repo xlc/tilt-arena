@@ -71,13 +71,16 @@ struct ClassicRunController {
 
         let clampedDelta = max(0, deltaTime)
         survivalTime += clampedDelta
-        timeUntilNextSpawn -= clampedDelta
 
-        guard activeEnemyCount < configuration.maxActiveChasers else {
+        guard configuration.spawnInterval > 0 else {
+            timeUntilNextSpawn = 0
             return 0
         }
 
-        guard configuration.spawnInterval > 0 else {
+        timeUntilNextSpawn -= clampedDelta
+
+        guard activeEnemyCount < configuration.maxActiveChasers else {
+            timeUntilNextSpawn = max(timeUntilNextSpawn, configuration.spawnInterval)
             return 0
         }
 

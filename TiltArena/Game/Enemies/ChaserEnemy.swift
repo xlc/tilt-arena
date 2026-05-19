@@ -20,7 +20,12 @@ struct ChaserEnemy: Equatable, Identifiable {
             return
         }
 
-        let step = min(distance, speed * CGFloat(max(0, deltaTime)))
+        let movementDistance = max(0, speed) * CGFloat(max(0, deltaTime))
+        guard movementDistance > 0 else {
+            return
+        }
+
+        let step = min(distance, movementDistance)
         position = CGPoint(
             x: position.x + (dx / distance) * step,
             y: position.y + (dy / distance) * step

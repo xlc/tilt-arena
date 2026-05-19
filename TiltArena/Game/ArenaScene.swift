@@ -173,14 +173,15 @@ final class ArenaScene: SKScene {
 
     private func startRun() {
         runController.start()
-        resetGameplayObjects()
-        placePlayer(resetPosition: true)
-        resetPlayerFeedback()
-        updateRunDisplay()
+        resetActiveRun()
     }
 
     private func restartRun() {
         runController.restart()
+        resetActiveRun()
+    }
+
+    private func resetActiveRun() {
         resetGameplayObjects()
         placePlayer(resetPosition: true)
         resetPlayerFeedback()
