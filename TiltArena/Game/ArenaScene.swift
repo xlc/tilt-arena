@@ -8,10 +8,17 @@ final class ArenaScene: SKScene {
     private var movementController = PlayerMovementController()
     private var runController = ClassicRunController()
     private var spawnPlanner = ChaserSpawnPlanner()
+    private let pickupSpawnConfiguration = PickupSpawnConfiguration()
+    private var pickupPlanner = PickupSpawnPlanner()
+    private let weaponResolver = StartingWeaponResolver()
     private var enemies: [ChaserEnemy] = []
     private var enemyNodes: [Int: ChaserEnemyNode] = [:]
+    private var pickups: [WeaponPickup] = []
+    private var pickupNodes: [Int: WeaponPickupNode] = [:]
     private var playerNode: PlayerCraftNode?
     private var playerTrailNode: PlayerTrailNode?
+    private var razorShieldTimeRemaining: TimeInterval = 0
+    private var razorShieldNode: SKShapeNode?
     private let timerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
     private let centerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
     private let detailLabel = SKLabelNode(fontNamed: "Menlo")
@@ -248,6 +255,12 @@ final class ArenaScene: SKScene {
         enemyNodes.values.forEach { $0.removeFromParent() }
         enemyNodes.removeAll()
         spawnPlanner.reset()
+
+        pickups.removeAll()
+        pickupNodes.values.forEach { $0.removeFromParent() }
+        pickupNodes.removeAll()
+        pickupPlanner.reset(configuration: pickupSpawnConfiguration)
+        deactivateRazorShield()
     }
 
     private func resetPlayerFeedback() {
@@ -259,7 +272,10 @@ final class ArenaScene: SKScene {
     private func updateActiveRun(deltaTime: TimeInterval, playerPosition: CGPoint) {
         let spawnCount = runController.update(deltaTime: deltaTime, activeEnemyCount: enemies.count)
         spawnChasers(count: spawnCount, playerPosition: playerPosition)
+        spawnPickupIfNeeded(deltaTime: deltaTime, playerPosition: playerPosition)
+        collectPickups(playerPosition: playerPosition)
         advanceChasers(deltaTime: deltaTime, playerPosition: playerPosition)
+        updateRazorShield(deltaTime: deltaTime, playerPosition: playerPosition)
         detectPlayerCollision(playerPosition: playerPosition)
         updateRunDisplay()
     }
@@ -288,10 +304,184 @@ final class ArenaScene: SKScene {
         }
     }
 
+    private func spawnPickupIfNeeded(deltaTime: TimeInterval, playerPosition: CGPoint) {
+        let playableRect = movementController.configuration.playableRect(in: size)
+        let enemyCircles = enemies.map(\.collisionCircle)
+
+        guard let pickup = pickupPlanner.update(
+            deltaTime: deltaTime,
+            phase: runController.phase,
+            activePickupCount: pickups.count,
+            playableRect: playableRect,
+            playerPosition: playerPosition,
+            enemyCircles: enemyCircles,
+            configuration: pickupSpawnConfiguration
+        ) else {
+            return
+        }
+
+        pickups.append(pickup)
+
+        let node = WeaponPickupNode(pickup: pickup, theme: theme)
+        pickupNodes[pickup.id] = node
+        addChild(node)
+    }
+
     private func advanceChasers(deltaTime: TimeInterval, playerPosition: CGPoint) {
         for index in enemies.indices {
             enemies[index].advance(toward: playerPosition, deltaTime: deltaTime)
             enemyNodes[enemies[index].id]?.apply(enemies[index])
+        }
+    }
+
+    private func collectPickups(playerPosition: CGPoint) {
+        let playerCircle = CollisionCircle(
+            center: playerPosition,
+            radius: movementController.configuration.visualRadius
+        )
+        let collectedPickups = pickups.filter { playerCircle.intersects($0.collisionCircle) }
+
+        guard !collectedPickups.isEmpty else {
+            return
+        }
+
+        for pickup in collectedPickups {
+            removePickup(id: pickup.id)
+            applyWeapon(pickup.kind, playerPosition: playerPosition)
+        }
+    }
+
+    private func removePickup(id: Int) {
+        pickups.removeAll { $0.id == id }
+        pickupNodes.removeValue(forKey: id)?.removeFromParent()
+    }
+
+    private func applyWeapon(_ kind: WeaponKind, playerPosition: CGPoint) {
+        let resolution = weaponResolver.resolve(
+            kind: kind,
+            playerPosition: playerPosition,
+            enemies: enemies
+        )
+
+        switch kind {
+        case .shockwave:
+            playShockwaveEffect(at: playerPosition)
+        case .seekerSwarm:
+            let targetPositions = positions(forEnemyIDs: resolution.destroyedEnemyIDs)
+            playSeekerSwarmEffect(from: playerPosition, to: targetPositions)
+        case .razorShield:
+            activateRazorShield(at: playerPosition)
+        }
+
+        destroyEnemies(ids: resolution.destroyedEnemyIDs)
+    }
+
+    private func positions(forEnemyIDs enemyIDs: Set<Int>) -> [CGPoint] {
+        enemies.compactMap { enemyIDs.contains($0.id) ? $0.position : nil }
+    }
+
+    private func destroyEnemies(ids enemyIDs: Set<Int>) {
+        guard !enemyIDs.isEmpty else {
+            return
+        }
+
+        runController.recordEnemiesDestroyed(enemyIDs.count)
+        enemies.removeAll { enemyIDs.contains($0.id) }
+
+        for enemyID in enemyIDs {
+            guard let node = enemyNodes.removeValue(forKey: enemyID) else {
+                continue
+            }
+
+            let fade = SKAction.group([
+                .scale(to: 0.35, duration: 0.08),
+                .fadeOut(withDuration: 0.08)
+            ])
+            node.run(.sequence([fade, .removeFromParent()]))
+        }
+    }
+
+    private func activateRazorShield(at playerPosition: CGPoint) {
+        razorShieldTimeRemaining = weaponResolver.configuration.razorShieldDuration
+
+        if razorShieldNode == nil {
+            let node = SKShapeNode(circleOfRadius: weaponResolver.configuration.razorShieldRadius)
+            node.strokeColor = theme.pickupBlue.withAlphaComponent(0.9)
+            node.fillColor = .clear
+            node.lineWidth = 2
+            node.glowWidth = 4
+            node.zPosition = 19
+            addChild(node)
+            razorShieldNode = node
+        }
+
+        razorShieldNode?.position = playerPosition
+        razorShieldNode?.isHidden = false
+    }
+
+    private func updateRazorShield(deltaTime: TimeInterval, playerPosition: CGPoint) {
+        guard razorShieldTimeRemaining > 0 else {
+            deactivateRazorShield()
+            return
+        }
+
+        razorShieldNode?.position = playerPosition
+
+        let targetIDs = weaponResolver.shieldTargets(
+            playerPosition: playerPosition,
+            enemies: enemies
+        )
+        destroyEnemies(ids: targetIDs)
+
+        razorShieldTimeRemaining = max(0, razorShieldTimeRemaining - max(0, deltaTime))
+
+        if razorShieldTimeRemaining == 0 {
+            deactivateRazorShield()
+        }
+    }
+
+    private func deactivateRazorShield() {
+        razorShieldTimeRemaining = 0
+        razorShieldNode?.removeFromParent()
+        razorShieldNode = nil
+    }
+
+    private func playShockwaveEffect(at position: CGPoint) {
+        let ring = SKShapeNode(circleOfRadius: weaponResolver.configuration.shockwaveRadius)
+        ring.position = position
+        ring.strokeColor = theme.playerAccentColor.withAlphaComponent(0.9)
+        ring.fillColor = .clear
+        ring.lineWidth = 2
+        ring.glowWidth = 5
+        ring.zPosition = 18
+        ring.setScale(0.2)
+        addChild(ring)
+
+        let expand = SKAction.group([
+            .scale(to: 1.0, duration: 0.16),
+            .fadeOut(withDuration: 0.16)
+        ])
+        ring.run(.sequence([expand, .removeFromParent()]))
+    }
+
+    private func playSeekerSwarmEffect(from origin: CGPoint, to targets: [CGPoint]) {
+        for target in targets {
+            let path = CGMutablePath()
+            path.move(to: origin)
+            path.addLine(to: target)
+
+            let streak = SKShapeNode(path: path)
+            streak.strokeColor = theme.pickupViolet.withAlphaComponent(0.85)
+            streak.lineWidth = 1.5
+            streak.glowWidth = 3
+            streak.zPosition = 18
+            addChild(streak)
+
+            let fade = SKAction.group([
+                .fadeOut(withDuration: 0.12),
+                .scale(to: 0.9, duration: 0.12)
+            ])
+            streak.run(.sequence([fade, .removeFromParent()]))
         }
     }
 
