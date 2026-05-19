@@ -7,10 +7,12 @@ final class ClassicRunControllerTests: XCTestCase {
 
         controller.start()
         _ = controller.update(deltaTime: 2, activeEnemyCount: 0)
+        controller.recordEnemiesDestroyed(3)
         controller.restart()
 
         XCTAssertEqual(controller.phase, .active)
         XCTAssertEqual(controller.survivalTime, 0)
+        XCTAssertEqual(controller.enemiesDestroyed, 0)
     }
 
     func testUpdateOnlyAdvancesWhileActive() {
@@ -58,6 +60,16 @@ final class ClassicRunControllerTests: XCTestCase {
 
         controller.endRun()
         XCTAssertEqual(controller.phase, .gameOver)
+    }
+
+    func testDestroyedEnemyCountIgnoresNegativeCounts() {
+        var controller = ClassicRunController()
+
+        controller.start()
+        controller.recordEnemiesDestroyed(3)
+        controller.recordEnemiesDestroyed(-1)
+
+        XCTAssertEqual(controller.enemiesDestroyed, 3)
     }
 
     func testSpawnCountRespectsMaximumEnemies() {

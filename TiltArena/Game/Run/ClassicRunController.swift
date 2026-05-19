@@ -26,6 +26,7 @@ struct ClassicRunController {
     var configuration = ClassicRunConfiguration()
     private(set) var phase: ClassicRunPhase = .preRun
     private(set) var survivalTime: TimeInterval = 0
+    private(set) var enemiesDestroyed = 0
     private var timeUntilNextSpawn: TimeInterval = 0
 
     init(configuration: ClassicRunConfiguration = ClassicRunConfiguration()) {
@@ -96,9 +97,14 @@ struct ClassicRunController {
         return spawnCount
     }
 
+    mutating func recordEnemiesDestroyed(_ count: Int) {
+        enemiesDestroyed += max(0, count)
+    }
+
     private mutating func resetForActiveRun() {
         phase = .active
         survivalTime = 0
+        enemiesDestroyed = 0
         timeUntilNextSpawn = 0
     }
 }
