@@ -23,6 +23,8 @@ struct ClassicRunConfiguration: Equatable {
 }
 
 struct ClassicRunController {
+    private static let spawnTimerEpsilon: TimeInterval = 0.000_001
+
     var configuration = ClassicRunConfiguration()
     private(set) var phase: ClassicRunPhase = .preRun
     private(set) var survivalTime: TimeInterval = 0
@@ -88,7 +90,7 @@ struct ClassicRunController {
         var spawnCount = 0
         var projectedEnemyCount = activeEnemyCount
 
-        while timeUntilNextSpawn <= 0, projectedEnemyCount < configuration.maxActiveChasers {
+        while timeUntilNextSpawn <= Self.spawnTimerEpsilon, projectedEnemyCount < configuration.maxActiveChasers {
             spawnCount += 1
             projectedEnemyCount += 1
             timeUntilNextSpawn += configuration.spawnInterval
