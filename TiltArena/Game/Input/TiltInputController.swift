@@ -30,6 +30,10 @@ final class TiltInputController {
         signalProcessor.reset()
     }
 
+    func resetSmoothedInput() {
+        signalProcessor.reset()
+    }
+
     func recalibrateToCurrentAttitude() {
         guard let gravity = currentGravityVector() else {
             return
