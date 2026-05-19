@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  verify:
+    name: Lint, build, and test
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      DERIVED_DATA_PATH: build/DerivedData
+      PROJECT: TiltArena.xcodeproj
+      SCHEME: TiltArena
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install tools
+        run: brew install swiftlint xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Lint
+        run: swiftlint lint --no-cache
+
+      - name: Build
+        run: |
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Select test simulator
+        run: |
+          set -euo pipefail
+
+          test_device_id="$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ { print $2; exit }')"
+          if [ -z "$test_device_id" ]; then
+            echo "No available iPhone simulator found."
+            xcrun simctl list devices available
+            exit 1
+          fi
+
+          echo "TEST_DESTINATION=platform=iOS Simulator,id=$test_device_id" >> "$GITHUB_ENV"
+
+      - name: Test
+        run: |
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "$TEST_DESTINATION" \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
+            CODE_SIGNING_ALLOWED=NO \
+            test

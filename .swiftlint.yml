@@ -1,0 +1,31 @@
+included:
+  - TiltArena
+  - TiltArenaTests
+
+excluded:
+  - build
+  - TiltArena.xcodeproj
+
+identifier_name:
+  excluded:
+    - dx
+    - dy
+    - id
+    - x
+    - y
+
+line_length:
+  warning: 140
+  error: 180
+
+function_parameter_count:
+  warning: 6
+  error: 8
+
+file_length:
+  warning: 650
+  error: 1000
+
+type_body_length:
+  warning: 550
+  error: 700
