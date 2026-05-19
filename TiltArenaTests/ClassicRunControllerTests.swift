@@ -27,6 +27,25 @@ final class ClassicRunControllerTests: XCTestCase {
         XCTAssertEqual(controller.survivalTime, 1)
     }
 
+    func testPausePreservesRunTimeAndSpawnScheduleUntilResume() {
+        var controller = ClassicRunController(
+            configuration: ClassicRunConfiguration(spawnInterval: 0.5, maxActiveChasers: 10)
+        )
+
+        controller.start()
+        XCTAssertEqual(controller.update(deltaTime: 0.25, activeEnemyCount: 0), 1)
+
+        controller.pause()
+        XCTAssertEqual(controller.update(deltaTime: 5, activeEnemyCount: 1), 0)
+        XCTAssertEqual(controller.survivalTime, 0.25, accuracy: 0.0001)
+
+        controller.resume()
+        XCTAssertEqual(controller.update(deltaTime: 0.24, activeEnemyCount: 1), 0)
+        XCTAssertEqual(controller.survivalTime, 0.49, accuracy: 0.0001)
+        XCTAssertEqual(controller.update(deltaTime: 0.01, activeEnemyCount: 1), 1)
+        XCTAssertEqual(controller.survivalTime, 0.5, accuracy: 0.0001)
+    }
+
     func testPauseResumeAndGameOverTransitions() {
         var controller = ClassicRunController()
 

@@ -15,6 +15,10 @@ final class ArenaScene: SKScene {
     private let timerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
     private let centerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
     private let detailLabel = SKLabelNode(fontNamed: "Menlo")
+    private let pauseControlNode = SKNode()
+    private let pauseIconNode = SKNode()
+    private let resumeIconNode = SKShapeNode()
+    private let pauseControlSize = CGSize(width: 48, height: 48)
     private var lastUpdateTime: TimeInterval?
 
     override init(size: CGSize) {
@@ -30,6 +34,7 @@ final class ArenaScene: SKScene {
     override func didMove(to view: SKView) {
         rebuildArena()
         configureLabels()
+        configurePauseControl()
         placePlayer(resetPosition: true)
         updateRunDisplay()
         tiltInputController.start()
@@ -39,6 +44,7 @@ final class ArenaScene: SKScene {
         rebuildArena()
         placePlayer(resetPosition: playerNode == nil)
         layoutLabels()
+        layoutPauseControl()
     }
 
     override func willMove(from view: SKView) {
@@ -76,6 +82,11 @@ final class ArenaScene: SKScene {
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard !touches.isEmpty else {
+            return
+        }
+
+        if touches.contains(where: isPauseControlTouch) {
+            togglePauseControl()
             return
         }
 
@@ -159,6 +170,20 @@ final class ArenaScene: SKScene {
         layoutLabels()
     }
 
+    private func configurePauseControl() {
+        guard pauseControlNode.parent == nil else {
+            return
+        }
+
+        pauseControlNode.zPosition = 60
+        addPauseControlBackground()
+        configurePauseIcon()
+        configureResumeIcon()
+        addChild(pauseControlNode)
+        layoutPauseControl()
+        updatePauseControl()
+    }
+
     private func configureLabel(_ label: SKLabelNode, fontSize: CGFloat, color: SKColor) {
         label.fontSize = fontSize
         label.fontColor = color
@@ -171,6 +196,13 @@ final class ArenaScene: SKScene {
         detailLabel.position = CGPoint(x: size.width / 2, y: size.height / 2 - 12)
     }
 
+    private func layoutPauseControl() {
+        pauseControlNode.position = CGPoint(
+            x: max(pauseControlSize.width / 2, size.width - 32),
+            y: max(pauseControlSize.height / 2, size.height - 32)
+        )
+    }
+
     private func startRun() {
         runController.start()
         resetActiveRun()
@@ -179,6 +211,29 @@ final class ArenaScene: SKScene {
     private func restartRun() {
         runController.restart()
         resetActiveRun()
+    }
+
+    private func togglePauseControl() {
+        switch runController.phase {
+        case .active:
+            pauseRun()
+        case .paused:
+            resumeRun()
+        case .preRun, .gameOver:
+            break
+        }
+    }
+
+    private func pauseRun() {
+        runController.pause()
+        tiltInputController.resetSmoothedInput()
+        updateRunDisplay()
+    }
+
+    private func resumeRun() {
+        tiltInputController.resetSmoothedInput()
+        runController.resume()
+        updateRunDisplay()
     }
 
     private func resetActiveRun() {
@@ -284,9 +339,77 @@ final class ArenaScene: SKScene {
             centerLabel.text = "GAME OVER"
             detailLabel.text = "\(formatSurvivalTime(runController.survivalTime))  TAP TO RESTART"
         }
+
+        updatePauseControl()
     }
 
     private func formatSurvivalTime(_ time: TimeInterval) -> String {
         String(format: "%.1fs", time)
+    }
+
+    private func isPauseControlTouch(_ touch: UITouch) -> Bool {
+        switch runController.phase {
+        case .active, .paused:
+            return pauseControlFrame.contains(touch.location(in: self))
+        case .preRun, .gameOver:
+            return false
+        }
+    }
+
+    private var pauseControlFrame: CGRect {
+        CGRect(
+            x: pauseControlNode.position.x - pauseControlSize.width / 2,
+            y: pauseControlNode.position.y - pauseControlSize.height / 2,
+            width: pauseControlSize.width,
+            height: pauseControlSize.height
+        )
+    }
+
+    private func updatePauseControl() {
+        switch runController.phase {
+        case .active:
+            pauseControlNode.isHidden = false
+            pauseIconNode.isHidden = false
+            resumeIconNode.isHidden = true
+        case .paused:
+            pauseControlNode.isHidden = false
+            pauseIconNode.isHidden = true
+            resumeIconNode.isHidden = false
+        case .preRun, .gameOver:
+            pauseControlNode.isHidden = true
+        }
+    }
+
+    private func addPauseControlBackground() {
+        let background = SKShapeNode(rectOf: pauseControlSize, cornerRadius: 8)
+        background.fillColor = theme.borderColor.withAlphaComponent(0.12)
+        background.strokeColor = theme.borderColor.withAlphaComponent(0.55)
+        background.lineWidth = 1
+        pauseControlNode.addChild(background)
+    }
+
+    private func configurePauseIcon() {
+        for xOffset in [CGFloat(-5.5), CGFloat(5.5)] {
+            let bar = SKShapeNode(rectOf: CGSize(width: 5, height: 18), cornerRadius: 1.5)
+            bar.position = CGPoint(x: xOffset, y: 0)
+            bar.fillColor = theme.playerColor
+            bar.strokeColor = theme.playerColor
+            pauseIconNode.addChild(bar)
+        }
+
+        pauseControlNode.addChild(pauseIconNode)
+    }
+
+    private func configureResumeIcon() {
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: -5, y: -10))
+        path.addLine(to: CGPoint(x: -5, y: 10))
+        path.addLine(to: CGPoint(x: 10, y: 0))
+        path.closeSubpath()
+
+        resumeIconNode.path = path
+        resumeIconNode.fillColor = theme.playerColor
+        resumeIconNode.strokeColor = theme.playerColor
+        pauseControlNode.addChild(resumeIconNode)
     }
 }
