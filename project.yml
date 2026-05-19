@@ -1,0 +1,45 @@
+name: TiltArena
+
+options:
+  bundleIdPrefix: com.xlc
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+    TARGETED_DEVICE_FAMILY: "1"
+
+targets:
+  TiltArena:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: TiltArena
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.xlc.TiltArena
+        INFOPLIST_FILE: TiltArena/Resources/Info.plist
+        SUPPORTS_MACCATALYST: false
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: false
+        TARGETED_DEVICE_FAMILY: "1"
+
+schemes:
+  TiltArena:
+    build:
+      targets:
+        TiltArena: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
