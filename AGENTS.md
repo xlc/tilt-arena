@@ -37,7 +37,16 @@ Core loop:
 - Always close the issue when the work is completed.
 - If an issue is too large to implement in one pull request, create sub-issues
   first and implement the smaller sub-issues independently.
-- Before starting work on an issue, switch to a new branch from `master`.
+- Before starting work on a new GitHub issue, ensure the current branch is
+  `master` and up to date.
+- If already on a branch for the issue being worked, continue on that branch.
+- If on a branch for a pull request that has already been merged, switch to
+  `master`, update it, and delete the no longer needed branch.
+- If on a branch for a work-in-progress pull request or the working tree has
+  dirty changes, ask the user what to do before switching branches or editing
+  files.
+- Before starting work on an issue that does not already have a branch, switch
+  to a new branch from `master`.
 - Do not implement work directly on `master`.
 - Link pull requests to the issue they complete, preferably with a closing
   keyword such as `Closes #123` in the PR body.
@@ -45,4 +54,3 @@ Core loop:
   branch, switch back to `master`, and run `git pull`.
 - For GitHub issue and pull request workflow decisions, use the repo-local
   skill at `.agents/skills/github-issue-pr-workflow`.
-

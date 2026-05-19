@@ -55,7 +55,7 @@ jobs:
             exit 1
           fi
 
-          echo "TEST_DESTINATION=platform=iOS Simulator,id=$test_device_id" >> "$GITHUB_ENV"
+          echo "TEST_DESTINATION=platform=iOS Simulator,id=$test_device_id,arch=arm64" >> "$GITHUB_ENV"
 
       - name: Test
         run: |
