@@ -28,6 +28,19 @@ targets:
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: false
         TARGETED_DEVICE_FAMILY: "1"
 
+  TiltArenaTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: TiltArenaTests
+    dependencies:
+      - target: TiltArena
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.xlc.TiltArenaTests
+        GENERATE_INFOPLIST_FILE: true
+
 schemes:
   TiltArena:
     build:
@@ -37,6 +50,8 @@ schemes:
       config: Debug
     test:
       config: Debug
+      targets:
+        - TiltArenaTests
     profile:
       config: Release
     analyze:

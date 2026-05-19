@@ -20,6 +20,8 @@
 	<string>1</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSMotionUsageDescription</key>
+	<string>Tilt Arena uses device motion to steer the player craft.</string>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>
