@@ -6,6 +6,57 @@ private struct GravityWellState {
     var timeRemaining: TimeInterval
 }
 
+struct ArenaHUDLayout: Equatable {
+    let timerPosition: CGPoint
+    let centerPosition: CGPoint
+    let detailPosition: CGPoint
+    let comboPosition: CGPoint
+    let pauseControlPosition: CGPoint
+
+    init(
+        sceneSize: CGSize,
+        safeAreaInsets: UIEdgeInsets,
+        margin: CGFloat,
+        pauseControlSize: CGSize
+    ) {
+        let safeRect = Self.safeRect(
+            sceneSize: sceneSize,
+            safeAreaInsets: safeAreaInsets,
+            margin: margin
+        )
+        let halfPauseWidth = pauseControlSize.width / 2
+        let halfPauseHeight = pauseControlSize.height / 2
+
+        timerPosition = CGPoint(x: safeRect.minX, y: safeRect.maxY)
+        centerPosition = CGPoint(x: safeRect.midX, y: safeRect.midY + 24)
+        detailPosition = CGPoint(x: safeRect.midX, y: safeRect.midY - 12)
+        comboPosition = CGPoint(x: safeRect.midX, y: safeRect.minY)
+        pauseControlPosition = CGPoint(
+            x: max(safeRect.minX + halfPauseWidth, safeRect.maxX - halfPauseWidth),
+            y: max(safeRect.minY + halfPauseHeight, safeRect.maxY - halfPauseHeight)
+        )
+    }
+
+    private static func safeRect(
+        sceneSize: CGSize,
+        safeAreaInsets: UIEdgeInsets,
+        margin: CGFloat
+    ) -> CGRect {
+        let width = max(0, sceneSize.width)
+        let height = max(0, sceneSize.height)
+        let leftInset = max(0, min(safeAreaInsets.left, width))
+        let rightInset = max(0, min(safeAreaInsets.right, width - leftInset))
+        let bottomInset = max(0, min(safeAreaInsets.bottom, height))
+        let topInset = max(0, min(safeAreaInsets.top, height - bottomInset))
+        let minX = leftInset + margin
+        let maxX = max(minX, width - rightInset - margin)
+        let minY = bottomInset + margin
+        let maxY = max(minY, height - topInset - margin)
+
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    }
+}
+
 final class ArenaScene: SKScene {
     private let theme = ArenaTheme.darkTacticalRadar
     private let tiltSettingsStore = TiltSettingsStore()
@@ -40,6 +91,7 @@ final class ArenaScene: SKScene {
     private let pauseControlNode = SKNode()
     private let pauseIconNode = SKNode()
     private let resumeIconNode = SKShapeNode()
+    private let hudMargin: CGFloat = 24
     private let pauseControlSize = CGSize(width: 48, height: 48)
     private var lastUpdateTime: TimeInterval?
 
@@ -101,6 +153,11 @@ final class ArenaScene: SKScene {
 
     func recalibrateTiltControls() {
         tiltInputController.recalibrateToCurrentAttitude()
+    }
+
+    func refreshSafeAreaLayout() {
+        layoutLabels()
+        layoutPauseControl()
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -218,16 +275,24 @@ final class ArenaScene: SKScene {
     }
 
     private func layoutLabels() {
-        timerLabel.position = CGPoint(x: 24, y: max(24, size.height - 24))
-        centerLabel.position = CGPoint(x: size.width / 2, y: size.height / 2 + 24)
-        detailLabel.position = CGPoint(x: size.width / 2, y: size.height / 2 - 12)
-        comboLabel.position = CGPoint(x: size.width / 2, y: 24)
+        let layout = currentHUDLayout()
+
+        timerLabel.position = layout.timerPosition
+        centerLabel.position = layout.centerPosition
+        detailLabel.position = layout.detailPosition
+        comboLabel.position = layout.comboPosition
     }
 
     private func layoutPauseControl() {
-        pauseControlNode.position = CGPoint(
-            x: max(pauseControlSize.width / 2, size.width - 32),
-            y: max(pauseControlSize.height / 2, size.height - 32)
+        pauseControlNode.position = currentHUDLayout().pauseControlPosition
+    }
+
+    private func currentHUDLayout() -> ArenaHUDLayout {
+        ArenaHUDLayout(
+            sceneSize: size,
+            safeAreaInsets: view?.safeAreaInsets ?? .zero,
+            margin: hudMargin,
+            pauseControlSize: pauseControlSize
         )
     }
 
