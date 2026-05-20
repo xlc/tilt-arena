@@ -1,8 +1,8 @@
 import SpriteKit
 
 @MainActor
-final class FormationTelegraphNode: SKNode {
-    init(telegraph: FormationTelegraph, theme: ArenaTheme) {
+final class EnemyTelegraphNode: SKNode {
+    init(telegraph: EnemyTelegraph, theme: ArenaTheme) {
         super.init()
 
         zPosition = 14
@@ -20,7 +20,7 @@ final class FormationTelegraphNode: SKNode {
     }
 
     required init?(coder aDecoder: NSCoder) {
-        fatalError("FormationTelegraphNode does not support storyboard initialization.")
+        fatalError("EnemyTelegraphNode does not support storyboard initialization.")
     }
 
     private func appendDashes(from start: CGPoint, to end: CGPoint, to path: CGMutablePath) {

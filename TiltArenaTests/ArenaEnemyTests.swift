@@ -2,9 +2,9 @@ import CoreGraphics
 import XCTest
 @testable import TiltArena
 
-final class ChaserEnemyTests: XCTestCase {
-    func testChaserMovesTowardPlayerWithoutOvershooting() {
-        var enemy = ChaserEnemy(id: 1, position: CGPoint(x: 0, y: 0), radius: 8, speed: 100)
+final class ArenaEnemyTests: XCTestCase {
+    func testEnemyMovesTowardPlayerWithoutOvershooting() {
+        var enemy = ArenaEnemy(id: 1, position: CGPoint(x: 0, y: 0), radius: 8, speed: 100)
 
         enemy.advance(toward: CGPoint(x: 30, y: 0), deltaTime: 1)
 
@@ -12,8 +12,8 @@ final class ChaserEnemyTests: XCTestCase {
         XCTAssertEqual(enemy.position.y, 0, accuracy: 0.0001)
     }
 
-    func testChaserDoesNotMoveWithNegativeSpeedOrDeltaTime() {
-        var enemy = ChaserEnemy(id: 1, position: CGPoint(x: 10, y: 0), radius: 8, speed: -100)
+    func testEnemyDoesNotMoveWithNegativeSpeedOrDeltaTime() {
+        var enemy = ArenaEnemy(id: 1, position: CGPoint(x: 10, y: 0), radius: 8, speed: -100)
 
         enemy.advance(toward: CGPoint(x: 30, y: 0), deltaTime: 1)
         XCTAssertEqual(enemy.position.x, 10, accuracy: 0.0001)
@@ -24,7 +24,7 @@ final class ChaserEnemyTests: XCTestCase {
     }
 
     func testFormationLineMovesAlongVelocity() {
-        var enemy = ChaserEnemy(
+        var enemy = ArenaEnemy(
             id: 1,
             position: CGPoint(x: 0, y: 10),
             radius: 8,
@@ -37,6 +37,23 @@ final class ChaserEnemyTests: XCTestCase {
         XCTAssertEqual(enemy.position.x, 20, accuracy: 0.0001)
         XCTAssertEqual(enemy.position.y, 5, accuracy: 0.0001)
         XCTAssertEqual(enemy.formationID, 4)
+    }
+
+    func testArrowRushMovesAlongVelocity() {
+        var enemy = ArenaEnemy(
+            id: 1,
+            position: CGPoint(x: -20, y: 50),
+            radius: 8,
+            speed: 150,
+            behavior: .arrowRush(velocity: CGVector(dx: 120, dy: 30))
+        )
+
+        enemy.advance(toward: CGPoint(x: 0, y: 0), deltaTime: 0.25)
+
+        XCTAssertEqual(enemy.position.x, 10, accuracy: 0.0001)
+        XCTAssertEqual(enemy.position.y, 57.5, accuracy: 0.0001)
+        XCTAssertNil(enemy.formationID)
+        XCTAssertTrue(enemy.isLinearPatternEnemy)
     }
 
     func testCircleCollisionUsesCombinedRadii() {
