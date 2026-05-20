@@ -30,6 +30,36 @@ an untracked TODO, chat note, or local plan when the work should be tracked.
 - Avoid bundling unrelated cleanup into an issue branch unless it is required to
   complete that issue.
 
+## Issue Image Attachments
+
+- When attaching generated images or screenshots to an issue comment, upload the
+  files as GitHub issue assets instead of committing temporary reference files to
+  the repository.
+- Use the already-installed `gh image` command when the user asks to attach
+  local generated images, screenshots, or other issue-relevant image assets to a
+  GitHub issue or pull request comment.
+- Run `gh image` to turn local image files into
+  `https://github.com/user-attachments/assets/...` Markdown links:
+
+  ```bash
+  gh image --repo owner/repo image-1.png image-2.png > /tmp/image-links.md
+  ```
+
+- Then compose the issue comment body with those returned Markdown links and
+  post it with `gh issue comment`:
+
+  ```bash
+  gh issue comment 14 --repo owner/repo --body-file /tmp/comment.md
+  ```
+
+- `gh image` uses GitHub's browser-session upload flow. If it fails with
+  `uploadToken not found`, verify the browser session has write access to the
+  target repository or provide a valid `GH_SESSION_TOKEN`. Do not fall back to
+  repo-hosted raw links unless the user explicitly asks for repository assets.
+- Treat `GH_SESSION_TOKEN` as a secret. Prefer passing it through the shell
+  environment instead of a `--token` argument so it is not exposed in process
+  listings or saved command history.
+
 ## Pull Requests
 
 - Open the PR against `master` unless the repository owner explicitly chooses a
@@ -57,4 +87,3 @@ an untracked TODO, chat note, or local plan when the work should be tracked.
 For source notes from GitHub Docs, read
 `references/github-workflow-sources.md` when the exact behavior of sub-issues,
 branch links, PR links, or closing keywords matters.
-
