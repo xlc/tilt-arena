@@ -24,6 +24,13 @@ final class EnemyNode: SKNode {
         bodyNode.glowWidth = 3
         addChild(bodyNode)
 
+        if enemy.isMineDot {
+            ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.8)
+            ringNode.lineWidth = 2
+            bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.82)
+            bodyNode.glowWidth = 1.5
+        }
+
         apply(enemy)
     }
 

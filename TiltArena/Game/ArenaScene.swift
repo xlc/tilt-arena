@@ -303,7 +303,7 @@ final class ArenaScene: SKScene {
         let frame = spawnDirector.update(
             deltaTime: deltaTime,
             survivalTime: runController.survivalTime,
-            activeEnemyCount: enemies.count,
+            activeEnemies: enemies,
             playableRect: playableRect,
             playerPosition: playerPosition,
             pickupCircles: pickups.map(\.collisionCircle)
