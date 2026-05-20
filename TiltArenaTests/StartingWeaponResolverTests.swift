@@ -58,6 +58,38 @@ final class StartingWeaponResolverTests: XCTestCase {
         XCTAssertEqual(resolver.shieldTargets(playerPosition: .zero, enemies: enemies), [1])
     }
 
+    func testFreezeBurstFreezesEnemiesInsideRadiusWithoutDestroyingThem() {
+        let resolver = StartingWeaponResolver(
+            configuration: StartingWeaponConfiguration(freezeBurstRadius: 50)
+        )
+        let enemies = [
+            enemy(id: 1, position: CGPoint(x: 20, y: 0)),
+            enemy(id: 2, position: CGPoint(x: 80, y: 0))
+        ]
+
+        let resolution = resolver.resolve(
+            kind: .freezeBurst,
+            playerPosition: .zero,
+            enemies: enemies
+        )
+
+        XCTAssertEqual(resolution.destroyedEnemyIDs, [])
+        XCTAssertEqual(resolution.frozenEnemyIDs, [1])
+    }
+
+    func testFreezeBurstHandlesEmptyArena() {
+        let resolver = StartingWeaponResolver()
+
+        let resolution = resolver.resolve(
+            kind: .freezeBurst,
+            playerPosition: .zero,
+            enemies: []
+        )
+
+        XCTAssertEqual(resolution.destroyedEnemyIDs, [])
+        XCTAssertEqual(resolution.frozenEnemyIDs, [])
+    }
+
     func testNovaBombClearsAllEnemies() {
         let resolver = StartingWeaponResolver()
         let enemies = [

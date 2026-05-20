@@ -74,6 +74,47 @@ final class ArenaEnemyTests: XCTestCase {
         XCTAssertTrue(enemy.isMineDot)
     }
 
+    func testFrozenEnemyPausesMovementUntilThawed() {
+        var enemy = ArenaEnemy(id: 1, position: CGPoint(x: 0, y: 0), radius: 8, speed: 100)
+
+        enemy.freeze(duration: 1)
+        enemy.advance(toward: CGPoint(x: 100, y: 0), deltaTime: 0.5)
+
+        XCTAssertTrue(enemy.isFrozen)
+        XCTAssertEqual(enemy.position.x, 0, accuracy: 0.0001)
+
+        enemy.advance(toward: CGPoint(x: 100, y: 0), deltaTime: 0.5)
+        enemy.advance(toward: CGPoint(x: 100, y: 0), deltaTime: 0.1)
+
+        XCTAssertFalse(enemy.isFrozen)
+        XCTAssertEqual(enemy.position.x, 10, accuracy: 0.0001)
+    }
+
+    func testFrozenEnemyPreservesBehaviorAndFormationIdentity() {
+        var enemy = ArenaEnemy(
+            id: 1,
+            position: CGPoint(x: 0, y: 10),
+            radius: 8,
+            speed: 90,
+            behavior: .formationLine(velocity: CGVector(dx: 40, dy: -10), formationID: 4)
+        )
+
+        enemy.freeze(duration: 0.25)
+        enemy.advance(toward: CGPoint(x: 1000, y: 1000), deltaTime: 0.25)
+
+        XCTAssertFalse(enemy.isFrozen)
+        XCTAssertEqual(enemy.position.x, 0, accuracy: 0.0001)
+        XCTAssertEqual(enemy.position.y, 10, accuracy: 0.0001)
+        XCTAssertEqual(enemy.formationID, 4)
+        XCTAssertTrue(enemy.isLinearPatternEnemy)
+
+        enemy.advance(toward: CGPoint(x: 1000, y: 1000), deltaTime: 0.5)
+
+        XCTAssertEqual(enemy.position.x, 20, accuracy: 0.0001)
+        XCTAssertEqual(enemy.position.y, 5, accuracy: 0.0001)
+        XCTAssertEqual(enemy.formationID, 4)
+    }
+
     func testHunterDotUsesPredictedPlayerPosition() {
         var enemy = ArenaEnemy(
             id: 1,

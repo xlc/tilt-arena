@@ -6,10 +6,14 @@ struct StartingWeaponConfiguration: Equatable {
     var seekerTargetLimit: Int = 4
     var razorShieldRadius: CGFloat = 32
     var razorShieldDuration: TimeInterval = 4
+    var freezeBurstRadius: CGFloat = 112
+    var freezeDuration: TimeInterval = 4
+    var frozenCrasherDuration: TimeInterval = 2.4
 }
 
 struct WeaponResolution: Equatable {
     var destroyedEnemyIDs: Set<Int> = []
+    var frozenEnemyIDs: Set<Int> = []
 }
 
 struct StartingWeaponResolver {
@@ -23,6 +27,8 @@ struct StartingWeaponResolver {
             return WeaponResolution(destroyedEnemyIDs: seekerTargets(playerPosition: playerPosition, enemies: enemies))
         case .razorShield:
             return WeaponResolution()
+        case .freezeBurst:
+            return WeaponResolution(frozenEnemyIDs: freezeBurstTargets(playerPosition: playerPosition, enemies: enemies))
         case .novaBomb:
             return WeaponResolution(destroyedEnemyIDs: Set(enemies.map(\.id)))
         }
@@ -54,6 +60,11 @@ struct StartingWeaponResolver {
                 .prefix(targetLimit)
                 .map(\.id)
         )
+    }
+
+    private func freezeBurstTargets(playerPosition: CGPoint, enemies: [ArenaEnemy]) -> Set<Int> {
+        let freezeCircle = CollisionCircle(center: playerPosition, radius: configuration.freezeBurstRadius)
+        return Set(enemies.filter { freezeCircle.intersects($0.collisionCircle) }.map(\.id))
     }
 
     private func squaredDistance(from lhs: CGPoint, to rhs: CGPoint) -> CGFloat {
