@@ -6,6 +6,7 @@ enum EnemyBehavior: Equatable {
     case formationLine(velocity: CGVector, formationID: Int)
     case arrowRush(velocity: CGVector)
     case mineDot
+    case hunterDot(predictionLead: CGFloat, previousTarget: CGPoint?)
 }
 
 struct ArenaEnemy: Equatable, Identifiable {
@@ -17,7 +18,7 @@ struct ArenaEnemy: Equatable, Identifiable {
 
     var formationID: Int? {
         switch behavior {
-        case .chaser, .arrowRush, .mineDot:
+        case .chaser, .arrowRush, .mineDot, .hunterDot:
             return nil
         case let .formationLine(_, formationID):
             return formationID
@@ -26,7 +27,7 @@ struct ArenaEnemy: Equatable, Identifiable {
 
     var isLinearPatternEnemy: Bool {
         switch behavior {
-        case .chaser, .mineDot:
+        case .chaser, .mineDot, .hunterDot:
             return false
         case .formationLine, .arrowRush:
             return true
@@ -35,6 +36,14 @@ struct ArenaEnemy: Equatable, Identifiable {
 
     var isMineDot: Bool {
         behavior == .mineDot
+    }
+
+    var isHunterDot: Bool {
+        guard case .hunterDot = behavior else {
+            return false
+        }
+
+        return true
     }
 
     var collisionCircle: CollisionCircle {
@@ -53,6 +62,8 @@ struct ArenaEnemy: Equatable, Identifiable {
             advanceLinearly(velocity: velocity, deltaTime: clampedDelta)
         case .mineDot:
             return
+        case let .hunterDot(predictionLead, previousTarget):
+            advanceHunter(toward: target, predictionLead: predictionLead, previousTarget: previousTarget, deltaTime: clampedDelta)
         }
     }
 
@@ -82,5 +93,26 @@ struct ArenaEnemy: Equatable, Identifiable {
             x: position.x + (dx / distance) * step,
             y: position.y + (dy / distance) * step
         )
+    }
+
+    private mutating func advanceHunter(
+        toward target: CGPoint,
+        predictionLead: CGFloat,
+        previousTarget: CGPoint?,
+        deltaTime: CGFloat
+    ) {
+        let predictedTarget: CGPoint
+
+        if let previousTarget {
+            predictedTarget = CGPoint(
+                x: target.x + (target.x - previousTarget.x) * max(0, predictionLead),
+                y: target.y + (target.y - previousTarget.y) * max(0, predictionLead)
+            )
+        } else {
+            predictedTarget = target
+        }
+
+        advanceChaser(toward: predictedTarget, deltaTime: deltaTime)
+        behavior = .hunterDot(predictionLead: predictionLead, previousTarget: target)
     }
 }
