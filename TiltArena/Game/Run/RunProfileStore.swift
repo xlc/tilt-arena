@@ -55,4 +55,8 @@ final class RunProfileStore {
         profile = updatedProfile
         return updatedProfile
     }
+
+    func reset() {
+        defaults.removeObject(forKey: profileKey)
+    }
 }
