@@ -158,14 +158,17 @@ final class PickupSpawnPlannerTests: XCTestCase {
         XCTAssertEqual(kinds.filter { $0 == .freezeBurst }.count, 3)
         XCTAssertEqual(kinds.filter { $0 == .gravityWell }.count, 2)
         XCTAssertEqual(kinds.filter { $0 == .chainLightning }.count, 2)
+        XCTAssertEqual(kinds.filter { $0 == .flameTrail }.count, 2)
         XCTAssertEqual(kinds.filter { $0 == .novaBomb }.count, 1)
         XCTAssertGreaterThan(kinds.filter { $0 == .shockwave }.count, kinds.filter { $0 == .freezeBurst }.count)
         XCTAssertGreaterThan(kinds.filter { $0 == .seekerSwarm }.count, kinds.filter { $0 == .freezeBurst }.count)
         XCTAssertGreaterThan(kinds.filter { $0 == .razorShield }.count, kinds.filter { $0 == .freezeBurst }.count)
         XCTAssertGreaterThan(kinds.filter { $0 == .freezeBurst }.count, kinds.filter { $0 == .gravityWell }.count)
         XCTAssertGreaterThan(kinds.filter { $0 == .freezeBurst }.count, kinds.filter { $0 == .chainLightning }.count)
+        XCTAssertGreaterThan(kinds.filter { $0 == .freezeBurst }.count, kinds.filter { $0 == .flameTrail }.count)
         XCTAssertGreaterThan(kinds.filter { $0 == .gravityWell }.count, kinds.filter { $0 == .novaBomb }.count)
         XCTAssertGreaterThan(kinds.filter { $0 == .chainLightning }.count, kinds.filter { $0 == .novaBomb }.count)
+        XCTAssertGreaterThan(kinds.filter { $0 == .flameTrail }.count, kinds.filter { $0 == .novaBomb }.count)
     }
 
     func testEmptyKindCycleDoesNotSpawnPickup() {

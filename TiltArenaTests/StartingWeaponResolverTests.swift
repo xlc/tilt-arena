@@ -227,6 +227,22 @@ final class StartingWeaponResolverTests: XCTestCase {
         XCTAssertEqual(resolution.destroyedEnemyIDs, [1, 2, 3])
     }
 
+    func testFlameTrailDoesNotInstantlyResolveTargets() {
+        let resolver = StartingWeaponResolver()
+        let enemies = [
+            enemy(id: 1, position: CGPoint(x: 10, y: 0))
+        ]
+
+        let resolution = resolver.resolve(
+            kind: .flameTrail,
+            playerPosition: .zero,
+            enemies: enemies
+        )
+
+        XCTAssertEqual(resolution.destroyedEnemyIDs, [])
+        XCTAssertEqual(resolution.frozenEnemyIDs, [])
+    }
+
     func testNovaBombHandlesEmptyArena() {
         let resolver = StartingWeaponResolver()
 
