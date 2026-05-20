@@ -148,7 +148,7 @@ final class PickupSpawnPlannerTests: XCTestCase {
         ])
     }
 
-    func testDefaultKindCycleMakesGravityWellRareAndNovaBombRarest() {
+    func testDefaultKindCycleMakesControlWeaponsRareAndNovaBombRarest() {
         let kinds = spawnKinds(
             count: PickupSpawnConfiguration.defaultWeaponKindCycle.count,
             configuration: PickupSpawnConfiguration()
@@ -157,12 +157,15 @@ final class PickupSpawnPlannerTests: XCTestCase {
         XCTAssertEqual(kinds, PickupSpawnConfiguration.defaultWeaponKindCycle)
         XCTAssertEqual(kinds.filter { $0 == .freezeBurst }.count, 3)
         XCTAssertEqual(kinds.filter { $0 == .gravityWell }.count, 2)
+        XCTAssertEqual(kinds.filter { $0 == .chainLightning }.count, 2)
         XCTAssertEqual(kinds.filter { $0 == .novaBomb }.count, 1)
         XCTAssertGreaterThan(kinds.filter { $0 == .shockwave }.count, kinds.filter { $0 == .freezeBurst }.count)
         XCTAssertGreaterThan(kinds.filter { $0 == .seekerSwarm }.count, kinds.filter { $0 == .freezeBurst }.count)
         XCTAssertGreaterThan(kinds.filter { $0 == .razorShield }.count, kinds.filter { $0 == .freezeBurst }.count)
         XCTAssertGreaterThan(kinds.filter { $0 == .freezeBurst }.count, kinds.filter { $0 == .gravityWell }.count)
+        XCTAssertGreaterThan(kinds.filter { $0 == .freezeBurst }.count, kinds.filter { $0 == .chainLightning }.count)
         XCTAssertGreaterThan(kinds.filter { $0 == .gravityWell }.count, kinds.filter { $0 == .novaBomb }.count)
+        XCTAssertGreaterThan(kinds.filter { $0 == .chainLightning }.count, kinds.filter { $0 == .novaBomb }.count)
     }
 
     func testEmptyKindCycleDoesNotSpawnPickup() {

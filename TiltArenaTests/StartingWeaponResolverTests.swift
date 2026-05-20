@@ -125,6 +125,91 @@ final class StartingWeaponResolverTests: XCTestCase {
         XCTAssertEqual(resolution.gravityWellEnemyIDs, [])
     }
 
+    func testChainLightningDestroysOrderedChainedTargets() {
+        let resolver = StartingWeaponResolver()
+        let enemies = [
+            enemy(id: 1, position: CGPoint(x: 100, y: 0)),
+            enemy(id: 2, position: CGPoint(x: 150, y: 0)),
+            enemy(id: 3, position: CGPoint(x: 210, y: 0)),
+            enemy(id: 4, position: CGPoint(x: 60, y: 90))
+        ]
+
+        let resolution = resolver.resolve(
+            kind: .chainLightning,
+            playerPosition: .zero,
+            enemies: enemies
+        )
+
+        XCTAssertEqual(resolution.chainLightningEnemyIDs, [1, 2, 3])
+        XCTAssertEqual(resolution.destroyedEnemyIDs, [1, 2, 3])
+    }
+
+    func testChainLightningStopsWhenNextTargetIsOutOfJumpRange() {
+        let resolver = StartingWeaponResolver()
+        let enemies = [
+            enemy(id: 1, position: CGPoint(x: 100, y: 0)),
+            enemy(id: 2, position: CGPoint(x: 210, y: 0))
+        ]
+
+        let resolution = resolver.resolve(
+            kind: .chainLightning,
+            playerPosition: .zero,
+            enemies: enemies
+        )
+
+        XCTAssertEqual(resolution.chainLightningEnemyIDs, [1])
+        XCTAssertEqual(resolution.destroyedEnemyIDs, [1])
+    }
+
+    func testChainLightningRespectsTargetLimit() {
+        let resolver = StartingWeaponResolver(
+            configuration: StartingWeaponConfiguration(chainLightningTargetLimit: 2)
+        )
+        let enemies = [
+            enemy(id: 1, position: CGPoint(x: 80, y: 0)),
+            enemy(id: 2, position: CGPoint(x: 130, y: 0)),
+            enemy(id: 3, position: CGPoint(x: 180, y: 0))
+        ]
+
+        let resolution = resolver.resolve(
+            kind: .chainLightning,
+            playerPosition: .zero,
+            enemies: enemies
+        )
+
+        XCTAssertEqual(resolution.chainLightningEnemyIDs, [1, 2])
+        XCTAssertEqual(resolution.destroyedEnemyIDs, [1, 2])
+    }
+
+    func testChainLightningRequiresFirstTargetInsideInitialRange() {
+        let resolver = StartingWeaponResolver()
+        let enemies = [
+            enemy(id: 1, position: CGPoint(x: 129, y: 0))
+        ]
+
+        let resolution = resolver.resolve(
+            kind: .chainLightning,
+            playerPosition: .zero,
+            enemies: enemies
+        )
+
+        XCTAssertEqual(resolution.chainLightningEnemyIDs, [])
+        XCTAssertEqual(resolution.destroyedEnemyIDs, [])
+    }
+
+    func testChainLightningHandlesEmptyArena() {
+        let resolver = StartingWeaponResolver()
+
+        let resolution = resolver.resolve(
+            kind: .chainLightning,
+            playerPosition: .zero,
+            enemies: []
+        )
+
+        XCTAssertEqual(resolution.chainLightningEnemyIDs, [])
+        XCTAssertEqual(resolution.destroyedEnemyIDs, [])
+    }
+
     func testNovaBombClearsAllEnemies() {
         let resolver = StartingWeaponResolver()
         let enemies = [
