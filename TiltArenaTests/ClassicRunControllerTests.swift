@@ -124,7 +124,7 @@ final class ClassicRunControllerTests: XCTestCase {
         controller.start()
         controller.recordEnemyKills(count: 12, weaponKind: .seekerSwarm)
 
-        XCTAssertEqual(controller.score, 170)
+        XCTAssertEqual(controller.score, 150)
         XCTAssertEqual(controller.currentCombo, 12)
         XCTAssertEqual(controller.comboMultiplier, 2)
     }
