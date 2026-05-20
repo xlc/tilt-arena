@@ -3,10 +3,13 @@ import SpriteKit
 final class ArenaScene: SKScene {
     private let theme = ArenaTheme.darkTacticalRadar
     private let tiltSettingsStore = TiltSettingsStore()
+    private let runProfileStore = RunProfileStore()
     private var arenaRoot = SKNode()
     private lazy var tiltInputController = TiltInputController(settingsStore: tiltSettingsStore)
     private var movementController = PlayerMovementController()
     private var runController = ClassicRunController()
+    private var runProfile = RunProfile()
+    private var hasPersistedFinalRun = false
     private var spawnPlanner = ChaserSpawnPlanner()
     private let pickupSpawnConfiguration = PickupSpawnConfiguration()
     private var pickupPlanner = PickupSpawnPlanner()
@@ -22,6 +25,7 @@ final class ArenaScene: SKScene {
     private let timerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
     private let centerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
     private let detailLabel = SKLabelNode(fontNamed: "Menlo")
+    private let comboLabel = SKLabelNode(fontNamed: "Menlo-Bold")
     private let pauseControlNode = SKNode()
     private let pauseIconNode = SKNode()
     private let resumeIconNode = SKShapeNode()
@@ -39,6 +43,7 @@ final class ArenaScene: SKScene {
     }
 
     override func didMove(to view: SKView) {
+        runProfile = runProfileStore.profile
         rebuildArena()
         configureLabels()
         configurePauseControl()
@@ -168,7 +173,11 @@ final class ArenaScene: SKScene {
         detailLabel.horizontalAlignmentMode = .center
         detailLabel.verticalAlignmentMode = .center
 
-        [timerLabel, centerLabel, detailLabel].forEach { label in
+        configureLabel(comboLabel, fontSize: 14, color: theme.playerAccentColor)
+        comboLabel.horizontalAlignmentMode = .center
+        comboLabel.verticalAlignmentMode = .bottom
+
+        [timerLabel, centerLabel, detailLabel, comboLabel].forEach { label in
             if label.parent == nil {
                 addChild(label)
             }
@@ -201,6 +210,7 @@ final class ArenaScene: SKScene {
         timerLabel.position = CGPoint(x: 24, y: max(24, size.height - 24))
         centerLabel.position = CGPoint(x: size.width / 2, y: size.height / 2 + 24)
         detailLabel.position = CGPoint(x: size.width / 2, y: size.height / 2 - 12)
+        comboLabel.position = CGPoint(x: size.width / 2, y: 24)
     }
 
     private func layoutPauseControl() {
@@ -244,6 +254,7 @@ final class ArenaScene: SKScene {
     }
 
     private func resetActiveRun() {
+        hasPersistedFinalRun = false
         resetGameplayObjects()
         placePlayer(resetPosition: true)
         resetPlayerFeedback()
@@ -276,6 +287,7 @@ final class ArenaScene: SKScene {
         collectPickups(playerPosition: playerPosition)
         advanceChasers(deltaTime: deltaTime, playerPosition: playerPosition)
         updateRazorShield(deltaTime: deltaTime, playerPosition: playerPosition)
+        recordNearMisses(playerPosition: playerPosition)
         detectPlayerCollision(playerPosition: playerPosition)
         updateRunDisplay()
     }
@@ -346,6 +358,10 @@ final class ArenaScene: SKScene {
         }
 
         for pickup in collectedPickups {
+            if isDangerGrab(pickup) {
+                runController.recordDangerGrab(pickupID: pickup.id)
+            }
+
             removePickup(id: pickup.id)
             applyWeapon(pickup.kind, playerPosition: playerPosition)
         }
@@ -373,19 +389,19 @@ final class ArenaScene: SKScene {
             activateRazorShield(at: playerPosition)
         }
 
-        destroyEnemies(ids: resolution.destroyedEnemyIDs)
+        destroyEnemies(ids: resolution.destroyedEnemyIDs, weaponKind: kind)
     }
 
     private func positions(forEnemyIDs enemyIDs: Set<Int>) -> [CGPoint] {
         enemies.compactMap { enemyIDs.contains($0.id) ? $0.position : nil }
     }
 
-    private func destroyEnemies(ids enemyIDs: Set<Int>) {
+    private func destroyEnemies(ids enemyIDs: Set<Int>, weaponKind: WeaponKind?) {
         guard !enemyIDs.isEmpty else {
             return
         }
 
-        runController.recordEnemiesDestroyed(enemyIDs.count)
+        runController.recordEnemyKills(count: enemyIDs.count, weaponKind: weaponKind)
         enemies.removeAll { enemyIDs.contains($0.id) }
 
         for enemyID in enemyIDs {
@@ -431,7 +447,7 @@ final class ArenaScene: SKScene {
             playerPosition: playerPosition,
             enemies: enemies
         )
-        destroyEnemies(ids: targetIDs)
+        destroyEnemies(ids: targetIDs, weaponKind: .razorShield)
 
         razorShieldTimeRemaining = max(0, razorShieldTimeRemaining - max(0, deltaTime))
 
@@ -495,7 +511,12 @@ final class ArenaScene: SKScene {
             return
         }
 
+        finishRun()
+    }
+
+    private func finishRun() {
         runController.endRun()
+        persistFinalRunIfNeeded()
         playDeathFeedback()
         updateRunDisplay()
     }
@@ -513,21 +534,32 @@ final class ArenaScene: SKScene {
     private func updateRunDisplay() {
         switch runController.phase {
         case .preRun:
-            timerLabel.text = formatSurvivalTime(0)
+            timerLabel.text = "BEST \(runProfile.bestScore)"
             centerLabel.text = "TAP TO START"
             detailLabel.text = "CLASSIC SURVIVAL"
+            comboLabel.text = ""
         case .active:
-            timerLabel.text = formatSurvivalTime(runController.survivalTime)
+            timerLabel.text = "SCORE \(runController.score)  \(formatSurvivalTime(runController.survivalTime))"
             centerLabel.text = ""
             detailLabel.text = ""
+            comboLabel.text = formatCombo()
         case .paused:
-            timerLabel.text = formatSurvivalTime(runController.survivalTime)
+            timerLabel.text = "SCORE \(runController.score)  \(formatSurvivalTime(runController.survivalTime))"
             centerLabel.text = "PAUSED"
             detailLabel.text = ""
+            comboLabel.text = formatCombo()
         case .gameOver:
-            timerLabel.text = formatSurvivalTime(runController.survivalTime)
-            centerLabel.text = "GAME OVER"
-            detailLabel.text = "\(formatSurvivalTime(runController.survivalTime))  TAP TO RESTART"
+            timerLabel.text = "BEST \(runProfile.bestScore)"
+
+            if let summary = runController.finalizedSummary {
+                centerLabel.text = "GAME OVER  \(summary.score)"
+                detailLabel.text = "TIME \(formatSurvivalTime(summary.survivalTime))  MAX COMBO \(summary.maxCombo)  PLAY AGAIN"
+                comboLabel.text = "KILLS \(summary.enemiesDestroyed)  WEAPON \(formatWeapon(summary.bestWeapon))"
+            } else {
+                centerLabel.text = "GAME OVER"
+                detailLabel.text = "\(formatSurvivalTime(runController.survivalTime))  PLAY AGAIN"
+                comboLabel.text = ""
+            }
         }
 
         updatePauseControl()
@@ -535,6 +567,23 @@ final class ArenaScene: SKScene {
 
     private func formatSurvivalTime(_ time: TimeInterval) -> String {
         String(format: "%.1fs", time)
+    }
+
+    private func formatCombo() -> String {
+        guard runController.currentCombo > 0 else {
+            return ""
+        }
+
+        return String(
+            format: "COMBO %d  x%d  %.1fs",
+            runController.currentCombo,
+            runController.comboMultiplier,
+            runController.comboTimeRemaining
+        )
+    }
+
+    private func formatWeapon(_ weaponKind: WeaponKind?) -> String {
+        weaponKind?.displayName.uppercased() ?? "NONE"
     }
 
     private func isPauseControlTouch(_ touch: UITouch) -> Bool {
@@ -568,6 +617,49 @@ final class ArenaScene: SKScene {
         case .preRun, .gameOver:
             pauseControlNode.isHidden = true
         }
+    }
+
+    private func recordNearMisses(playerPosition: CGPoint) {
+        let hitCircle = CollisionCircle(
+            center: playerPosition,
+            radius: runController.configuration.playerHitRadius
+        )
+        let nearMissCircle = CollisionCircle(
+            center: playerPosition,
+            radius: runController.configuration.playerHitRadius + runController.configuration.nearMissEdgeGap
+        )
+
+        for enemy in enemies where nearMissCircle.intersects(enemy.collisionCircle) {
+            guard !hitCircle.intersects(enemy.collisionCircle) else {
+                continue
+            }
+
+            runController.recordNearMiss(enemyID: enemy.id)
+        }
+    }
+
+    private func isDangerGrab(_ pickup: WeaponPickup) -> Bool {
+        enemies.contains { enemy in
+            let dangerDistance = runController.configuration.dangerGrabEnemyDistance
+                + pickup.radius
+                + enemy.radius
+            return squaredDistance(from: pickup.position, to: enemy.position) <= dangerDistance * dangerDistance
+        }
+    }
+
+    private func squaredDistance(from lhs: CGPoint, to rhs: CGPoint) -> CGFloat {
+        let dx = lhs.x - rhs.x
+        let dy = lhs.y - rhs.y
+        return dx * dx + dy * dy
+    }
+
+    private func persistFinalRunIfNeeded() {
+        guard !hasPersistedFinalRun, let summary = runController.finalizedSummary else {
+            return
+        }
+
+        runProfile = runProfileStore.record(summary)
+        hasPersistedFinalRun = true
     }
 
     private func addPauseControlBackground() {
