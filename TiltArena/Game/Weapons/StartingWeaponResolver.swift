@@ -12,12 +12,16 @@ struct StartingWeaponConfiguration: Equatable {
     var gravityWellRadius: CGFloat = 132
     var gravityWellPullDuration: TimeInterval = 0.85
     var gravityWellClearRadius: CGFloat = 32
+    var chainLightningInitialRange: CGFloat = 128
+    var chainLightningJumpRange: CGFloat = 96
+    var chainLightningTargetLimit: Int = 6
 }
 
 struct WeaponResolution: Equatable {
     var destroyedEnemyIDs: Set<Int> = []
     var frozenEnemyIDs: Set<Int> = []
     var gravityWellEnemyIDs: Set<Int> = []
+    var chainLightningEnemyIDs: [Int] = []
 }
 
 struct StartingWeaponResolver {
@@ -35,6 +39,12 @@ struct StartingWeaponResolver {
             return WeaponResolution(frozenEnemyIDs: freezeBurstTargets(playerPosition: playerPosition, enemies: enemies))
         case .gravityWell:
             return WeaponResolution(gravityWellEnemyIDs: gravityWellTargets(playerPosition: playerPosition, enemies: enemies))
+        case .chainLightning:
+            let targetIDs = chainLightningTargets(playerPosition: playerPosition, enemies: enemies)
+            return WeaponResolution(
+                destroyedEnemyIDs: Set(targetIDs),
+                chainLightningEnemyIDs: targetIDs
+            )
         case .novaBomb:
             return WeaponResolution(destroyedEnemyIDs: Set(enemies.map(\.id)))
         }
@@ -76,6 +86,57 @@ struct StartingWeaponResolver {
     private func gravityWellTargets(playerPosition: CGPoint, enemies: [ArenaEnemy]) -> Set<Int> {
         let wellCircle = CollisionCircle(center: playerPosition, radius: configuration.gravityWellRadius)
         return Set(enemies.filter { !$0.isFrozen && wellCircle.intersects($0.collisionCircle) }.map(\.id))
+    }
+
+    private func chainLightningTargets(playerPosition: CGPoint, enemies: [ArenaEnemy]) -> [Int] {
+        let targetLimit = max(0, configuration.chainLightningTargetLimit)
+
+        guard targetLimit > 0 else {
+            return []
+        }
+
+        var targetIDs: [Int] = []
+        var selectedIDs = Set<Int>()
+        var origin = playerPosition
+        var range = configuration.chainLightningInitialRange
+
+        while targetIDs.count < targetLimit {
+            guard let target = nearestEnemy(
+                from: origin,
+                within: range,
+                excluding: selectedIDs,
+                enemies: enemies
+            ) else {
+                return targetIDs
+            }
+
+            targetIDs.append(target.id)
+            selectedIDs.insert(target.id)
+            origin = target.position
+            range = configuration.chainLightningJumpRange
+        }
+
+        return targetIDs
+    }
+
+    private func nearestEnemy(
+        from origin: CGPoint,
+        within range: CGFloat,
+        excluding selectedIDs: Set<Int>,
+        enemies: [ArenaEnemy]
+    ) -> ArenaEnemy? {
+        let maximumDistance = max(0, range)
+        let maximumSquaredDistance = maximumDistance * maximumDistance
+
+        return enemies
+            .filter { enemy in
+                !selectedIDs.contains(enemy.id)
+                    && squaredDistance(from: enemy.position, to: origin) <= maximumSquaredDistance
+            }
+            .min {
+                squaredDistance(from: $0.position, to: origin)
+                    < squaredDistance(from: $1.position, to: origin)
+            }
     }
 
     private func squaredDistance(from lhs: CGPoint, to rhs: CGPoint) -> CGFloat {

@@ -479,6 +479,14 @@ final class ArenaScene: SKScene {
                 at: playerPosition,
                 enemyIDs: resolution.gravityWellEnemyIDs
             )
+        case .chainLightning:
+            let targetPositions = positions(forEnemyIDs: resolution.chainLightningEnemyIDs)
+            playChainLightningEffect(
+                from: playerPosition,
+                through: targetPositions,
+                accentColor: theme.playerAccentColor,
+                coreColor: theme.playerColor
+            )
         case .novaBomb:
             playNovaBombEffect()
         }
@@ -488,6 +496,11 @@ final class ArenaScene: SKScene {
 
     private func positions(forEnemyIDs enemyIDs: Set<Int>) -> [CGPoint] {
         enemies.compactMap { enemyIDs.contains($0.id) ? $0.position : nil }
+    }
+
+    private func positions(forEnemyIDs enemyIDs: [Int]) -> [CGPoint] {
+        let positionsByID = Dictionary(uniqueKeysWithValues: enemies.map { ($0.id, $0.position) })
+        return enemyIDs.compactMap { positionsByID[$0] }
     }
 
     private func destroyEnemies(ids enemyIDs: Set<Int>, weaponKind: WeaponKind?) {
@@ -868,7 +881,7 @@ private extension ArenaScene {
         guard !shatterIDs.isEmpty else {
             return
         }
-        playFrozenShatterEffect(at: positions(forEnemyIDs: shatterIDs))
+        playFrozenShatterEffect(at: positions(forEnemyIDs: shatterIDs), color: theme.playerColor)
         runController.recordFrozenShatters(count: shatterIDs.count, weaponKind: .freezeBurst)
         removeEnemies(ids: shatterIDs)
     }
@@ -976,23 +989,4 @@ private extension ArenaScene {
         container.run(.sequence([pulse, .removeFromParent()]))
     }
 
-    func playFrozenShatterEffect(at positions: [CGPoint]) {
-        for position in positions {
-            let ring = SKShapeNode(circleOfRadius: 16)
-            ring.position = position
-            ring.strokeColor = theme.playerColor.withAlphaComponent(0.9)
-            ring.fillColor = .clear
-            ring.lineWidth = 1.5
-            ring.glowWidth = 4
-            ring.zPosition = 18
-            ring.setScale(0.35)
-            addChild(ring)
-
-            let burst = SKAction.group([
-                .scale(to: 1.2, duration: 0.1),
-                .fadeOut(withDuration: 0.1)
-            ])
-            ring.run(.sequence([burst, .removeFromParent()]))
-        }
-    }
 }
