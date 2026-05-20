@@ -11,11 +11,6 @@ enum ClassicRunPhase: Equatable {
 struct ClassicRunConfiguration: Equatable {
     var playerVisualRadius: CGFloat = 14
     var playerHitRadiusScale: CGFloat = 0.65
-    var enemyRadius: CGFloat = 8
-    var chaserSpeed: CGFloat = 55
-    var spawnInterval: TimeInterval = 1.4
-    var maxActiveChasers: Int = 40
-    var playerSafetyRadius: CGFloat = 120
     var baseEnemyScore = 10
     var eliteEnemyScore = 25
     var formationBonusScore = 100
@@ -44,8 +39,6 @@ struct RunSummary: Codable, Equatable {
 }
 
 struct ClassicRunController {
-    private static let spawnTimerEpsilon: TimeInterval = 0.000_001
-
     var configuration = ClassicRunConfiguration()
     private(set) var phase: ClassicRunPhase = .preRun
     private(set) var survivalTime: TimeInterval = 0
@@ -56,7 +49,6 @@ struct ClassicRunController {
     private(set) var comboTimeRemaining: TimeInterval = 0
     private(set) var bestWeapon: WeaponKind?
     private(set) var finalizedSummary: RunSummary?
-    private var timeUntilNextSpawn: TimeInterval = 0
     private var creditedSurvivalBonusIntervals = 0
     private var creditedNearMissEnemyIDs: Set<Int> = []
     private var creditedDangerGrabPickupIDs: Set<Int> = []
@@ -106,38 +98,15 @@ struct ClassicRunController {
         resetForActiveRun()
     }
 
-    mutating func update(deltaTime: TimeInterval, activeEnemyCount: Int) -> Int {
+    mutating func update(deltaTime: TimeInterval) {
         guard phase == .active else {
-            return 0
+            return
         }
 
         let clampedDelta = max(0, deltaTime)
         survivalTime += clampedDelta
         updateComboTimer(deltaTime: clampedDelta)
         applySurvivalBonusIfNeeded()
-
-        guard configuration.spawnInterval > 0 else {
-            timeUntilNextSpawn = 0
-            return 0
-        }
-
-        timeUntilNextSpawn -= clampedDelta
-
-        guard activeEnemyCount < configuration.maxActiveChasers else {
-            timeUntilNextSpawn = max(timeUntilNextSpawn, configuration.spawnInterval)
-            return 0
-        }
-
-        var spawnCount = 0
-        var projectedEnemyCount = activeEnemyCount
-
-        while timeUntilNextSpawn <= Self.spawnTimerEpsilon, projectedEnemyCount < configuration.maxActiveChasers {
-            spawnCount += 1
-            projectedEnemyCount += 1
-            timeUntilNextSpawn += configuration.spawnInterval
-        }
-
-        return spawnCount
     }
 
     mutating func recordEnemyKills(count: Int, weaponKind: WeaponKind?) {
@@ -211,7 +180,6 @@ struct ClassicRunController {
         comboTimeRemaining = 0
         bestWeapon = nil
         finalizedSummary = nil
-        timeUntilNextSpawn = 0
         creditedSurvivalBonusIntervals = 0
         creditedNearMissEnemyIDs.removeAll()
         creditedDangerGrabPickupIDs.removeAll()

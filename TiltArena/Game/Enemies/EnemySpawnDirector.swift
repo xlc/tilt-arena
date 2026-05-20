@@ -1,0 +1,681 @@
+import CoreGraphics
+import Foundation
+
+enum EnemyDifficultyPhase: Equatable {
+    case warmup
+    case pressure
+    case chaos
+    case survivalHell
+
+    static func phase(at survivalTime: TimeInterval) -> EnemyDifficultyPhase {
+        let time = max(0, survivalTime)
+
+        if time < Self.pressure.startTime {
+            return .warmup
+        } else if time < Self.chaos.startTime {
+            return .pressure
+        } else if time < Self.survivalHell.startTime {
+            return .chaos
+        } else {
+            return .survivalHell
+        }
+    }
+
+    var startTime: TimeInterval {
+        switch self {
+        case .warmup:
+            return 0
+        case .pressure:
+            return 30
+        case .chaos:
+            return 90
+        case .survivalHell:
+            return 180
+        }
+    }
+}
+
+struct EnemyPhaseTuning: Equatable {
+    var chaserSpawnInterval: TimeInterval
+    var chaserSpeed: CGFloat
+    var maxActiveEnemies: Int
+    var formationSpawnInterval: TimeInterval?
+    var formationSpeed: CGFloat
+    var formationLaneCount: Int
+}
+
+struct EnemySpawnConfiguration: Equatable {
+    var enemyRadius: CGFloat = 8
+    var playerSafetyRadius: CGFloat = 120
+    var pickupClearance: CGFloat = 8
+    var formationTelegraphDuration: TimeInterval = 1.1
+    var formationLineInset: CGFloat = 28
+    var formationGapScale: CGFloat = 0.85
+    var formationSpawnOffset: CGFloat = 14
+    var minimumFormationEnemyCount = 2
+    var maxPendingFormationTelegraphs = 2
+    var cullingOutset: CGFloat = 72
+    var warmup = EnemyPhaseTuning(
+        chaserSpawnInterval: 1.4,
+        chaserSpeed: 55,
+        maxActiveEnemies: 40,
+        formationSpawnInterval: nil,
+        formationSpeed: 86,
+        formationLaneCount: 5
+    )
+    var pressure = EnemyPhaseTuning(
+        chaserSpawnInterval: 1.05,
+        chaserSpeed: 70,
+        maxActiveEnemies: 70,
+        formationSpawnInterval: 12,
+        formationSpeed: 98,
+        formationLaneCount: 5
+    )
+    var chaos = EnemyPhaseTuning(
+        chaserSpawnInterval: 0.75,
+        chaserSpeed: 88,
+        maxActiveEnemies: 120,
+        formationSpawnInterval: 8,
+        formationSpeed: 116,
+        formationLaneCount: 7
+    )
+    var survivalHell = EnemyPhaseTuning(
+        chaserSpawnInterval: 0.5,
+        chaserSpeed: 108,
+        maxActiveEnemies: 180,
+        formationSpawnInterval: 5.5,
+        formationSpeed: 136,
+        formationLaneCount: 9
+    )
+
+    func tuning(at survivalTime: TimeInterval) -> EnemyPhaseTuning {
+        let phase = EnemyDifficultyPhase.phase(at: survivalTime)
+        let anchors = phaseAnchors
+        let currentIndex = anchors.firstIndex { $0.phase == phase } ?? 0
+        let current = anchors[currentIndex]
+        let next = currentIndex + 1 < anchors.count ? anchors[currentIndex + 1] : nil
+        let progress = interpolationProgress(survivalTime: survivalTime, current: current, next: next)
+
+        return EnemyPhaseTuning(
+            chaserSpawnInterval: interpolate(
+                from: current.tuning.chaserSpawnInterval,
+                to: next?.tuning.chaserSpawnInterval ?? current.tuning.chaserSpawnInterval,
+                progress: progress
+            ),
+            chaserSpeed: interpolate(
+                from: current.tuning.chaserSpeed,
+                to: next?.tuning.chaserSpeed ?? current.tuning.chaserSpeed,
+                progress: progress
+            ),
+            maxActiveEnemies: Int(
+                round(interpolate(
+                    from: CGFloat(current.tuning.maxActiveEnemies),
+                    to: CGFloat(next?.tuning.maxActiveEnemies ?? current.tuning.maxActiveEnemies),
+                    progress: progress
+                ))
+            ),
+            formationSpawnInterval: current.tuning.formationSpawnInterval,
+            formationSpeed: interpolate(
+                from: current.tuning.formationSpeed,
+                to: next?.tuning.formationSpeed ?? current.tuning.formationSpeed,
+                progress: progress
+            ),
+            formationLaneCount: max(3, current.tuning.formationLaneCount)
+        )
+    }
+
+    private var phaseAnchors: [(phase: EnemyDifficultyPhase, tuning: EnemyPhaseTuning)] {
+        [
+            (.warmup, warmup),
+            (.pressure, pressure),
+            (.chaos, chaos),
+            (.survivalHell, survivalHell)
+        ]
+    }
+
+    private func interpolationProgress(
+        survivalTime: TimeInterval,
+        current: (phase: EnemyDifficultyPhase, tuning: EnemyPhaseTuning),
+        next: (phase: EnemyDifficultyPhase, tuning: EnemyPhaseTuning)?
+    ) -> CGFloat {
+        guard let next else {
+            return 0
+        }
+
+        let span = next.phase.startTime - current.phase.startTime
+        guard span > 0 else {
+            return 0
+        }
+
+        let rawProgress = (max(0, survivalTime) - current.phase.startTime) / span
+        return CGFloat(min(1, max(0, rawProgress)))
+    }
+
+    private func interpolate(from start: TimeInterval, to end: TimeInterval, progress: CGFloat) -> TimeInterval {
+        start + (end - start) * TimeInterval(progress)
+    }
+
+    private func interpolate(from start: CGFloat, to end: CGFloat, progress: CGFloat) -> CGFloat {
+        start + (end - start) * progress
+    }
+}
+
+struct FormationTelegraphSegment: Equatable {
+    let start: CGPoint
+    let end: CGPoint
+}
+
+struct FormationTelegraph: Equatable, Identifiable {
+    let id: Int
+    let segments: [FormationTelegraphSegment]
+}
+
+struct EnemySpawnFrame: Equatable {
+    var newEnemies: [ChaserEnemy] = []
+    var telegraphsToShow: [FormationTelegraph] = []
+    var telegraphIDsToRemove: Set<Int> = []
+}
+
+struct EnemySpawnDirector {
+    private enum FormationDirection: CaseIterable {
+        case leftToRight
+        case rightToLeft
+        case bottomToTop
+        case topToBottom
+
+        var travelsHorizontally: Bool {
+            switch self {
+            case .leftToRight, .rightToLeft:
+                return true
+            case .bottomToTop, .topToBottom:
+                return false
+            }
+        }
+    }
+
+    private struct PendingFormation {
+        var timeRemaining: TimeInterval
+        let enemies: [ChaserEnemy]
+        let telegraph: FormationTelegraph
+    }
+
+    private static let candidateSideCount = 4
+    private static let candidateLaneCount = 7
+
+    var configuration: EnemySpawnConfiguration
+    private(set) var nextEnemyID = 1
+    private(set) var nextFormationID = 1
+    private var nextChaserCandidateIndex = 0
+    private var nextFormationDirectionIndex = 0
+    private var timeUntilNextChaser: TimeInterval = 0
+    private var timeUntilNextFormation: TimeInterval = 0
+    private var pendingFormations: [Int: PendingFormation] = [:]
+
+    private var pendingFormationEnemyCount: Int {
+        pendingFormations.values.reduce(0) { $0 + $1.enemies.count }
+    }
+
+    init(configuration: EnemySpawnConfiguration = EnemySpawnConfiguration()) {
+        self.configuration = configuration
+    }
+
+    mutating func reset() {
+        nextEnemyID = 1
+        nextFormationID = 1
+        nextChaserCandidateIndex = 0
+        nextFormationDirectionIndex = 0
+        timeUntilNextChaser = 0
+        timeUntilNextFormation = 0
+        pendingFormations.removeAll()
+    }
+
+    mutating func update(
+        deltaTime: TimeInterval,
+        survivalTime: TimeInterval,
+        activeEnemyCount: Int,
+        playableRect: CGRect,
+        playerPosition: CGPoint,
+        pickupCircles: [CollisionCircle]
+    ) -> EnemySpawnFrame {
+        let clampedDelta = max(0, deltaTime)
+        let tuning = configuration.tuning(at: survivalTime)
+        var frame = EnemySpawnFrame()
+
+        advancePendingFormations(
+            deltaTime: clampedDelta,
+            activeEnemyCount: activeEnemyCount,
+            maxActiveEnemies: tuning.maxActiveEnemies,
+            frame: &frame
+        )
+
+        let projectedEnemyCount = activeEnemyCount + frame.newEnemies.count + pendingFormationEnemyCount
+        spawnChasersIfNeeded(
+            deltaTime: clampedDelta,
+            projectedEnemyCount: projectedEnemyCount,
+            tuning: tuning,
+            playableRect: playableRect,
+            playerPosition: playerPosition,
+            pickupCircles: pickupCircles,
+            frame: &frame
+        )
+
+        spawnFormationTelegraphIfNeeded(
+            deltaTime: clampedDelta,
+            projectedEnemyCount: activeEnemyCount + frame.newEnemies.count + pendingFormationEnemyCount,
+            tuning: tuning,
+            playableRect: playableRect,
+            playerPosition: playerPosition,
+            pickupCircles: pickupCircles,
+            frame: &frame
+        )
+
+        return frame
+    }
+
+    func isSafeSpawn(
+        _ position: CGPoint,
+        avoiding playerPosition: CGPoint,
+        pickupCircles: [CollisionCircle] = []
+    ) -> Bool {
+        let playerClearance = configuration.playerSafetyRadius + configuration.enemyRadius
+        guard squaredDistance(from: position, to: playerPosition) >= playerClearance * playerClearance else {
+            return false
+        }
+
+        return pickupCircles.allSatisfy { pickupCircle in
+            let clearance = pickupCircle.radius + configuration.enemyRadius + configuration.pickupClearance
+            return squaredDistance(from: position, to: pickupCircle.center) >= clearance * clearance
+        }
+    }
+
+    private mutating func advancePendingFormations(
+        deltaTime: TimeInterval,
+        activeEnemyCount: Int,
+        maxActiveEnemies: Int,
+        frame: inout EnemySpawnFrame
+    ) {
+        guard deltaTime > 0 else {
+            return
+        }
+
+        for formationID in pendingFormations.keys.sorted() {
+            guard var formation = pendingFormations[formationID] else {
+                continue
+            }
+
+            formation.timeRemaining -= deltaTime
+
+            if formation.timeRemaining <= 0 {
+                let availableSlots = max(0, maxActiveEnemies - activeEnemyCount - frame.newEnemies.count)
+                let enemiesToSpawn = Array(formation.enemies.prefix(availableSlots))
+
+                if enemiesToSpawn.count >= requiredFormationEnemyCount {
+                    frame.newEnemies.append(contentsOf: enemiesToSpawn)
+                }
+
+                frame.telegraphIDsToRemove.insert(formationID)
+                pendingFormations.removeValue(forKey: formationID)
+            } else {
+                pendingFormations[formationID] = formation
+            }
+        }
+    }
+
+    private mutating func spawnChasersIfNeeded(
+        deltaTime: TimeInterval,
+        projectedEnemyCount: Int,
+        tuning: EnemyPhaseTuning,
+        playableRect: CGRect,
+        playerPosition: CGPoint,
+        pickupCircles: [CollisionCircle],
+        frame: inout EnemySpawnFrame
+    ) {
+        guard deltaTime > 0, tuning.chaserSpawnInterval > 0 else {
+            return
+        }
+
+        guard projectedEnemyCount < tuning.maxActiveEnemies else {
+            timeUntilNextChaser = max(timeUntilNextChaser, tuning.chaserSpawnInterval)
+            return
+        }
+
+        timeUntilNextChaser -= deltaTime
+        var projectedEnemyCount = projectedEnemyCount
+
+        while timeUntilNextChaser <= 0, projectedEnemyCount < tuning.maxActiveEnemies {
+            guard let enemy = spawnChaser(
+                in: playableRect,
+                avoiding: playerPosition,
+                pickupCircles: pickupCircles,
+                tuning: tuning
+            ) else {
+                timeUntilNextChaser = tuning.chaserSpawnInterval
+                return
+            }
+
+            frame.newEnemies.append(enemy)
+            projectedEnemyCount += 1
+            timeUntilNextChaser += tuning.chaserSpawnInterval
+        }
+    }
+
+    private mutating func spawnChaser(
+        in playableRect: CGRect,
+        avoiding playerPosition: CGPoint,
+        pickupCircles: [CollisionCircle],
+        tuning: EnemyPhaseTuning
+    ) -> ChaserEnemy? {
+        guard playableRect.width > 0, playableRect.height > 0 else {
+            return nil
+        }
+
+        for _ in 0..<(Self.candidateSideCount * Self.candidateLaneCount) {
+            let position = candidatePosition(in: playableRect, index: nextChaserCandidateIndex)
+            nextChaserCandidateIndex += 1
+
+            guard isSafeSpawn(position, avoiding: playerPosition, pickupCircles: pickupCircles) else {
+                continue
+            }
+
+            let enemy = ChaserEnemy(
+                id: nextEnemyID,
+                position: position,
+                radius: configuration.enemyRadius,
+                speed: tuning.chaserSpeed
+            )
+            nextEnemyID += 1
+            return enemy
+        }
+
+        return nil
+    }
+
+    private mutating func spawnFormationTelegraphIfNeeded(
+        deltaTime: TimeInterval,
+        projectedEnemyCount: Int,
+        tuning: EnemyPhaseTuning,
+        playableRect: CGRect,
+        playerPosition: CGPoint,
+        pickupCircles: [CollisionCircle],
+        frame: inout EnemySpawnFrame
+    ) {
+        guard deltaTime > 0, let formationSpawnInterval = tuning.formationSpawnInterval else {
+            timeUntilNextFormation = 0
+            return
+        }
+
+        guard formationSpawnInterval > 0 else {
+            return
+        }
+
+        guard pendingFormations.count < configuration.maxPendingFormationTelegraphs else {
+            timeUntilNextFormation = max(timeUntilNextFormation, formationSpawnInterval)
+            return
+        }
+
+        guard projectedEnemyCount + requiredFormationEnemyCount <= tuning.maxActiveEnemies else {
+            timeUntilNextFormation = max(timeUntilNextFormation, formationSpawnInterval)
+            return
+        }
+
+        timeUntilNextFormation -= deltaTime
+
+        guard timeUntilNextFormation <= 0 else {
+            return
+        }
+
+        let availableSlots = tuning.maxActiveEnemies - projectedEnemyCount
+        guard let formation = makePendingFormation(
+            in: playableRect,
+            playerPosition: playerPosition,
+            pickupCircles: pickupCircles,
+            tuning: tuning,
+            availableSlots: availableSlots
+        ) else {
+            timeUntilNextFormation = formationSpawnInterval
+            return
+        }
+
+        pendingFormations[formation.telegraph.id] = formation
+        frame.telegraphsToShow.append(formation.telegraph)
+        timeUntilNextFormation += formationSpawnInterval
+    }
+
+    private mutating func makePendingFormation(
+        in playableRect: CGRect,
+        playerPosition: CGPoint,
+        pickupCircles: [CollisionCircle],
+        tuning: EnemyPhaseTuning,
+        availableSlots: Int
+    ) -> PendingFormation? {
+        let direction = nextFormationDirection()
+        let laneCount = max(3, tuning.formationLaneCount)
+        let gapLaneIndex = escapeLaneIndex(
+            for: playerPosition,
+            direction: direction,
+            laneCount: laneCount,
+            playableRect: playableRect
+        )
+        let enemyPositions = formationEnemyPositions(
+            direction: direction,
+            laneCount: laneCount,
+            gapLaneIndex: gapLaneIndex,
+            playableRect: playableRect
+        )
+        let formationID = nextFormationID
+        let velocity = formationVelocity(direction: direction, speed: tuning.formationSpeed)
+        var nextID = nextEnemyID
+        let enemies = enemyPositions
+            .filter { isSafeSpawn($0, avoiding: playerPosition, pickupCircles: pickupCircles) }
+            .prefix(max(0, availableSlots))
+            .map { position in
+                defer {
+                    nextID += 1
+                }
+
+                return ChaserEnemy(
+                    id: nextID,
+                    position: position,
+                    radius: configuration.enemyRadius,
+                    speed: tuning.formationSpeed,
+                    behavior: .formationLine(velocity: velocity, formationID: formationID)
+                )
+            }
+
+        guard enemies.count >= requiredFormationEnemyCount else {
+            return nil
+        }
+
+        nextEnemyID += enemies.count
+        nextFormationID += 1
+
+        return PendingFormation(
+            timeRemaining: configuration.formationTelegraphDuration,
+            enemies: Array(enemies),
+            telegraph: FormationTelegraph(
+                id: formationID,
+                segments: telegraphSegments(
+                    direction: direction,
+                    laneCount: laneCount,
+                    gapLaneIndex: gapLaneIndex,
+                    playableRect: playableRect
+                )
+            )
+        )
+    }
+
+    private mutating func nextFormationDirection() -> FormationDirection {
+        let directions = FormationDirection.allCases
+        let direction = directions[nextFormationDirectionIndex % directions.count]
+        nextFormationDirectionIndex += 1
+        return direction
+    }
+
+    private func candidatePosition(in rect: CGRect, index: Int) -> CGPoint {
+        let side = index % Self.candidateSideCount
+        let lane = CGFloat(((index / Self.candidateSideCount) % Self.candidateLaneCount) + 1)
+            / CGFloat(Self.candidateLaneCount + 1)
+
+        switch side {
+        case 0:
+            return CGPoint(x: rect.minX, y: rect.minY + rect.height * lane)
+        case 1:
+            return CGPoint(x: rect.maxX, y: rect.minY + rect.height * lane)
+        case 2:
+            return CGPoint(x: rect.minX + rect.width * lane, y: rect.minY)
+        default:
+            return CGPoint(x: rect.minX + rect.width * lane, y: rect.maxY)
+        }
+    }
+
+    private func escapeLaneIndex(
+        for playerPosition: CGPoint,
+        direction: FormationDirection,
+        laneCount: Int,
+        playableRect: CGRect
+    ) -> Int {
+        let coordinate = direction.travelsHorizontally ? playerPosition.y : playerPosition.x
+        let start = direction.travelsHorizontally ? playableRect.minY : playableRect.minX
+        let length = direction.travelsHorizontally ? playableRect.height : playableRect.width
+        guard length > 0 else {
+            return laneCount / 2
+        }
+
+        let normalized = min(1, max(0, (coordinate - start) / length))
+        let lane = Int(round(normalized * CGFloat(laneCount - 1)))
+        return min(laneCount - 1, max(0, lane))
+    }
+
+    private func formationEnemyPositions(
+        direction: FormationDirection,
+        laneCount: Int,
+        gapLaneIndex: Int,
+        playableRect: CGRect
+    ) -> [CGPoint] {
+        (0..<laneCount).compactMap { laneIndex in
+            guard laneIndex != gapLaneIndex else {
+                return nil
+            }
+
+            let coordinate = laneCoordinate(laneIndex: laneIndex, laneCount: laneCount, direction: direction, rect: playableRect)
+            switch direction {
+            case .leftToRight:
+                return CGPoint(x: playableRect.minX - configuration.enemyRadius - configuration.formationSpawnOffset, y: coordinate)
+            case .rightToLeft:
+                return CGPoint(x: playableRect.maxX + configuration.enemyRadius + configuration.formationSpawnOffset, y: coordinate)
+            case .bottomToTop:
+                return CGPoint(x: coordinate, y: playableRect.minY - configuration.enemyRadius - configuration.formationSpawnOffset)
+            case .topToBottom:
+                return CGPoint(x: coordinate, y: playableRect.maxY + configuration.enemyRadius + configuration.formationSpawnOffset)
+            }
+        }
+    }
+
+    private func telegraphSegments(
+        direction: FormationDirection,
+        laneCount: Int,
+        gapLaneIndex: Int,
+        playableRect: CGRect
+    ) -> [FormationTelegraphSegment] {
+        let axisStart = direction.travelsHorizontally ? playableRect.minY : playableRect.minX
+        let axisEnd = direction.travelsHorizontally ? playableRect.maxY : playableRect.maxX
+        let axisLength = max(1, axisEnd - axisStart)
+        let inset = min(configuration.formationLineInset, axisLength / 4)
+        let laneSpacing = axisLength / CGFloat(max(1, laneCount - 1))
+        let gapCenter = laneCoordinate(
+            laneIndex: gapLaneIndex,
+            laneCount: laneCount,
+            direction: direction,
+            rect: playableRect
+        )
+        let gapHalfWidth = laneSpacing * configuration.formationGapScale / 2
+        let firstStart = axisStart + inset
+        let firstEnd = max(firstStart, gapCenter - gapHalfWidth)
+        let secondStart = min(axisEnd - inset, gapCenter + gapHalfWidth)
+        let secondEnd = axisEnd - inset
+        let crossAxis = telegraphCrossAxis(direction: direction, playableRect: playableRect)
+        var segments: [FormationTelegraphSegment] = []
+
+        if firstEnd > firstStart {
+            segments.append(telegraphSegment(direction: direction, crossAxis: crossAxis, start: firstStart, end: firstEnd))
+        }
+
+        if secondEnd > secondStart {
+            segments.append(telegraphSegment(direction: direction, crossAxis: crossAxis, start: secondStart, end: secondEnd))
+        }
+
+        return segments
+    }
+
+    private func telegraphCrossAxis(direction: FormationDirection, playableRect: CGRect) -> CGFloat {
+        switch direction {
+        case .leftToRight:
+            return playableRect.minX + configuration.enemyRadius
+        case .rightToLeft:
+            return playableRect.maxX - configuration.enemyRadius
+        case .bottomToTop:
+            return playableRect.minY + configuration.enemyRadius
+        case .topToBottom:
+            return playableRect.maxY - configuration.enemyRadius
+        }
+    }
+
+    private func telegraphSegment(
+        direction: FormationDirection,
+        crossAxis: CGFloat,
+        start: CGFloat,
+        end: CGFloat
+    ) -> FormationTelegraphSegment {
+        switch direction {
+        case .leftToRight, .rightToLeft:
+            return FormationTelegraphSegment(
+                start: CGPoint(x: crossAxis, y: start),
+                end: CGPoint(x: crossAxis, y: end)
+            )
+        case .bottomToTop, .topToBottom:
+            return FormationTelegraphSegment(
+                start: CGPoint(x: start, y: crossAxis),
+                end: CGPoint(x: end, y: crossAxis)
+            )
+        }
+    }
+
+    private func laneCoordinate(
+        laneIndex: Int,
+        laneCount: Int,
+        direction: FormationDirection,
+        rect: CGRect
+    ) -> CGFloat {
+        let start = direction.travelsHorizontally ? rect.minY : rect.minX
+        let length = direction.travelsHorizontally ? rect.height : rect.width
+
+        guard laneCount > 1 else {
+            return start + length / 2
+        }
+
+        return start + length * CGFloat(laneIndex) / CGFloat(laneCount - 1)
+    }
+
+    private func formationVelocity(direction: FormationDirection, speed: CGFloat) -> CGVector {
+        switch direction {
+        case .leftToRight:
+            return CGVector(dx: speed, dy: 0)
+        case .rightToLeft:
+            return CGVector(dx: -speed, dy: 0)
+        case .bottomToTop:
+            return CGVector(dx: 0, dy: speed)
+        case .topToBottom:
+            return CGVector(dx: 0, dy: -speed)
+        }
+    }
+
+    private func squaredDistance(from lhs: CGPoint, to rhs: CGPoint) -> CGFloat {
+        let dx = lhs.x - rhs.x
+        let dy = lhs.y - rhs.y
+        return dx * dx + dy * dy
+    }
+
+    private var requiredFormationEnemyCount: Int {
+        max(1, configuration.minimumFormationEnemyCount)
+    }
+}

@@ -23,41 +23,20 @@ final class ChaserEnemyTests: XCTestCase {
         XCTAssertEqual(enemy.position.x, 10, accuracy: 0.0001)
     }
 
-    func testSpawnPlannerSkipsPositionsInsidePlayerSafetyRadius() {
-        var planner = ChaserSpawnPlanner()
-        let config = ClassicRunConfiguration(playerSafetyRadius: 120)
-        let playableRect = CGRect(x: 0, y: 0, width: 320, height: 600)
-        let playerPosition = CGPoint(x: 0, y: 75)
-
-        let enemy = planner.spawnChaser(
-            in: playableRect,
-            avoiding: playerPosition,
-            configuration: config
+    func testFormationLineMovesAlongVelocity() {
+        var enemy = ChaserEnemy(
+            id: 1,
+            position: CGPoint(x: 0, y: 10),
+            radius: 8,
+            speed: 90,
+            behavior: .formationLine(velocity: CGVector(dx: 40, dy: -10), formationID: 4)
         )
 
-        guard let enemy else {
-            return XCTFail("Expected a safe spawn candidate.")
-        }
+        enemy.advance(toward: CGPoint(x: 1000, y: 1000), deltaTime: 0.5)
 
-        XCTAssertTrue(planner.isSafeSpawn(enemy.position, avoiding: playerPosition, safetyRadius: 120))
-    }
-
-    func testSpawnPlannerChecksFullEdgeCandidateCycle() {
-        var planner = ChaserSpawnPlanner()
-        let config = ClassicRunConfiguration(playerSafetyRadius: 355)
-        let playableRect = CGRect(x: 0, y: 0, width: 280, height: 280)
-
-        let enemy = planner.spawnChaser(
-            in: playableRect,
-            avoiding: .zero,
-            configuration: config
-        )
-
-        guard let enemy else {
-            return XCTFail("Expected a safe candidate in the final edge lane.")
-        }
-
-        XCTAssertTrue(planner.isSafeSpawn(enemy.position, avoiding: .zero, safetyRadius: 355))
+        XCTAssertEqual(enemy.position.x, 20, accuracy: 0.0001)
+        XCTAssertEqual(enemy.position.y, 5, accuracy: 0.0001)
+        XCTAssertEqual(enemy.formationID, 4)
     }
 
     func testCircleCollisionUsesCombinedRadii() {
