@@ -14,9 +14,9 @@ final class ArenaScene: SKScene {
     private let pickupSpawnConfiguration = PickupSpawnConfiguration()
     private var pickupPlanner = PickupSpawnPlanner()
     private let weaponResolver = StartingWeaponResolver()
-    private var enemies: [ChaserEnemy] = []
-    private var enemyNodes: [Int: ChaserEnemyNode] = [:]
-    private var formationTelegraphNodes: [Int: FormationTelegraphNode] = [:]
+    private var enemies: [ArenaEnemy] = []
+    private var enemyNodes: [Int: EnemyNode] = [:]
+    private var enemyTelegraphNodes: [Int: EnemyTelegraphNode] = [:]
     private var formationEnemyIDs: [Int: Set<Int>] = [:]
     private var pickups: [WeaponPickup] = []
     private var pickupNodes: [Int: WeaponPickupNode] = [:]
@@ -267,8 +267,8 @@ final class ArenaScene: SKScene {
         enemies.removeAll()
         enemyNodes.values.forEach { $0.removeFromParent() }
         enemyNodes.removeAll()
-        formationTelegraphNodes.values.forEach { $0.removeFromParent() }
-        formationTelegraphNodes.removeAll()
+        enemyTelegraphNodes.values.forEach { $0.removeFromParent() }
+        enemyTelegraphNodes.removeAll()
         formationEnemyIDs.removeAll()
         spawnDirector.reset()
 
@@ -291,7 +291,7 @@ final class ArenaScene: SKScene {
         spawnPickupIfNeeded(deltaTime: deltaTime, playerPosition: playerPosition)
         collectPickups(playerPosition: playerPosition)
         advanceEnemies(deltaTime: deltaTime, playerPosition: playerPosition)
-        cullExitedFormationEnemies()
+        cullExitedLinearPatternEnemies()
         updateRazorShield(deltaTime: deltaTime, playerPosition: playerPosition)
         recordNearMisses(playerPosition: playerPosition)
         detectPlayerCollision(playerPosition: playerPosition)
@@ -309,16 +309,16 @@ final class ArenaScene: SKScene {
             pickupCircles: pickups.map(\.collisionCircle)
         )
 
-        removeFormationTelegraphs(ids: frame.telegraphIDsToRemove)
-        showFormationTelegraphs(frame.telegraphsToShow)
+        removeEnemyTelegraphs(ids: frame.telegraphIDsToRemove)
+        showEnemyTelegraphs(frame.telegraphsToShow)
         addSpawnedEnemies(frame.newEnemies)
     }
 
-    private func addSpawnedEnemies(_ spawnedEnemies: [ChaserEnemy]) {
+    private func addSpawnedEnemies(_ spawnedEnemies: [ArenaEnemy]) {
         for enemy in spawnedEnemies {
             enemies.append(enemy)
 
-            let node = ChaserEnemyNode(enemy: enemy, theme: theme)
+            let node = EnemyNode(enemy: enemy, theme: theme)
             enemyNodes[enemy.id] = node
             addChild(node)
 
@@ -328,18 +328,18 @@ final class ArenaScene: SKScene {
         }
     }
 
-    private func showFormationTelegraphs(_ telegraphs: [FormationTelegraph]) {
+    private func showEnemyTelegraphs(_ telegraphs: [EnemyTelegraph]) {
         for telegraph in telegraphs {
-            formationTelegraphNodes[telegraph.id]?.removeFromParent()
-            let node = FormationTelegraphNode(telegraph: telegraph, theme: theme)
-            formationTelegraphNodes[telegraph.id] = node
+            enemyTelegraphNodes[telegraph.id]?.removeFromParent()
+            let node = EnemyTelegraphNode(telegraph: telegraph, theme: theme)
+            enemyTelegraphNodes[telegraph.id] = node
             addChild(node)
         }
     }
 
-    private func removeFormationTelegraphs(ids telegraphIDs: Set<Int>) {
+    private func removeEnemyTelegraphs(ids telegraphIDs: Set<Int>) {
         for telegraphID in telegraphIDs {
-            formationTelegraphNodes.removeValue(forKey: telegraphID)?.removeFromParent()
+            enemyTelegraphNodes.removeValue(forKey: telegraphID)?.removeFromParent()
         }
     }
 
@@ -373,13 +373,13 @@ final class ArenaScene: SKScene {
         }
     }
 
-    private func cullExitedFormationEnemies() {
+    private func cullExitedLinearPatternEnemies() {
         let playableRect = movementController.configuration.playableRect(in: size)
         let cullingRect = playableRect.insetBy(
             dx: -spawnDirector.configuration.cullingOutset,
             dy: -spawnDirector.configuration.cullingOutset
         )
-        let exitedEnemies = enemies.filter { $0.formationID != nil && !cullingRect.contains($0.position) }
+        let exitedEnemies = enemies.filter { $0.isLinearPatternEnemy && !cullingRect.contains($0.position) }
         let exitedEnemyIDs = Set(exitedEnemies.map(\.id))
 
         guard !exitedEnemyIDs.isEmpty else {

@@ -4,9 +4,10 @@ import Foundation
 enum EnemyBehavior: Equatable {
     case chaser
     case formationLine(velocity: CGVector, formationID: Int)
+    case arrowRush(velocity: CGVector)
 }
 
-struct ChaserEnemy: Equatable, Identifiable {
+struct ArenaEnemy: Equatable, Identifiable {
     let id: Int
     var position: CGPoint
     var radius: CGFloat
@@ -15,10 +16,19 @@ struct ChaserEnemy: Equatable, Identifiable {
 
     var formationID: Int? {
         switch behavior {
-        case .chaser:
+        case .chaser, .arrowRush:
             return nil
         case let .formationLine(_, formationID):
             return formationID
+        }
+    }
+
+    var isLinearPatternEnemy: Bool {
+        switch behavior {
+        case .chaser:
+            return false
+        case .formationLine, .arrowRush:
+            return true
         }
     }
 
@@ -32,12 +42,18 @@ struct ChaserEnemy: Equatable, Identifiable {
         switch behavior {
         case .chaser:
             advanceChaser(toward: target, deltaTime: clampedDelta)
+        case let .arrowRush(velocity):
+            advanceLinearly(velocity: velocity, deltaTime: clampedDelta)
         case let .formationLine(velocity, _):
-            position = CGPoint(
-                x: position.x + velocity.dx * clampedDelta,
-                y: position.y + velocity.dy * clampedDelta
-            )
+            advanceLinearly(velocity: velocity, deltaTime: clampedDelta)
         }
+    }
+
+    private mutating func advanceLinearly(velocity: CGVector, deltaTime: CGFloat) {
+        position = CGPoint(
+            x: position.x + velocity.dx * deltaTime,
+            y: position.y + velocity.dy * deltaTime
+        )
     }
 
     private mutating func advanceChaser(toward target: CGPoint, deltaTime: CGFloat) {

@@ -15,7 +15,7 @@ struct WeaponResolution: Equatable {
 struct StartingWeaponResolver {
     var configuration = StartingWeaponConfiguration()
 
-    func resolve(kind: WeaponKind, playerPosition: CGPoint, enemies: [ChaserEnemy]) -> WeaponResolution {
+    func resolve(kind: WeaponKind, playerPosition: CGPoint, enemies: [ArenaEnemy]) -> WeaponResolution {
         switch kind {
         case .shockwave:
             return WeaponResolution(destroyedEnemyIDs: shockwaveTargets(playerPosition: playerPosition, enemies: enemies))
@@ -26,17 +26,17 @@ struct StartingWeaponResolver {
         }
     }
 
-    func shieldTargets(playerPosition: CGPoint, enemies: [ChaserEnemy]) -> Set<Int> {
+    func shieldTargets(playerPosition: CGPoint, enemies: [ArenaEnemy]) -> Set<Int> {
         let shieldCircle = CollisionCircle(center: playerPosition, radius: configuration.razorShieldRadius)
         return Set(enemies.filter { shieldCircle.intersects($0.collisionCircle) }.map(\.id))
     }
 
-    private func shockwaveTargets(playerPosition: CGPoint, enemies: [ChaserEnemy]) -> Set<Int> {
+    private func shockwaveTargets(playerPosition: CGPoint, enemies: [ArenaEnemy]) -> Set<Int> {
         let shockwaveCircle = CollisionCircle(center: playerPosition, radius: configuration.shockwaveRadius)
         return Set(enemies.filter { shockwaveCircle.intersects($0.collisionCircle) }.map(\.id))
     }
 
-    private func seekerTargets(playerPosition: CGPoint, enemies: [ChaserEnemy]) -> Set<Int> {
+    private func seekerTargets(playerPosition: CGPoint, enemies: [ArenaEnemy]) -> Set<Int> {
         let targetLimit = max(0, configuration.seekerTargetLimit)
 
         guard targetLimit > 0 else {

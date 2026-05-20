@@ -58,7 +58,7 @@ final class StartingWeaponResolverTests: XCTestCase {
         XCTAssertEqual(resolver.shieldTargets(playerPosition: .zero, enemies: enemies), [1])
     }
 
-    private func enemy(id: Int, position: CGPoint) -> ChaserEnemy {
-        ChaserEnemy(id: id, position: position, radius: 8, speed: 0)
+    private func enemy(id: Int, position: CGPoint) -> ArenaEnemy {
+        ArenaEnemy(id: id, position: position, radius: 8, speed: 0)
     }
 }

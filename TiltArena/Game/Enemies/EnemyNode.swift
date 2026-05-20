@@ -1,11 +1,11 @@
 import SpriteKit
 
 @MainActor
-final class ChaserEnemyNode: SKNode {
+final class EnemyNode: SKNode {
     private let bodyNode: SKShapeNode
     private let ringNode: SKShapeNode
 
-    init(enemy: ChaserEnemy, theme: ArenaTheme) {
+    init(enemy: ArenaEnemy, theme: ArenaTheme) {
         bodyNode = SKShapeNode(circleOfRadius: enemy.radius)
         ringNode = SKShapeNode(circleOfRadius: enemy.radius * 1.45)
         super.init()
@@ -28,10 +28,10 @@ final class ChaserEnemyNode: SKNode {
     }
 
     required init?(coder aDecoder: NSCoder) {
-        fatalError("ChaserEnemyNode does not support storyboard initialization.")
+        fatalError("EnemyNode does not support storyboard initialization.")
     }
 
-    func apply(_ enemy: ChaserEnemy) {
+    func apply(_ enemy: ArenaEnemy) {
         position = enemy.position
     }
 }
