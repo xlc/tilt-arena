@@ -163,6 +163,31 @@ final class ClassicRunControllerTests: XCTestCase {
         XCTAssertEqual(controller.bestWeapon, .razorShield)
     }
 
+    func testFrozenShattersUseHigherScoreAndUpdateComboAndBestWeapon() {
+        var controller = ClassicRunController()
+
+        controller.start()
+        controller.recordFrozenShatters(count: 2, weaponKind: .freezeBurst)
+
+        XCTAssertEqual(controller.score, 50)
+        XCTAssertEqual(controller.enemiesDestroyed, 2)
+        XCTAssertEqual(controller.currentCombo, 2)
+        XCTAssertEqual(controller.maxCombo, 2)
+        XCTAssertEqual(controller.comboTimeRemaining, 1.2, accuracy: 0.0001)
+        XCTAssertEqual(controller.bestWeapon, .freezeBurst)
+    }
+
+    func testFrozenShattersIgnoreNegativeCounts() {
+        var controller = ClassicRunController()
+
+        controller.start()
+        controller.recordFrozenShatters(count: -1, weaponKind: .freezeBurst)
+
+        XCTAssertEqual(controller.score, 0)
+        XCTAssertEqual(controller.enemiesDestroyed, 0)
+        XCTAssertNil(controller.bestWeapon)
+    }
+
     func testRunSummaryFinalizesOnceAndResetsOnRestart() {
         let timestamp = Date(timeIntervalSince1970: 123)
         var controller = ClassicRunController()

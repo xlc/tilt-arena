@@ -17,6 +17,7 @@ struct ArenaEnemy: Equatable, Identifiable {
     var radius: CGFloat
     var speed: CGFloat
     var behavior: EnemyBehavior = .chaser
+    var frozenTimeRemaining: TimeInterval = 0
 
     var formationID: Int? {
         switch behavior {
@@ -74,9 +75,22 @@ struct ArenaEnemy: Equatable, Identifiable {
         CollisionCircle(center: position, radius: radius)
     }
 
+    var isFrozen: Bool {
+        frozenTimeRemaining > 0
+    }
+
+    mutating func freeze(duration: TimeInterval) {
+        frozenTimeRemaining = max(frozenTimeRemaining, max(0, duration))
+    }
+
     mutating func advance(toward target: CGPoint, deltaTime: TimeInterval) {
         let clampedTime = max(0, deltaTime)
         let clampedDelta = CGFloat(clampedTime)
+
+        guard !isFrozen else {
+            frozenTimeRemaining = max(0, frozenTimeRemaining - clampedTime)
+            return
+        }
 
         switch behavior {
         case .chaser:

@@ -108,7 +108,7 @@ final class PickupSpawnPlannerTests: XCTestCase {
     func testResetRestartsPickupIDsAndKindCycle() {
         let configuration = PickupSpawnConfiguration(
             initialSpawnDelay: 0,
-            weaponKindCycle: [.seekerSwarm, .novaBomb]
+            weaponKindCycle: [.seekerSwarm, .freezeBurst]
         )
         var planner = PickupSpawnPlanner(configuration: configuration)
         let rect = CGRect(x: 0, y: 0, width: 320, height: 640)
@@ -137,28 +137,30 @@ final class PickupSpawnPlannerTests: XCTestCase {
     func testConfiguredKindCycleControlsPickupOrder() {
         let configuration = PickupSpawnConfiguration(
             initialSpawnDelay: 0,
-            weaponKindCycle: [.razorShield, .novaBomb]
+            weaponKindCycle: [.razorShield, .freezeBurst]
         )
 
         XCTAssertEqual(spawnKinds(count: 4, configuration: configuration), [
             .razorShield,
-            .novaBomb,
+            .freezeBurst,
             .razorShield,
-            .novaBomb
+            .freezeBurst
         ])
     }
 
-    func testDefaultKindCycleMakesNovaBombRare() {
+    func testDefaultKindCycleMakesFreezeMidRarityAndNovaBombRare() {
         let kinds = spawnKinds(
             count: PickupSpawnConfiguration.defaultWeaponKindCycle.count,
             configuration: PickupSpawnConfiguration()
         )
 
         XCTAssertEqual(kinds, PickupSpawnConfiguration.defaultWeaponKindCycle)
+        XCTAssertEqual(kinds.filter { $0 == .freezeBurst }.count, 2)
         XCTAssertEqual(kinds.filter { $0 == .novaBomb }.count, 1)
-        XCTAssertGreaterThan(kinds.filter { $0 == .shockwave }.count, 1)
-        XCTAssertGreaterThan(kinds.filter { $0 == .seekerSwarm }.count, 1)
-        XCTAssertGreaterThan(kinds.filter { $0 == .razorShield }.count, 1)
+        XCTAssertGreaterThan(kinds.filter { $0 == .shockwave }.count, 2)
+        XCTAssertGreaterThan(kinds.filter { $0 == .seekerSwarm }.count, 2)
+        XCTAssertGreaterThan(kinds.filter { $0 == .razorShield }.count, 2)
+        XCTAssertGreaterThan(kinds.filter { $0 == .freezeBurst }.count, kinds.filter { $0 == .novaBomb }.count)
     }
 
     func testEmptyKindCycleDoesNotSpawnPickup() {

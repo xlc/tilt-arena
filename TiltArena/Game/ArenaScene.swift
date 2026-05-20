@@ -24,6 +24,7 @@ final class ArenaScene: SKScene {
     private var playerTrailNode: PlayerTrailNode?
     private var razorShieldTimeRemaining: TimeInterval = 0
     private var razorShieldNode: SKShapeNode?
+    private var frozenCrasherTimeRemaining: TimeInterval = 0
     private let timerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
     private let centerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
     private let detailLabel = SKLabelNode(fontNamed: "Menlo")
@@ -277,6 +278,7 @@ final class ArenaScene: SKScene {
         pickupNodes.removeAll()
         pickupPlanner.reset(configuration: pickupSpawnConfiguration)
         deactivateRazorShield()
+        frozenCrasherTimeRemaining = 0
     }
 
     private func resetPlayerFeedback() {
@@ -294,6 +296,8 @@ final class ArenaScene: SKScene {
         removeExpiredEnemies()
         cullExitedLinearPatternEnemies()
         updateRazorShield(deltaTime: deltaTime, playerPosition: playerPosition)
+        shatterFrozenContactEnemies(playerPosition: playerPosition)
+        updateFrozenCrasher(deltaTime: deltaTime)
         recordNearMisses(playerPosition: playerPosition)
         detectPlayerCollision(playerPosition: playerPosition)
         updateRunDisplay()
@@ -453,6 +457,13 @@ final class ArenaScene: SKScene {
             playSeekerSwarmEffect(from: playerPosition, to: targetPositions)
         case .razorShield:
             activateRazorShield(at: playerPosition)
+        case .freezeBurst:
+            freezeEnemies(ids: resolution.frozenEnemyIDs, duration: weaponResolver.configuration.freezeDuration)
+            frozenCrasherTimeRemaining = max(
+                frozenCrasherTimeRemaining,
+                weaponResolver.configuration.frozenCrasherDuration
+            )
+            playFreezeBurstEffect(at: playerPosition)
         case .novaBomb:
             playNovaBombEffect()
         }
@@ -470,6 +481,10 @@ final class ArenaScene: SKScene {
         }
 
         runController.recordEnemyKills(count: enemyIDs.count, weaponKind: weaponKind)
+        removeEnemies(ids: enemyIDs)
+    }
+
+    private func removeEnemies(ids enemyIDs: Set<Int>) {
         enemies.removeAll { enemyIDs.contains($0.id) }
         removeFormationEnemies(ids: enemyIDs, awardCompletion: true)
 
@@ -808,5 +823,88 @@ final class ArenaScene: SKScene {
         resumeIconNode.fillColor = theme.playerColor
         resumeIconNode.strokeColor = theme.playerColor
         pauseControlNode.addChild(resumeIconNode)
+    }
+}
+
+private extension ArenaScene {
+    func freezeEnemies(ids enemyIDs: Set<Int>, duration: TimeInterval) {
+        guard !enemyIDs.isEmpty, duration > 0 else {
+            return
+        }
+
+        for index in enemies.indices where enemyIDs.contains(enemies[index].id) {
+            enemies[index].freeze(duration: duration)
+            enemyNodes[enemies[index].id]?.apply(enemies[index])
+        }
+    }
+
+    func updateFrozenCrasher(deltaTime: TimeInterval) {
+        guard frozenCrasherTimeRemaining > 0 else {
+            return
+        }
+
+        frozenCrasherTimeRemaining = max(0, frozenCrasherTimeRemaining - max(0, deltaTime))
+    }
+
+    func shatterFrozenContactEnemies(playerPosition: CGPoint) {
+        guard frozenCrasherTimeRemaining > 0 else {
+            return
+        }
+
+        let playerCircle = CollisionCircle(
+            center: playerPosition,
+            radius: runController.configuration.playerHitRadius
+        )
+        let shatterIDs = Set(
+            enemies
+                .filter { $0.isFrozen && playerCircle.intersects($0.collisionCircle) }
+                .map(\.id)
+        )
+
+        guard !shatterIDs.isEmpty else {
+            return
+        }
+
+        playFrozenShatterEffect(at: positions(forEnemyIDs: shatterIDs))
+        runController.recordFrozenShatters(count: shatterIDs.count, weaponKind: .freezeBurst)
+        removeEnemies(ids: shatterIDs)
+    }
+
+    func playFreezeBurstEffect(at position: CGPoint) {
+        let ring = SKShapeNode(circleOfRadius: weaponResolver.configuration.freezeBurstRadius)
+        ring.position = position
+        ring.strokeColor = theme.pickupBlue.withAlphaComponent(0.85)
+        ring.fillColor = .clear
+        ring.lineWidth = 2
+        ring.glowWidth = 5
+        ring.zPosition = 18
+        ring.setScale(0.18)
+        addChild(ring)
+
+        let expand = SKAction.group([
+            .scale(to: 1.0, duration: 0.18),
+            .fadeOut(withDuration: 0.18)
+        ])
+        ring.run(.sequence([expand, .removeFromParent()]))
+    }
+
+    func playFrozenShatterEffect(at positions: [CGPoint]) {
+        for position in positions {
+            let ring = SKShapeNode(circleOfRadius: 16)
+            ring.position = position
+            ring.strokeColor = theme.playerColor.withAlphaComponent(0.9)
+            ring.fillColor = .clear
+            ring.lineWidth = 1.5
+            ring.glowWidth = 4
+            ring.zPosition = 18
+            ring.setScale(0.35)
+            addChild(ring)
+
+            let burst = SKAction.group([
+                .scale(to: 1.2, duration: 0.1),
+                .fadeOut(withDuration: 0.1)
+            ])
+            ring.run(.sequence([burst, .removeFromParent()]))
+        }
     }
 }

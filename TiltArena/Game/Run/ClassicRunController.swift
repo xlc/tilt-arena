@@ -13,6 +13,7 @@ struct ClassicRunConfiguration: Equatable {
     var playerHitRadiusScale: CGFloat = 0.65
     var baseEnemyScore = 10
     var eliteEnemyScore = 25
+    var frozenShatterScore = 25
     var formationBonusScore = 100
     var nearMissScore = 5
     var dangerGrabScore = 25
@@ -130,6 +131,21 @@ struct ClassicRunController {
         }
 
         recordKill(scoreValue: configuration.eliteEnemyScore, weaponKind: weaponKind)
+    }
+
+    mutating func recordFrozenShatters(count: Int, weaponKind: WeaponKind?) {
+        guard phase == .active else {
+            return
+        }
+
+        let shatterCount = max(0, count)
+        guard shatterCount > 0 else {
+            return
+        }
+
+        for _ in 0..<shatterCount {
+            recordKill(scoreValue: configuration.frozenShatterScore, weaponKind: weaponKind)
+        }
     }
 
     mutating func recordFormationBonus(_ bonus: Int? = nil) {
