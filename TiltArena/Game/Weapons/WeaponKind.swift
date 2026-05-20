@@ -2,6 +2,7 @@ enum WeaponKind: String, CaseIterable, Codable, Equatable {
     case shockwave
     case seekerSwarm
     case razorShield
+    case novaBomb
 
     var displayName: String {
         switch self {
@@ -11,6 +12,8 @@ enum WeaponKind: String, CaseIterable, Codable, Equatable {
             return "Seeker Swarm"
         case .razorShield:
             return "Razor Shield"
+        case .novaBomb:
+            return "Nova Bomb"
         }
     }
 }

@@ -23,6 +23,8 @@ struct StartingWeaponResolver {
             return WeaponResolution(destroyedEnemyIDs: seekerTargets(playerPosition: playerPosition, enemies: enemies))
         case .razorShield:
             return WeaponResolution()
+        case .novaBomb:
+            return WeaponResolution(destroyedEnemyIDs: Set(enemies.map(\.id)))
         }
     }
 

@@ -58,6 +58,35 @@ final class StartingWeaponResolverTests: XCTestCase {
         XCTAssertEqual(resolver.shieldTargets(playerPosition: .zero, enemies: enemies), [1])
     }
 
+    func testNovaBombClearsAllEnemies() {
+        let resolver = StartingWeaponResolver()
+        let enemies = [
+            enemy(id: 1, position: CGPoint(x: 200, y: 0)),
+            enemy(id: 2, position: CGPoint(x: -40, y: 70)),
+            enemy(id: 3, position: CGPoint(x: 0, y: -120))
+        ]
+
+        let resolution = resolver.resolve(
+            kind: .novaBomb,
+            playerPosition: .zero,
+            enemies: enemies
+        )
+
+        XCTAssertEqual(resolution.destroyedEnemyIDs, [1, 2, 3])
+    }
+
+    func testNovaBombHandlesEmptyArena() {
+        let resolver = StartingWeaponResolver()
+
+        let resolution = resolver.resolve(
+            kind: .novaBomb,
+            playerPosition: .zero,
+            enemies: []
+        )
+
+        XCTAssertEqual(resolution.destroyedEnemyIDs, [])
+    }
+
     private func enemy(id: Int, position: CGPoint) -> ArenaEnemy {
         ArenaEnemy(id: id, position: position, radius: 8, speed: 0)
     }
