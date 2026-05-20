@@ -42,10 +42,10 @@ struct EnemyPhaseTuning: Equatable {
     var formationSpawnInterval: TimeInterval?
     var formationSpeed: CGFloat
     var formationLaneCount: Int
-    var arrowRushSpawnInterval: TimeInterval? = nil
+    var arrowRushSpawnInterval: TimeInterval?
     var arrowRushSpeed: CGFloat = 0
     var arrowRushEnemyCount: Int = 0
-    var mineDotSpawnInterval: TimeInterval? = nil
+    var mineDotSpawnInterval: TimeInterval?
     var maxActiveMineDots: Int = 0
 }
 
@@ -248,7 +248,7 @@ struct EnemySpawnDirector {
         }
     }
 
-    private struct PendingEnemySpawn {
+    struct PendingEnemySpawn {
         var timeRemaining: TimeInterval
         let requiredEnemyCount: Int
         let enemies: [ArenaEnemy]
@@ -257,29 +257,26 @@ struct EnemySpawnDirector {
 
     private static let candidateSideCount = 4
     private static let candidateLaneCount = 7
-    private static let mineDotInteriorColumnCount = 4
-    private static let mineDotInteriorRowCount = 4
-    private static let mineDotTelegraphSegmentCount = 18
 
     var configuration: EnemySpawnConfiguration
-    private(set) var nextEnemyID = 1
+    var nextEnemyID = 1
     private(set) var nextFormationID = 1
-    private(set) var nextTelegraphID = 1
+    var nextTelegraphID = 1
     private var nextChaserCandidateIndex = 0
     private var nextFormationDirectionIndex = 0
     private var nextArrowRushDirectionIndex = 0
-    private var nextMineDotCandidateIndex = 0
+    var nextMineDotCandidateIndex = 0
     private var timeUntilNextChaser: TimeInterval = 0
     private var timeUntilNextFormation: TimeInterval = 0
     private var timeUntilNextArrowRush: TimeInterval = 0
-    private var timeUntilNextMineDot: TimeInterval = 0
-    private var pendingSpawns: [Int: PendingEnemySpawn] = [:]
+    var timeUntilNextMineDot: TimeInterval = 0
+    var pendingSpawns: [Int: PendingEnemySpawn] = [:]
 
-    private var pendingEnemyCount: Int {
+    var pendingEnemyCount: Int {
         pendingSpawns.values.reduce(0) { $0 + $1.enemies.count }
     }
 
-    private var pendingMineDotCount: Int {
+    var pendingMineDotCount: Int {
         pendingSpawns.values.reduce(0) { count, pendingSpawn in
             count + pendingSpawn.enemies.filter(\.isMineDot).count
         }
@@ -356,10 +353,6 @@ struct EnemySpawnDirector {
 
         spawnMineDotTelegraphIfNeeded(
             deltaTime: clampedDelta,
-            projectedEnemyCount: activeEnemyCount + frame.newEnemies.count + pendingEnemyCount,
-            projectedMineDotCount: activeEnemies.filter(\.isMineDot).count
-                + frame.newEnemies.filter(\.isMineDot).count
-                + pendingMineDotCount,
             tuning: tuning,
             playableRect: playableRect,
             playerPosition: playerPosition,
@@ -722,242 +715,6 @@ struct EnemySpawnDirector {
         )
     }
 
-    private mutating func spawnMineDotTelegraphIfNeeded(
-        deltaTime: TimeInterval,
-        projectedEnemyCount: Int,
-        projectedMineDotCount: Int,
-        tuning: EnemyPhaseTuning,
-        playableRect: CGRect,
-        playerPosition: CGPoint,
-        pickupCircles: [CollisionCircle],
-        activeEnemies: [ArenaEnemy],
-        frame: inout EnemySpawnFrame
-    ) {
-        guard deltaTime > 0, let mineDotSpawnInterval = tuning.mineDotSpawnInterval else {
-            timeUntilNextMineDot = 0
-            return
-        }
-
-        guard mineDotSpawnInterval > 0, tuning.maxActiveMineDots > 0 else {
-            return
-        }
-
-        guard pendingSpawns.count < configuration.maxPendingEnemyTelegraphs else {
-            timeUntilNextMineDot = max(timeUntilNextMineDot, mineDotSpawnInterval)
-            return
-        }
-
-        guard projectedEnemyCount + 1 <= tuning.maxActiveEnemies,
-              projectedMineDotCount < tuning.maxActiveMineDots else {
-            timeUntilNextMineDot = max(timeUntilNextMineDot, mineDotSpawnInterval)
-            return
-        }
-
-        timeUntilNextMineDot -= deltaTime
-
-        guard timeUntilNextMineDot <= 0 else {
-            return
-        }
-
-        guard let mineDot = makePendingMineDot(
-            in: playableRect,
-            playerPosition: playerPosition,
-            pickupCircles: pickupCircles,
-            activeEnemies: activeEnemies + frame.newEnemies
-        ) else {
-            timeUntilNextMineDot = mineDotSpawnInterval
-            return
-        }
-
-        pendingSpawns[mineDot.telegraph.id] = mineDot
-        frame.telegraphsToShow.append(mineDot.telegraph)
-        timeUntilNextMineDot += mineDotSpawnInterval
-    }
-
-    private mutating func makePendingMineDot(
-        in playableRect: CGRect,
-        playerPosition: CGPoint,
-        pickupCircles: [CollisionCircle],
-        activeEnemies: [ArenaEnemy]
-    ) -> PendingEnemySpawn? {
-        guard playableRect.width > 0, playableRect.height > 0 else {
-            return nil
-        }
-
-        let pendingMinePositions = pendingSpawns.values.flatMap { pendingSpawn in
-            pendingSpawn.enemies.compactMap { enemy in
-                enemy.isMineDot ? enemy.position : nil
-            }
-        }
-
-        let pickupCandidates = pickupAdjacentMineDotCandidates(in: playableRect, pickupCircles: pickupCircles)
-        let interiorCandidates = interiorMineDotCandidates(in: playableRect)
-        var selectedPosition: CGPoint?
-
-        for position in pickupCandidates {
-            guard isSafeMineDotSpawn(
-                position,
-                avoiding: playerPosition,
-                pickupCircles: pickupCircles,
-                activeEnemies: activeEnemies,
-                pendingMinePositions: pendingMinePositions
-            ) else {
-                continue
-            }
-
-            selectedPosition = position
-            break
-        }
-
-        if selectedPosition == nil {
-            for offset in 0..<interiorCandidates.count {
-                let index = (nextMineDotCandidateIndex + offset) % interiorCandidates.count
-                let position = interiorCandidates[index]
-
-                guard isSafeMineDotSpawn(
-                    position,
-                    avoiding: playerPosition,
-                    pickupCircles: pickupCircles,
-                    activeEnemies: activeEnemies,
-                    pendingMinePositions: pendingMinePositions
-                ) else {
-                    continue
-                }
-
-                selectedPosition = position
-                nextMineDotCandidateIndex = (index + 1) % interiorCandidates.count
-                break
-            }
-        }
-
-        guard let position = selectedPosition else {
-            return nil
-        }
-
-        let enemy = ArenaEnemy(
-            id: nextEnemyID,
-            position: position,
-            radius: configuration.enemyRadius,
-            speed: 0,
-            behavior: .mineDot
-        )
-        let telegraph = EnemyTelegraph(
-            id: nextTelegraphID,
-            segments: mineDotTelegraphSegments(center: position)
-        )
-
-        nextEnemyID += 1
-        nextTelegraphID += 1
-
-        return PendingEnemySpawn(
-            timeRemaining: configuration.mineDotTelegraphDuration,
-            requiredEnemyCount: 1,
-            enemies: [enemy],
-            telegraph: telegraph
-        )
-    }
-
-    private func pickupAdjacentMineDotCandidates(
-        in playableRect: CGRect,
-        pickupCircles: [CollisionCircle]
-    ) -> [CGPoint] {
-        let diagonal = CGFloat(1) / sqrt(CGFloat(2))
-        let directions = [
-            CGVector(dx: 1, dy: 0),
-            CGVector(dx: -1, dy: 0),
-            CGVector(dx: 0, dy: 1),
-            CGVector(dx: 0, dy: -1),
-            CGVector(dx: diagonal, dy: diagonal),
-            CGVector(dx: -diagonal, dy: diagonal),
-            CGVector(dx: diagonal, dy: -diagonal),
-            CGVector(dx: -diagonal, dy: -diagonal)
-        ]
-        let spawnRect = playableRect.insetBy(dx: configuration.enemyRadius, dy: configuration.enemyRadius)
-
-        return pickupCircles.flatMap { pickupCircle in
-            let distance = pickupCircle.radius
-                + configuration.enemyRadius
-                + configuration.pickupClearance
-                + configuration.mineDotPickupGuardDistance
-
-            return directions
-                .map { direction in
-                    CGPoint(
-                        x: pickupCircle.center.x + direction.dx * distance,
-                        y: pickupCircle.center.y + direction.dy * distance
-                    )
-                }
-                .filter { spawnRect.contains($0) }
-        }
-    }
-
-    private func interiorMineDotCandidates(in playableRect: CGRect) -> [CGPoint] {
-        let requestedInset = max(
-            configuration.mineDotCandidateInset,
-            configuration.enemyRadius + configuration.mineDotTelegraphRadius
-        )
-        let maxInset = max(0, min(playableRect.width, playableRect.height) / 2 - configuration.enemyRadius)
-        let inset = min(requestedInset, maxInset)
-        let spawnRect = playableRect.insetBy(dx: inset, dy: inset)
-
-        return (0..<Self.mineDotInteriorRowCount).flatMap { row in
-            (0..<Self.mineDotInteriorColumnCount).map { column in
-                CGPoint(
-                    x: spawnRect.minX + spawnRect.width * CGFloat(column + 1) / CGFloat(Self.mineDotInteriorColumnCount + 1),
-                    y: spawnRect.minY + spawnRect.height * CGFloat(row + 1) / CGFloat(Self.mineDotInteriorRowCount + 1)
-                )
-            }
-        }
-    }
-
-    private func isSafeMineDotSpawn(
-        _ position: CGPoint,
-        avoiding playerPosition: CGPoint,
-        pickupCircles: [CollisionCircle],
-        activeEnemies: [ArenaEnemy],
-        pendingMinePositions: [CGPoint]
-    ) -> Bool {
-        guard isSafeSpawn(position, avoiding: playerPosition, pickupCircles: pickupCircles) else {
-            return false
-        }
-
-        guard activeEnemies.allSatisfy({ activeEnemy in
-            let baseClearance = activeEnemy.radius + configuration.enemyRadius + configuration.pickupClearance
-            let clearance = activeEnemy.isMineDot ? max(baseClearance, configuration.mineDotMinimumSpacing) : baseClearance
-            return squaredDistance(from: position, to: activeEnemy.position) >= clearance * clearance
-        }) else {
-            return false
-        }
-
-        return pendingMinePositions.allSatisfy { pendingPosition in
-            let clearance = configuration.mineDotMinimumSpacing
-            return squaredDistance(from: position, to: pendingPosition) >= clearance * clearance
-        }
-    }
-
-    private func mineDotTelegraphSegments(center: CGPoint) -> [EnemyTelegraphSegment] {
-        let radius = max(configuration.enemyRadius * 2, configuration.mineDotTelegraphRadius)
-        let segmentCount = max(8, Self.mineDotTelegraphSegmentCount)
-        let angleStep = CGFloat.pi * 2 / CGFloat(segmentCount)
-        let segmentCoverage: CGFloat = 0.58
-
-        return (0..<segmentCount).map { index in
-            let startAngle = CGFloat(index) * angleStep
-            let endAngle = startAngle + angleStep * segmentCoverage
-
-            return EnemyTelegraphSegment(
-                start: CGPoint(
-                    x: center.x + cos(startAngle) * radius,
-                    y: center.y + sin(startAngle) * radius
-                ),
-                end: CGPoint(
-                    x: center.x + cos(endAngle) * radius,
-                    y: center.y + sin(endAngle) * radius
-                )
-            )
-        }
-    }
-
     private mutating func nextFormationDirection() -> EdgeDirection {
         let directions = EdgeDirection.allCases
         let direction = directions[nextFormationDirectionIndex % directions.count]
@@ -1201,7 +958,7 @@ struct EnemySpawnDirector {
         return CGVector(dx: dx / distance * clampedSpeed, dy: dy / distance * clampedSpeed)
     }
 
-    private func squaredDistance(from lhs: CGPoint, to rhs: CGPoint) -> CGFloat {
+    func squaredDistance(from lhs: CGPoint, to rhs: CGPoint) -> CGFloat {
         let dx = lhs.x - rhs.x
         let dy = lhs.y - rhs.y
         return dx * dx + dy * dy
