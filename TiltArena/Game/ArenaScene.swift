@@ -10,12 +10,14 @@ final class ArenaScene: SKScene {
     private var runController = ClassicRunController()
     private var runProfile = RunProfile()
     private var hasPersistedFinalRun = false
-    private var spawnPlanner = ChaserSpawnPlanner()
+    private var spawnDirector = EnemySpawnDirector()
     private let pickupSpawnConfiguration = PickupSpawnConfiguration()
     private var pickupPlanner = PickupSpawnPlanner()
     private let weaponResolver = StartingWeaponResolver()
     private var enemies: [ChaserEnemy] = []
     private var enemyNodes: [Int: ChaserEnemyNode] = [:]
+    private var formationTelegraphNodes: [Int: FormationTelegraphNode] = [:]
+    private var formationEnemyIDs: [Int: Set<Int>] = [:]
     private var pickups: [WeaponPickup] = []
     private var pickupNodes: [Int: WeaponPickupNode] = [:]
     private var playerNode: PlayerCraftNode?
@@ -265,7 +267,10 @@ final class ArenaScene: SKScene {
         enemies.removeAll()
         enemyNodes.values.forEach { $0.removeFromParent() }
         enemyNodes.removeAll()
-        spawnPlanner.reset()
+        formationTelegraphNodes.values.forEach { $0.removeFromParent() }
+        formationTelegraphNodes.removeAll()
+        formationEnemyIDs.removeAll()
+        spawnDirector.reset()
 
         pickups.removeAll()
         pickupNodes.values.forEach { $0.removeFromParent() }
@@ -281,38 +286,60 @@ final class ArenaScene: SKScene {
     }
 
     private func updateActiveRun(deltaTime: TimeInterval, playerPosition: CGPoint) {
-        let spawnCount = runController.update(deltaTime: deltaTime, activeEnemyCount: enemies.count)
-        spawnChasers(count: spawnCount, playerPosition: playerPosition)
+        runController.update(deltaTime: deltaTime)
+        spawnEnemiesIfNeeded(deltaTime: deltaTime, playerPosition: playerPosition)
         spawnPickupIfNeeded(deltaTime: deltaTime, playerPosition: playerPosition)
         collectPickups(playerPosition: playerPosition)
-        advanceChasers(deltaTime: deltaTime, playerPosition: playerPosition)
+        advanceEnemies(deltaTime: deltaTime, playerPosition: playerPosition)
+        cullExitedFormationEnemies()
         updateRazorShield(deltaTime: deltaTime, playerPosition: playerPosition)
         recordNearMisses(playerPosition: playerPosition)
         detectPlayerCollision(playerPosition: playerPosition)
         updateRunDisplay()
     }
 
-    private func spawnChasers(count: Int, playerPosition: CGPoint) {
-        guard count > 0 else {
-            return
-        }
-
+    private func spawnEnemiesIfNeeded(deltaTime: TimeInterval, playerPosition: CGPoint) {
         let playableRect = movementController.configuration.playableRect(in: size)
+        let frame = spawnDirector.update(
+            deltaTime: deltaTime,
+            survivalTime: runController.survivalTime,
+            activeEnemyCount: enemies.count,
+            playableRect: playableRect,
+            playerPosition: playerPosition,
+            pickupCircles: pickups.map(\.collisionCircle)
+        )
 
-        for _ in 0..<count {
-            guard let enemy = spawnPlanner.spawnChaser(
-                in: playableRect,
-                avoiding: playerPosition,
-                configuration: runController.configuration
-            ) else {
-                continue
-            }
+        removeFormationTelegraphs(ids: frame.telegraphIDsToRemove)
+        showFormationTelegraphs(frame.telegraphsToShow)
+        addSpawnedEnemies(frame.newEnemies)
+    }
 
+    private func addSpawnedEnemies(_ spawnedEnemies: [ChaserEnemy]) {
+        for enemy in spawnedEnemies {
             enemies.append(enemy)
 
             let node = ChaserEnemyNode(enemy: enemy, theme: theme)
             enemyNodes[enemy.id] = node
             addChild(node)
+
+            if let formationID = enemy.formationID {
+                formationEnemyIDs[formationID, default: []].insert(enemy.id)
+            }
+        }
+    }
+
+    private func showFormationTelegraphs(_ telegraphs: [FormationTelegraph]) {
+        for telegraph in telegraphs {
+            formationTelegraphNodes[telegraph.id]?.removeFromParent()
+            let node = FormationTelegraphNode(telegraph: telegraph, theme: theme)
+            formationTelegraphNodes[telegraph.id] = node
+            addChild(node)
+        }
+    }
+
+    private func removeFormationTelegraphs(ids telegraphIDs: Set<Int>) {
+        for telegraphID in telegraphIDs {
+            formationTelegraphNodes.removeValue(forKey: telegraphID)?.removeFromParent()
         }
     }
 
@@ -339,10 +366,33 @@ final class ArenaScene: SKScene {
         addChild(node)
     }
 
-    private func advanceChasers(deltaTime: TimeInterval, playerPosition: CGPoint) {
+    private func advanceEnemies(deltaTime: TimeInterval, playerPosition: CGPoint) {
         for index in enemies.indices {
             enemies[index].advance(toward: playerPosition, deltaTime: deltaTime)
             enemyNodes[enemies[index].id]?.apply(enemies[index])
+        }
+    }
+
+    private func cullExitedFormationEnemies() {
+        let playableRect = movementController.configuration.playableRect(in: size)
+        let cullingRect = playableRect.insetBy(
+            dx: -spawnDirector.configuration.cullingOutset,
+            dy: -spawnDirector.configuration.cullingOutset
+        )
+        let exitedEnemies = enemies.filter { $0.formationID != nil && !cullingRect.contains($0.position) }
+        let exitedEnemyIDs = Set(exitedEnemies.map(\.id))
+
+        guard !exitedEnemyIDs.isEmpty else {
+            return
+        }
+
+        for formationID in Set(exitedEnemies.compactMap(\.formationID)) {
+            formationEnemyIDs.removeValue(forKey: formationID)
+        }
+
+        enemies.removeAll { exitedEnemyIDs.contains($0.id) }
+        for enemyID in exitedEnemyIDs {
+            enemyNodes.removeValue(forKey: enemyID)?.removeFromParent()
         }
     }
 
@@ -403,6 +453,7 @@ final class ArenaScene: SKScene {
 
         runController.recordEnemyKills(count: enemyIDs.count, weaponKind: weaponKind)
         enemies.removeAll { enemyIDs.contains($0.id) }
+        removeFormationEnemies(ids: enemyIDs, awardCompletion: true)
 
         for enemyID in enemyIDs {
             guard let node = enemyNodes.removeValue(forKey: enemyID) else {
@@ -414,6 +465,26 @@ final class ArenaScene: SKScene {
                 .fadeOut(withDuration: 0.08)
             ])
             node.run(.sequence([fade, .removeFromParent()]))
+        }
+    }
+
+    private func removeFormationEnemies(ids enemyIDs: Set<Int>, awardCompletion: Bool) {
+        for formationID in formationEnemyIDs.keys.sorted() {
+            guard var remainingEnemyIDs = formationEnemyIDs[formationID] else {
+                continue
+            }
+
+            remainingEnemyIDs.subtract(enemyIDs)
+
+            if remainingEnemyIDs.isEmpty {
+                formationEnemyIDs.removeValue(forKey: formationID)
+
+                if awardCompletion {
+                    runController.recordFormationBonus()
+                }
+            } else {
+                formationEnemyIDs[formationID] = remainingEnemyIDs
+            }
         }
     }
 

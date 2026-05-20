@@ -1,17 +1,46 @@
 import CoreGraphics
 import Foundation
 
+enum EnemyBehavior: Equatable {
+    case chaser
+    case formationLine(velocity: CGVector, formationID: Int)
+}
+
 struct ChaserEnemy: Equatable, Identifiable {
     let id: Int
     var position: CGPoint
     var radius: CGFloat
     var speed: CGFloat
+    var behavior: EnemyBehavior = .chaser
+
+    var formationID: Int? {
+        switch behavior {
+        case .chaser:
+            return nil
+        case let .formationLine(_, formationID):
+            return formationID
+        }
+    }
 
     var collisionCircle: CollisionCircle {
         CollisionCircle(center: position, radius: radius)
     }
 
     mutating func advance(toward target: CGPoint, deltaTime: TimeInterval) {
+        let clampedDelta = CGFloat(max(0, deltaTime))
+
+        switch behavior {
+        case .chaser:
+            advanceChaser(toward: target, deltaTime: clampedDelta)
+        case let .formationLine(velocity, _):
+            position = CGPoint(
+                x: position.x + velocity.dx * clampedDelta,
+                y: position.y + velocity.dy * clampedDelta
+            )
+        }
+    }
+
+    private mutating func advanceChaser(toward target: CGPoint, deltaTime: CGFloat) {
         let dx = target.x - position.x
         let dy = target.y - position.y
         let distance = hypot(dx, dy)
@@ -20,7 +49,7 @@ struct ChaserEnemy: Equatable, Identifiable {
             return
         }
 
-        let movementDistance = max(0, speed) * CGFloat(max(0, deltaTime))
+        let movementDistance = max(0, speed) * deltaTime
         guard movementDistance > 0 else {
             return
         }
