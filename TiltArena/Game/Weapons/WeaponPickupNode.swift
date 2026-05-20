@@ -46,6 +46,8 @@ final class WeaponPickupNode: SKNode {
             return theme.pickupBlue
         case .freezeBurst:
             return theme.pickupBlue
+        case .gravityWell:
+            return theme.pickupViolet
         case .novaBomb:
             return theme.pickupAmber
         }

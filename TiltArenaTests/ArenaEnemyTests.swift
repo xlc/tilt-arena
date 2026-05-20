@@ -115,6 +115,26 @@ final class ArenaEnemyTests: XCTestCase {
         XCTAssertEqual(enemy.formationID, 4)
     }
 
+    func testGravityPullMovesTowardTargetWithoutOvershootingOrMovingFrozenEnemies() {
+        var enemy = ArenaEnemy(id: 1, position: CGPoint(x: 0, y: 0), radius: 8, speed: 0)
+
+        enemy.pullToward(CGPoint(x: 30, y: 40), distance: 25)
+
+        XCTAssertEqual(enemy.position.x, 15, accuracy: 0.0001)
+        XCTAssertEqual(enemy.position.y, 20, accuracy: 0.0001)
+
+        enemy.pullToward(CGPoint(x: 30, y: 40), distance: 100)
+
+        XCTAssertEqual(enemy.position.x, 30, accuracy: 0.0001)
+        XCTAssertEqual(enemy.position.y, 40, accuracy: 0.0001)
+
+        enemy.freeze(duration: 1)
+        enemy.pullToward(.zero, distance: 100)
+
+        XCTAssertEqual(enemy.position.x, 30, accuracy: 0.0001)
+        XCTAssertEqual(enemy.position.y, 40, accuracy: 0.0001)
+    }
+
     func testHunterDotUsesPredictedPlayerPosition() {
         var enemy = ArenaEnemy(
             id: 1,

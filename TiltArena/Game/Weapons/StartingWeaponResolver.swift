@@ -9,11 +9,15 @@ struct StartingWeaponConfiguration: Equatable {
     var freezeBurstRadius: CGFloat = 112
     var freezeDuration: TimeInterval = 4
     var frozenCrasherDuration: TimeInterval = 2.4
+    var gravityWellRadius: CGFloat = 132
+    var gravityWellPullDuration: TimeInterval = 0.85
+    var gravityWellClearRadius: CGFloat = 32
 }
 
 struct WeaponResolution: Equatable {
     var destroyedEnemyIDs: Set<Int> = []
     var frozenEnemyIDs: Set<Int> = []
+    var gravityWellEnemyIDs: Set<Int> = []
 }
 
 struct StartingWeaponResolver {
@@ -29,6 +33,8 @@ struct StartingWeaponResolver {
             return WeaponResolution()
         case .freezeBurst:
             return WeaponResolution(frozenEnemyIDs: freezeBurstTargets(playerPosition: playerPosition, enemies: enemies))
+        case .gravityWell:
+            return WeaponResolution(gravityWellEnemyIDs: gravityWellTargets(playerPosition: playerPosition, enemies: enemies))
         case .novaBomb:
             return WeaponResolution(destroyedEnemyIDs: Set(enemies.map(\.id)))
         }
@@ -65,6 +71,11 @@ struct StartingWeaponResolver {
     private func freezeBurstTargets(playerPosition: CGPoint, enemies: [ArenaEnemy]) -> Set<Int> {
         let freezeCircle = CollisionCircle(center: playerPosition, radius: configuration.freezeBurstRadius)
         return Set(enemies.filter { freezeCircle.intersects($0.collisionCircle) }.map(\.id))
+    }
+
+    private func gravityWellTargets(playerPosition: CGPoint, enemies: [ArenaEnemy]) -> Set<Int> {
+        let wellCircle = CollisionCircle(center: playerPosition, radius: configuration.gravityWellRadius)
+        return Set(enemies.filter { !$0.isFrozen && wellCircle.intersects($0.collisionCircle) }.map(\.id))
     }
 
     private func squaredDistance(from lhs: CGPoint, to rhs: CGPoint) -> CGFloat {
