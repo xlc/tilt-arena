@@ -7,6 +7,7 @@ struct PickupSpawnConfiguration: Equatable {
         .seekerSwarm,
         .razorShield,
         .freezeBurst,
+        .gravityWell,
         .shockwave,
         .seekerSwarm,
         .razorShield,
@@ -14,6 +15,11 @@ struct PickupSpawnConfiguration: Equatable {
         .shockwave,
         .seekerSwarm,
         .razorShield,
+        .gravityWell,
+        .shockwave,
+        .seekerSwarm,
+        .razorShield,
+        .freezeBurst,
         .novaBomb
     ]
 

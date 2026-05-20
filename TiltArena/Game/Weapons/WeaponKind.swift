@@ -3,6 +3,7 @@ enum WeaponKind: String, CaseIterable, Codable, Equatable {
     case seekerSwarm
     case razorShield
     case freezeBurst
+    case gravityWell
     case novaBomb
 
     var displayName: String {
@@ -15,6 +16,8 @@ enum WeaponKind: String, CaseIterable, Codable, Equatable {
             return "Razor Shield"
         case .freezeBurst:
             return "Freeze Burst"
+        case .gravityWell:
+            return "Gravity Well"
         case .novaBomb:
             return "Nova Bomb"
         }

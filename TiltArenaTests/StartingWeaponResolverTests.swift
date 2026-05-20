@@ -90,6 +90,41 @@ final class StartingWeaponResolverTests: XCTestCase {
         XCTAssertEqual(resolution.frozenEnemyIDs, [])
     }
 
+    func testGravityWellTargetsUnfrozenEnemiesInsideRadiusWithoutDestroyingThem() {
+        let resolver = StartingWeaponResolver(
+            configuration: StartingWeaponConfiguration(gravityWellRadius: 50)
+        )
+        var frozenEnemy = enemy(id: 3, position: CGPoint(x: 20, y: 0))
+        frozenEnemy.freeze(duration: 1)
+        let enemies = [
+            enemy(id: 1, position: CGPoint(x: 20, y: 0)),
+            enemy(id: 2, position: CGPoint(x: 80, y: 0)),
+            frozenEnemy
+        ]
+
+        let resolution = resolver.resolve(
+            kind: .gravityWell,
+            playerPosition: .zero,
+            enemies: enemies
+        )
+
+        XCTAssertEqual(resolution.destroyedEnemyIDs, [])
+        XCTAssertEqual(resolution.gravityWellEnemyIDs, [1])
+    }
+
+    func testGravityWellHandlesEmptyArena() {
+        let resolver = StartingWeaponResolver()
+
+        let resolution = resolver.resolve(
+            kind: .gravityWell,
+            playerPosition: .zero,
+            enemies: []
+        )
+
+        XCTAssertEqual(resolution.destroyedEnemyIDs, [])
+        XCTAssertEqual(resolution.gravityWellEnemyIDs, [])
+    }
+
     func testNovaBombClearsAllEnemies() {
         let resolver = StartingWeaponResolver()
         let enemies = [

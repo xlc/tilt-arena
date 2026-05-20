@@ -83,6 +83,26 @@ struct ArenaEnemy: Equatable, Identifiable {
         frozenTimeRemaining = max(frozenTimeRemaining, max(0, duration))
     }
 
+    mutating func pullToward(_ target: CGPoint, distance: CGFloat) {
+        guard !isFrozen else {
+            return
+        }
+
+        let dx = target.x - position.x
+        let dy = target.y - position.y
+        let targetDistance = hypot(dx, dy)
+        let clampedDistance = min(max(0, distance), targetDistance)
+
+        guard targetDistance > 0, clampedDistance > 0 else {
+            return
+        }
+
+        position = CGPoint(
+            x: position.x + dx / targetDistance * clampedDistance,
+            y: position.y + dy / targetDistance * clampedDistance
+        )
+    }
+
     mutating func advance(toward target: CGPoint, deltaTime: TimeInterval) {
         let clampedTime = max(0, deltaTime)
         let clampedDelta = CGFloat(clampedTime)
