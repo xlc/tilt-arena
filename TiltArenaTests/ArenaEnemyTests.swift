@@ -56,6 +56,24 @@ final class ArenaEnemyTests: XCTestCase {
         XCTAssertTrue(enemy.isLinearPatternEnemy)
     }
 
+    func testMineDotDoesNotMove() {
+        var enemy = ArenaEnemy(
+            id: 1,
+            position: CGPoint(x: 80, y: 120),
+            radius: 8,
+            speed: 0,
+            behavior: .mineDot
+        )
+
+        enemy.advance(toward: CGPoint(x: 300, y: 300), deltaTime: 10)
+
+        XCTAssertEqual(enemy.position.x, 80, accuracy: 0.0001)
+        XCTAssertEqual(enemy.position.y, 120, accuracy: 0.0001)
+        XCTAssertNil(enemy.formationID)
+        XCTAssertFalse(enemy.isLinearPatternEnemy)
+        XCTAssertTrue(enemy.isMineDot)
+    }
+
     func testCircleCollisionUsesCombinedRadii() {
         let player = CollisionCircle(center: CGPoint(x: 0, y: 0), radius: 9)
         let touchingEnemy = CollisionCircle(center: CGPoint(x: 17, y: 0), radius: 8)

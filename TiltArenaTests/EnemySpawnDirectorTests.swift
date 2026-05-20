@@ -41,7 +41,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let frame = director.update(
             deltaTime: 0.1,
             survivalTime: 0,
-            activeEnemyCount: 0,
+            activeEnemies: [],
             playableRect: playableRect,
             playerPosition: playerPosition,
             pickupCircles: [pickupCircle]
@@ -57,7 +57,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let cappedFrame = director.update(
             deltaTime: 10,
             survivalTime: 0,
-            activeEnemyCount: 1,
+            activeEnemies: placeholderEnemies(count: 1),
             playableRect: playableRect,
             playerPosition: playerPosition,
             pickupCircles: []
@@ -76,7 +76,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let telegraphFrame = director.update(
             deltaTime: 0.1,
             survivalTime: 30,
-            activeEnemyCount: 0,
+            activeEnemies: [],
             playableRect: playableRect,
             playerPosition: playerPosition,
             pickupCircles: []
@@ -89,7 +89,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let waitingFrame = director.update(
             deltaTime: 0.5,
             survivalTime: 30.5,
-            activeEnemyCount: 0,
+            activeEnemies: [],
             playableRect: playableRect,
             playerPosition: playerPosition,
             pickupCircles: []
@@ -101,7 +101,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let spawnFrame = director.update(
             deltaTime: 0.5,
             survivalTime: 31,
-            activeEnemyCount: 0,
+            activeEnemies: [],
             playableRect: playableRect,
             playerPosition: playerPosition,
             pickupCircles: []
@@ -123,7 +123,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         _ = director.update(
             deltaTime: 0.1,
             survivalTime: 30,
-            activeEnemyCount: 0,
+            activeEnemies: [],
             playableRect: playableRect,
             playerPosition: CGPoint(x: 150, y: 150),
             pickupCircles: [pickupCircle]
@@ -132,7 +132,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let spawnFrame = director.update(
             deltaTime: 1,
             survivalTime: 31,
-            activeEnemyCount: 0,
+            activeEnemies: [],
             playableRect: playableRect,
             playerPosition: CGPoint(x: 150, y: 150),
             pickupCircles: [pickupCircle]
@@ -153,7 +153,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let telegraphFrame = director.update(
             deltaTime: 0.1,
             survivalTime: 30,
-            activeEnemyCount: 0,
+            activeEnemies: [],
             playableRect: playableRect,
             playerPosition: playerPosition,
             pickupCircles: []
@@ -164,7 +164,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let spawnFrame = director.update(
             deltaTime: 1,
             survivalTime: 31,
-            activeEnemyCount: 2,
+            activeEnemies: placeholderEnemies(count: 2),
             playableRect: playableRect,
             playerPosition: playerPosition,
             pickupCircles: []
@@ -181,7 +181,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let pressureFrame = director.update(
             deltaTime: 100,
             survivalTime: 89.9,
-            activeEnemyCount: 0,
+            activeEnemies: [],
             playableRect: playableRect,
             playerPosition: CGPoint(x: 220, y: 160),
             pickupCircles: []
@@ -192,7 +192,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let chaosFrame = director.update(
             deltaTime: 0.1,
             survivalTime: 90,
-            activeEnemyCount: 0,
+            activeEnemies: [],
             playableRect: playableRect,
             playerPosition: CGPoint(x: 220, y: 160),
             pickupCircles: []
@@ -225,7 +225,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let telegraphFrame = director.update(
             deltaTime: 0.1,
             survivalTime: 90,
-            activeEnemyCount: 0,
+            activeEnemies: [],
             playableRect: playableRect,
             playerPosition: capturedTarget,
             pickupCircles: []
@@ -238,7 +238,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let waitingFrame = director.update(
             deltaTime: 0.4,
             survivalTime: 90.4,
-            activeEnemyCount: 0,
+            activeEnemies: [],
             playableRect: playableRect,
             playerPosition: CGPoint(x: 20, y: 40),
             pickupCircles: []
@@ -250,7 +250,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let spawnFrame = director.update(
             deltaTime: 0.45,
             survivalTime: 90.85,
-            activeEnemyCount: 0,
+            activeEnemies: [],
             playableRect: playableRect,
             playerPosition: CGPoint(x: 20, y: 40),
             pickupCircles: []
@@ -283,7 +283,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let telegraphFrame = director.update(
             deltaTime: 0.1,
             survivalTime: 90,
-            activeEnemyCount: 0,
+            activeEnemies: [],
             playableRect: playableRect,
             playerPosition: CGPoint(x: 240, y: 180),
             pickupCircles: []
@@ -294,7 +294,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let spawnFrame = director.update(
             deltaTime: 0.85,
             survivalTime: 90.85,
-            activeEnemyCount: 2,
+            activeEnemies: placeholderEnemies(count: 2),
             playableRect: playableRect,
             playerPosition: CGPoint(x: 240, y: 180),
             pickupCircles: []
@@ -314,7 +314,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let telegraphFrame = director.update(
             deltaTime: 0.1,
             survivalTime: 90,
-            activeEnemyCount: 0,
+            activeEnemies: [],
             playableRect: playableRect,
             playerPosition: playerPosition,
             pickupCircles: []
@@ -327,7 +327,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let blockedFrame = director.update(
             deltaTime: 0.1,
             survivalTime: 90.1,
-            activeEnemyCount: 0,
+            activeEnemies: [],
             playableRect: playableRect,
             playerPosition: playerPosition,
             pickupCircles: []
@@ -345,7 +345,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let firstFrame = director.update(
             deltaTime: 0.1,
             survivalTime: 90,
-            activeEnemyCount: 0,
+            activeEnemies: [],
             playableRect: playableRect,
             playerPosition: CGPoint(x: 240, y: 180),
             pickupCircles: []
@@ -356,7 +356,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let resetFrame = director.update(
             deltaTime: 0.1,
             survivalTime: 90,
-            activeEnemyCount: 0,
+            activeEnemies: [],
             playableRect: playableRect,
             playerPosition: CGPoint(x: 240, y: 180),
             pickupCircles: []
@@ -382,7 +382,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let firstFrame = director.update(
             deltaTime: 0.1,
             survivalTime: 0,
-            activeEnemyCount: 0,
+            activeEnemies: [],
             playableRect: playableRect,
             playerPosition: CGPoint(x: 160, y: 300),
             pickupCircles: []
@@ -393,7 +393,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let resetFrame = director.update(
             deltaTime: 0.1,
             survivalTime: 0,
-            activeEnemyCount: 0,
+            activeEnemies: [],
             playableRect: playableRect,
             playerPosition: CGPoint(x: 160, y: 300),
             pickupCircles: []
@@ -479,6 +479,17 @@ final class EnemySpawnDirectorTests: XCTestCase {
         )
     }
 
+    private func placeholderEnemies(count: Int) -> [ArenaEnemy] {
+        (0..<count).map { index in
+            ArenaEnemy(
+                id: 10_000 + index,
+                position: CGPoint(x: 40 + CGFloat(index) * 24, y: 40),
+                radius: 8,
+                speed: 0
+            )
+        }
+    }
+
     private func arrowRushVelocity(
         for enemy: ArenaEnemy,
         file: StaticString = #filePath,
@@ -499,4 +510,5 @@ final class EnemySpawnDirectorTests: XCTestCase {
     private func dot(_ lhs: CGVector, _ rhs: CGVector) -> CGFloat {
         lhs.dx * rhs.dx + lhs.dy * rhs.dy
     }
+
 }

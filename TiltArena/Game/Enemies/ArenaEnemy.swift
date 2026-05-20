@@ -5,6 +5,7 @@ enum EnemyBehavior: Equatable {
     case chaser
     case formationLine(velocity: CGVector, formationID: Int)
     case arrowRush(velocity: CGVector)
+    case mineDot
 }
 
 struct ArenaEnemy: Equatable, Identifiable {
@@ -16,7 +17,7 @@ struct ArenaEnemy: Equatable, Identifiable {
 
     var formationID: Int? {
         switch behavior {
-        case .chaser, .arrowRush:
+        case .chaser, .arrowRush, .mineDot:
             return nil
         case let .formationLine(_, formationID):
             return formationID
@@ -25,11 +26,15 @@ struct ArenaEnemy: Equatable, Identifiable {
 
     var isLinearPatternEnemy: Bool {
         switch behavior {
-        case .chaser:
+        case .chaser, .mineDot:
             return false
         case .formationLine, .arrowRush:
             return true
         }
+    }
+
+    var isMineDot: Bool {
+        behavior == .mineDot
     }
 
     var collisionCircle: CollisionCircle {
@@ -46,6 +51,8 @@ struct ArenaEnemy: Equatable, Identifiable {
             advanceLinearly(velocity: velocity, deltaTime: clampedDelta)
         case let .formationLine(velocity, _):
             advanceLinearly(velocity: velocity, deltaTime: clampedDelta)
+        case .mineDot:
+            return
         }
     }
 

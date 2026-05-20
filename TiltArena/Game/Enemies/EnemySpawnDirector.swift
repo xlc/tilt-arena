@@ -42,9 +42,11 @@ struct EnemyPhaseTuning: Equatable {
     var formationSpawnInterval: TimeInterval?
     var formationSpeed: CGFloat
     var formationLaneCount: Int
-    var arrowRushSpawnInterval: TimeInterval? = nil
+    var arrowRushSpawnInterval: TimeInterval?
     var arrowRushSpeed: CGFloat = 0
     var arrowRushEnemyCount: Int = 0
+    var mineDotSpawnInterval: TimeInterval?
+    var maxActiveMineDots: Int = 0
 }
 
 struct EnemySpawnConfiguration: Equatable {
@@ -60,6 +62,11 @@ struct EnemySpawnConfiguration: Equatable {
     var arrowRushSpawnOffset: CGFloat = 18
     var arrowRushEnemySpacing: CGFloat = 24
     var minimumArrowRushEnemyCount = 2
+    var mineDotTelegraphDuration: TimeInterval = 0.9
+    var mineDotTelegraphRadius: CGFloat = 24
+    var mineDotPickupGuardDistance: CGFloat = 44
+    var mineDotCandidateInset: CGFloat = 48
+    var mineDotMinimumSpacing: CGFloat = 52
     var maxPendingEnemyTelegraphs = 2
     var cullingOutset: CGFloat = 72
     var warmup = EnemyPhaseTuning(
@@ -71,7 +78,9 @@ struct EnemySpawnConfiguration: Equatable {
         formationLaneCount: 5,
         arrowRushSpawnInterval: nil,
         arrowRushSpeed: 0,
-        arrowRushEnemyCount: 0
+        arrowRushEnemyCount: 0,
+        mineDotSpawnInterval: nil,
+        maxActiveMineDots: 0
     )
     var pressure = EnemyPhaseTuning(
         chaserSpawnInterval: 1.05,
@@ -82,7 +91,9 @@ struct EnemySpawnConfiguration: Equatable {
         formationLaneCount: 5,
         arrowRushSpawnInterval: nil,
         arrowRushSpeed: 0,
-        arrowRushEnemyCount: 0
+        arrowRushEnemyCount: 0,
+        mineDotSpawnInterval: nil,
+        maxActiveMineDots: 0
     )
     var chaos = EnemyPhaseTuning(
         chaserSpawnInterval: 0.75,
@@ -93,7 +104,9 @@ struct EnemySpawnConfiguration: Equatable {
         formationLaneCount: 7,
         arrowRushSpawnInterval: 10,
         arrowRushSpeed: 150,
-        arrowRushEnemyCount: 3
+        arrowRushEnemyCount: 3,
+        mineDotSpawnInterval: 14,
+        maxActiveMineDots: 4
     )
     var survivalHell = EnemyPhaseTuning(
         chaserSpawnInterval: 0.5,
@@ -104,7 +117,9 @@ struct EnemySpawnConfiguration: Equatable {
         formationLaneCount: 9,
         arrowRushSpawnInterval: 7,
         arrowRushSpeed: 175,
-        arrowRushEnemyCount: 5
+        arrowRushEnemyCount: 5,
+        mineDotSpawnInterval: 10,
+        maxActiveMineDots: 7
     )
 
     func tuning(at survivalTime: TimeInterval) -> EnemyPhaseTuning {
@@ -150,6 +165,14 @@ struct EnemySpawnConfiguration: Equatable {
                 round(interpolate(
                     from: CGFloat(current.tuning.arrowRushEnemyCount),
                     to: CGFloat(next?.tuning.arrowRushEnemyCount ?? current.tuning.arrowRushEnemyCount),
+                    progress: progress
+                ))
+            )),
+            mineDotSpawnInterval: current.tuning.mineDotSpawnInterval,
+            maxActiveMineDots: max(0, Int(
+                round(interpolate(
+                    from: CGFloat(current.tuning.maxActiveMineDots),
+                    to: CGFloat(next?.tuning.maxActiveMineDots ?? current.tuning.maxActiveMineDots),
                     progress: progress
                 ))
             ))
@@ -225,7 +248,7 @@ struct EnemySpawnDirector {
         }
     }
 
-    private struct PendingEnemySpawn {
+    struct PendingEnemySpawn {
         var timeRemaining: TimeInterval
         let requiredEnemyCount: Int
         let enemies: [ArenaEnemy]
@@ -236,19 +259,27 @@ struct EnemySpawnDirector {
     private static let candidateLaneCount = 7
 
     var configuration: EnemySpawnConfiguration
-    private(set) var nextEnemyID = 1
+    var nextEnemyID = 1
     private(set) var nextFormationID = 1
-    private(set) var nextTelegraphID = 1
+    var nextTelegraphID = 1
     private var nextChaserCandidateIndex = 0
     private var nextFormationDirectionIndex = 0
     private var nextArrowRushDirectionIndex = 0
+    var nextMineDotCandidateIndex = 0
     private var timeUntilNextChaser: TimeInterval = 0
     private var timeUntilNextFormation: TimeInterval = 0
     private var timeUntilNextArrowRush: TimeInterval = 0
-    private var pendingSpawns: [Int: PendingEnemySpawn] = [:]
+    var timeUntilNextMineDot: TimeInterval = 0
+    var pendingSpawns: [Int: PendingEnemySpawn] = [:]
 
-    private var pendingEnemyCount: Int {
+    var pendingEnemyCount: Int {
         pendingSpawns.values.reduce(0) { $0 + $1.enemies.count }
+    }
+
+    var pendingMineDotCount: Int {
+        pendingSpawns.values.reduce(0) { count, pendingSpawn in
+            count + pendingSpawn.enemies.filter(\.isMineDot).count
+        }
     }
 
     init(configuration: EnemySpawnConfiguration = EnemySpawnConfiguration()) {
@@ -262,22 +293,25 @@ struct EnemySpawnDirector {
         nextChaserCandidateIndex = 0
         nextFormationDirectionIndex = 0
         nextArrowRushDirectionIndex = 0
+        nextMineDotCandidateIndex = 0
         timeUntilNextChaser = 0
         timeUntilNextFormation = 0
         timeUntilNextArrowRush = 0
+        timeUntilNextMineDot = 0
         pendingSpawns.removeAll()
     }
 
     mutating func update(
         deltaTime: TimeInterval,
         survivalTime: TimeInterval,
-        activeEnemyCount: Int,
+        activeEnemies: [ArenaEnemy],
         playableRect: CGRect,
         playerPosition: CGPoint,
         pickupCircles: [CollisionCircle]
     ) -> EnemySpawnFrame {
         let clampedDelta = max(0, deltaTime)
         let tuning = configuration.tuning(at: survivalTime)
+        let activeEnemyCount = activeEnemies.count
         var frame = EnemySpawnFrame()
 
         advancePendingEnemySpawns(
@@ -314,6 +348,16 @@ struct EnemySpawnDirector {
             playableRect: playableRect,
             playerPosition: playerPosition,
             pickupCircles: pickupCircles,
+            frame: &frame
+        )
+
+        spawnMineDotTelegraphIfNeeded(
+            deltaTime: clampedDelta,
+            tuning: tuning,
+            playableRect: playableRect,
+            playerPosition: playerPosition,
+            pickupCircles: pickupCircles,
+            activeEnemies: activeEnemies,
             frame: &frame
         )
 
@@ -914,7 +958,7 @@ struct EnemySpawnDirector {
         return CGVector(dx: dx / distance * clampedSpeed, dy: dy / distance * clampedSpeed)
     }
 
-    private func squaredDistance(from lhs: CGPoint, to rhs: CGPoint) -> CGFloat {
+    func squaredDistance(from lhs: CGPoint, to rhs: CGPoint) -> CGFloat {
         let dx = lhs.x - rhs.x
         let dy = lhs.y - rhs.y
         return dx * dx + dy * dy
