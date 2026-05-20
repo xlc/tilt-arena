@@ -92,6 +92,63 @@ final class ArenaEnemyTests: XCTestCase {
         XCTAssertTrue(enemy.isHunterDot)
     }
 
+    func testPaddleTrapBarDoesNotMoveAndExpires() {
+        var enemy = ArenaEnemy(
+            id: 1,
+            position: CGPoint(x: 80, y: 120),
+            radius: 8,
+            speed: 0,
+            behavior: .paddleTrapBar(trapID: 7, remainingLifetime: 2)
+        )
+
+        enemy.advance(toward: CGPoint(x: 300, y: 300), deltaTime: 1.5)
+
+        XCTAssertEqual(enemy.position.x, 80, accuracy: 0.0001)
+        XCTAssertEqual(enemy.position.y, 120, accuracy: 0.0001)
+        XCTAssertEqual(enemy.paddleTrapID, 7)
+        XCTAssertNil(enemy.formationID)
+        XCTAssertFalse(enemy.isLinearPatternEnemy)
+        XCTAssertTrue(enemy.isPaddleTrap)
+        XCTAssertFalse(enemy.isExpired)
+
+        enemy.advance(toward: CGPoint(x: 300, y: 300), deltaTime: 0.5)
+
+        XCTAssertTrue(enemy.isExpired)
+    }
+
+    func testPaddleTrapDotBouncesInsideBounds() {
+        var enemy = ArenaEnemy(
+            id: 1,
+            position: CGPoint(x: 9, y: 9),
+            radius: 8,
+            speed: 4,
+            behavior: .paddleTrapDot(
+                trapID: 3,
+                velocity: CGVector(dx: 4, dy: 4),
+                bounds: CGRect(x: 0, y: 0, width: 10, height: 10),
+                remainingLifetime: 2
+            )
+        )
+
+        enemy.advance(toward: CGPoint(x: 100, y: 100), deltaTime: 0.5)
+
+        XCTAssertEqual(enemy.position.x, 10, accuracy: 0.0001)
+        XCTAssertEqual(enemy.position.y, 10, accuracy: 0.0001)
+        XCTAssertEqual(enemy.paddleTrapID, 3)
+        XCTAssertNil(enemy.formationID)
+        XCTAssertFalse(enemy.isLinearPatternEnemy)
+        XCTAssertTrue(enemy.isPaddleTrap)
+
+        guard case let .paddleTrapDot(_, velocity, _, remainingLifetime) = enemy.behavior else {
+            XCTFail("Expected Paddle Trap dot behavior.")
+            return
+        }
+
+        XCTAssertEqual(velocity.dx, -4, accuracy: 0.0001)
+        XCTAssertEqual(velocity.dy, -4, accuracy: 0.0001)
+        XCTAssertEqual(remainingLifetime, 1.5, accuracy: 0.0001)
+    }
+
     func testCircleCollisionUsesCombinedRadii() {
         let player = CollisionCircle(center: CGPoint(x: 0, y: 0), radius: 9)
         let touchingEnemy = CollisionCircle(center: CGPoint(x: 17, y: 0), radius: 8)

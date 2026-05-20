@@ -51,6 +51,11 @@ struct EnemyPhaseTuning: Equatable {
     var hunterDotSpeed: CGFloat = 0
     var hunterDotPredictionLead: CGFloat = 0
     var maxActiveHunterDots: Int = 0
+    var paddleTrapSpawnInterval: TimeInterval?
+    var maxActivePaddleTraps: Int = 0
+    var paddleTrapLifetime: TimeInterval = 0
+    var paddleTrapBarEnemyCount: Int = 0
+    var paddleTrapDotSpeed: CGFloat = 0
 }
 
 struct EnemySpawnConfiguration: Equatable {
@@ -72,6 +77,11 @@ struct EnemySpawnConfiguration: Equatable {
     var mineDotCandidateInset: CGFloat = 48
     var mineDotMinimumSpacing: CGFloat = 52
     var hunterDotTelegraphDuration: TimeInterval = 0.75
+    var paddleTrapTelegraphDuration: TimeInterval = 1
+    var paddleTrapBarSpacing: CGFloat = 24
+    var paddleTrapBarGap: CGFloat = 96
+    var paddleTrapCandidateInset: CGFloat = 84
+    var paddleTrapMinimumSpacing: CGFloat = 64
     var maxPendingEnemyTelegraphs = 2
     var cullingOutset: CGFloat = 72
     var warmup = EnemyPhaseTuning(
@@ -89,7 +99,12 @@ struct EnemySpawnConfiguration: Equatable {
         hunterDotSpawnInterval: nil,
         hunterDotSpeed: 0,
         hunterDotPredictionLead: 0,
-        maxActiveHunterDots: 0
+        maxActiveHunterDots: 0,
+        paddleTrapSpawnInterval: nil,
+        maxActivePaddleTraps: 0,
+        paddleTrapLifetime: 0,
+        paddleTrapBarEnemyCount: 0,
+        paddleTrapDotSpeed: 0
     )
     var pressure = EnemyPhaseTuning(
         chaserSpawnInterval: 1.05,
@@ -106,7 +121,12 @@ struct EnemySpawnConfiguration: Equatable {
         hunterDotSpawnInterval: nil,
         hunterDotSpeed: 0,
         hunterDotPredictionLead: 0,
-        maxActiveHunterDots: 0
+        maxActiveHunterDots: 0,
+        paddleTrapSpawnInterval: nil,
+        maxActivePaddleTraps: 0,
+        paddleTrapLifetime: 0,
+        paddleTrapBarEnemyCount: 0,
+        paddleTrapDotSpeed: 0
     )
     var chaos = EnemyPhaseTuning(
         chaserSpawnInterval: 0.75,
@@ -123,7 +143,12 @@ struct EnemySpawnConfiguration: Equatable {
         hunterDotSpawnInterval: 18,
         hunterDotSpeed: 108,
         hunterDotPredictionLead: 0.6,
-        maxActiveHunterDots: 2
+        maxActiveHunterDots: 2,
+        paddleTrapSpawnInterval: 24,
+        maxActivePaddleTraps: 1,
+        paddleTrapLifetime: 7,
+        paddleTrapBarEnemyCount: 4,
+        paddleTrapDotSpeed: 145
     )
     var survivalHell = EnemyPhaseTuning(
         chaserSpawnInterval: 0.5,
@@ -140,7 +165,12 @@ struct EnemySpawnConfiguration: Equatable {
         hunterDotSpawnInterval: 13,
         hunterDotSpeed: 132,
         hunterDotPredictionLead: 0.9,
-        maxActiveHunterDots: 3
+        maxActiveHunterDots: 3,
+        paddleTrapSpawnInterval: 18,
+        maxActivePaddleTraps: 2,
+        paddleTrapLifetime: 8,
+        paddleTrapBarEnemyCount: 5,
+        paddleTrapDotSpeed: 170
     )
 
     func tuning(at survivalTime: TimeInterval) -> EnemyPhaseTuning {
@@ -214,7 +244,32 @@ struct EnemySpawnConfiguration: Equatable {
                     to: CGFloat(next?.tuning.maxActiveHunterDots ?? current.tuning.maxActiveHunterDots),
                     progress: progress
                 ))
-            ))
+            )),
+            paddleTrapSpawnInterval: current.tuning.paddleTrapSpawnInterval,
+            maxActivePaddleTraps: max(0, Int(
+                round(interpolate(
+                    from: CGFloat(current.tuning.maxActivePaddleTraps),
+                    to: CGFloat(next?.tuning.maxActivePaddleTraps ?? current.tuning.maxActivePaddleTraps),
+                    progress: progress
+                ))
+            )),
+            paddleTrapLifetime: interpolate(
+                from: current.tuning.paddleTrapLifetime,
+                to: next?.tuning.paddleTrapLifetime ?? current.tuning.paddleTrapLifetime,
+                progress: progress
+            ),
+            paddleTrapBarEnemyCount: max(0, Int(
+                round(interpolate(
+                    from: CGFloat(current.tuning.paddleTrapBarEnemyCount),
+                    to: CGFloat(next?.tuning.paddleTrapBarEnemyCount ?? current.tuning.paddleTrapBarEnemyCount),
+                    progress: progress
+                ))
+            )),
+            paddleTrapDotSpeed: interpolate(
+                from: current.tuning.paddleTrapDotSpeed,
+                to: next?.tuning.paddleTrapDotSpeed ?? current.tuning.paddleTrapDotSpeed,
+                progress: progress
+            )
         )
     }
 
@@ -306,11 +361,15 @@ struct EnemySpawnDirector {
     var nextArrowRushDirectionIndex = 0
     var nextMineDotCandidateIndex = 0
     var nextHunterDotCandidateIndex = 0
+    var nextPaddleTrapCandidateIndex = 0
+    var nextPaddleTrapOrientationIndex = 0
+    var nextPaddleTrapID = 1
     private var timeUntilNextChaser: TimeInterval = 0
     private var timeUntilNextFormation: TimeInterval = 0
     var timeUntilNextArrowRush: TimeInterval = 0
     var timeUntilNextMineDot: TimeInterval = 0
     var timeUntilNextHunterDot: TimeInterval = 0
+    var timeUntilNextPaddleTrap: TimeInterval = 0
     var pendingSpawns: [Int: PendingEnemySpawn] = [:]
 
     var pendingEnemyCount: Int {
@@ -329,6 +388,13 @@ struct EnemySpawnDirector {
         }
     }
 
+    var pendingPaddleTrapCount: Int {
+        let trapIDs = pendingSpawns.values.flatMap { pendingSpawn in
+            pendingSpawn.enemies.compactMap(\.paddleTrapID)
+        }
+        return Set(trapIDs).count
+    }
+
     init(configuration: EnemySpawnConfiguration = EnemySpawnConfiguration()) {
         self.configuration = configuration
     }
@@ -342,11 +408,15 @@ struct EnemySpawnDirector {
         nextArrowRushDirectionIndex = 0
         nextMineDotCandidateIndex = 0
         nextHunterDotCandidateIndex = 0
+        nextPaddleTrapCandidateIndex = 0
+        nextPaddleTrapOrientationIndex = 0
+        nextPaddleTrapID = 1
         timeUntilNextChaser = 0
         timeUntilNextFormation = 0
         timeUntilNextArrowRush = 0
         timeUntilNextMineDot = 0
         timeUntilNextHunterDot = 0
+        timeUntilNextPaddleTrap = 0
         pendingSpawns.removeAll()
     }
 
@@ -411,6 +481,16 @@ struct EnemySpawnDirector {
         )
 
         spawnHunterDotTelegraphIfNeeded(
+            deltaTime: clampedDelta,
+            tuning: tuning,
+            playableRect: playableRect,
+            playerPosition: playerPosition,
+            pickupCircles: pickupCircles,
+            activeEnemies: activeEnemies,
+            frame: &frame
+        )
+
+        spawnPaddleTrapTelegraphIfNeeded(
             deltaTime: clampedDelta,
             tuning: tuning,
             playableRect: playableRect,

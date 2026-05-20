@@ -291,6 +291,7 @@ final class ArenaScene: SKScene {
         spawnPickupIfNeeded(deltaTime: deltaTime, playerPosition: playerPosition)
         collectPickups(playerPosition: playerPosition)
         advanceEnemies(deltaTime: deltaTime, playerPosition: playerPosition)
+        removeExpiredEnemies()
         cullExitedLinearPatternEnemies()
         updateRazorShield(deltaTime: deltaTime, playerPosition: playerPosition)
         recordNearMisses(playerPosition: playerPosition)
@@ -392,6 +393,21 @@ final class ArenaScene: SKScene {
 
         enemies.removeAll { exitedEnemyIDs.contains($0.id) }
         for enemyID in exitedEnemyIDs {
+            enemyNodes.removeValue(forKey: enemyID)?.removeFromParent()
+        }
+    }
+
+    private func removeExpiredEnemies() {
+        let expiredEnemyIDs = Set(enemies.filter(\.isExpired).map(\.id))
+
+        guard !expiredEnemyIDs.isEmpty else {
+            return
+        }
+
+        enemies.removeAll { expiredEnemyIDs.contains($0.id) }
+        removeFormationEnemies(ids: expiredEnemyIDs, awardCompletion: false)
+
+        for enemyID in expiredEnemyIDs {
             enemyNodes.removeValue(forKey: enemyID)?.removeFromParent()
         }
     }
