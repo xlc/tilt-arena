@@ -35,7 +35,7 @@ final class GameViewController: UIViewController {
     }
 
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
-        .portrait
+        .landscape
     }
 
     override var prefersHomeIndicatorAutoHidden: Bool {
