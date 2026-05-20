@@ -106,7 +106,10 @@ final class PickupSpawnPlannerTests: XCTestCase {
     }
 
     func testResetRestartsPickupIDsAndKindCycle() {
-        let configuration = PickupSpawnConfiguration(initialSpawnDelay: 0)
+        let configuration = PickupSpawnConfiguration(
+            initialSpawnDelay: 0,
+            weaponKindCycle: [.seekerSwarm, .novaBomb]
+        )
         var planner = PickupSpawnPlanner(configuration: configuration)
         let rect = CGRect(x: 0, y: 0, width: 320, height: 640)
         let playerPosition = CGPoint(x: 160, y: 320)
@@ -126,8 +129,65 @@ final class PickupSpawnPlannerTests: XCTestCase {
         )
 
         XCTAssertEqual(first?.id, 1)
-        XCTAssertEqual(first?.kind, .shockwave)
+        XCTAssertEqual(first?.kind, .seekerSwarm)
         XCTAssertEqual(resetFirst?.id, 1)
-        XCTAssertEqual(resetFirst?.kind, .shockwave)
+        XCTAssertEqual(resetFirst?.kind, .seekerSwarm)
+    }
+
+    func testConfiguredKindCycleControlsPickupOrder() {
+        let configuration = PickupSpawnConfiguration(
+            initialSpawnDelay: 0,
+            weaponKindCycle: [.razorShield, .novaBomb]
+        )
+
+        XCTAssertEqual(spawnKinds(count: 4, configuration: configuration), [
+            .razorShield,
+            .novaBomb,
+            .razorShield,
+            .novaBomb
+        ])
+    }
+
+    func testDefaultKindCycleMakesNovaBombRare() {
+        let kinds = spawnKinds(
+            count: PickupSpawnConfiguration.defaultWeaponKindCycle.count,
+            configuration: PickupSpawnConfiguration()
+        )
+
+        XCTAssertEqual(kinds, PickupSpawnConfiguration.defaultWeaponKindCycle)
+        XCTAssertEqual(kinds.filter { $0 == .novaBomb }.count, 1)
+        XCTAssertGreaterThan(kinds.filter { $0 == .shockwave }.count, 1)
+        XCTAssertGreaterThan(kinds.filter { $0 == .seekerSwarm }.count, 1)
+        XCTAssertGreaterThan(kinds.filter { $0 == .razorShield }.count, 1)
+    }
+
+    func testEmptyKindCycleDoesNotSpawnPickup() {
+        let configuration = PickupSpawnConfiguration(
+            initialSpawnDelay: 0,
+            weaponKindCycle: []
+        )
+        var planner = PickupSpawnPlanner(configuration: configuration)
+
+        XCTAssertNil(planner.spawnPickup(
+            in: CGRect(x: 0, y: 0, width: 320, height: 640),
+            avoiding: CGPoint(x: -1_000, y: -1_000),
+            enemyCircles: [],
+            configuration: configuration
+        ))
+    }
+
+    private func spawnKinds(count: Int, configuration: PickupSpawnConfiguration) -> [WeaponKind] {
+        var planner = PickupSpawnPlanner(configuration: configuration)
+        let rect = CGRect(x: 0, y: 0, width: 320, height: 640)
+        let playerPosition = CGPoint(x: -1_000, y: -1_000)
+
+        return (0..<count).compactMap { _ in
+            planner.spawnPickup(
+                in: rect,
+                avoiding: playerPosition,
+                enemyCircles: [],
+                configuration: configuration
+            )?.kind
+        }
     }
 }

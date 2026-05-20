@@ -2,6 +2,16 @@ import CoreGraphics
 import Foundation
 
 struct PickupSpawnConfiguration: Equatable {
+    static let defaultWeaponKindCycle: [WeaponKind] = [
+        .shockwave,
+        .seekerSwarm,
+        .razorShield,
+        .shockwave,
+        .seekerSwarm,
+        .razorShield,
+        .novaBomb
+    ]
+
     var initialSpawnDelay: TimeInterval = 4.5
     var spawnInterval: TimeInterval = 4.5
     var maxActivePickups: Int = 2
@@ -9,6 +19,7 @@ struct PickupSpawnConfiguration: Equatable {
     var edgeInset: CGFloat = 44
     var playerClearance: CGFloat = 84
     var enemyClearance: CGFloat = 8
+    var weaponKindCycle: [WeaponKind] = PickupSpawnConfiguration.defaultWeaponKindCycle
 }
 
 struct PickupSpawnPlanner {
@@ -96,6 +107,10 @@ struct PickupSpawnPlanner {
             return nil
         }
 
+        guard !configuration.weaponKindCycle.isEmpty else {
+            return nil
+        }
+
         for _ in 0..<Self.candidatePositions.count {
             let position = candidatePosition(in: spawnRect, index: nextCandidateIndex)
             nextCandidateIndex += 1
@@ -111,7 +126,7 @@ struct PickupSpawnPlanner {
 
             let pickup = WeaponPickup(
                 id: nextPickupID,
-                kind: nextKind(),
+                kind: nextKind(configuration: configuration),
                 position: position,
                 radius: configuration.pickupRadius
             )
@@ -139,9 +154,8 @@ struct PickupSpawnPlanner {
         }
     }
 
-    private mutating func nextKind() -> WeaponKind {
-        let kinds = WeaponKind.allCases
-        let kind = kinds[nextKindIndex % kinds.count]
+    private mutating func nextKind(configuration: PickupSpawnConfiguration) -> WeaponKind {
+        let kind = configuration.weaponKindCycle[nextKindIndex % configuration.weaponKindCycle.count]
         nextKindIndex += 1
         return kind
     }

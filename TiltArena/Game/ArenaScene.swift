@@ -453,6 +453,8 @@ final class ArenaScene: SKScene {
             playSeekerSwarmEffect(from: playerPosition, to: targetPositions)
         case .razorShield:
             activateRazorShield(at: playerPosition)
+        case .novaBomb:
+            playNovaBombEffect()
         }
 
         destroyEnemies(ids: resolution.destroyedEnemyIDs, weaponKind: kind)
@@ -565,6 +567,32 @@ final class ArenaScene: SKScene {
             .fadeOut(withDuration: 0.16)
         ])
         ring.run(.sequence([expand, .removeFromParent()]))
+    }
+
+    private func playNovaBombEffect() {
+        let playableRect = movementController.configuration.playableRect(in: size)
+
+        guard playableRect.width > 0, playableRect.height > 0 else {
+            return
+        }
+
+        let center = CGPoint(x: playableRect.midX, y: playableRect.midY)
+        let radius = hypot(playableRect.width, playableRect.height) / 2
+        let ring = SKShapeNode(circleOfRadius: radius)
+        ring.position = center
+        ring.strokeColor = theme.pickupAmber.withAlphaComponent(0.85)
+        ring.fillColor = .clear
+        ring.lineWidth = 2
+        ring.glowWidth = 6
+        ring.zPosition = 18
+        ring.setScale(0.05)
+        addChild(ring)
+
+        let clearPulse = SKAction.group([
+            .scale(to: 1.0, duration: 0.22),
+            .fadeOut(withDuration: 0.22)
+        ])
+        ring.run(.sequence([clearPulse, .removeFromParent()]))
     }
 
     private func playSeekerSwarmEffect(from origin: CGPoint, to targets: [CGPoint]) {
