@@ -29,6 +29,11 @@ final class EnemyNode: SKNode {
             ringNode.lineWidth = 2
             bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.82)
             bodyNode.glowWidth = 1.5
+        } else if enemy.isHunterDot {
+            ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.9)
+            ringNode.lineWidth = 1.8
+            ringNode.glowWidth = 2
+            bodyNode.strokeColor = theme.enemyColor
         }
 
         apply(enemy)

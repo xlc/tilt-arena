@@ -47,6 +47,10 @@ struct EnemyPhaseTuning: Equatable {
     var arrowRushEnemyCount: Int = 0
     var mineDotSpawnInterval: TimeInterval?
     var maxActiveMineDots: Int = 0
+    var hunterDotSpawnInterval: TimeInterval?
+    var hunterDotSpeed: CGFloat = 0
+    var hunterDotPredictionLead: CGFloat = 0
+    var maxActiveHunterDots: Int = 0
 }
 
 struct EnemySpawnConfiguration: Equatable {
@@ -67,6 +71,7 @@ struct EnemySpawnConfiguration: Equatable {
     var mineDotPickupGuardDistance: CGFloat = 44
     var mineDotCandidateInset: CGFloat = 48
     var mineDotMinimumSpacing: CGFloat = 52
+    var hunterDotTelegraphDuration: TimeInterval = 0.75
     var maxPendingEnemyTelegraphs = 2
     var cullingOutset: CGFloat = 72
     var warmup = EnemyPhaseTuning(
@@ -80,7 +85,11 @@ struct EnemySpawnConfiguration: Equatable {
         arrowRushSpeed: 0,
         arrowRushEnemyCount: 0,
         mineDotSpawnInterval: nil,
-        maxActiveMineDots: 0
+        maxActiveMineDots: 0,
+        hunterDotSpawnInterval: nil,
+        hunterDotSpeed: 0,
+        hunterDotPredictionLead: 0,
+        maxActiveHunterDots: 0
     )
     var pressure = EnemyPhaseTuning(
         chaserSpawnInterval: 1.05,
@@ -93,7 +102,11 @@ struct EnemySpawnConfiguration: Equatable {
         arrowRushSpeed: 0,
         arrowRushEnemyCount: 0,
         mineDotSpawnInterval: nil,
-        maxActiveMineDots: 0
+        maxActiveMineDots: 0,
+        hunterDotSpawnInterval: nil,
+        hunterDotSpeed: 0,
+        hunterDotPredictionLead: 0,
+        maxActiveHunterDots: 0
     )
     var chaos = EnemyPhaseTuning(
         chaserSpawnInterval: 0.75,
@@ -106,7 +119,11 @@ struct EnemySpawnConfiguration: Equatable {
         arrowRushSpeed: 150,
         arrowRushEnemyCount: 3,
         mineDotSpawnInterval: 14,
-        maxActiveMineDots: 4
+        maxActiveMineDots: 4,
+        hunterDotSpawnInterval: 18,
+        hunterDotSpeed: 108,
+        hunterDotPredictionLead: 0.6,
+        maxActiveHunterDots: 2
     )
     var survivalHell = EnemyPhaseTuning(
         chaserSpawnInterval: 0.5,
@@ -119,7 +136,11 @@ struct EnemySpawnConfiguration: Equatable {
         arrowRushSpeed: 175,
         arrowRushEnemyCount: 5,
         mineDotSpawnInterval: 10,
-        maxActiveMineDots: 7
+        maxActiveMineDots: 7,
+        hunterDotSpawnInterval: 13,
+        hunterDotSpeed: 132,
+        hunterDotPredictionLead: 0.9,
+        maxActiveHunterDots: 3
     )
 
     func tuning(at survivalTime: TimeInterval) -> EnemyPhaseTuning {
@@ -173,6 +194,24 @@ struct EnemySpawnConfiguration: Equatable {
                 round(interpolate(
                     from: CGFloat(current.tuning.maxActiveMineDots),
                     to: CGFloat(next?.tuning.maxActiveMineDots ?? current.tuning.maxActiveMineDots),
+                    progress: progress
+                ))
+            )),
+            hunterDotSpawnInterval: current.tuning.hunterDotSpawnInterval,
+            hunterDotSpeed: interpolate(
+                from: current.tuning.hunterDotSpeed,
+                to: next?.tuning.hunterDotSpeed ?? current.tuning.hunterDotSpeed,
+                progress: progress
+            ),
+            hunterDotPredictionLead: interpolate(
+                from: current.tuning.hunterDotPredictionLead,
+                to: next?.tuning.hunterDotPredictionLead ?? current.tuning.hunterDotPredictionLead,
+                progress: progress
+            ),
+            maxActiveHunterDots: max(0, Int(
+                round(interpolate(
+                    from: CGFloat(current.tuning.maxActiveHunterDots),
+                    to: CGFloat(next?.tuning.maxActiveHunterDots ?? current.tuning.maxActiveHunterDots),
                     progress: progress
                 ))
             ))
@@ -232,7 +271,7 @@ struct EnemySpawnFrame: Equatable {
 }
 
 struct EnemySpawnDirector {
-    private enum EdgeDirection: CaseIterable {
+    enum EdgeDirection: CaseIterable {
         case leftToRight
         case rightToLeft
         case bottomToTop
@@ -255,8 +294,8 @@ struct EnemySpawnDirector {
         let telegraph: EnemyTelegraph
     }
 
-    private static let candidateSideCount = 4
-    private static let candidateLaneCount = 7
+    static let candidateSideCount = 4
+    static let candidateLaneCount = 7
 
     var configuration: EnemySpawnConfiguration
     var nextEnemyID = 1
@@ -264,12 +303,14 @@ struct EnemySpawnDirector {
     var nextTelegraphID = 1
     private var nextChaserCandidateIndex = 0
     private var nextFormationDirectionIndex = 0
-    private var nextArrowRushDirectionIndex = 0
+    var nextArrowRushDirectionIndex = 0
     var nextMineDotCandidateIndex = 0
+    var nextHunterDotCandidateIndex = 0
     private var timeUntilNextChaser: TimeInterval = 0
     private var timeUntilNextFormation: TimeInterval = 0
-    private var timeUntilNextArrowRush: TimeInterval = 0
+    var timeUntilNextArrowRush: TimeInterval = 0
     var timeUntilNextMineDot: TimeInterval = 0
+    var timeUntilNextHunterDot: TimeInterval = 0
     var pendingSpawns: [Int: PendingEnemySpawn] = [:]
 
     var pendingEnemyCount: Int {
@@ -279,6 +320,12 @@ struct EnemySpawnDirector {
     var pendingMineDotCount: Int {
         pendingSpawns.values.reduce(0) { count, pendingSpawn in
             count + pendingSpawn.enemies.filter(\.isMineDot).count
+        }
+    }
+
+    var pendingHunterDotCount: Int {
+        pendingSpawns.values.reduce(0) { count, pendingSpawn in
+            count + pendingSpawn.enemies.filter(\.isHunterDot).count
         }
     }
 
@@ -294,10 +341,12 @@ struct EnemySpawnDirector {
         nextFormationDirectionIndex = 0
         nextArrowRushDirectionIndex = 0
         nextMineDotCandidateIndex = 0
+        nextHunterDotCandidateIndex = 0
         timeUntilNextChaser = 0
         timeUntilNextFormation = 0
         timeUntilNextArrowRush = 0
         timeUntilNextMineDot = 0
+        timeUntilNextHunterDot = 0
         pendingSpawns.removeAll()
     }
 
@@ -352,6 +401,16 @@ struct EnemySpawnDirector {
         )
 
         spawnMineDotTelegraphIfNeeded(
+            deltaTime: clampedDelta,
+            tuning: tuning,
+            playableRect: playableRect,
+            playerPosition: playerPosition,
+            pickupCircles: pickupCircles,
+            activeEnemies: activeEnemies,
+            frame: &frame
+        )
+
+        spawnHunterDotTelegraphIfNeeded(
             deltaTime: clampedDelta,
             tuning: tuning,
             playableRect: playableRect,
@@ -599,122 +658,6 @@ struct EnemySpawnDirector {
         )
     }
 
-    private mutating func spawnArrowRushTelegraphIfNeeded(
-        deltaTime: TimeInterval,
-        projectedEnemyCount: Int,
-        tuning: EnemyPhaseTuning,
-        playableRect: CGRect,
-        playerPosition: CGPoint,
-        pickupCircles: [CollisionCircle],
-        frame: inout EnemySpawnFrame
-    ) {
-        guard deltaTime > 0, let arrowRushSpawnInterval = tuning.arrowRushSpawnInterval else {
-            timeUntilNextArrowRush = 0
-            return
-        }
-
-        let configuredEnemyCount = max(0, tuning.arrowRushEnemyCount)
-        guard arrowRushSpawnInterval > 0, configuredEnemyCount > 0 else {
-            return
-        }
-
-        let requiredEnemyCount = requiredArrowRushEnemyCount(configuredEnemyCount: configuredEnemyCount)
-
-        guard pendingSpawns.count < configuration.maxPendingEnemyTelegraphs else {
-            timeUntilNextArrowRush = max(timeUntilNextArrowRush, arrowRushSpawnInterval)
-            return
-        }
-
-        guard projectedEnemyCount + requiredEnemyCount <= tuning.maxActiveEnemies else {
-            timeUntilNextArrowRush = max(timeUntilNextArrowRush, arrowRushSpawnInterval)
-            return
-        }
-
-        timeUntilNextArrowRush -= deltaTime
-
-        guard timeUntilNextArrowRush <= 0 else {
-            return
-        }
-
-        let availableSlots = tuning.maxActiveEnemies - projectedEnemyCount
-        guard let arrowRush = makePendingArrowRush(
-            in: playableRect,
-            playerPosition: playerPosition,
-            pickupCircles: pickupCircles,
-            tuning: tuning,
-            enemyCount: min(configuredEnemyCount, availableSlots),
-            requiredEnemyCount: requiredEnemyCount
-        ) else {
-            timeUntilNextArrowRush = arrowRushSpawnInterval
-            return
-        }
-
-        pendingSpawns[arrowRush.telegraph.id] = arrowRush
-        frame.telegraphsToShow.append(arrowRush.telegraph)
-        timeUntilNextArrowRush += arrowRushSpawnInterval
-    }
-
-    private mutating func makePendingArrowRush(
-        in playableRect: CGRect,
-        playerPosition: CGPoint,
-        pickupCircles: [CollisionCircle],
-        tuning: EnemyPhaseTuning,
-        enemyCount: Int,
-        requiredEnemyCount: Int
-    ) -> PendingEnemySpawn? {
-        guard playableRect.width > 0, playableRect.height > 0 else {
-            return nil
-        }
-
-        let direction = nextArrowRushDirection()
-        let telegraphID = nextTelegraphID
-        var nextID = nextEnemyID
-        var enemies: [ArenaEnemy] = []
-        var segments: [EnemyTelegraphSegment] = []
-
-        for position in arrowRushSpawnPositions(
-            direction: direction,
-            enemyCount: enemyCount,
-            playableRect: playableRect,
-            targetPosition: playerPosition
-        ) where isSafeSpawn(position, avoiding: playerPosition, pickupCircles: pickupCircles) {
-            guard let velocity = normalizedVelocity(
-                from: position,
-                to: playerPosition,
-                speed: tuning.arrowRushSpeed
-            ) else {
-                continue
-            }
-
-            enemies.append(ArenaEnemy(
-                id: nextID,
-                position: position,
-                radius: configuration.enemyRadius,
-                speed: tuning.arrowRushSpeed,
-                behavior: .arrowRush(velocity: velocity)
-            ))
-            segments.append(EnemyTelegraphSegment(
-                start: position,
-                end: arrowRushTelegraphEnd(from: position, velocity: velocity, playableRect: playableRect)
-            ))
-            nextID += 1
-        }
-
-        guard enemies.count >= requiredEnemyCount else {
-            return nil
-        }
-
-        nextEnemyID += enemies.count
-        nextTelegraphID += 1
-
-        return PendingEnemySpawn(
-            timeRemaining: configuration.arrowRushTelegraphDuration,
-            requiredEnemyCount: requiredEnemyCount,
-            enemies: enemies,
-            telegraph: EnemyTelegraph(id: telegraphID, segments: segments)
-        )
-    }
-
     private mutating func nextFormationDirection() -> EdgeDirection {
         let directions = EdgeDirection.allCases
         let direction = directions[nextFormationDirectionIndex % directions.count]
@@ -722,14 +665,7 @@ struct EnemySpawnDirector {
         return direction
     }
 
-    private mutating func nextArrowRushDirection() -> EdgeDirection {
-        let directions = EdgeDirection.allCases
-        let direction = directions[nextArrowRushDirectionIndex % directions.count]
-        nextArrowRushDirectionIndex += 1
-        return direction
-    }
-
-    private func candidatePosition(in rect: CGRect, index: Int) -> CGPoint {
+    func candidatePosition(in rect: CGRect, index: Int) -> CGPoint {
         let side = index % Self.candidateSideCount
         let lane = CGFloat(((index / Self.candidateSideCount) % Self.candidateLaneCount) + 1)
             / CGFloat(Self.candidateLaneCount + 1)
@@ -858,64 +794,6 @@ struct EnemySpawnDirector {
         }
     }
 
-    private func arrowRushSpawnPositions(
-        direction: EdgeDirection,
-        enemyCount: Int,
-        playableRect: CGRect,
-        targetPosition: CGPoint
-    ) -> [CGPoint] {
-        guard enemyCount > 0 else {
-            return []
-        }
-
-        let targetX = min(playableRect.maxX, max(playableRect.minX, targetPosition.x))
-        let targetY = min(playableRect.maxY, max(playableRect.minY, targetPosition.y))
-        let spawnOffset = configuration.enemyRadius + configuration.arrowRushSpawnOffset
-        let basePosition: CGPoint
-        let perpendicular: CGVector
-
-        switch direction {
-        case .leftToRight:
-            basePosition = CGPoint(x: playableRect.minX - spawnOffset, y: targetY)
-            perpendicular = CGVector(dx: 0, dy: 1)
-        case .rightToLeft:
-            basePosition = CGPoint(x: playableRect.maxX + spawnOffset, y: targetY)
-            perpendicular = CGVector(dx: 0, dy: 1)
-        case .bottomToTop:
-            basePosition = CGPoint(x: targetX, y: playableRect.minY - spawnOffset)
-            perpendicular = CGVector(dx: 1, dy: 0)
-        case .topToBottom:
-            basePosition = CGPoint(x: targetX, y: playableRect.maxY + spawnOffset)
-            perpendicular = CGVector(dx: 1, dy: 0)
-        }
-
-        return (0..<enemyCount).map { index in
-            let offset = (CGFloat(index) - CGFloat(enemyCount - 1) / 2) * configuration.arrowRushEnemySpacing
-            return CGPoint(
-                x: basePosition.x + perpendicular.dx * offset,
-                y: basePosition.y + perpendicular.dy * offset
-            )
-        }
-    }
-
-    private func arrowRushTelegraphEnd(
-        from start: CGPoint,
-        velocity: CGVector,
-        playableRect: CGRect
-    ) -> CGPoint {
-        let speed = max(1, hypot(velocity.dx, velocity.dy))
-        let cullingRect = playableRect.insetBy(
-            dx: -configuration.cullingOutset,
-            dy: -configuration.cullingOutset
-        )
-        let travelDistance = hypot(cullingRect.width, cullingRect.height)
-
-        return CGPoint(
-            x: start.x + velocity.dx / speed * travelDistance,
-            y: start.y + velocity.dy / speed * travelDistance
-        )
-    }
-
     private func laneCoordinate(
         laneIndex: Int,
         laneCount: Int,
@@ -945,19 +823,6 @@ struct EnemySpawnDirector {
         }
     }
 
-    private func normalizedVelocity(from start: CGPoint, to target: CGPoint, speed: CGFloat) -> CGVector? {
-        let dx = target.x - start.x
-        let dy = target.y - start.y
-        let distance = hypot(dx, dy)
-        let clampedSpeed = max(0, speed)
-
-        guard distance > 0, clampedSpeed > 0 else {
-            return nil
-        }
-
-        return CGVector(dx: dx / distance * clampedSpeed, dy: dy / distance * clampedSpeed)
-    }
-
     func squaredDistance(from lhs: CGPoint, to rhs: CGPoint) -> CGFloat {
         let dx = lhs.x - rhs.x
         let dy = lhs.y - rhs.y
@@ -968,7 +833,4 @@ struct EnemySpawnDirector {
         max(1, configuration.minimumFormationEnemyCount)
     }
 
-    private func requiredArrowRushEnemyCount(configuredEnemyCount: Int) -> Int {
-        min(max(1, configuration.minimumArrowRushEnemyCount), configuredEnemyCount)
-    }
 }
