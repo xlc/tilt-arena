@@ -34,6 +34,11 @@ final class EnemyNode: SKNode {
             ringNode.lineWidth = 1.8
             ringNode.glowWidth = 2
             bodyNode.strokeColor = theme.enemyColor
+        } else if enemy.isPaddleTrap {
+            ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.7)
+            ringNode.lineWidth = 1.5
+            bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.9)
+            bodyNode.glowWidth = 2
         }
 
         apply(enemy)

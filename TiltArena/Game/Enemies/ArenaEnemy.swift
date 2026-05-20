@@ -7,6 +7,8 @@ enum EnemyBehavior: Equatable {
     case arrowRush(velocity: CGVector)
     case mineDot
     case hunterDot(predictionLead: CGFloat, previousTarget: CGPoint?)
+    case paddleTrapBar(trapID: Int, remainingLifetime: TimeInterval)
+    case paddleTrapDot(trapID: Int, velocity: CGVector, bounds: CGRect, remainingLifetime: TimeInterval)
 }
 
 struct ArenaEnemy: Equatable, Identifiable {
@@ -18,7 +20,7 @@ struct ArenaEnemy: Equatable, Identifiable {
 
     var formationID: Int? {
         switch behavior {
-        case .chaser, .arrowRush, .mineDot, .hunterDot:
+        case .chaser, .arrowRush, .mineDot, .hunterDot, .paddleTrapBar, .paddleTrapDot:
             return nil
         case let .formationLine(_, formationID):
             return formationID
@@ -27,7 +29,7 @@ struct ArenaEnemy: Equatable, Identifiable {
 
     var isLinearPatternEnemy: Bool {
         switch behavior {
-        case .chaser, .mineDot, .hunterDot:
+        case .chaser, .mineDot, .hunterDot, .paddleTrapBar, .paddleTrapDot:
             return false
         case .formationLine, .arrowRush:
             return true
@@ -46,12 +48,35 @@ struct ArenaEnemy: Equatable, Identifiable {
         return true
     }
 
+    var isPaddleTrap: Bool {
+        paddleTrapID != nil
+    }
+
+    var paddleTrapID: Int? {
+        switch behavior {
+        case let .paddleTrapBar(trapID, _), let .paddleTrapDot(trapID, _, _, _):
+            return trapID
+        case .chaser, .formationLine, .arrowRush, .mineDot, .hunterDot:
+            return nil
+        }
+    }
+
+    var isExpired: Bool {
+        switch behavior {
+        case let .paddleTrapBar(_, remainingLifetime), let .paddleTrapDot(_, _, _, remainingLifetime):
+            return remainingLifetime <= 0
+        case .chaser, .formationLine, .arrowRush, .mineDot, .hunterDot:
+            return false
+        }
+    }
+
     var collisionCircle: CollisionCircle {
         CollisionCircle(center: position, radius: radius)
     }
 
     mutating func advance(toward target: CGPoint, deltaTime: TimeInterval) {
-        let clampedDelta = CGFloat(max(0, deltaTime))
+        let clampedTime = max(0, deltaTime)
+        let clampedDelta = CGFloat(clampedTime)
 
         switch behavior {
         case .chaser:
@@ -64,6 +89,16 @@ struct ArenaEnemy: Equatable, Identifiable {
             return
         case let .hunterDot(predictionLead, previousTarget):
             advanceHunter(toward: target, predictionLead: predictionLead, previousTarget: previousTarget, deltaTime: clampedDelta)
+        case let .paddleTrapBar(trapID, remainingLifetime):
+            behavior = .paddleTrapBar(trapID: trapID, remainingLifetime: remainingLifetime - clampedTime)
+        case let .paddleTrapDot(trapID, velocity, bounds, remainingLifetime):
+            advancePaddleTrapDot(
+                trapID: trapID,
+                velocity: velocity,
+                bounds: bounds,
+                remainingLifetime: remainingLifetime,
+                deltaTime: clampedDelta
+            )
         }
     }
 
@@ -114,5 +149,43 @@ struct ArenaEnemy: Equatable, Identifiable {
 
         advanceChaser(toward: predictedTarget, deltaTime: deltaTime)
         behavior = .hunterDot(predictionLead: predictionLead, previousTarget: target)
+    }
+
+    private mutating func advancePaddleTrapDot(
+        trapID: Int,
+        velocity: CGVector,
+        bounds: CGRect,
+        remainingLifetime: TimeInterval,
+        deltaTime: CGFloat
+    ) {
+        var nextVelocity = velocity
+        var nextPosition = CGPoint(
+            x: position.x + velocity.dx * deltaTime,
+            y: position.y + velocity.dy * deltaTime
+        )
+
+        if nextPosition.x < bounds.minX {
+            nextPosition.x = bounds.minX
+            nextVelocity.dx = abs(nextVelocity.dx)
+        } else if nextPosition.x > bounds.maxX {
+            nextPosition.x = bounds.maxX
+            nextVelocity.dx = -abs(nextVelocity.dx)
+        }
+
+        if nextPosition.y < bounds.minY {
+            nextPosition.y = bounds.minY
+            nextVelocity.dy = abs(nextVelocity.dy)
+        } else if nextPosition.y > bounds.maxY {
+            nextPosition.y = bounds.maxY
+            nextVelocity.dy = -abs(nextVelocity.dy)
+        }
+
+        position = nextPosition
+        behavior = .paddleTrapDot(
+            trapID: trapID,
+            velocity: nextVelocity,
+            bounds: bounds,
+            remainingLifetime: remainingLifetime - TimeInterval(deltaTime)
+        )
     }
 }
