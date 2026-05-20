@@ -22,10 +22,12 @@ final class GameViewController: UIViewController {
 
         if hasPresentedScene {
             spriteView.scene?.size = spriteView.bounds.size
+            (spriteView.scene as? ArenaScene)?.refreshSafeAreaLayout()
         } else {
             let scene = ArenaScene(size: spriteView.bounds.size)
             scene.scaleMode = .resizeFill
             spriteView.presentScene(scene)
+            scene.refreshSafeAreaLayout()
             hasPresentedScene = true
         }
     }

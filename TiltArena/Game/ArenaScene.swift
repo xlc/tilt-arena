@@ -1,11 +1,5 @@
 import SpriteKit
 
-private struct GravityWellState {
-    let center: CGPoint
-    let enemyIDs: Set<Int>
-    var timeRemaining: TimeInterval
-}
-
 final class ArenaScene: SKScene {
     private let theme = ArenaTheme.darkTacticalRadar
     private let tiltSettingsStore = TiltSettingsStore()
@@ -40,6 +34,7 @@ final class ArenaScene: SKScene {
     private let pauseControlNode = SKNode()
     private let pauseIconNode = SKNode()
     private let resumeIconNode = SKShapeNode()
+    private let hudMargin: CGFloat = 24
     private let pauseControlSize = CGSize(width: 48, height: 48)
     private var lastUpdateTime: TimeInterval?
 
@@ -101,6 +96,11 @@ final class ArenaScene: SKScene {
 
     func recalibrateTiltControls() {
         tiltInputController.recalibrateToCurrentAttitude()
+    }
+
+    func refreshSafeAreaLayout() {
+        layoutLabels()
+        layoutPauseControl()
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -218,16 +218,24 @@ final class ArenaScene: SKScene {
     }
 
     private func layoutLabels() {
-        timerLabel.position = CGPoint(x: 24, y: max(24, size.height - 24))
-        centerLabel.position = CGPoint(x: size.width / 2, y: size.height / 2 + 24)
-        detailLabel.position = CGPoint(x: size.width / 2, y: size.height / 2 - 12)
-        comboLabel.position = CGPoint(x: size.width / 2, y: 24)
+        let layout = currentHUDLayout()
+
+        timerLabel.position = layout.timerPosition
+        centerLabel.position = layout.centerPosition
+        detailLabel.position = layout.detailPosition
+        comboLabel.position = layout.comboPosition
     }
 
     private func layoutPauseControl() {
-        pauseControlNode.position = CGPoint(
-            x: max(pauseControlSize.width / 2, size.width - 32),
-            y: max(pauseControlSize.height / 2, size.height - 32)
+        pauseControlNode.position = currentHUDLayout().pauseControlPosition
+    }
+
+    private func currentHUDLayout() -> ArenaHUDLayout {
+        ArenaHUDLayout(
+            sceneSize: size,
+            safeAreaInsets: view?.safeAreaInsets ?? .zero,
+            margin: hudMargin,
+            pauseControlSize: pauseControlSize
         )
     }
 
