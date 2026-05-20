@@ -16,12 +16,14 @@ struct PickupSpawnConfiguration: Equatable {
         .shockwave,
         .seekerSwarm,
         .razorShield,
+        .flameTrail,
         .gravityWell,
         .shockwave,
         .seekerSwarm,
         .razorShield,
         .freezeBurst,
         .chainLightning,
+        .flameTrail,
         .novaBomb
     ]
 

@@ -1,19 +1,19 @@
 import SpriteKit
 
 final class ArenaScene: SKScene {
-    private let theme = ArenaTheme.darkTacticalRadar
+    let theme = ArenaTheme.darkTacticalRadar
     private let tiltSettingsStore = TiltSettingsStore()
     private let runProfileStore = RunProfileStore()
     private var arenaRoot = SKNode()
     private lazy var tiltInputController = TiltInputController(settingsStore: tiltSettingsStore)
-    private var movementController = PlayerMovementController()
+    var movementController = PlayerMovementController()
     private var runController = ClassicRunController()
     private var runProfile = RunProfile()
     private var hasPersistedFinalRun = false
     private var spawnDirector = EnemySpawnDirector()
     private let pickupSpawnConfiguration = PickupSpawnConfiguration()
     private var pickupPlanner = PickupSpawnPlanner()
-    private let weaponResolver = StartingWeaponResolver()
+    let weaponResolver = StartingWeaponResolver()
     private var enemies: [ArenaEnemy] = []
     private var enemyNodes: [Int: EnemyNode] = [:]
     private var enemyTelegraphNodes: [Int: EnemyTelegraphNode] = [:]
@@ -25,8 +25,10 @@ final class ArenaScene: SKScene {
     private var razorShieldTimeRemaining: TimeInterval = 0
     private var razorShieldNode: SKShapeNode?
     private var frozenCrasherTimeRemaining: TimeInterval = 0
+    private var flameTrailState = FlameTrailState()
+    private lazy var flameTrailEffectNode = FlameTrailEffectNode(theme: theme)
     private var gravityWellState: GravityWellState?
-    private var gravityWellEffectNode: SKNode?
+    var gravityWellEffectNode: SKNode?
     private let timerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
     private let centerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
     private let detailLabel = SKLabelNode(fontNamed: "Menlo")
@@ -51,6 +53,7 @@ final class ArenaScene: SKScene {
     override func didMove(to view: SKView) {
         runProfile = runProfileStore.profile
         rebuildArena()
+        if flameTrailEffectNode.parent == nil { addChild(flameTrailEffectNode) }
         configureLabels()
         configurePauseControl()
         placePlayer(resetPosition: true)
@@ -295,6 +298,8 @@ final class ArenaScene: SKScene {
         pickupPlanner.reset(configuration: pickupSpawnConfiguration)
         deactivateRazorShield()
         frozenCrasherTimeRemaining = 0
+        flameTrailState.reset()
+        flameTrailEffectNode.reset()
         deactivateGravityWell()
     }
 
@@ -316,6 +321,7 @@ final class ArenaScene: SKScene {
         updateRazorShield(deltaTime: deltaTime, playerPosition: playerPosition)
         shatterFrozenContactEnemies(playerPosition: playerPosition)
         updateFrozenCrasher(deltaTime: deltaTime)
+        updateFlameTrail(deltaTime: deltaTime, playerPosition: playerPosition)
         recordNearMisses(playerPosition: playerPosition)
         detectPlayerCollision(playerPosition: playerPosition)
         updateRunDisplay()
@@ -495,6 +501,9 @@ final class ArenaScene: SKScene {
                 accentColor: theme.playerAccentColor,
                 coreColor: theme.playerColor
             )
+        case .flameTrail:
+            flameTrailState.activate(at: playerPosition)
+            flameTrailEffectNode.apply(segments: flameTrailState.segments)
         case .novaBomb:
             playNovaBombEffect()
         }
@@ -600,6 +609,12 @@ final class ArenaScene: SKScene {
         razorShieldTimeRemaining = 0
         razorShieldNode?.removeFromParent()
         razorShieldNode = nil
+    }
+
+    private func updateFlameTrail(deltaTime: TimeInterval, playerPosition: CGPoint) {
+        let frame = flameTrailState.update(deltaTime: deltaTime, playerPosition: playerPosition, enemies: enemies)
+        destroyEnemies(ids: frame.burnedEnemyIDs, weaponKind: .flameTrail)
+        flameTrailEffectNode.apply(segments: frame.segments)
     }
 
     private func detectPlayerCollision(playerPosition: CGPoint) {
@@ -892,109 +907,6 @@ private extension ArenaScene {
         playFrozenShatterEffect(at: positions(forEnemyIDs: shatterIDs), color: theme.playerColor)
         runController.recordFrozenShatters(count: shatterIDs.count, weaponKind: .freezeBurst)
         removeEnemies(ids: shatterIDs)
-    }
-
-    func playShockwaveEffect(at position: CGPoint) {
-        let ring = SKShapeNode(circleOfRadius: weaponResolver.configuration.shockwaveRadius)
-        ring.position = position
-        ring.strokeColor = theme.playerAccentColor.withAlphaComponent(0.9)
-        ring.fillColor = .clear
-        ring.lineWidth = 2
-        ring.glowWidth = 5
-        ring.zPosition = 18
-        ring.setScale(0.2)
-        addChild(ring)
-        let expand = SKAction.group([
-            .scale(to: 1.0, duration: 0.16),
-            .fadeOut(withDuration: 0.16)
-        ])
-        ring.run(.sequence([expand, .removeFromParent()]))
-    }
-
-    func playNovaBombEffect() {
-        let playableRect = movementController.configuration.playableRect(in: size)
-
-        guard playableRect.width > 0, playableRect.height > 0 else {
-            return
-        }
-
-        let center = CGPoint(x: playableRect.midX, y: playableRect.midY)
-        let radius = hypot(playableRect.width, playableRect.height) / 2
-        let ring = SKShapeNode(circleOfRadius: radius)
-        ring.position = center
-        ring.strokeColor = theme.pickupAmber.withAlphaComponent(0.85)
-        ring.fillColor = .clear
-        ring.lineWidth = 2
-        ring.glowWidth = 6
-        ring.zPosition = 18
-        ring.setScale(0.05)
-        addChild(ring)
-
-        let clearPulse = SKAction.group([
-            .scale(to: 1.0, duration: 0.22),
-            .fadeOut(withDuration: 0.22)
-        ])
-        ring.run(.sequence([clearPulse, .removeFromParent()]))
-    }
-
-    func playSeekerSwarmEffect(from origin: CGPoint, to targets: [CGPoint]) {
-        for target in targets {
-            let path = CGMutablePath()
-            path.move(to: origin)
-            path.addLine(to: target)
-
-            let streak = SKShapeNode(path: path)
-            streak.strokeColor = theme.pickupViolet.withAlphaComponent(0.85)
-            streak.lineWidth = 1.5
-            streak.glowWidth = 3
-            streak.zPosition = 18
-            addChild(streak)
-
-            let fade = SKAction.group([
-                .fadeOut(withDuration: 0.12),
-                .scale(to: 0.9, duration: 0.12)
-            ])
-            streak.run(.sequence([fade, .removeFromParent()]))
-        }
-    }
-
-    func playFreezeBurstEffect(at position: CGPoint) {
-        let ring = SKShapeNode(circleOfRadius: weaponResolver.configuration.freezeBurstRadius)
-        ring.position = position
-        ring.strokeColor = theme.pickupBlue.withAlphaComponent(0.85)
-        ring.fillColor = .clear
-        ring.lineWidth = 2
-        ring.glowWidth = 5
-        ring.zPosition = 18
-        ring.setScale(0.18)
-        addChild(ring)
-
-        let expand = SKAction.group([
-            .scale(to: 1.0, duration: 0.18),
-            .fadeOut(withDuration: 0.18)
-        ])
-        ring.run(.sequence([expand, .removeFromParent()]))
-    }
-
-    func playGravityWellEffect(at position: CGPoint) {
-        gravityWellEffectNode?.removeFromParent()
-        let container = SKNode()
-        container.position = position
-        container.zPosition = 18
-        addChild(container)
-        gravityWellEffectNode = container
-        let ring = SKShapeNode(circleOfRadius: weaponResolver.configuration.gravityWellRadius)
-        ring.strokeColor = theme.pickupViolet.withAlphaComponent(0.7)
-        ring.fillColor = theme.pickupBlue.withAlphaComponent(0.08)
-        ring.lineWidth = 1.8
-        ring.glowWidth = 5
-        container.addChild(ring)
-        let duration = max(0.12, weaponResolver.configuration.gravityWellPullDuration)
-        let pulse = SKAction.group([
-            .scale(to: 0.25, duration: duration),
-            .fadeOut(withDuration: duration)
-        ])
-        container.run(.sequence([pulse, .removeFromParent()]))
     }
 
 }
