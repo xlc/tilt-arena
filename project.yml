@@ -22,6 +22,7 @@ targets:
       - path: TiltArena
     settings:
       base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         PRODUCT_BUNDLE_IDENTIFIER: com.xlc.TiltArena
         INFOPLIST_FILE: TiltArena/Resources/Info.plist
         SUPPORTS_MACCATALYST: false
