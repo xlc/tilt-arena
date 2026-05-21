@@ -2,20 +2,19 @@ import SpriteKit
 
 @MainActor
 final class EnemyTelegraphNode: SKNode {
+    private let lineNode: SKShapeNode
+
     init(telegraph: EnemyTelegraph, theme: ArenaTheme) {
+        let path = CGMutablePath()
+        for segment in telegraph.segments {
+            Self.appendDashes(from: segment.start, to: segment.end, to: path)
+        }
+        lineNode = SKShapeNode(path: path)
+
         super.init()
 
         zPosition = 14
-
-        let path = CGMutablePath()
-        for segment in telegraph.segments {
-            appendDashes(from: segment.start, to: segment.end, to: path)
-        }
-
-        let lineNode = SKShapeNode(path: path)
-        lineNode.strokeColor = theme.enemyColor.withAlphaComponent(0.58)
-        lineNode.lineWidth = 2
-        lineNode.glowWidth = 2
+        applyTheme(theme)
         addChild(lineNode)
     }
 
@@ -23,7 +22,13 @@ final class EnemyTelegraphNode: SKNode {
         fatalError("EnemyTelegraphNode does not support storyboard initialization.")
     }
 
-    private func appendDashes(from start: CGPoint, to end: CGPoint, to path: CGMutablePath) {
+    func applyTheme(_ theme: ArenaTheme) {
+        lineNode.strokeColor = theme.enemyColor.withAlphaComponent(0.58)
+        lineNode.lineWidth = 2
+        lineNode.glowWidth = 2
+    }
+
+    private static func appendDashes(from start: CGPoint, to end: CGPoint, to path: CGMutablePath) {
         let dx = end.x - start.x
         let dy = end.y - start.y
         let length = hypot(dx, dy)

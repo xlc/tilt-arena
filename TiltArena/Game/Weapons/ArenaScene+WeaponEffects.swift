@@ -83,7 +83,7 @@ extension ArenaScene {
         ring.run(.sequence([expand, .removeFromParent()]))
     }
 
-    func playGravityWellEffect(at position: CGPoint) {
+    func playGravityWellEffect(at position: CGPoint, duration: TimeInterval? = nil) {
         gravityWellEffectNode?.removeFromParent()
         let container = SKNode()
         container.position = position
@@ -96,7 +96,7 @@ extension ArenaScene {
         ring.lineWidth = 1.8
         ring.glowWidth = 5
         container.addChild(ring)
-        let duration = max(0.12, weaponResolver.configuration.gravityWellPullDuration)
+        let duration = max(0.12, duration ?? weaponResolver.configuration.gravityWellPullDuration)
         let pulse = SKAction.group([
             .scale(to: 0.25, duration: duration),
             .fadeOut(withDuration: duration)
