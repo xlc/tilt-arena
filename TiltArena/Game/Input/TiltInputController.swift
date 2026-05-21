@@ -1,5 +1,5 @@
-import CoreMotion
 import CoreGraphics
+import CoreMotion
 import Foundation
 
 @MainActor
@@ -34,26 +34,58 @@ final class TiltInputController {
         signalProcessor.reset()
     }
 
-    func recalibrateToCurrentAttitude() {
-        guard let gravity = currentGravityVector() else {
+    func recalibrateToCurrentAttitude(orientation: TiltScreenOrientation) {
+        guard let rawGravity = currentGravityVector() else {
             return
         }
 
-        settingsStore.recalibrate(using: gravity)
+        let screenGravity = TiltGravityMapper.screenGravity(
+            from: rawGravity,
+            orientation: orientation
+        )
+        settingsStore.recalibrate(using: screenGravity)
         signalProcessor.reset()
     }
 
-    func update(deltaTime: TimeInterval) -> CGVector {
-        guard let gravity = currentGravityVector() else {
+    func update(deltaTime: TimeInterval, orientation: TiltScreenOrientation) -> CGVector {
+        guard let rawGravity = currentGravityVector() else {
             return .zero
         }
 
-        settingsStore.ensureInitialCalibration(using: gravity)
+        let screenGravity = TiltGravityMapper.screenGravity(
+            from: rawGravity,
+            orientation: orientation
+        )
+        settingsStore.ensureInitialCalibration(using: screenGravity)
 
         return signalProcessor.inputVector(
-            gravity: gravity,
+            gravity: screenGravity,
             settings: settingsStore.settings,
             deltaTime: deltaTime
+        )
+    }
+
+    func readout(orientation: TiltScreenOrientation) -> TiltInputReadout? {
+        guard let rawGravity = currentGravityVector() else {
+            return nil
+        }
+
+        let settings = settingsStore.settings
+        let screenGravity = TiltGravityMapper.screenGravity(
+            from: rawGravity,
+            orientation: orientation
+        )
+        let normalizedInput = signalProcessor.normalizedInputVector(
+            gravity: screenGravity,
+            settings: settings
+        )
+
+        return TiltInputReadout(
+            orientation: orientation,
+            rawGravity: rawGravity,
+            screenGravity: screenGravity,
+            neutralGravity: settings.calibration.neutralGravity,
+            normalizedInput: normalizedInput
         )
     }
 

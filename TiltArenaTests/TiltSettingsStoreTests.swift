@@ -2,6 +2,9 @@ import XCTest
 @testable import TiltArena
 
 final class TiltSettingsStoreTests: XCTestCase {
+    private static let settingsKey = "tiltArena.tiltControlSettings"
+    private static let initialCalibrationKey = "tiltArena.hasCapturedInitialTiltCalibration"
+
     private var defaults: UserDefaults!
     private var suiteName: String!
 
@@ -60,5 +63,39 @@ final class TiltSettingsStoreTests: XCTestCase {
 
         XCTAssertTrue(store.needsInitialCalibration)
         XCTAssertEqual(store.settings, .defaults)
+    }
+
+    func testLegacyCustomCalibrationMigratesToScreenSpaceDefaults() throws {
+        try writeLegacySettings(
+            TiltControlSettings(
+                calibration: .custom(neutralGravity: TiltGravityVector(x: 0.2, y: -0.4)),
+                sensitivity: 1.3
+            )
+        )
+
+        let store = TiltSettingsStore(defaults: defaults)
+
+        XCTAssertTrue(store.needsInitialCalibration)
+        XCTAssertEqual(store.settings.calibration, TiltControlSettings.defaults.calibration)
+        XCTAssertEqual(store.settings.sensitivity, 1.3)
+    }
+
+    func testLegacyPresetCalibrationKeepsCapturedState() throws {
+        let legacySettings = TiltControlSettings(
+            calibration: .defaultCalibration(for: .flatTable),
+            sensitivity: 1.2
+        )
+        try writeLegacySettings(legacySettings)
+
+        let store = TiltSettingsStore(defaults: defaults)
+
+        XCTAssertFalse(store.needsInitialCalibration)
+        XCTAssertEqual(store.settings, legacySettings)
+    }
+
+    private func writeLegacySettings(_ settings: TiltControlSettings) throws {
+        let data = try JSONEncoder().encode(settings)
+        defaults.set(data, forKey: Self.settingsKey)
+        defaults.set(true, forKey: Self.initialCalibrationKey)
     }
 }

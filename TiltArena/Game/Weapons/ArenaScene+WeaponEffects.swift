@@ -19,7 +19,7 @@ extension ArenaScene {
     }
 
     func playNovaBombEffect() {
-        let playableRect = movementController.configuration.playableRect(in: size)
+        let playableRect = currentPlayableRect
 
         guard playableRect.width > 0, playableRect.height > 0 else {
             return

@@ -11,6 +11,18 @@ final class PlayerMovementControllerTests: XCTestCase {
         XCTAssertEqual(state.position.y, 422, accuracy: 0.0001)
     }
 
+    func testResetPlacesPlayerAtSafeGameplayBoundsCenter() {
+        let safeBounds = CGRect(x: 83, y: 45, width: 686, height: 324)
+        var controller = PlayerMovementController()
+        let state = controller.reset(in: safeBounds)
+        let playableRect = controller.configuration.playableRect(in: safeBounds)
+
+        XCTAssertEqual(state.position.x, playableRect.midX, accuracy: 0.0001)
+        XCTAssertEqual(state.position.y, playableRect.midY, accuracy: 0.0001)
+        XCTAssertGreaterThan(state.position.x, safeBounds.minX)
+        XCTAssertGreaterThan(state.position.y, safeBounds.minY)
+    }
+
     func testFullTiltCrossesPlayableWidthAtConfiguredSpeed() {
         let arenaSize = CGSize(width: 390, height: 844)
         var controller = PlayerMovementController()
@@ -30,6 +42,18 @@ final class PlayerMovementControllerTests: XCTestCase {
 
         let state = controller.update(input: CGVector(dx: 20, dy: 20), deltaTime: 10, arenaSize: arenaSize)
         let playableRect = controller.configuration.playableRect(in: arenaSize)
+
+        XCTAssertEqual(state.position.x, playableRect.maxX, accuracy: 0.0001)
+        XCTAssertEqual(state.position.y, playableRect.maxY, accuracy: 0.0001)
+    }
+
+    func testMovementClampsToSafeGameplayBounds() {
+        let safeBounds = CGRect(x: 83, y: 45, width: 686, height: 324)
+        var controller = PlayerMovementController()
+        _ = controller.reset(in: safeBounds)
+
+        let state = controller.update(input: CGVector(dx: 20, dy: 20), deltaTime: 10, arenaBounds: safeBounds)
+        let playableRect = controller.configuration.playableRect(in: safeBounds)
 
         XCTAssertEqual(state.position.x, playableRect.maxX, accuracy: 0.0001)
         XCTAssertEqual(state.position.y, playableRect.maxY, accuracy: 0.0001)
@@ -62,6 +86,22 @@ final class PlayerMovementControllerTests: XCTestCase {
             direction: CGVector(dx: 1, dy: 1),
             distance: 10_000,
             arenaSize: arenaSize
+        )
+
+        XCTAssertEqual(state.position.x, playableRect.maxX, accuracy: 0.0001)
+        XCTAssertEqual(state.position.y, playableRect.maxY, accuracy: 0.0001)
+    }
+
+    func testDashClampsToSafeGameplayBounds() {
+        let safeBounds = CGRect(x: 83, y: 45, width: 686, height: 324)
+        var controller = PlayerMovementController()
+        _ = controller.reset(in: safeBounds)
+        let playableRect = controller.configuration.playableRect(in: safeBounds)
+
+        let state = controller.dash(
+            direction: CGVector(dx: 1, dy: 1),
+            distance: 10_000,
+            arenaBounds: safeBounds
         )
 
         XCTAssertEqual(state.position.x, playableRect.maxX, accuracy: 0.0001)
