@@ -29,6 +29,7 @@ final class ArenaScene: SKScene {
     private var localOptions = ArenaLocalOptions()
     private var uiState: ArenaUISceneState = .home
     private var optionsReturnState: ArenaUISceneState = .home
+    private var calibrationReturnState: ArenaUISceneState = .home
     private var selectedMode: ArenaModeKind = .classic
     private var previousBestScore = 0
     private var lastProgressionResult: ArenaProgressionResult?
@@ -69,6 +70,9 @@ final class ArenaScene: SKScene {
     private let hudMargin: CGFloat = 24
     private let pauseControlSize = CGSize(width: 48, height: 48)
     private var uiHitTargets: [ArenaControlHitTarget] = []
+    private var calibrationPreviewMovementController = PlayerMovementController()
+    private var calibrationPreviewPlayerNode: PlayerCraftNode?
+    private var calibrationPreviewTrailNode: PlayerTrailNode?
     private var tiltReadoutValueLabels: [SKLabelNode] = []
     private var tiltReadoutUpdateTime: TimeInterval = 0
     private var runTiltScreenOrientation: TiltScreenOrientation?
@@ -107,6 +111,8 @@ final class ArenaScene: SKScene {
         if uiState == .preRun {
             readyStartPoint = movementController.state.position
             readyHoldController.reset()
+        } else if uiState == .calibrationPreview {
+            resetCalibrationPreviewPosition()
         }
         layoutLabels()
         layoutPauseControl()
@@ -134,6 +140,8 @@ final class ArenaScene: SKScene {
         }
 
         switch uiState {
+        case .calibrationPreview:
+            updateCalibrationPreview(deltaTime: deltaTime)
         case .preRun:
             updatePreRun(deltaTime: deltaTime)
         case .activeGameplay:
@@ -147,6 +155,9 @@ final class ArenaScene: SKScene {
 
     func recalibrateTiltControls() {
         tiltInputController.recalibrateToCurrentAttitude(orientation: currentTiltScreenOrientation)
+        if uiState == .calibrationPreview {
+            resetCalibrationPreviewPosition()
+        }
         updateRunDisplay()
         rebuildUI()
     }
@@ -155,6 +166,9 @@ final class ArenaScene: SKScene {
         rebuildArena()
         let shouldResetPosition = playerNode == nil || uiState == .home
         placePlayer(resetPosition: shouldResetPosition, resetTrail: shouldResetPosition)
+        if uiState == .calibrationPreview {
+            resetCalibrationPreviewPosition()
+        }
         layoutLabels()
         layoutPauseControl()
         rebuildUI()
@@ -363,6 +377,48 @@ final class ArenaScene: SKScene {
         let state = movementController.update(input: input, deltaTime: deltaTime, arenaBounds: currentGameplayBounds)
         applyPlayerState(state, resetTrail: false)
         updateActiveRun(deltaTime: deltaTime, playerPosition: state.position)
+    }
+
+    private func updateCalibrationPreview(deltaTime: TimeInterval) {
+        let input = tiltInputController.update(deltaTime: deltaTime, orientation: currentTiltScreenOrientation)
+        let state = calibrationPreviewMovementController.update(
+            input: input,
+            deltaTime: deltaTime,
+            arenaBounds: currentGameplayBounds
+        )
+
+        applyCalibrationPreviewState(state, resetTrail: false)
+        updateTiltReadoutDisplay(deltaTime: deltaTime)
+    }
+
+    private func enterCalibrationPreview() {
+        if uiState != .calibrationPreview {
+            calibrationReturnState = uiState
+        }
+
+        tiltInputController.resetSmoothedInput()
+        resetCalibrationPreviewPosition()
+        show(.calibrationPreview)
+    }
+
+    private func resetCalibrationPreviewPosition() {
+        calibrationPreviewMovementController.configuration = movementController.configuration
+        _ = calibrationPreviewMovementController.reset(in: currentGameplayBounds)
+    }
+
+    private func applyCalibrationPreviewState(_ state: PlayerMovementState, resetTrail: Bool) {
+        calibrationPreviewPlayerNode?.apply(state: state)
+
+        let speedFraction = state.velocity.length / max(
+            1,
+            calibrationPreviewMovementController.configuration.maximumSpeed(in: currentGameplayBounds)
+        )
+
+        if resetTrail {
+            calibrationPreviewTrailNode?.reset(to: state.position)
+        } else {
+            calibrationPreviewTrailNode?.record(position: state.position, speedFraction: speedFraction)
+        }
     }
 
     private func preparePreRun() {
@@ -891,7 +947,7 @@ final class ArenaScene: SKScene {
         timerLabel.alpha = uiState == .pause || uiState == .postRun ? 0.55 : 1
 
         switch uiState {
-        case .home, .modeSelect, .awards, .options:
+        case .home, .modeSelect, .awards, .options, .calibrationPreview:
             timerLabel.isHidden = true
             bestMarkerLabel.isHidden = true
             comboLabel.isHidden = true
@@ -1057,7 +1113,7 @@ private extension ArenaScene {
 
     var shouldLockCurrentOrientation: Bool {
         switch uiState {
-        case .preRun, .activeGameplay, .pause, .postRun:
+        case .calibrationPreview, .preRun, .activeGameplay, .pause, .postRun:
             return true
         case .options:
             return optionsReturnState.requiresLockedRunOrientation
@@ -1069,6 +1125,8 @@ private extension ArenaScene {
     func rebuildUI() {
         uiRoot.removeAllChildren()
         uiHitTargets.removeAll()
+        calibrationPreviewPlayerNode = nil
+        calibrationPreviewTrailNode = nil
         tiltReadoutValueLabels.removeAll()
         tiltReadoutUpdateTime = 0
         readyProgressRing = nil
@@ -1083,6 +1141,8 @@ private extension ArenaScene {
             renderAwards()
         case .options:
             renderOptions()
+        case .calibrationPreview:
+            renderCalibrationPreview()
         case .preRun:
             renderPreRun()
         case .activeGameplay:
@@ -1262,11 +1322,118 @@ private extension ArenaScene {
         renderLocalOptions(in: right)
     }
 
+    func renderCalibrationPreview() {
+        let layout = currentLandscapeLayout()
+        let worldNode = SKNode()
+        worldNode.zPosition = ArenaUIZPosition.preview
+        uiRoot.addChild(worldNode)
+
+        let previewArena = ArenaThemeRenderer(theme: theme).makeArenaBackground(
+            size: size,
+            arenaRect: layout.safeRect
+        )
+        previewArena.zPosition = ArenaUIZPosition.preview
+        worldNode.addChild(previewArena)
+
+        let previewTrail = PlayerTrailNode(theme: theme)
+        previewTrail.zPosition = ArenaUIZPosition.content
+        worldNode.addChild(previewTrail)
+        calibrationPreviewTrailNode = previewTrail
+
+        let previewPlayer = PlayerCraftNode(
+            theme: theme,
+            visualRadius: calibrationPreviewMovementController.configuration.visualRadius
+        )
+        previewPlayer.zPosition = ArenaUIZPosition.progress
+        worldNode.addChild(previewPlayer)
+        calibrationPreviewPlayerNode = previewPlayer
+
+        let state = calibrationPreviewMovementController.clampToArena(currentGameplayBounds)
+        applyCalibrationPreviewState(state, resetTrail: true)
+
+        let controlsWidth = min(292, max(260, layout.safeRect.width * 0.38))
+        let controlsHeight: CGFloat = 238
+        let controlsFrame = CGRect(
+            x: layout.safeRect.minX,
+            y: layout.safeRect.maxY - controlsHeight,
+            width: controlsWidth,
+            height: controlsHeight
+        )
+
+        addPanel(
+            frame: controlsFrame,
+            fill: theme.panelFillColor.withAlphaComponent(0.9)
+        )
+        addBackButton(layout: layout)
+        addTitle(
+            "CALIBRATE",
+            at: CGPoint(x: controlsFrame.minX + 56, y: controlsFrame.maxY - 21)
+        )
+        renderCalibrationControls(in: controlsFrame)
+        addSmallLabel(
+            calibrationText,
+            at: CGPoint(x: layout.safeRect.maxX, y: layout.safeRect.minY + 16),
+            color: theme.borderColor,
+            alignment: .right
+        )
+    }
+
+    func renderCalibrationControls(in frame: CGRect) {
+        let settings = tiltSettingsStore.settings
+        addButton(
+            "SET",
+            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 72, width: 82, height: 34),
+            action: .calibrate,
+            style: .primary
+        )
+        addSmallLabel(
+            "SENSITIVITY \(String(format: "%.1f", settings.clampedSensitivity))",
+            at: CGPoint(x: frame.minX + 112, y: frame.maxY - 55),
+            color: theme.borderColor,
+            alignment: .left
+        )
+        addButton(
+            "-",
+            frame: CGRect(x: frame.minX + 112, y: frame.maxY - 90, width: 44, height: 30),
+            action: .sensitivityDown,
+            style: .secondary
+        )
+        addButton(
+            "+",
+            frame: CGRect(x: frame.minX + 168, y: frame.maxY - 90, width: 44, height: 30),
+            action: .sensitivityUp,
+            style: .secondary
+        )
+
+        let presetY = frame.maxY - 128
+        for (index, preset) in [TiltCalibrationPreset.standard, .flatTable, .reclined].enumerated() {
+            let buttonFrame = CGRect(
+                x: frame.minX + 14 + CGFloat(index) * 82,
+                y: presetY,
+                width: 74,
+                height: 30
+            )
+            addButton(
+                presetTitle(preset),
+                frame: buttonFrame,
+                action: .preset(preset),
+                style: settings.calibration.preset == preset ? .primary : .secondary
+            )
+        }
+
+        renderTiltReadout(in: CGRect(
+            x: frame.minX,
+            y: frame.minY,
+            width: frame.width,
+            height: 96
+        ))
+    }
+
     func renderTiltOptions(in frame: CGRect) {
         addButton(
             "CALIBRATE",
             frame: CGRect(x: frame.minX + 14, y: frame.maxY - 54, width: 148, height: 34),
-            action: .calibrate,
+            action: .openCalibrationPreview,
             style: .primary
         )
         let settings = tiltSettingsStore.settings
@@ -1393,7 +1560,7 @@ private extension ArenaScene {
         addButton(
             "CAL",
             frame: CGRect(x: layout.safeRect.maxX - 112, y: layout.safeRect.maxY - 40, width: 48, height: 36),
-            action: .calibrate,
+            action: .openCalibrationPreview,
             style: .secondary
         )
         addButton(
@@ -1444,7 +1611,7 @@ private extension ArenaScene {
         addButton(
             "CALIBRATE",
             frame: CGRect(x: layout.safeRect.maxX - 150, y: layout.safeRect.midY + 12, width: 150, height: 38),
-            action: .calibrate,
+            action: .openCalibrationPreview,
             style: .secondary
         )
         addButton(
@@ -1537,7 +1704,7 @@ private extension ArenaScene {
 
     func perform(_ action: ArenaControlAction) {
         switch action {
-        case .play, .playAgain, .openModes, .openAwards, .openOptions, .home, .back:
+        case .play, .playAgain, .openModes, .openAwards, .openOptions, .openCalibrationPreview, .home, .back:
             performNavigationAction(action)
         case .selectMode, .resume, .calibrate, .endRun:
             performRunControlAction(action)
@@ -1560,9 +1727,14 @@ private extension ArenaScene {
         case .openOptions:
             optionsReturnState = uiState
             show(.options)
+        case .openCalibrationPreview:
+            enterCalibrationPreview()
         case .home:
             resetMenuPreviewIfNeeded()
             show(.home)
+        case .back where uiState == .calibrationPreview:
+            tiltInputController.resetSmoothedInput()
+            show(calibrationReturnState)
         case .back:
             show(uiState == .options ? optionsReturnState : .home)
         default:
@@ -1594,12 +1766,18 @@ private extension ArenaScene {
         switch action {
         case .sensitivityDown:
             tiltSettingsStore.updateSensitivity(tiltSettingsStore.settings.clampedSensitivity - 0.1)
+            tiltInputController.resetSmoothedInput()
             rebuildUI()
         case .sensitivityUp:
             tiltSettingsStore.updateSensitivity(tiltSettingsStore.settings.clampedSensitivity + 0.1)
+            tiltInputController.resetSmoothedInput()
             rebuildUI()
         case let .preset(preset):
             tiltSettingsStore.selectPreset(preset)
+            tiltInputController.resetSmoothedInput()
+            if uiState == .calibrationPreview {
+                resetCalibrationPreviewPosition()
+            }
             rebuildUI()
         case .toggleAudio:
             localOptions.audioEnabled.toggle()
@@ -2131,6 +2309,7 @@ private enum ArenaControlAction: Equatable {
     case openModes
     case openAwards
     case openOptions
+    case openCalibrationPreview
     case home
     case back
     case selectMode(ArenaModeKind)
