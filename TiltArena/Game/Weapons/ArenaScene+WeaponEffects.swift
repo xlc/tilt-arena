@@ -103,4 +103,39 @@ extension ArenaScene {
         ])
         container.run(.sequence([pulse, .removeFromParent()]))
     }
+
+    func playWarpDashEffect(from startPosition: CGPoint, to endPosition: CGPoint) {
+        let path = CGMutablePath()
+        path.move(to: startPosition)
+        path.addLine(to: endPosition)
+
+        let streak = SKShapeNode(path: path)
+        streak.strokeColor = theme.playerAccentColor.withAlphaComponent(0.9)
+        streak.lineWidth = 2
+        streak.glowWidth = 5
+        streak.zPosition = 18
+        addChild(streak)
+
+        let endpoint = SKShapeNode(circleOfRadius: movementController.configuration.visualRadius * 1.4)
+        endpoint.position = endPosition
+        endpoint.strokeColor = theme.pickupViolet.withAlphaComponent(0.85)
+        endpoint.fillColor = .clear
+        endpoint.lineWidth = 1.4
+        endpoint.glowWidth = 4
+        endpoint.zPosition = 18
+        endpoint.setScale(0.35)
+        addChild(endpoint)
+
+        let fade = SKAction.group([
+            .fadeOut(withDuration: 0.14),
+            .scale(to: 0.96, duration: 0.14)
+        ])
+        streak.run(.sequence([fade, .removeFromParent()]))
+
+        let pulse = SKAction.group([
+            .scale(to: 1.0, duration: 0.14),
+            .fadeOut(withDuration: 0.14)
+        ])
+        endpoint.run(.sequence([pulse, .removeFromParent()]))
+    }
 }

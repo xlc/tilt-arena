@@ -57,6 +57,34 @@ struct PlayerMovementController {
         return state
     }
 
+    mutating func dash(direction: CGVector, distance: CGFloat, arenaSize: CGSize) -> PlayerMovementState {
+        guard direction.length > 0 else {
+            return state
+        }
+
+        let clampedDistance = max(0, distance)
+        guard clampedDistance > 0 else {
+            return state
+        }
+
+        let dashDirection = direction.normalized
+        let proposedPosition = CGPoint(
+            x: state.position.x + dashDirection.dx * clampedDistance,
+            y: state.position.y + dashDirection.dy * clampedDistance
+        )
+        let maximumSpeed = configuration.maximumSpeed(in: arenaSize)
+
+        state = PlayerMovementState(
+            position: clampedPosition(proposedPosition, in: arenaSize),
+            velocity: CGVector(
+                dx: dashDirection.dx * maximumSpeed,
+                dy: dashDirection.dy * maximumSpeed
+            )
+        )
+
+        return state
+    }
+
     mutating func clampToArena(_ arenaSize: CGSize) -> PlayerMovementState {
         state = PlayerMovementState(
             position: clampedPosition(state.position, in: arenaSize),

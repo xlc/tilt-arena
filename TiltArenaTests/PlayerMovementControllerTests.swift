@@ -34,4 +34,52 @@ final class PlayerMovementControllerTests: XCTestCase {
         XCTAssertEqual(state.position.x, playableRect.maxX, accuracy: 0.0001)
         XCTAssertEqual(state.position.y, playableRect.maxY, accuracy: 0.0001)
     }
+
+    func testDashMovesAlongDirectionByDistance() {
+        let arenaSize = CGSize(width: 390, height: 844)
+        var controller = PlayerMovementController()
+        let startState = controller.reset(in: arenaSize)
+        let distance: CGFloat = 99
+
+        let state = controller.dash(
+            direction: CGVector(dx: 3, dy: 4),
+            distance: distance,
+            arenaSize: arenaSize
+        )
+
+        XCTAssertEqual(state.position.x, startState.position.x + distance * 0.6, accuracy: 0.0001)
+        XCTAssertEqual(state.position.y, startState.position.y + distance * 0.8, accuracy: 0.0001)
+        XCTAssertGreaterThan(state.velocity.length, 2)
+    }
+
+    func testDashClampsToPlayableBounds() {
+        let arenaSize = CGSize(width: 390, height: 844)
+        var controller = PlayerMovementController()
+        _ = controller.reset(in: arenaSize)
+        let playableRect = controller.configuration.playableRect(in: arenaSize)
+
+        let state = controller.dash(
+            direction: CGVector(dx: 1, dy: 1),
+            distance: 10_000,
+            arenaSize: arenaSize
+        )
+
+        XCTAssertEqual(state.position.x, playableRect.maxX, accuracy: 0.0001)
+        XCTAssertEqual(state.position.y, playableRect.maxY, accuracy: 0.0001)
+    }
+
+    func testDashIgnoresZeroDirectionAndInvalidDistance() {
+        let arenaSize = CGSize(width: 390, height: 844)
+        var controller = PlayerMovementController()
+        let startState = controller.reset(in: arenaSize)
+
+        XCTAssertEqual(
+            controller.dash(direction: .zero, distance: 100, arenaSize: arenaSize),
+            startState
+        )
+        XCTAssertEqual(
+            controller.dash(direction: CGVector(dx: 1, dy: 0), distance: 0, arenaSize: arenaSize),
+            startState
+        )
+    }
 }
