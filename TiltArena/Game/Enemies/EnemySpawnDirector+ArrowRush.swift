@@ -3,20 +3,16 @@ import Foundation
 
 extension EnemySpawnDirector {
     mutating func spawnArrowRushTelegraphIfNeeded(
-        deltaTime: TimeInterval,
         projectedEnemyCount: Int,
-        tuning: EnemyPhaseTuning,
-        playableRect: CGRect,
-        playerPosition: CGPoint,
-        pickupCircles: [CollisionCircle],
+        context: SpawnContext,
         frame: inout EnemySpawnFrame
     ) {
-        guard deltaTime > 0, let arrowRushSpawnInterval = tuning.arrowRushSpawnInterval else {
+        guard context.deltaTime > 0, let arrowRushSpawnInterval = context.tuning.arrowRushSpawnInterval else {
             timeUntilNextArrowRush = 0
             return
         }
 
-        let configuredEnemyCount = max(0, tuning.arrowRushEnemyCount)
+        let configuredEnemyCount = max(0, context.tuning.arrowRushEnemyCount)
         guard arrowRushSpawnInterval > 0, configuredEnemyCount > 0 else {
             return
         }
@@ -28,23 +24,23 @@ extension EnemySpawnDirector {
             return
         }
 
-        guard projectedEnemyCount + requiredEnemyCount <= tuning.maxActiveEnemies else {
+        guard projectedEnemyCount + requiredEnemyCount <= context.tuning.maxActiveEnemies else {
             timeUntilNextArrowRush = max(timeUntilNextArrowRush, arrowRushSpawnInterval)
             return
         }
 
-        timeUntilNextArrowRush -= deltaTime
+        timeUntilNextArrowRush -= context.deltaTime
 
         guard timeUntilNextArrowRush <= 0 else {
             return
         }
 
-        let availableSlots = tuning.maxActiveEnemies - projectedEnemyCount
+        let availableSlots = context.tuning.maxActiveEnemies - projectedEnemyCount
         guard let arrowRush = makePendingArrowRush(
-            in: playableRect,
-            playerPosition: playerPosition,
-            pickupCircles: pickupCircles,
-            tuning: tuning,
+            in: context.playableRect,
+            playerPosition: context.playerPosition,
+            pickupCircles: context.pickupCircles,
+            tuning: context.tuning,
             enemyCount: min(configuredEnemyCount, availableSlots),
             requiredEnemyCount: requiredEnemyCount
         ) else {

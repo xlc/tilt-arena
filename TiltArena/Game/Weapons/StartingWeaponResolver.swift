@@ -74,8 +74,8 @@ struct StartingWeaponResolver {
         return Set(
             enemies
                 .sorted {
-                    squaredDistance(from: $0.position, to: playerPosition)
-                        < squaredDistance(from: $1.position, to: playerPosition)
+                    ArenaGeometry.squaredDistance(from: $0.position, to: playerPosition)
+                        < ArenaGeometry.squaredDistance(from: $1.position, to: playerPosition)
                 }
                 .prefix(targetLimit)
                 .map(\.id)
@@ -135,17 +135,11 @@ struct StartingWeaponResolver {
         return enemies
             .filter { enemy in
                 !selectedIDs.contains(enemy.id)
-                    && squaredDistance(from: enemy.position, to: origin) <= maximumSquaredDistance
+                    && ArenaGeometry.squaredDistance(from: enemy.position, to: origin) <= maximumSquaredDistance
             }
             .min {
-                squaredDistance(from: $0.position, to: origin)
-                    < squaredDistance(from: $1.position, to: origin)
+                ArenaGeometry.squaredDistance(from: $0.position, to: origin)
+                    < ArenaGeometry.squaredDistance(from: $1.position, to: origin)
             }
-    }
-
-    private func squaredDistance(from lhs: CGPoint, to rhs: CGPoint) -> CGFloat {
-        let dx = lhs.x - rhs.x
-        let dy = lhs.y - rhs.y
-        return dx * dx + dy * dy
     }
 }

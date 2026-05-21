@@ -161,13 +161,13 @@ struct PickupSpawnPlanner {
         configuration: PickupSpawnConfiguration = PickupSpawnConfiguration()
     ) -> Bool {
         let playerClearance = configuration.playerClearance + configuration.pickupRadius
-        guard squaredDistance(from: position, to: playerPosition) >= playerClearance * playerClearance else {
+        guard ArenaGeometry.squaredDistance(from: position, to: playerPosition) >= playerClearance * playerClearance else {
             return false
         }
 
         return enemyCircles.allSatisfy { enemyCircle in
             let clearance = enemyCircle.radius + configuration.pickupRadius + configuration.enemyClearance
-            return squaredDistance(from: position, to: enemyCircle.center) >= clearance * clearance
+            return ArenaGeometry.squaredDistance(from: position, to: enemyCircle.center) >= clearance * clearance
         }
     }
 
@@ -185,9 +185,4 @@ struct PickupSpawnPlanner {
         )
     }
 
-    private func squaredDistance(from lhs: CGPoint, to rhs: CGPoint) -> CGFloat {
-        let dx = lhs.x - rhs.x
-        let dy = lhs.y - rhs.y
-        return dx * dx + dy * dy
-    }
 }

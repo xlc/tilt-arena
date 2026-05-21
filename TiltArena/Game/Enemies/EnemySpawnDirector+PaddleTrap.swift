@@ -25,25 +25,20 @@ extension EnemySpawnDirector {
     }
 
     mutating func spawnPaddleTrapTelegraphIfNeeded(
-        deltaTime: TimeInterval,
-        tuning: EnemyPhaseTuning,
-        playableRect: CGRect,
-        playerPosition: CGPoint,
-        pickupCircles: [CollisionCircle],
-        activeEnemies: [ArenaEnemy],
+        context: SpawnContext,
         frame: inout EnemySpawnFrame
     ) {
-        guard deltaTime > 0, let paddleTrapSpawnInterval = tuning.paddleTrapSpawnInterval else {
+        guard context.deltaTime > 0, let paddleTrapSpawnInterval = context.tuning.paddleTrapSpawnInterval else {
             timeUntilNextPaddleTrap = 0
             return
         }
 
-        let componentCount = paddleTrapComponentCount(tuning: tuning)
+        let componentCount = paddleTrapComponentCount(tuning: context.tuning)
         guard paddleTrapSpawnInterval > 0,
-              tuning.maxActivePaddleTraps > 0,
-              tuning.paddleTrapLifetime > 0,
+              context.tuning.maxActivePaddleTraps > 0,
+              context.tuning.paddleTrapLifetime > 0,
               componentCount > 0,
-              tuning.paddleTrapDotSpeed > 0 else {
+              context.tuning.paddleTrapDotSpeed > 0 else {
             return
         }
 
@@ -52,28 +47,28 @@ extension EnemySpawnDirector {
             return
         }
 
-        let activeAndNewEnemies = activeEnemies + frame.newEnemies
+        let activeAndNewEnemies = context.activeEnemies + frame.newEnemies
         let projectedEnemyCount = activeAndNewEnemies.count + pendingEnemyCount
         let projectedTrapCount = Set(activeAndNewEnemies.compactMap(\.paddleTrapID)).count + pendingPaddleTrapCount
 
-        guard projectedEnemyCount + componentCount <= tuning.maxActiveEnemies,
-              projectedTrapCount < tuning.maxActivePaddleTraps else {
+        guard projectedEnemyCount + componentCount <= context.tuning.maxActiveEnemies,
+              projectedTrapCount < context.tuning.maxActivePaddleTraps else {
             timeUntilNextPaddleTrap = max(timeUntilNextPaddleTrap, paddleTrapSpawnInterval)
             return
         }
 
-        timeUntilNextPaddleTrap -= deltaTime
+        timeUntilNextPaddleTrap -= context.deltaTime
 
         guard timeUntilNextPaddleTrap <= 0 else {
             return
         }
 
         guard let paddleTrap = makePendingPaddleTrap(
-            in: playableRect,
-            playerPosition: playerPosition,
-            pickupCircles: pickupCircles,
+            in: context.playableRect,
+            playerPosition: context.playerPosition,
+            pickupCircles: context.pickupCircles,
             activeEnemies: activeAndNewEnemies,
-            tuning: tuning
+            tuning: context.tuning
         ) else {
             timeUntilNextPaddleTrap = paddleTrapSpawnInterval
             return
@@ -357,7 +352,7 @@ extension EnemySpawnDirector {
         activeEnemies.allSatisfy { activeEnemy in
             let baseClearance = activeEnemy.radius + configuration.enemyRadius + configuration.pickupClearance
             let clearance = activeEnemy.isPaddleTrap ? max(baseClearance, configuration.paddleTrapMinimumSpacing) : baseClearance
-            return squaredDistance(from: position, to: activeEnemy.position) >= clearance * clearance
+            return ArenaGeometry.squaredDistance(from: position, to: activeEnemy.position) >= clearance * clearance
         }
     }
 
@@ -367,7 +362,7 @@ extension EnemySpawnDirector {
     ) -> Bool {
         pendingTrapPositions.allSatisfy { pendingPosition in
             let clearance = configuration.paddleTrapMinimumSpacing
-            return squaredDistance(from: position, to: pendingPosition) >= clearance * clearance
+            return ArenaGeometry.squaredDistance(from: position, to: pendingPosition) >= clearance * clearance
         }
     }
 

@@ -3,20 +3,17 @@ import Foundation
 
 extension EnemySpawnDirector {
     mutating func spawnHunterDotTelegraphIfNeeded(
-        deltaTime: TimeInterval,
-        tuning: EnemyPhaseTuning,
-        playableRect: CGRect,
-        playerPosition: CGPoint,
-        pickupCircles: [CollisionCircle],
-        activeEnemies: [ArenaEnemy],
+        context: SpawnContext,
         frame: inout EnemySpawnFrame
     ) {
-        guard deltaTime > 0, let hunterDotSpawnInterval = tuning.hunterDotSpawnInterval else {
+        guard context.deltaTime > 0, let hunterDotSpawnInterval = context.tuning.hunterDotSpawnInterval else {
             timeUntilNextHunterDot = 0
             return
         }
 
-        guard hunterDotSpawnInterval > 0, tuning.maxActiveHunterDots > 0, tuning.hunterDotSpeed > 0 else {
+        guard hunterDotSpawnInterval > 0,
+              context.tuning.maxActiveHunterDots > 0,
+              context.tuning.hunterDotSpeed > 0 else {
             return
         }
 
@@ -25,27 +22,27 @@ extension EnemySpawnDirector {
             return
         }
 
-        let activeAndNewEnemies = activeEnemies + frame.newEnemies
+        let activeAndNewEnemies = context.activeEnemies + frame.newEnemies
         let projectedEnemyCount = activeAndNewEnemies.count + pendingEnemyCount
         let projectedHunterDotCount = activeAndNewEnemies.filter(\.isHunterDot).count + pendingHunterDotCount
 
-        guard projectedEnemyCount + 1 <= tuning.maxActiveEnemies,
-              projectedHunterDotCount < tuning.maxActiveHunterDots else {
+        guard projectedEnemyCount + 1 <= context.tuning.maxActiveEnemies,
+              projectedHunterDotCount < context.tuning.maxActiveHunterDots else {
             timeUntilNextHunterDot = max(timeUntilNextHunterDot, hunterDotSpawnInterval)
             return
         }
 
-        timeUntilNextHunterDot -= deltaTime
+        timeUntilNextHunterDot -= context.deltaTime
 
         guard timeUntilNextHunterDot <= 0 else {
             return
         }
 
         guard let hunterDot = makePendingHunterDot(
-            in: playableRect,
-            playerPosition: playerPosition,
-            pickupCircles: pickupCircles,
-            tuning: tuning
+            in: context.playableRect,
+            playerPosition: context.playerPosition,
+            pickupCircles: context.pickupCircles,
+            tuning: context.tuning
         ) else {
             timeUntilNextHunterDot = hunterDotSpawnInterval
             return

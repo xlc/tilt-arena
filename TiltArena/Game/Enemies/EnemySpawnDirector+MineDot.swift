@@ -9,20 +9,15 @@ extension EnemySpawnDirector {
     }
 
     mutating func spawnMineDotTelegraphIfNeeded(
-        deltaTime: TimeInterval,
-        tuning: EnemyPhaseTuning,
-        playableRect: CGRect,
-        playerPosition: CGPoint,
-        pickupCircles: [CollisionCircle],
-        activeEnemies: [ArenaEnemy],
+        context: SpawnContext,
         frame: inout EnemySpawnFrame
     ) {
-        guard deltaTime > 0, let mineDotSpawnInterval = tuning.mineDotSpawnInterval else {
+        guard context.deltaTime > 0, let mineDotSpawnInterval = context.tuning.mineDotSpawnInterval else {
             timeUntilNextMineDot = 0
             return
         }
 
-        guard mineDotSpawnInterval > 0, tuning.maxActiveMineDots > 0 else {
+        guard mineDotSpawnInterval > 0, context.tuning.maxActiveMineDots > 0 else {
             return
         }
 
@@ -31,26 +26,26 @@ extension EnemySpawnDirector {
             return
         }
 
-        let activeAndNewEnemies = activeEnemies + frame.newEnemies
+        let activeAndNewEnemies = context.activeEnemies + frame.newEnemies
         let projectedEnemyCount = activeAndNewEnemies.count + pendingEnemyCount
         let projectedMineDotCount = activeAndNewEnemies.filter(\.isMineDot).count + pendingMineDotCount
 
-        guard projectedEnemyCount + 1 <= tuning.maxActiveEnemies,
-              projectedMineDotCount < tuning.maxActiveMineDots else {
+        guard projectedEnemyCount + 1 <= context.tuning.maxActiveEnemies,
+              projectedMineDotCount < context.tuning.maxActiveMineDots else {
             timeUntilNextMineDot = max(timeUntilNextMineDot, mineDotSpawnInterval)
             return
         }
 
-        timeUntilNextMineDot -= deltaTime
+        timeUntilNextMineDot -= context.deltaTime
 
         guard timeUntilNextMineDot <= 0 else {
             return
         }
 
         guard let mineDot = makePendingMineDot(
-            in: playableRect,
-            playerPosition: playerPosition,
-            pickupCircles: pickupCircles,
+            in: context.playableRect,
+            playerPosition: context.playerPosition,
+            pickupCircles: context.pickupCircles,
             activeEnemies: activeAndNewEnemies
         ) else {
             timeUntilNextMineDot = mineDotSpawnInterval
@@ -72,41 +67,55 @@ extension EnemySpawnDirector {
             return nil
         }
 
-        let pendingMinePositions = pendingSpawns.values.flatMap { pendingSpawn in
+        guard let position = mineDotPosition(
+            in: playableRect,
+            playerPosition: playerPosition,
+            pickupCircles: pickupCircles,
+            activeEnemies: activeEnemies,
+            pendingMinePositions: pendingMineDotPositions()
+        ) else {
+            return nil
+        }
+
+        return pendingMineDot(at: position)
+    }
+
+    private func pendingMineDotPositions() -> [CGPoint] {
+        pendingSpawns.values.flatMap { pendingSpawn in
             pendingSpawn.enemies.compactMap { enemy in
                 enemy.isMineDot ? enemy.position : nil
             }
         }
+    }
 
-        let pickupCandidates = pickupAdjacentMineDotCandidates(in: playableRect, pickupCircles: pickupCircles)
-        let interiorCandidates = interiorMineDotCandidates(in: playableRect)
-        var selectedPosition: CGPoint?
-
-        for position in pickupCandidates where isSafeMineDotSpawn(
-            position,
-            avoiding: playerPosition,
-            pickupCircles: pickupCircles,
-            activeEnemies: activeEnemies,
-            pendingMinePositions: pendingMinePositions
-        ) {
-            selectedPosition = position
-            break
-        }
-
-        if selectedPosition == nil {
-            selectedPosition = nextSafeInteriorMineDotPosition(
-                candidates: interiorCandidates,
-                playerPosition: playerPosition,
+    private mutating func mineDotPosition(
+        in playableRect: CGRect,
+        playerPosition: CGPoint,
+        pickupCircles: [CollisionCircle],
+        activeEnemies: [ArenaEnemy],
+        pendingMinePositions: [CGPoint]
+    ) -> CGPoint? {
+        for position in pickupAdjacentMineDotCandidates(in: playableRect, pickupCircles: pickupCircles)
+            where isSafeMineDotSpawn(
+                position,
+                avoiding: playerPosition,
                 pickupCircles: pickupCircles,
                 activeEnemies: activeEnemies,
                 pendingMinePositions: pendingMinePositions
-            )
+            ) {
+            return position
         }
 
-        guard let position = selectedPosition else {
-            return nil
-        }
+        return nextSafeInteriorMineDotPosition(
+            candidates: interiorMineDotCandidates(in: playableRect),
+            playerPosition: playerPosition,
+            pickupCircles: pickupCircles,
+            activeEnemies: activeEnemies,
+            pendingMinePositions: pendingMinePositions
+        )
+    }
 
+    private mutating func pendingMineDot(at position: CGPoint) -> PendingEnemySpawn {
         let enemy = ArenaEnemy(
             id: nextEnemyID,
             position: position,
@@ -225,14 +234,14 @@ extension EnemySpawnDirector {
         guard activeEnemies.allSatisfy({ activeEnemy in
             let baseClearance = activeEnemy.radius + configuration.enemyRadius + configuration.pickupClearance
             let clearance = activeEnemy.isMineDot ? max(baseClearance, configuration.mineDotMinimumSpacing) : baseClearance
-            return squaredDistance(from: position, to: activeEnemy.position) >= clearance * clearance
+            return ArenaGeometry.squaredDistance(from: position, to: activeEnemy.position) >= clearance * clearance
         }) else {
             return false
         }
 
         return pendingMinePositions.allSatisfy { pendingPosition in
             let clearance = configuration.mineDotMinimumSpacing
-            return squaredDistance(from: position, to: pendingPosition) >= clearance * clearance
+            return ArenaGeometry.squaredDistance(from: position, to: pendingPosition) >= clearance * clearance
         }
     }
 
