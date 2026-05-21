@@ -67,6 +67,11 @@ final class ArenaScene: SKScene {
     private let comboLabel = SKLabelNode(fontNamed: "Menlo-Bold")
     private let pauseControlNode = SKNode()
     private let pauseIconNode = SKNode()
+#if DEBUG
+    private let debugStatsLabel = SKLabelNode(fontNamed: "Menlo")
+    private var debugStatsElapsed: TimeInterval = 0
+    private var debugStatsFrameCount = 0
+#endif
     private let hudMargin: CGFloat = 24
     private let pauseControlSize = CGSize(width: 48, height: 48)
     private var uiHitTargets: [ArenaControlHitTarget] = []
@@ -98,6 +103,7 @@ final class ArenaScene: SKScene {
         configureLabels()
         configurePauseControl()
         configureUIRoot()
+        configureDebugStats()
         placePlayer(resetPosition: true)
         updateRunDisplay()
         rebuildUI()
@@ -116,6 +122,7 @@ final class ArenaScene: SKScene {
         }
         layoutLabels()
         layoutPauseControl()
+        layoutDebugStats()
         rebuildUI()
     }
 
@@ -138,6 +145,8 @@ final class ArenaScene: SKScene {
         guard deltaTime > 0 else {
             return
         }
+
+        updateDebugStats(deltaTime: deltaTime)
 
         switch uiState {
         case .calibrationPreview:
@@ -171,6 +180,7 @@ final class ArenaScene: SKScene {
         }
         layoutLabels()
         layoutPauseControl()
+        layoutDebugStats()
         rebuildUI()
     }
 
@@ -307,6 +317,53 @@ final class ArenaScene: SKScene {
     private func layoutPauseControl() {
         pauseControlNode.position = currentHUDLayout().pauseControlPosition
     }
+
+    private func configureDebugStats() {
+        #if DEBUG
+        configureLabel(debugStatsLabel, fontSize: 12, color: theme.borderColor)
+        debugStatsLabel.zPosition = 95
+        debugStatsLabel.horizontalAlignmentMode = .left
+        debugStatsLabel.verticalAlignmentMode = .bottom
+        debugStatsLabel.text = "0 fps"
+
+        if debugStatsLabel.parent == nil {
+            addChild(debugStatsLabel)
+        }
+
+        layoutDebugStats()
+        #endif
+    }
+
+    private func layoutDebugStats() {
+        #if DEBUG
+        let controls = currentLandscapeLayout().controlRect
+        debugStatsLabel.position = CGPoint(x: controls.minX, y: controls.minY)
+        #endif
+    }
+
+    private func updateDebugStats(deltaTime: TimeInterval) {
+        #if DEBUG
+        debugStatsElapsed += deltaTime
+        debugStatsFrameCount += 1
+
+        guard debugStatsElapsed >= 0.25 else {
+            return
+        }
+
+        let framesPerSecond = Double(debugStatsFrameCount) / debugStatsElapsed
+        debugStatsLabel.text = "nodes:\(debugNodeCount(in: self))  \(Int(framesPerSecond.rounded())) fps"
+        debugStatsElapsed = 0
+        debugStatsFrameCount = 0
+        #endif
+    }
+
+    #if DEBUG
+    private func debugNodeCount(in node: SKNode) -> Int {
+        node.children.reduce(1) { count, child in
+            count + debugNodeCount(in: child)
+        }
+    }
+    #endif
 
     private func currentHUDLayout() -> ArenaHUDLayout {
         ArenaHUDLayout(
@@ -514,6 +571,7 @@ final class ArenaScene: SKScene {
     private func applyThemeChange() {
         backgroundColor = theme.backgroundColor
         configureLabels()
+        configureDebugStats()
         rebuildPauseControlAppearance()
         rebuildArena()
         refreshGameplayNodesForTheme()

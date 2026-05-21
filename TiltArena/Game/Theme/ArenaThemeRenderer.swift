@@ -156,12 +156,11 @@ final class ArenaThemeRenderer {
     }
 
     private func makeBorder(in arenaRect: CGRect) -> SKNode {
-        let inset: CGFloat = 14
         let rect = CGRect(
-            x: arenaRect.minX + inset,
-            y: arenaRect.minY + inset,
-            width: max(0, arenaRect.width - inset * 2),
-            height: max(0, arenaRect.height - inset * 2)
+            x: arenaRect.minX + ArenaGeometry.arenaBorderInset,
+            y: arenaRect.minY + ArenaGeometry.arenaBorderInset,
+            width: max(0, arenaRect.width - ArenaGeometry.arenaBorderInset * 2),
+            height: max(0, arenaRect.height - ArenaGeometry.arenaBorderInset * 2)
         )
 
         let border = SKShapeNode(rect: rect, cornerRadius: 6)

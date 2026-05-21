@@ -23,6 +23,8 @@ targets:
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: QDJWFL4CNW
         PRODUCT_BUNDLE_IDENTIFIER: com.xlc.TiltArena
         INFOPLIST_FILE: TiltArena/Resources/Info.plist
         SUPPORTS_MACCATALYST: false
@@ -39,6 +41,8 @@ targets:
       - target: TiltArena
     settings:
       base:
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: QDJWFL4CNW
         PRODUCT_BUNDLE_IDENTIFIER: com.xlc.TiltArenaTests
         GENERATE_INFOPLIST_FILE: true
 

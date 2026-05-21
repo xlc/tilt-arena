@@ -57,8 +57,8 @@ final class GameViewController: UIViewController {
         spriteView.preferredFramesPerSecond = 120
 
         #if DEBUG
-        spriteView.showsFPS = true
-        spriteView.showsNodeCount = true
+        spriteView.showsFPS = false
+        spriteView.showsNodeCount = false
         #endif
     }
 

@@ -69,7 +69,34 @@ final class ArenaLandscapeUILayoutTests: XCTestCase {
             XCTAssertFalse(playFrame.intersects(bottomFrame))
         }
 
-        XCTAssertEqual(playFrame.minY, 78)
-        XCTAssertEqual(playFrame.maxX, layout.safeRect.maxX)
+        XCTAssertEqual(playFrame.minY, 104)
+        XCTAssertEqual(playFrame.maxX, layout.controlRect.maxX)
+    }
+
+    func testControlsStayInsidePlayfieldBorder() {
+        let layout = ArenaLandscapeUILayout(
+            sceneSize: CGSize(width: 667, height: 375),
+            safeAreaInsets: .zero,
+            margin: 24
+        )
+        let bottomButtonSize = CGSize(width: 108, height: 38)
+
+        XCTAssertEqual(
+            layout.bottomButtonFrame(index: 0, count: 3, buttonSize: bottomButtonSize).minY,
+            layout.controlRect.minY
+        )
+        XCTAssertEqual(layout.lowerRightButtonFrame.maxX, layout.controlRect.maxX)
+        XCTAssertEqual(
+            layout.stackedLowerRightButtonFrame(aboveBottomControlHeight: bottomButtonSize.height).maxX,
+            layout.controlRect.maxX
+        )
+
+        for index in 0..<3 {
+            XCTAssertTrue(
+                layout.controlRect.contains(
+                    layout.bottomButtonFrame(index: index, count: 3, buttonSize: bottomButtonSize)
+                )
+            )
+        }
     }
 }

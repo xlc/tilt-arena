@@ -1,12 +1,19 @@
 import UIKit
 
 struct ArenaLandscapeUILayout: Equatable {
+    private static let controlBorderGap: CGFloat = 12
+
     let sceneSize: CGSize
     let safeAreaInsets: UIEdgeInsets
     let margin: CGFloat
 
     var safeRect: CGRect {
         ArenaGeometry.safeRect(sceneSize: sceneSize, safeAreaInsets: safeAreaInsets, margin: margin)
+    }
+
+    var controlRect: CGRect {
+        let inset = ArenaGeometry.arenaBorderInset + Self.controlBorderGap
+        return safeRect.insetBy(dx: inset, dy: inset)
     }
 
     var titlePosition: CGPoint {
@@ -18,16 +25,16 @@ struct ArenaLandscapeUILayout: Equatable {
     }
 
     var lowerRightButtonFrame: CGRect {
-        CGRect(x: safeRect.maxX - 156, y: safeRect.minY, width: 156, height: 48)
+        CGRect(x: controlRect.maxX - 156, y: controlRect.minY, width: 156, height: 48)
     }
 
     func stackedLowerRightButtonFrame(aboveBottomControlHeight bottomControlHeight: CGFloat) -> CGRect {
         let size = CGSize(width: 156, height: 48)
-        let preferredY = safeRect.minY + max(0, bottomControlHeight) + 16
-        let maximumY = max(safeRect.minY, safeRect.maxY - size.height)
+        let preferredY = controlRect.minY + max(0, bottomControlHeight) + 16
+        let maximumY = max(controlRect.minY, controlRect.maxY - size.height)
 
         return CGRect(
-            x: safeRect.maxX - size.width,
+            x: controlRect.maxX - size.width,
             y: min(preferredY, maximumY),
             width: size.width,
             height: size.height
@@ -60,10 +67,10 @@ struct ArenaLandscapeUILayout: Equatable {
     func bottomButtonFrame(index: Int, count: Int, buttonSize: CGSize) -> CGRect {
         let spacing: CGFloat = 12
         let totalWidth = CGFloat(count) * buttonSize.width + CGFloat(max(0, count - 1)) * spacing
-        let minX = safeRect.midX - totalWidth / 2
+        let minX = controlRect.midX - totalWidth / 2
         return CGRect(
             x: minX + CGFloat(index) * (buttonSize.width + spacing),
-            y: safeRect.minY,
+            y: controlRect.minY,
             width: buttonSize.width,
             height: buttonSize.height
         )

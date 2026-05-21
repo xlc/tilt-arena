@@ -2,6 +2,8 @@ import CoreGraphics
 import UIKit
 
 enum ArenaGeometry {
+    static let arenaBorderInset: CGFloat = 14
+
     static func squaredDistance(from lhs: CGPoint, to rhs: CGPoint) -> CGFloat {
         let dx = lhs.x - rhs.x
         let dy = lhs.y - rhs.y
