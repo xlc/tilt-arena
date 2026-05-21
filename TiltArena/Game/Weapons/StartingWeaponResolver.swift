@@ -47,7 +47,7 @@ struct StartingWeaponResolver {
                 destroyedEnemyIDs: Set(targetIDs),
                 chainLightningEnemyIDs: targetIDs
             )
-        case .flameTrail, .warpDash:
+        case .flameTrail, .warpDash, .decoyBeacon:
             return WeaponResolution()
         case .novaBomb:
             return WeaponResolution(destroyedEnemyIDs: Set(enemies.map(\.id)))
