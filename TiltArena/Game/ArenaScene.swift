@@ -43,6 +43,8 @@ final class ArenaScene: SKScene {
     private lazy var flameTrailEffectNode = FlameTrailEffectNode(theme: theme)
     private var gravityWellState: GravityWellState?
     var gravityWellEffectNode: SKNode?
+    private var warpDashState = WarpDashState()
+    private var warpDashInvulnerabilityTimeRemaining: TimeInterval = 0
     private let timerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
     private let bestMarkerLabel = SKLabelNode(fontNamed: "Menlo")
     private let comboLabel = SKLabelNode(fontNamed: "Menlo-Bold")
@@ -302,6 +304,7 @@ final class ArenaScene: SKScene {
         }
 
         let input = tiltInputController.update(deltaTime: deltaTime)
+        warpDashState.record(input: input)
         let state = movementController.update(input: input, deltaTime: deltaTime, arenaSize: size)
         applyPlayerState(state, resetTrail: false)
         updateActiveRun(deltaTime: deltaTime, playerPosition: state.position)
@@ -373,6 +376,8 @@ final class ArenaScene: SKScene {
         flameTrailState.reset()
         flameTrailEffectNode.reset()
         deactivateGravityWell()
+        warpDashState.reset()
+        warpDashInvulnerabilityTimeRemaining = 0
     }
 
     private func resetPlayerFeedback() {
@@ -381,11 +386,14 @@ final class ArenaScene: SKScene {
         playerNode?.setScale(1)
     }
 
-    private func updateActiveRun(deltaTime: TimeInterval, playerPosition: CGPoint) {
+    private func updateActiveRun(deltaTime: TimeInterval, playerPosition initialPlayerPosition: CGPoint) {
+        var playerPosition = initialPlayerPosition
+
         runController.update(deltaTime: deltaTime)
+        updateWarpDashInvulnerability(deltaTime: deltaTime)
         spawnEnemiesIfNeeded(deltaTime: deltaTime, playerPosition: playerPosition)
         spawnPickupIfNeeded(deltaTime: deltaTime, playerPosition: playerPosition)
-        collectPickups(playerPosition: playerPosition)
+        playerPosition = collectPickups(playerPosition: playerPosition)
         advanceEnemies(deltaTime: deltaTime, playerPosition: playerPosition)
         updateGravityWell(deltaTime: deltaTime)
         removeExpiredEnemies()
@@ -512,7 +520,8 @@ final class ArenaScene: SKScene {
         }
     }
 
-    private func collectPickups(playerPosition: CGPoint) {
+    private func collectPickups(playerPosition: CGPoint) -> CGPoint {
+        var currentPlayerPosition = playerPosition
         let playerCircle = CollisionCircle(
             center: playerPosition,
             radius: movementController.configuration.visualRadius
@@ -520,7 +529,7 @@ final class ArenaScene: SKScene {
         let collectedPickups = pickups.filter { playerCircle.intersects($0.collisionCircle) }
 
         guard !collectedPickups.isEmpty else {
-            return
+            return currentPlayerPosition
         }
 
         for pickup in collectedPickups {
@@ -529,8 +538,11 @@ final class ArenaScene: SKScene {
             }
 
             removePickup(id: pickup.id)
-            applyWeapon(pickup.kind, playerPosition: playerPosition)
+            applyWeapon(pickup.kind, playerPosition: currentPlayerPosition)
+            currentPlayerPosition = movementController.state.position
         }
+
+        return currentPlayerPosition
     }
 
     private func removePickup(id: Int) {
@@ -576,6 +588,8 @@ final class ArenaScene: SKScene {
         case .flameTrail:
             flameTrailState.activate(at: playerPosition)
             flameTrailEffectNode.apply(segments: flameTrailState.segments)
+        case .warpDash:
+            performWarpDash(from: playerPosition)
         case .novaBomb:
             playNovaBombEffect()
         }
@@ -689,7 +703,43 @@ final class ArenaScene: SKScene {
         flameTrailEffectNode.apply(segments: frame.segments)
     }
 
+    private func performWarpDash(from startPosition: CGPoint) {
+        let state = movementController.dash(
+            direction: warpDashState.resolvedDirection(),
+            distance: warpDashDistance(),
+            arenaSize: size
+        )
+
+        applyPlayerState(state, resetTrail: false)
+        warpDashInvulnerabilityTimeRemaining = max(
+            warpDashInvulnerabilityTimeRemaining,
+            weaponResolver.configuration.warpDashInvulnerabilityDuration
+        )
+        playWarpDashEffect(from: startPosition, to: state.position)
+    }
+
+    private func warpDashDistance() -> CGFloat {
+        let playableRect = movementController.configuration.playableRect(in: size)
+        return min(playableRect.width, playableRect.height)
+            * max(0, weaponResolver.configuration.warpDashDistanceFractionOfShortSide)
+    }
+
+    private func updateWarpDashInvulnerability(deltaTime: TimeInterval) {
+        guard warpDashInvulnerabilityTimeRemaining > 0 else {
+            return
+        }
+
+        warpDashInvulnerabilityTimeRemaining = max(
+            0,
+            warpDashInvulnerabilityTimeRemaining - max(0, deltaTime)
+        )
+    }
+
     private func detectPlayerCollision(playerPosition: CGPoint) {
+        guard warpDashInvulnerabilityTimeRemaining == 0 else {
+            return
+        }
+
         let playerCircle = CollisionCircle(
             center: playerPosition,
             radius: runController.configuration.playerHitRadius

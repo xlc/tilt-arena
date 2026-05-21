@@ -15,6 +15,8 @@ struct StartingWeaponConfiguration: Equatable {
     var chainLightningInitialRange: CGFloat = 128
     var chainLightningJumpRange: CGFloat = 96
     var chainLightningTargetLimit: Int = 6
+    var warpDashDistanceFractionOfShortSide: CGFloat = 0.33
+    var warpDashInvulnerabilityDuration: TimeInterval = 0.35
 }
 
 struct WeaponResolution: Equatable {
@@ -45,7 +47,7 @@ struct StartingWeaponResolver {
                 destroyedEnemyIDs: Set(targetIDs),
                 chainLightningEnemyIDs: targetIDs
             )
-        case .flameTrail:
+        case .flameTrail, .warpDash:
             return WeaponResolution()
         case .novaBomb:
             return WeaponResolution(destroyedEnemyIDs: Set(enemies.map(\.id)))
