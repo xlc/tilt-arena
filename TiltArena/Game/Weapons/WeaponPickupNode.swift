@@ -4,27 +4,19 @@ import SpriteKit
 final class WeaponPickupNode: SKNode {
     private let bodyNode: SKShapeNode
     private let ringNode: SKShapeNode
+    private var theme: ArenaTheme
 
     init(pickup: WeaponPickup, theme: ArenaTheme) {
         bodyNode = SKShapeNode(path: Self.makeDiamondPath(radius: pickup.radius))
         ringNode = SKShapeNode(circleOfRadius: pickup.radius * 1.45)
+        self.theme = theme
         super.init()
 
         zPosition = 14
 
-        let color = Self.color(for: pickup.kind, theme: theme)
-        ringNode.strokeColor = color.withAlphaComponent(0.45)
-        ringNode.lineWidth = 1
-        ringNode.fillColor = .clear
-        ringNode.glowWidth = 1
+        applyAppearance(for: pickup.kind)
         addChild(ringNode)
-
-        bodyNode.fillColor = color.withAlphaComponent(0.9)
-        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.8)
-        bodyNode.lineWidth = 1.1
-        bodyNode.glowWidth = 2
         addChild(bodyNode)
-
         apply(pickup)
     }
 
@@ -34,6 +26,24 @@ final class WeaponPickupNode: SKNode {
 
     func apply(_ pickup: WeaponPickup) {
         position = pickup.position
+    }
+
+    func applyTheme(_ theme: ArenaTheme, pickup: WeaponPickup) {
+        self.theme = theme
+        applyAppearance(for: pickup.kind)
+    }
+
+    private func applyAppearance(for kind: WeaponKind) {
+        let color = Self.color(for: kind, theme: theme)
+        ringNode.strokeColor = color.withAlphaComponent(0.45)
+        ringNode.lineWidth = 1
+        ringNode.fillColor = .clear
+        ringNode.glowWidth = 1
+
+        bodyNode.fillColor = color.withAlphaComponent(0.9)
+        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.8)
+        bodyNode.lineWidth = 1.1
+        bodyNode.glowWidth = 2
     }
 
     private static func color(for kind: WeaponKind, theme: ArenaTheme) -> SKColor {

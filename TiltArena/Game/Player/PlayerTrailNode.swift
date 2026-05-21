@@ -9,16 +9,20 @@ final class PlayerTrailNode: SKShapeNode {
         super.init()
 
         zPosition = 8
+        applyTheme(theme)
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("PlayerTrailNode does not support storyboard initialization.")
+    }
+
+    func applyTheme(_ theme: ArenaTheme) {
         strokeColor = theme.playerAccentColor.withAlphaComponent(0.65)
         fillColor = .clear
         lineCap = .round
         lineJoin = .round
         lineWidth = 3
         glowWidth = 2
-    }
-
-    required init?(coder aDecoder: NSCoder) {
-        fatalError("PlayerTrailNode does not support storyboard initialization.")
     }
 
     func reset(to position: CGPoint) {

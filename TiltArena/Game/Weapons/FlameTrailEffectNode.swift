@@ -2,7 +2,7 @@ import SpriteKit
 
 @MainActor
 final class FlameTrailEffectNode: SKNode {
-    private let theme: ArenaTheme
+    private var theme: ArenaTheme
     private var segmentNodes: [Int: SKShapeNode] = [:]
 
     init(theme: ArenaTheme) {
@@ -41,13 +41,23 @@ final class FlameTrailEffectNode: SKNode {
         removeAllChildren()
     }
 
+    func applyTheme(_ theme: ArenaTheme) {
+        self.theme = theme
+        for node in segmentNodes.values {
+            applyAppearance(to: node)
+        }
+    }
+
     private func makeSegmentNode(radius: CGFloat) -> SKShapeNode {
         let node = SKShapeNode(circleOfRadius: radius)
-        let orangeFill = SKColor(red: 1.0, green: 0.46, blue: 0.12, alpha: 0.24)
-        node.fillColor = orangeFill
+        applyAppearance(to: node)
+        return node
+    }
+
+    private func applyAppearance(to node: SKShapeNode) {
+        node.fillColor = theme.flameTrailFillColor
         node.strokeColor = theme.pickupAmber.withAlphaComponent(0.9)
         node.lineWidth = 1.4
         node.glowWidth = 2
-        return node
     }
 }

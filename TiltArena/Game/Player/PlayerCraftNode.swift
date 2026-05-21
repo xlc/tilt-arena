@@ -4,30 +4,36 @@ import SpriteKit
 final class PlayerCraftNode: SKNode {
     private let bodyNode: SKShapeNode
     private let coreNode: SKShapeNode
+    private let visualRadius: CGFloat
 
     init(theme: ArenaTheme, visualRadius: CGFloat) {
         bodyNode = SKShapeNode(path: Self.makeBodyPath(radius: visualRadius))
         coreNode = SKShapeNode(circleOfRadius: visualRadius * 0.2)
+        self.visualRadius = visualRadius
         super.init()
 
         zPosition = 20
 
-        bodyNode.fillColor = theme.playerColor
-        bodyNode.strokeColor = theme.playerAccentColor
-        bodyNode.lineWidth = 1.4
-        bodyNode.lineJoin = .round
-        bodyNode.glowWidth = 1.5
+        applyTheme(theme)
         addChild(bodyNode)
-
-        coreNode.fillColor = theme.playerAccentColor
-        coreNode.strokeColor = .clear
-        coreNode.position = CGPoint(x: 0, y: -visualRadius * 0.03)
-        coreNode.glowWidth = 3
         addChild(coreNode)
     }
 
     required init?(coder aDecoder: NSCoder) {
         fatalError("PlayerCraftNode does not support storyboard initialization.")
+    }
+
+    func applyTheme(_ theme: ArenaTheme) {
+        bodyNode.fillColor = theme.playerColor
+        bodyNode.strokeColor = theme.playerAccentColor
+        bodyNode.lineWidth = 1.4
+        bodyNode.lineJoin = .round
+        bodyNode.glowWidth = 1.5
+
+        coreNode.fillColor = theme.playerAccentColor
+        coreNode.strokeColor = .clear
+        coreNode.position = CGPoint(x: 0, y: -visualRadius * 0.03)
+        coreNode.glowWidth = 3
     }
 
     func apply(state: PlayerMovementState) {

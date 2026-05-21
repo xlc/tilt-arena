@@ -4,7 +4,7 @@ import SpriteKit
 final class EnemyNode: SKNode {
     private let bodyNode: SKShapeNode
     private let ringNode: SKShapeNode
-    private let theme: ArenaTheme
+    private var theme: ArenaTheme
 
     init(enemy: ArenaEnemy, theme: ArenaTheme) {
         bodyNode = SKShapeNode(circleOfRadius: enemy.radius)
@@ -28,6 +28,11 @@ final class EnemyNode: SKNode {
 
     func apply(_ enemy: ArenaEnemy) {
         position = enemy.position
+        applyAppearance(enemy)
+    }
+
+    func applyTheme(_ theme: ArenaTheme, enemy: ArenaEnemy) {
+        self.theme = theme
         applyAppearance(enemy)
     }
 

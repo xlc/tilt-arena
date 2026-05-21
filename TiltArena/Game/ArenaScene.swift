@@ -14,7 +14,9 @@ protocol ArenaSceneOrientationDelegate: AnyObject {
 // swiftlint:disable:next type_body_length
 final class ArenaScene: SKScene {
     weak var orientationDelegate: ArenaSceneOrientationDelegate?
-    let theme = ArenaTheme.darkTacticalRadar
+    var theme: ArenaTheme {
+        localOptions.themeKind.theme
+    }
     private let tiltSettingsStore = TiltSettingsStore()
     private let runProfileStore = RunProfileStore()
     private let localOptionsStore = ArenaLocalOptionsStore()
@@ -86,6 +88,7 @@ final class ArenaScene: SKScene {
     override func didMove(to view: SKView) {
         runProfile = runProfileStore.profile
         localOptions = localOptionsStore.options
+        backgroundColor = theme.backgroundColor
         rebuildArena()
         if flameTrailEffectNode.parent == nil { addChild(flameTrailEffectNode) }
         configureLabels()
@@ -99,7 +102,8 @@ final class ArenaScene: SKScene {
 
     override func didChangeSize(_ oldSize: CGSize) {
         rebuildArena()
-        placePlayer(resetPosition: playerNode == nil || uiState == .home)
+        let shouldResetPosition = playerNode == nil || uiState == .home
+        placePlayer(resetPosition: shouldResetPosition, resetTrail: shouldResetPosition)
         if uiState == .preRun {
             readyStartPoint = movementController.state.position
             readyHoldController.reset()
@@ -263,8 +267,7 @@ final class ArenaScene: SKScene {
         }
 
         pauseControlNode.zPosition = 60
-        addPauseControlBackground()
-        configurePauseIcon()
+        rebuildPauseControlAppearance()
         addChild(pauseControlNode)
         layoutPauseControl()
         updatePauseControl()
@@ -450,6 +453,55 @@ final class ArenaScene: SKScene {
         playerNode?.removeAllActions()
         playerNode?.alpha = 1
         playerNode?.setScale(1)
+    }
+
+    private func applyThemeChange() {
+        backgroundColor = theme.backgroundColor
+        configureLabels()
+        rebuildPauseControlAppearance()
+        rebuildArena()
+        refreshGameplayNodesForTheme()
+        rebuildUI()
+    }
+
+    private func refreshGameplayNodesForTheme() {
+        playerNode?.applyTheme(theme)
+        playerTrailNode?.applyTheme(theme)
+        flameTrailEffectNode.applyTheme(theme)
+        refreshEnemyNodesForTheme()
+        refreshPickupNodesForTheme()
+        refreshTelegraphNodesForTheme()
+        refreshActiveWeaponEffectNodesForTheme()
+    }
+
+    private func refreshEnemyNodesForTheme() {
+        for enemy in enemies {
+            enemyNodes[enemy.id]?.applyTheme(theme, enemy: enemy)
+        }
+    }
+
+    private func refreshPickupNodesForTheme() {
+        for pickup in pickups {
+            pickupNodes[pickup.id]?.applyTheme(theme, pickup: pickup)
+        }
+    }
+
+    private func refreshTelegraphNodesForTheme() {
+        enemyTelegraphNodes.values.forEach { $0.applyTheme(theme) }
+    }
+
+    private func refreshActiveWeaponEffectNodesForTheme() {
+        if let razorShieldNode {
+            styleRazorShieldNode(razorShieldNode)
+        }
+
+        if let gravityWellState {
+            playGravityWellEffect(at: gravityWellState.center, duration: gravityWellState.timeRemaining)
+        }
+
+        if decoyBeaconState.isActive, let center = decoyBeaconState.center {
+            playDecoyBeaconEffect(at: center, duration: decoyBeaconState.timeRemaining)
+        }
     }
 
     private func updateActiveRun(deltaTime: TimeInterval, playerPosition initialPlayerPosition: CGPoint) {
@@ -727,17 +779,21 @@ final class ArenaScene: SKScene {
 
         if razorShieldNode == nil {
             let node = SKShapeNode(circleOfRadius: weaponResolver.configuration.razorShieldRadius)
-            node.strokeColor = theme.pickupBlue.withAlphaComponent(0.9)
-            node.fillColor = .clear
-            node.lineWidth = 2
-            node.glowWidth = 4
             node.zPosition = 19
+            styleRazorShieldNode(node)
             addChild(node)
             razorShieldNode = node
         }
 
         razorShieldNode?.position = playerPosition
         razorShieldNode?.isHidden = false
+    }
+
+    private func styleRazorShieldNode(_ node: SKShapeNode) {
+        node.strokeColor = theme.pickupBlue.withAlphaComponent(0.9)
+        node.fillColor = .clear
+        node.lineWidth = 2
+        node.glowWidth = 4
     }
 
     private func updateRazorShield(deltaTime: TimeInterval, playerPosition: CGPoint) {
@@ -951,6 +1007,7 @@ final class ArenaScene: SKScene {
     }
 
     private func configurePauseIcon() {
+        pauseIconNode.removeAllChildren()
         for xOffset in [CGFloat(-5.5), CGFloat(5.5)] {
             let bar = SKShapeNode(rectOf: CGSize(width: 5, height: 18), cornerRadius: 1.5)
             bar.position = CGPoint(x: xOffset, y: 0)
@@ -960,6 +1017,12 @@ final class ArenaScene: SKScene {
         }
 
         pauseControlNode.addChild(pauseIconNode)
+    }
+
+    private func rebuildPauseControlAppearance() {
+        pauseControlNode.removeAllChildren()
+        addPauseControlBackground()
+        configurePauseIcon()
     }
 }
 
@@ -1039,11 +1102,11 @@ private extension ArenaScene {
             return
         }
 
-        updateTiltReadoutDisplay(force: true)
+        updateTiltReadoutDisplay()
     }
 
-    func updateTiltReadoutDisplay(force: Bool) {
-        guard force, !tiltReadoutValueLabels.isEmpty else {
+    func updateTiltReadoutDisplay() {
+        guard !tiltReadoutValueLabels.isEmpty else {
             return
         }
 
@@ -1274,31 +1337,52 @@ private extension ArenaScene {
             uiRoot.addChild(valueLabel)
         }
 
-        updateTiltReadoutDisplay(force: true)
+        updateTiltReadoutDisplay()
     }
 
     func renderLocalOptions(in frame: CGRect) {
         addToggle(
             title: "AUDIO",
             isOn: localOptions.audioEnabled,
-            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 62, width: 132, height: 38),
+            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 54, width: 132, height: 34),
             action: .toggleAudio
         )
         addToggle(
             title: "HAPTICS",
             isOn: localOptions.hapticsEnabled,
-            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 112, width: 132, height: 38),
+            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 96, width: 132, height: 34),
             action: .toggleHaptics
         )
         addToggle(
             title: "EFFECTS",
             isOn: !localOptions.reducedEffects,
-            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 162, width: 132, height: 38),
+            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 138, width: 132, height: 34),
             action: .toggleEffects
         )
+        addSmallLabel(
+            "THEME",
+            at: CGPoint(x: frame.minX + 14, y: frame.minY + 70),
+            color: theme.borderColor,
+            alignment: .left
+        )
+
+        for (index, themeKind) in ArenaThemeKind.allCases.enumerated() {
+            addButton(
+                themeKind.shortTitle,
+                frame: CGRect(
+                    x: frame.minX + 14 + CGFloat(index) * 70,
+                    y: frame.minY + 26,
+                    width: 62,
+                    height: 30
+                ),
+                action: .selectTheme(themeKind),
+                style: localOptions.themeKind == themeKind ? .primary : .secondary
+            )
+        }
+
         addButton(
-            resetDataArmed ? "CONFIRM RESET" : "RESET DATA",
-            frame: CGRect(x: frame.minX + 14, y: frame.minY + 12, width: 156, height: 34),
+            resetDataArmed ? "CONFIRM" : "RESET",
+            frame: CGRect(x: frame.maxX - 104, y: frame.minY + 26, width: 90, height: 30),
             action: .resetData,
             style: .danger
         )
@@ -1457,7 +1541,7 @@ private extension ArenaScene {
             performNavigationAction(action)
         case .selectMode, .resume, .calibrate, .endRun:
             performRunControlAction(action)
-        case .sensitivityDown, .sensitivityUp, .preset, .toggleAudio, .toggleHaptics, .toggleEffects, .resetData:
+        case .sensitivityDown, .sensitivityUp, .preset, .toggleAudio, .toggleHaptics, .toggleEffects, .selectTheme, .resetData:
             performOptionsAction(action)
         }
     }
@@ -1529,6 +1613,14 @@ private extension ArenaScene {
             localOptions.reducedEffects.toggle()
             localOptionsStore.options = localOptions
             rebuildUI()
+        case let .selectTheme(themeKind):
+            guard localOptions.themeKind != themeKind else {
+                return
+            }
+
+            localOptions.themeKind = themeKind
+            localOptionsStore.options = localOptions
+            applyThemeChange()
         case .resetData:
             resetLocalDataOrArmConfirmation()
         default:
@@ -1579,8 +1671,7 @@ private extension ArenaScene {
         lastProgressionResult = nil
         selectedMode = .classic
         resetDataArmed = false
-        rebuildUI()
-        updateRunDisplay()
+        applyThemeChange()
     }
 
     func addReadyStartCircle(at point: CGPoint) {
@@ -1774,13 +1865,13 @@ private extension ArenaScene {
 
     func addPanel(
         frame: CGRect,
-        stroke: SKColor = SKColor(red: 0.37, green: 0.66, blue: 0.78, alpha: 0.35),
-        fill: SKColor = SKColor(red: 0.03, green: 0.07, blue: 0.11, alpha: 0.62)
+        stroke: SKColor? = nil,
+        fill: SKColor? = nil
     ) {
         let panel = SKShapeNode(rect: frame, cornerRadius: 8)
         panel.zPosition = ArenaUIZPosition.panel
-        panel.fillColor = fill
-        panel.strokeColor = stroke
+        panel.fillColor = fill ?? theme.panelFillColor
+        panel.strokeColor = stroke ?? theme.panelStrokeColor
         panel.lineWidth = 1
         uiRoot.addChild(panel)
     }
@@ -2052,6 +2143,7 @@ private enum ArenaControlAction: Equatable {
     case toggleAudio
     case toggleHaptics
     case toggleEffects
+    case selectTheme(ArenaThemeKind)
     case resetData
 }
 
