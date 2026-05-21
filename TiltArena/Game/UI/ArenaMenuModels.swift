@@ -19,35 +19,16 @@ struct ArenaAwardRow: Equatable {
 
 struct ArenaMenuContent {
     static func modeRows(profile: RunProfile, selectedMode: ArenaModeKind) -> [ArenaModeRow] {
-        let redlineAvailable = profile.bestScore >= 5_000
-        let dailyAvailable = profile.totalEnemiesDestroyed >= 400
-
-        return [
+        ArenaModeKind.allCases.map { mode in
             ArenaModeRow(
-                kind: .classic,
-                title: ArenaModeKind.classic.displayName,
-                subtitle: "Classic Survival",
-                statusText: selectedMode == .classic ? "SELECTED" : "AVAILABLE",
-                progressText: "BEST \(profile.bestScore)",
-                isAvailable: true
-            ),
-            ArenaModeRow(
-                kind: .redline,
-                title: ArenaModeKind.redline.displayName,
-                subtitle: "Faster pressure curve",
-                statusText: modeStatus(kind: .redline, selectedMode: selectedMode, isAvailable: redlineAvailable),
-                progressText: "\(min(profile.bestScore, 5_000))/5000 CLASSIC BEST",
-                isAvailable: redlineAvailable
-            ),
-            ArenaModeRow(
-                kind: .daily,
-                title: ArenaModeKind.daily.displayName,
-                subtitle: "Local fixed-seed arena",
-                statusText: modeStatus(kind: .daily, selectedMode: selectedMode, isAvailable: dailyAvailable),
-                progressText: "\(min(profile.totalEnemiesDestroyed, 400))/400 UNLOCK TRACK",
-                isAvailable: dailyAvailable
+                kind: mode,
+                title: mode.displayName,
+                subtitle: ArenaModeRules.subtitle(for: mode),
+                statusText: ArenaModeRules.statusText(for: mode, selectedMode: selectedMode, profile: profile),
+                progressText: ArenaModeRules.progressText(for: mode, profile: profile),
+                isAvailable: ArenaModeRules.isAvailable(mode, profile: profile)
             )
-        ]
+        }
     }
 
     static func awardRows(profile: RunProfile) -> [ArenaAwardRow] {
@@ -92,15 +73,7 @@ struct ArenaMenuContent {
     }
 
     static func activeUnlockText(profile: RunProfile) -> String {
-        if profile.bestScore < 5_000 {
-            return "REDLINE \(min(profile.bestScore, 5_000))/5000"
-        }
-
-        if profile.totalEnemiesDestroyed < 400 {
-            return "DAILY \(min(profile.totalEnemiesDestroyed, 400))/400"
-        }
-
-        return "ALL LOCAL MODES READY"
+        ArenaModeRules.activeUnlockText(profile: profile)
     }
 
     static func postRunHighlights(
@@ -138,18 +111,6 @@ struct ArenaMenuContent {
             isComplete: clampedProgress >= clampedTarget,
             isPlaceholderProgress: placeholder
         )
-    }
-
-    private static func modeStatus(
-        kind: ArenaModeKind,
-        selectedMode: ArenaModeKind,
-        isAvailable: Bool
-    ) -> String {
-        guard isAvailable else {
-            return "LOCKED"
-        }
-
-        return kind == selectedMode ? "SELECTED" : "AVAILABLE"
     }
 
     private static func formatTime(_ time: TimeInterval) -> String {

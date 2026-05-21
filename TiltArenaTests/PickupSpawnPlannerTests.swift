@@ -148,6 +148,35 @@ final class PickupSpawnPlannerTests: XCTestCase {
         ])
     }
 
+    func testSequenceSeedOffsetsPickupOrderRepeatably() {
+        let configuration = PickupSpawnConfiguration(initialSpawnDelay: 0)
+        let firstSeedKinds = spawnKinds(count: 4, configuration: configuration, sequenceSeed: 20_260_521)
+        let repeatSeedKinds = spawnKinds(count: 4, configuration: configuration, sequenceSeed: 20_260_521)
+        let nextSeedKinds = spawnKinds(count: 4, configuration: configuration, sequenceSeed: 20_260_522)
+
+        XCTAssertEqual(firstSeedKinds, repeatSeedKinds)
+        XCTAssertNotEqual(firstSeedKinds, nextSeedKinds)
+    }
+
+    func testSequenceSeedUsesActivePickupCycleLength() {
+        let configuration = PickupSpawnConfiguration(
+            initialSpawnDelay: 0,
+            weaponKindCycle: [
+                .shockwave,
+                .warpDash,
+                .freezeBurst,
+                .gravityWell,
+                .chainLightning,
+                .novaBomb
+            ]
+        )
+
+        XCTAssertEqual(
+            spawnKinds(count: 1, configuration: configuration, sequenceSeed: 25),
+            [.warpDash]
+        )
+    }
+
     func testDefaultKindCycleMakesLateControlWeaponsRareAndNovaBombLast() {
         let kinds = spawnKinds(
             count: PickupSpawnConfiguration.defaultWeaponKindCycle.count,
@@ -192,8 +221,12 @@ final class PickupSpawnPlannerTests: XCTestCase {
         ))
     }
 
-    private func spawnKinds(count: Int, configuration: PickupSpawnConfiguration) -> [WeaponKind] {
-        var planner = PickupSpawnPlanner(configuration: configuration)
+    private func spawnKinds(
+        count: Int,
+        configuration: PickupSpawnConfiguration,
+        sequenceSeed: Int? = nil
+    ) -> [WeaponKind] {
+        var planner = PickupSpawnPlanner(configuration: configuration, sequenceSeed: sequenceSeed)
         let rect = CGRect(x: 0, y: 0, width: 320, height: 640)
         let playerPosition = CGPoint(x: -1_000, y: -1_000)
 
