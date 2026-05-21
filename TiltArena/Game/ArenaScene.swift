@@ -45,6 +45,8 @@ final class ArenaScene: SKScene {
     var gravityWellEffectNode: SKNode?
     private var warpDashState = WarpDashState()
     private var warpDashInvulnerabilityTimeRemaining: TimeInterval = 0
+    private var decoyBeaconState = DecoyBeaconState()
+    var decoyBeaconEffectNode: SKNode?
     private let timerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
     private let bestMarkerLabel = SKLabelNode(fontNamed: "Menlo")
     private let comboLabel = SKLabelNode(fontNamed: "Menlo-Bold")
@@ -378,6 +380,8 @@ final class ArenaScene: SKScene {
         deactivateGravityWell()
         warpDashState.reset()
         warpDashInvulnerabilityTimeRemaining = 0
+        decoyBeaconState.reset()
+        deactivateDecoyBeaconEffect()
     }
 
     private func resetPlayerFeedback() {
@@ -395,6 +399,7 @@ final class ArenaScene: SKScene {
         spawnPickupIfNeeded(deltaTime: deltaTime, playerPosition: playerPosition)
         playerPosition = collectPickups(playerPosition: playerPosition)
         advanceEnemies(deltaTime: deltaTime, playerPosition: playerPosition)
+        updateDecoyBeacon(deltaTime: deltaTime)
         updateGravityWell(deltaTime: deltaTime)
         removeExpiredEnemies()
         cullExitedLinearPatternEnemies()
@@ -477,7 +482,11 @@ final class ArenaScene: SKScene {
 
     private func advanceEnemies(deltaTime: TimeInterval, playerPosition: CGPoint) {
         for index in enemies.indices {
-            enemies[index].advance(toward: playerPosition, deltaTime: deltaTime)
+            let targetPosition = decoyBeaconState.targetPosition(
+                for: enemies[index],
+                fallback: playerPosition
+            )
+            enemies[index].advance(toward: targetPosition, deltaTime: deltaTime)
             enemyNodes[enemies[index].id]?.apply(enemies[index])
         }
     }
@@ -590,6 +599,8 @@ final class ArenaScene: SKScene {
             flameTrailEffectNode.apply(segments: flameTrailState.segments)
         case .warpDash:
             performWarpDash(from: playerPosition)
+        case .decoyBeacon:
+            activateDecoyBeacon(at: playerPosition)
         case .novaBomb:
             playNovaBombEffect()
         }
@@ -1732,6 +1743,33 @@ private extension ArenaScene {
 }
 
 private extension ArenaScene {
+    func activateDecoyBeacon(at position: CGPoint) {
+        decoyBeaconState.activate(at: position)
+        guard decoyBeaconState.isActive else {
+            deactivateDecoyBeaconEffect()
+            return
+        }
+
+        playDecoyBeaconEffect(
+            at: position,
+            duration: decoyBeaconState.configuration.duration
+        )
+    }
+
+    func updateDecoyBeacon(deltaTime: TimeInterval) {
+        let frame = decoyBeaconState.update(deltaTime: deltaTime, enemies: enemies)
+
+        guard let explosionCenter = frame.explosionCenter else {
+            return
+        }
+
+        playDecoyBeaconExplosionEffect(
+            at: explosionCenter,
+            radius: decoyBeaconState.configuration.explosionRadius
+        )
+        destroyEnemies(ids: frame.destroyedEnemyIDs, weaponKind: .decoyBeacon)
+    }
+
     func activateGravityWell(at center: CGPoint, enemyIDs: Set<Int>) {
         gravityWellState = GravityWellState(
             center: center,

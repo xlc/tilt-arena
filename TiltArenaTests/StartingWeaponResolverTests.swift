@@ -261,6 +261,24 @@ final class StartingWeaponResolverTests: XCTestCase {
         XCTAssertEqual(resolution.chainLightningEnemyIDs, [])
     }
 
+    func testDecoyBeaconDoesNotInstantlyResolveTargets() {
+        let resolver = StartingWeaponResolver()
+        let enemies = [
+            enemy(id: 1, position: CGPoint(x: 10, y: 0))
+        ]
+
+        let resolution = resolver.resolve(
+            kind: .decoyBeacon,
+            playerPosition: .zero,
+            enemies: enemies
+        )
+
+        XCTAssertEqual(resolution.destroyedEnemyIDs, [])
+        XCTAssertEqual(resolution.frozenEnemyIDs, [])
+        XCTAssertEqual(resolution.gravityWellEnemyIDs, [])
+        XCTAssertEqual(resolution.chainLightningEnemyIDs, [])
+    }
+
     func testNovaBombHandlesEmptyArena() {
         let resolver = StartingWeaponResolver()
 

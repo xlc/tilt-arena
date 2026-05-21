@@ -138,4 +138,78 @@ extension ArenaScene {
         ])
         endpoint.run(.sequence([pulse, .removeFromParent()]))
     }
+
+    func playDecoyBeaconEffect(at position: CGPoint, duration: TimeInterval) {
+        decoyBeaconEffectNode?.removeFromParent()
+
+        let container = SKNode()
+        container.position = position
+        container.zPosition = 18
+        addChild(container)
+        decoyBeaconEffectNode = container
+
+        let body = SKShapeNode(path: Self.makeDecoyBeaconPath(radius: 13))
+        body.fillColor = theme.pickupViolet.withAlphaComponent(0.82)
+        body.strokeColor = theme.playerColor.withAlphaComponent(0.8)
+        body.lineWidth = 1.2
+        body.glowWidth = 3
+        container.addChild(body)
+
+        let ring = SKShapeNode(circleOfRadius: 24)
+        ring.strokeColor = theme.pickupViolet.withAlphaComponent(0.55)
+        ring.fillColor = .clear
+        ring.lineWidth = 1.4
+        ring.glowWidth = 3
+        container.addChild(ring)
+
+        let pulseDuration = max(0.24, min(0.5, duration / 4))
+        let pulse = SKAction.sequence([
+            .group([
+                .scale(to: 1.18, duration: pulseDuration),
+                .fadeAlpha(to: 0.62, duration: pulseDuration)
+            ]),
+            .group([
+                .scale(to: 0.92, duration: pulseDuration),
+                .fadeAlpha(to: 1, duration: pulseDuration)
+            ])
+        ])
+        container.run(.repeatForever(pulse))
+    }
+
+    func playDecoyBeaconExplosionEffect(at position: CGPoint, radius: CGFloat) {
+        decoyBeaconEffectNode?.removeFromParent()
+        decoyBeaconEffectNode = nil
+
+        let ring = SKShapeNode(circleOfRadius: max(0, radius))
+        ring.position = position
+        ring.strokeColor = theme.pickupViolet.withAlphaComponent(0.85)
+        ring.fillColor = theme.pickupViolet.withAlphaComponent(0.07)
+        ring.lineWidth = 2
+        ring.glowWidth = 5
+        ring.zPosition = 18
+        ring.setScale(0.24)
+        addChild(ring)
+
+        let burst = SKAction.group([
+            .scale(to: 1, duration: 0.16),
+            .fadeOut(withDuration: 0.16)
+        ])
+        ring.run(.sequence([burst, .removeFromParent()]))
+    }
+
+    func deactivateDecoyBeaconEffect() {
+        decoyBeaconEffectNode?.removeFromParent()
+        decoyBeaconEffectNode = nil
+    }
+
+    private static func makeDecoyBeaconPath(radius: CGFloat) -> CGPath {
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: 0, y: radius))
+        path.addLine(to: CGPoint(x: radius * 0.86, y: radius * 0.28))
+        path.addLine(to: CGPoint(x: radius * 0.54, y: -radius * 0.82))
+        path.addLine(to: CGPoint(x: -radius * 0.54, y: -radius * 0.82))
+        path.addLine(to: CGPoint(x: -radius * 0.86, y: radius * 0.28))
+        path.closeSubpath()
+        return path
+    }
 }
