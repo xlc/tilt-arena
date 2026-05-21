@@ -36,4 +36,28 @@ final class ArenaLandscapeUILayoutTests: XCTestCase {
         XCTAssertEqual(first.minX, 238)
         XCTAssertEqual(last.maxX, 562)
     }
+
+    func testStackedLowerRightButtonClearsBottomControlsOnCompactLandscape() {
+        let layout = ArenaLandscapeUILayout(
+            sceneSize: CGSize(width: 667, height: 375),
+            safeAreaInsets: .zero,
+            margin: 24
+        )
+        let bottomButtonSize = CGSize(width: 108, height: 38)
+        let playFrame = layout.stackedLowerRightButtonFrame(
+            aboveBottomControlHeight: bottomButtonSize.height
+        )
+
+        for index in 0..<3 {
+            let bottomFrame = layout.bottomButtonFrame(
+                index: index,
+                count: 3,
+                buttonSize: bottomButtonSize
+            )
+            XCTAssertFalse(playFrame.intersects(bottomFrame))
+        }
+
+        XCTAssertEqual(playFrame.minY, 78)
+        XCTAssertEqual(playFrame.maxX, layout.safeRect.maxX)
+    }
 }

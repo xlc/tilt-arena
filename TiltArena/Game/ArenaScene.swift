@@ -889,6 +889,7 @@ private extension ArenaScene {
 
     func renderHome() {
         let layout = currentLandscapeLayout()
+        let bottomButtonSize = CGSize(width: 108, height: 38)
         addTitle("TILT ARENA", at: layout.titlePosition)
         addSmallLabel(
             "CLASSIC SURVIVAL",
@@ -905,27 +906,26 @@ private extension ArenaScene {
         addPreviewThreats(in: layout.safeRect)
         addButton(
             "PLAY",
-            frame: layout.lowerRightButtonFrame,
+            frame: layout.stackedLowerRightButtonFrame(aboveBottomControlHeight: bottomButtonSize.height),
             action: .play,
             style: .primary
         )
 
-        let buttonSize = CGSize(width: 108, height: 38)
         addButton(
             "MODES",
-            frame: layout.bottomButtonFrame(index: 0, count: 3, buttonSize: buttonSize),
+            frame: layout.bottomButtonFrame(index: 0, count: 3, buttonSize: bottomButtonSize),
             action: .openModes,
             style: .secondary
         )
         addButton(
             "AWARDS",
-            frame: layout.bottomButtonFrame(index: 1, count: 3, buttonSize: buttonSize),
+            frame: layout.bottomButtonFrame(index: 1, count: 3, buttonSize: bottomButtonSize),
             action: .openAwards,
             style: .secondary
         )
         addButton(
             "OPTIONS",
-            frame: layout.bottomButtonFrame(index: 2, count: 3, buttonSize: buttonSize),
+            frame: layout.bottomButtonFrame(index: 2, count: 3, buttonSize: bottomButtonSize),
             action: .openOptions,
             style: .secondary
         )
@@ -1338,6 +1338,7 @@ private extension ArenaScene {
         let radius = readyHoldController.configuration.startCircleRadius
         let circle = SKShapeNode(circleOfRadius: radius)
         circle.position = point
+        circle.zPosition = ArenaUIZPosition.content
         circle.strokeColor = theme.playerAccentColor.withAlphaComponent(0.9)
         circle.fillColor = theme.playerAccentColor.withAlphaComponent(0.06)
         circle.lineWidth = 2
@@ -1346,6 +1347,7 @@ private extension ArenaScene {
 
         let progress = SKShapeNode(circleOfRadius: radius + 8)
         progress.position = point
+        progress.zPosition = ArenaUIZPosition.progress
         progress.strokeColor = theme.playerColor.withAlphaComponent(0.85)
         progress.fillColor = .clear
         progress.lineWidth = 2
@@ -1359,6 +1361,7 @@ private extension ArenaScene {
         label.horizontalAlignmentMode = .center
         label.verticalAlignmentMode = .center
         label.position = point
+        label.zPosition = ArenaUIZPosition.label
         uiRoot.addChild(label)
         readyStatusLabel = label
 
@@ -1369,6 +1372,7 @@ private extension ArenaScene {
                 y: point.y + sin(angle) * (radius + 16)
             )
             tick.zRotation = angle
+            tick.zPosition = ArenaUIZPosition.content
             tick.fillColor = theme.borderColor.withAlphaComponent(0.75)
             tick.strokeColor = .clear
             uiRoot.addChild(tick)
@@ -1400,6 +1404,7 @@ private extension ArenaScene {
         for offset in offsets {
             let dot = SKShapeNode(circleOfRadius: 6)
             dot.position = CGPoint(x: center.x + offset.x, y: center.y + offset.y)
+            dot.zPosition = ArenaUIZPosition.preview
             dot.fillColor = theme.enemyColor.withAlphaComponent(0.5)
             dot.strokeColor = theme.enemyColor.withAlphaComponent(0.75)
             dot.lineWidth = 1
@@ -1408,6 +1413,7 @@ private extension ArenaScene {
 
         let pickup = SKShapeNode(circleOfRadius: 9)
         pickup.position = CGPoint(x: center.x + 52, y: center.y - 36)
+        pickup.zPosition = ArenaUIZPosition.preview
         pickup.fillColor = theme.pickupAmber.withAlphaComponent(0.25)
         pickup.strokeColor = theme.pickupAmber
         pickup.lineWidth = 2
@@ -1417,6 +1423,7 @@ private extension ArenaScene {
     func addDeathClarityMarker(at position: CGPoint) {
         let ring = SKShapeNode(circleOfRadius: 30)
         ring.position = position
+        ring.zPosition = ArenaUIZPosition.content
         ring.strokeColor = theme.enemyColor.withAlphaComponent(0.9)
         ring.fillColor = .clear
         ring.lineWidth = 2
@@ -1431,6 +1438,7 @@ private extension ArenaScene {
         let cross = SKShapeNode(path: crossPath)
         cross.strokeColor = theme.enemyColor
         cross.lineWidth = 1.5
+        cross.zPosition = ArenaUIZPosition.content
         uiRoot.addChild(cross)
     }
 
@@ -1510,6 +1518,7 @@ private extension ArenaScene {
 
     func addScrim(alpha: CGFloat) {
         let scrim = SKShapeNode(rect: CGRect(origin: .zero, size: size))
+        scrim.zPosition = ArenaUIZPosition.scrim
         scrim.fillColor = SKColor.black.withAlphaComponent(alpha)
         scrim.strokeColor = .clear
         uiRoot.addChild(scrim)
@@ -1521,6 +1530,7 @@ private extension ArenaScene {
         fill: SKColor = SKColor(red: 0.03, green: 0.07, blue: 0.11, alpha: 0.62)
     ) {
         let panel = SKShapeNode(rect: frame, cornerRadius: 8)
+        panel.zPosition = ArenaUIZPosition.panel
         panel.fillColor = fill
         panel.strokeColor = stroke
         panel.lineWidth = 1
@@ -1529,6 +1539,7 @@ private extension ArenaScene {
 
     func addProgressBar(frame: CGRect, fraction: Double, placeholder: Bool) {
         let background = SKShapeNode(rect: frame, cornerRadius: 2)
+        background.zPosition = ArenaUIZPosition.control
         background.fillColor = theme.borderColor.withAlphaComponent(0.18)
         background.strokeColor = .clear
         uiRoot.addChild(background)
@@ -1542,6 +1553,7 @@ private extension ArenaScene {
             rect: CGRect(x: frame.minX, y: frame.minY, width: fillWidth, height: frame.height),
             cornerRadius: 2
         )
+        fill.zPosition = ArenaUIZPosition.controlFill
         fill.fillColor = (placeholder ? theme.pickupAmber : theme.playerAccentColor).withAlphaComponent(0.85)
         fill.strokeColor = .clear
         uiRoot.addChild(fill)
@@ -1573,6 +1585,7 @@ private extension ArenaScene {
         }
 
         let button = SKShapeNode(rect: frame, cornerRadius: 7)
+        button.zPosition = ArenaUIZPosition.control
         button.fillColor = fill
         button.strokeColor = stroke
         button.lineWidth = 1
@@ -1615,6 +1628,7 @@ private extension ArenaScene {
         label.horizontalAlignmentMode = alignment
         label.verticalAlignmentMode = .center
         label.position = position
+        label.zPosition = ArenaUIZPosition.label
         uiRoot.addChild(label)
     }
 
@@ -1760,4 +1774,15 @@ private enum ArenaButtonStyle {
     case primary
     case secondary
     case danger
+}
+
+private enum ArenaUIZPosition {
+    static let scrim: CGFloat = 0
+    static let preview: CGFloat = 4
+    static let content: CGFloat = 8
+    static let progress: CGFloat = 12
+    static let panel: CGFloat = 16
+    static let control: CGFloat = 24
+    static let controlFill: CGFloat = 25
+    static let label: CGFloat = 32
 }
