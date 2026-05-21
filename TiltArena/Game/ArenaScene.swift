@@ -858,14 +858,8 @@ final class ArenaScene: SKScene {
             let dangerDistance = runController.configuration.dangerGrabEnemyDistance
                 + pickup.radius
                 + enemy.radius
-            return squaredDistance(from: pickup.position, to: enemy.position) <= dangerDistance * dangerDistance
+            return ArenaGeometry.squaredDistance(from: pickup.position, to: enemy.position) <= dangerDistance * dangerDistance
         }
-    }
-
-    private func squaredDistance(from lhs: CGPoint, to rhs: CGPoint) -> CGFloat {
-        let dx = lhs.x - rhs.x
-        let dy = lhs.y - rhs.y
-        return dx * dx + dy * dy
     }
 
     private func persistFinalRunIfNeeded() {
@@ -1073,69 +1067,76 @@ private extension ArenaScene {
         addPanel(frame: left)
         addPanel(frame: right)
 
+        renderTiltOptions(in: left)
+        renderLocalOptions(in: right)
+    }
+
+    func renderTiltOptions(in frame: CGRect) {
         addButton(
             "CALIBRATE",
-            frame: CGRect(x: left.minX + 14, y: left.maxY - 62, width: 148, height: 40),
+            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 62, width: 148, height: 40),
             action: .calibrate,
             style: .primary
         )
         let settings = tiltSettingsStore.settings
         addSmallLabel(
             "SENSITIVITY \(String(format: "%.1f", settings.clampedSensitivity))",
-            at: CGPoint(x: left.minX + 14, y: left.maxY - 90),
+            at: CGPoint(x: frame.minX + 14, y: frame.maxY - 90),
             color: theme.borderColor,
             alignment: .left
         )
         addButton(
             "-",
-            frame: CGRect(x: left.minX + 14, y: left.maxY - 140, width: 44, height: 36),
+            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 140, width: 44, height: 36),
             action: .sensitivityDown,
             style: .secondary
         )
         addButton(
             "+",
-            frame: CGRect(x: left.minX + 70, y: left.maxY - 140, width: 44, height: 36),
+            frame: CGRect(x: frame.minX + 70, y: frame.maxY - 140, width: 44, height: 36),
             action: .sensitivityUp,
             style: .secondary
         )
 
-        let presetY = left.maxY - 196
+        let presetY = frame.maxY - 196
         for (index, preset) in [TiltCalibrationPreset.standard, .flatTable, .reclined].enumerated() {
-            let frame = CGRect(
-                x: left.minX + 14 + CGFloat(index) * 82,
+            let buttonFrame = CGRect(
+                x: frame.minX + 14 + CGFloat(index) * 82,
                 y: presetY,
                 width: 74,
                 height: 34
             )
             addButton(
                 presetTitle(preset),
-                frame: frame,
+                frame: buttonFrame,
                 action: .preset(preset),
                 style: settings.calibration.preset == preset ? .primary : .secondary
             )
         }
+    }
 
+    func renderLocalOptions(in frame: CGRect) {
         addToggle(
             title: "AUDIO",
             isOn: localOptions.audioEnabled,
-            frame: CGRect(x: right.minX + 14, y: right.maxY - 62, width: 132, height: 38),
+            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 62, width: 132, height: 38),
             action: .toggleAudio
         )
         addToggle(
             title: "HAPTICS",
             isOn: localOptions.hapticsEnabled,
-            frame: CGRect(x: right.minX + 14, y: right.maxY - 112, width: 132, height: 38),
+            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 112, width: 132, height: 38),
             action: .toggleHaptics
         )
         addToggle(
             title: "EFFECTS",
             isOn: !localOptions.reducedEffects,
-            frame: CGRect(x: right.minX + 14, y: right.maxY - 162, width: 132, height: 38),
+            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 162, width: 132, height: 38),
             action: .toggleEffects
         )
         addButton(
             resetDataArmed ? "CONFIRM RESET" : "RESET DATA",
-            frame: CGRect(x: right.minX + 14, y: right.minY + 12, width: 156, height: 34),
+            frame: CGRect(x: frame.minX + 14, y: frame.minY + 12, width: 156, height: 34),
             action: .resetData,
             style: .danger
         )
@@ -1219,6 +1220,13 @@ private extension ArenaScene {
         addScrim(alpha: 0.62)
         let summary = runController.finalizedSummary
 
+        renderPostRunScore(summary: summary, layout: layout)
+        addDeathClarityMarker(at: movementController.state.position)
+        renderPostRunHighlights(summary: summary, in: layout.rightColumnFrame(width: 230))
+        renderPostRunButtons(layout: layout)
+    }
+
+    func renderPostRunScore(summary: RunSummary?, layout: ArenaLandscapeUILayout) {
         addLabel(
             "GAME OVER",
             at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 52),
@@ -1239,10 +1247,10 @@ private extension ArenaScene {
             color: theme.playerAccentColor,
             alignment: .left
         )
-        addDeathClarityMarker(at: movementController.state.position)
+    }
 
-        let right = layout.rightColumnFrame(width: 230)
-        addPanel(frame: right)
+    func renderPostRunHighlights(summary: RunSummary?, in frame: CGRect) {
+        addPanel(frame: frame)
         let highlights = ArenaMenuContent.postRunHighlights(
             summary: summary,
             profile: runProfile,
@@ -1251,12 +1259,14 @@ private extension ArenaScene {
         for (index, text) in highlights.enumerated() {
             addSmallLabel(
                 text,
-                at: CGPoint(x: right.minX + 14, y: right.maxY - 28 - CGFloat(index) * 26),
+                at: CGPoint(x: frame.minX + 14, y: frame.maxY - 28 - CGFloat(index) * 26),
                 color: index == 0 ? theme.playerAccentColor : theme.borderColor,
                 alignment: .left
             )
         }
+    }
 
+    func renderPostRunButtons(layout: ArenaLandscapeUILayout) {
         addButton(
             "PLAY AGAIN",
             frame: layout.lowerRightButtonFrame,
@@ -1280,10 +1290,19 @@ private extension ArenaScene {
 
     func perform(_ action: ArenaControlAction) {
         switch action {
-        case .play:
-            if selectedModeIsAvailable {
-                preparePreRun()
-            }
+        case .play, .playAgain, .openModes, .openAwards, .openOptions, .home, .back:
+            performNavigationAction(action)
+        case .selectMode, .resume, .calibrate, .endRun:
+            performRunControlAction(action)
+        case .sensitivityDown, .sensitivityUp, .preset, .toggleAudio, .toggleHaptics, .toggleEffects, .resetData:
+            performOptionsAction(action)
+        }
+    }
+
+    func performNavigationAction(_ action: ArenaControlAction) {
+        switch action {
+        case .play where selectedModeIsAvailable:
+            preparePreRun()
         case .playAgain:
             preparePreRun()
         case .openModes:
@@ -1299,6 +1318,13 @@ private extension ArenaScene {
             show(.home)
         case .back:
             show(uiState == .options ? optionsReturnState : .home)
+        default:
+            break
+        }
+    }
+
+    func performRunControlAction(_ action: ArenaControlAction) {
+        switch action {
         case let .selectMode(mode):
             guard modeRowsByKind[mode]?.isAvailable == true else {
                 return
@@ -1312,6 +1338,13 @@ private extension ArenaScene {
             recalibrateTiltControls()
         case .endRun:
             finishRun(playFeedback: false)
+        default:
+            break
+        }
+    }
+
+    func performOptionsAction(_ action: ArenaControlAction) {
+        switch action {
         case .sensitivityDown:
             tiltSettingsStore.updateSensitivity(tiltSettingsStore.settings.clampedSensitivity - 0.1)
             rebuildUI()
@@ -1335,6 +1368,8 @@ private extension ArenaScene {
             rebuildUI()
         case .resetData:
             resetLocalDataOrArmConfirmation()
+        default:
+            break
         }
     }
 

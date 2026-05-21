@@ -1,330 +1,6 @@
 import CoreGraphics
 import Foundation
 
-enum EnemyDifficultyPhase: Equatable {
-    case warmup
-    case pressure
-    case chaos
-    case survivalHell
-
-    static func phase(at survivalTime: TimeInterval) -> EnemyDifficultyPhase {
-        let time = max(0, survivalTime)
-
-        if time < Self.pressure.startTime {
-            return .warmup
-        } else if time < Self.chaos.startTime {
-            return .pressure
-        } else if time < Self.survivalHell.startTime {
-            return .chaos
-        } else {
-            return .survivalHell
-        }
-    }
-
-    var startTime: TimeInterval {
-        switch self {
-        case .warmup:
-            return 0
-        case .pressure:
-            return 30
-        case .chaos:
-            return 90
-        case .survivalHell:
-            return 180
-        }
-    }
-}
-
-struct EnemyPhaseTuning: Equatable {
-    var chaserSpawnInterval: TimeInterval
-    var chaserSpeed: CGFloat
-    var maxActiveEnemies: Int
-    var formationSpawnInterval: TimeInterval?
-    var formationSpeed: CGFloat
-    var formationLaneCount: Int
-    var arrowRushSpawnInterval: TimeInterval?
-    var arrowRushSpeed: CGFloat = 0
-    var arrowRushEnemyCount: Int = 0
-    var mineDotSpawnInterval: TimeInterval?
-    var maxActiveMineDots: Int = 0
-    var hunterDotSpawnInterval: TimeInterval?
-    var hunterDotSpeed: CGFloat = 0
-    var hunterDotPredictionLead: CGFloat = 0
-    var maxActiveHunterDots: Int = 0
-    var paddleTrapSpawnInterval: TimeInterval?
-    var maxActivePaddleTraps: Int = 0
-    var paddleTrapLifetime: TimeInterval = 0
-    var paddleTrapBarEnemyCount: Int = 0
-    var paddleTrapDotSpeed: CGFloat = 0
-}
-
-struct EnemySpawnConfiguration: Equatable {
-    var enemyRadius: CGFloat = 8
-    var playerSafetyRadius: CGFloat = 120
-    var pickupClearance: CGFloat = 8
-    var formationTelegraphDuration: TimeInterval = 1.1
-    var formationLineInset: CGFloat = 28
-    var formationGapScale: CGFloat = 0.85
-    var formationSpawnOffset: CGFloat = 14
-    var minimumFormationEnemyCount = 2
-    var arrowRushTelegraphDuration: TimeInterval = 0.85
-    var arrowRushSpawnOffset: CGFloat = 18
-    var arrowRushEnemySpacing: CGFloat = 24
-    var minimumArrowRushEnemyCount = 2
-    var mineDotTelegraphDuration: TimeInterval = 0.9
-    var mineDotTelegraphRadius: CGFloat = 24
-    var mineDotPickupGuardDistance: CGFloat = 44
-    var mineDotCandidateInset: CGFloat = 48
-    var mineDotMinimumSpacing: CGFloat = 52
-    var hunterDotTelegraphDuration: TimeInterval = 0.75
-    var paddleTrapTelegraphDuration: TimeInterval = 1
-    var paddleTrapBarSpacing: CGFloat = 24
-    var paddleTrapBarGap: CGFloat = 96
-    var paddleTrapCandidateInset: CGFloat = 84
-    var paddleTrapMinimumSpacing: CGFloat = 64
-    var maxPendingEnemyTelegraphs = 2
-    var cullingOutset: CGFloat = 72
-    var warmup = EnemyPhaseTuning(
-        chaserSpawnInterval: 1.4,
-        chaserSpeed: 55,
-        maxActiveEnemies: 40,
-        formationSpawnInterval: nil,
-        formationSpeed: 86,
-        formationLaneCount: 5,
-        arrowRushSpawnInterval: nil,
-        arrowRushSpeed: 0,
-        arrowRushEnemyCount: 0,
-        mineDotSpawnInterval: nil,
-        maxActiveMineDots: 0,
-        hunterDotSpawnInterval: nil,
-        hunterDotSpeed: 0,
-        hunterDotPredictionLead: 0,
-        maxActiveHunterDots: 0,
-        paddleTrapSpawnInterval: nil,
-        maxActivePaddleTraps: 0,
-        paddleTrapLifetime: 0,
-        paddleTrapBarEnemyCount: 0,
-        paddleTrapDotSpeed: 0
-    )
-    var pressure = EnemyPhaseTuning(
-        chaserSpawnInterval: 1.05,
-        chaserSpeed: 70,
-        maxActiveEnemies: 70,
-        formationSpawnInterval: 12,
-        formationSpeed: 98,
-        formationLaneCount: 5,
-        arrowRushSpawnInterval: nil,
-        arrowRushSpeed: 0,
-        arrowRushEnemyCount: 0,
-        mineDotSpawnInterval: nil,
-        maxActiveMineDots: 0,
-        hunterDotSpawnInterval: nil,
-        hunterDotSpeed: 0,
-        hunterDotPredictionLead: 0,
-        maxActiveHunterDots: 0,
-        paddleTrapSpawnInterval: nil,
-        maxActivePaddleTraps: 0,
-        paddleTrapLifetime: 0,
-        paddleTrapBarEnemyCount: 0,
-        paddleTrapDotSpeed: 0
-    )
-    var chaos = EnemyPhaseTuning(
-        chaserSpawnInterval: 0.75,
-        chaserSpeed: 88,
-        maxActiveEnemies: 120,
-        formationSpawnInterval: 8,
-        formationSpeed: 116,
-        formationLaneCount: 7,
-        arrowRushSpawnInterval: 10,
-        arrowRushSpeed: 150,
-        arrowRushEnemyCount: 3,
-        mineDotSpawnInterval: 14,
-        maxActiveMineDots: 4,
-        hunterDotSpawnInterval: 18,
-        hunterDotSpeed: 108,
-        hunterDotPredictionLead: 0.6,
-        maxActiveHunterDots: 2,
-        paddleTrapSpawnInterval: 24,
-        maxActivePaddleTraps: 1,
-        paddleTrapLifetime: 7,
-        paddleTrapBarEnemyCount: 4,
-        paddleTrapDotSpeed: 145
-    )
-    var survivalHell = EnemyPhaseTuning(
-        chaserSpawnInterval: 0.5,
-        chaserSpeed: 108,
-        maxActiveEnemies: 180,
-        formationSpawnInterval: 5.5,
-        formationSpeed: 136,
-        formationLaneCount: 9,
-        arrowRushSpawnInterval: 7,
-        arrowRushSpeed: 175,
-        arrowRushEnemyCount: 5,
-        mineDotSpawnInterval: 10,
-        maxActiveMineDots: 7,
-        hunterDotSpawnInterval: 13,
-        hunterDotSpeed: 132,
-        hunterDotPredictionLead: 0.9,
-        maxActiveHunterDots: 3,
-        paddleTrapSpawnInterval: 18,
-        maxActivePaddleTraps: 2,
-        paddleTrapLifetime: 8,
-        paddleTrapBarEnemyCount: 5,
-        paddleTrapDotSpeed: 170
-    )
-
-    func tuning(at survivalTime: TimeInterval) -> EnemyPhaseTuning {
-        let phase = EnemyDifficultyPhase.phase(at: survivalTime)
-        let anchors = phaseAnchors
-        let currentIndex = anchors.firstIndex { $0.phase == phase } ?? 0
-        let current = anchors[currentIndex]
-        let next = currentIndex + 1 < anchors.count ? anchors[currentIndex + 1] : nil
-        let progress = interpolationProgress(survivalTime: survivalTime, current: current, next: next)
-
-        return EnemyPhaseTuning(
-            chaserSpawnInterval: interpolate(
-                from: current.tuning.chaserSpawnInterval,
-                to: next?.tuning.chaserSpawnInterval ?? current.tuning.chaserSpawnInterval,
-                progress: progress
-            ),
-            chaserSpeed: interpolate(
-                from: current.tuning.chaserSpeed,
-                to: next?.tuning.chaserSpeed ?? current.tuning.chaserSpeed,
-                progress: progress
-            ),
-            maxActiveEnemies: Int(
-                round(interpolate(
-                    from: CGFloat(current.tuning.maxActiveEnemies),
-                    to: CGFloat(next?.tuning.maxActiveEnemies ?? current.tuning.maxActiveEnemies),
-                    progress: progress
-                ))
-            ),
-            formationSpawnInterval: current.tuning.formationSpawnInterval,
-            formationSpeed: interpolate(
-                from: current.tuning.formationSpeed,
-                to: next?.tuning.formationSpeed ?? current.tuning.formationSpeed,
-                progress: progress
-            ),
-            formationLaneCount: max(3, current.tuning.formationLaneCount),
-            arrowRushSpawnInterval: current.tuning.arrowRushSpawnInterval,
-            arrowRushSpeed: interpolate(
-                from: current.tuning.arrowRushSpeed,
-                to: next?.tuning.arrowRushSpeed ?? current.tuning.arrowRushSpeed,
-                progress: progress
-            ),
-            arrowRushEnemyCount: max(0, Int(
-                round(interpolate(
-                    from: CGFloat(current.tuning.arrowRushEnemyCount),
-                    to: CGFloat(next?.tuning.arrowRushEnemyCount ?? current.tuning.arrowRushEnemyCount),
-                    progress: progress
-                ))
-            )),
-            mineDotSpawnInterval: current.tuning.mineDotSpawnInterval,
-            maxActiveMineDots: max(0, Int(
-                round(interpolate(
-                    from: CGFloat(current.tuning.maxActiveMineDots),
-                    to: CGFloat(next?.tuning.maxActiveMineDots ?? current.tuning.maxActiveMineDots),
-                    progress: progress
-                ))
-            )),
-            hunterDotSpawnInterval: current.tuning.hunterDotSpawnInterval,
-            hunterDotSpeed: interpolate(
-                from: current.tuning.hunterDotSpeed,
-                to: next?.tuning.hunterDotSpeed ?? current.tuning.hunterDotSpeed,
-                progress: progress
-            ),
-            hunterDotPredictionLead: interpolate(
-                from: current.tuning.hunterDotPredictionLead,
-                to: next?.tuning.hunterDotPredictionLead ?? current.tuning.hunterDotPredictionLead,
-                progress: progress
-            ),
-            maxActiveHunterDots: max(0, Int(
-                round(interpolate(
-                    from: CGFloat(current.tuning.maxActiveHunterDots),
-                    to: CGFloat(next?.tuning.maxActiveHunterDots ?? current.tuning.maxActiveHunterDots),
-                    progress: progress
-                ))
-            )),
-            paddleTrapSpawnInterval: current.tuning.paddleTrapSpawnInterval,
-            maxActivePaddleTraps: max(0, Int(
-                round(interpolate(
-                    from: CGFloat(current.tuning.maxActivePaddleTraps),
-                    to: CGFloat(next?.tuning.maxActivePaddleTraps ?? current.tuning.maxActivePaddleTraps),
-                    progress: progress
-                ))
-            )),
-            paddleTrapLifetime: interpolate(
-                from: current.tuning.paddleTrapLifetime,
-                to: next?.tuning.paddleTrapLifetime ?? current.tuning.paddleTrapLifetime,
-                progress: progress
-            ),
-            paddleTrapBarEnemyCount: max(0, Int(
-                round(interpolate(
-                    from: CGFloat(current.tuning.paddleTrapBarEnemyCount),
-                    to: CGFloat(next?.tuning.paddleTrapBarEnemyCount ?? current.tuning.paddleTrapBarEnemyCount),
-                    progress: progress
-                ))
-            )),
-            paddleTrapDotSpeed: interpolate(
-                from: current.tuning.paddleTrapDotSpeed,
-                to: next?.tuning.paddleTrapDotSpeed ?? current.tuning.paddleTrapDotSpeed,
-                progress: progress
-            )
-        )
-    }
-
-    private var phaseAnchors: [(phase: EnemyDifficultyPhase, tuning: EnemyPhaseTuning)] {
-        [
-            (.warmup, warmup),
-            (.pressure, pressure),
-            (.chaos, chaos),
-            (.survivalHell, survivalHell)
-        ]
-    }
-
-    private func interpolationProgress(
-        survivalTime: TimeInterval,
-        current: (phase: EnemyDifficultyPhase, tuning: EnemyPhaseTuning),
-        next: (phase: EnemyDifficultyPhase, tuning: EnemyPhaseTuning)?
-    ) -> CGFloat {
-        guard let next else {
-            return 0
-        }
-
-        let span = next.phase.startTime - current.phase.startTime
-        guard span > 0 else {
-            return 0
-        }
-
-        let rawProgress = (max(0, survivalTime) - current.phase.startTime) / span
-        return CGFloat(min(1, max(0, rawProgress)))
-    }
-
-    private func interpolate(from start: TimeInterval, to end: TimeInterval, progress: CGFloat) -> TimeInterval {
-        start + (end - start) * TimeInterval(progress)
-    }
-
-    private func interpolate(from start: CGFloat, to end: CGFloat, progress: CGFloat) -> CGFloat {
-        start + (end - start) * progress
-    }
-}
-
-struct EnemyTelegraphSegment: Equatable {
-    let start: CGPoint
-    let end: CGPoint
-}
-
-struct EnemyTelegraph: Equatable, Identifiable {
-    let id: Int
-    let segments: [EnemyTelegraphSegment]
-}
-
-struct EnemySpawnFrame: Equatable {
-    var newEnemies: [ArenaEnemy] = []
-    var telegraphsToShow: [EnemyTelegraph] = []
-    var telegraphIDsToRemove: Set<Int> = []
-}
-
 struct EnemySpawnDirector {
     enum EdgeDirection: CaseIterable {
         case leftToRight
@@ -347,6 +23,15 @@ struct EnemySpawnDirector {
         let requiredEnemyCount: Int
         let enemies: [ArenaEnemy]
         let telegraph: EnemyTelegraph
+    }
+
+    struct SpawnContext {
+        let deltaTime: TimeInterval
+        let tuning: EnemyPhaseTuning
+        let playableRect: CGRect
+        let playerPosition: CGPoint
+        let pickupCircles: [CollisionCircle]
+        let activeEnemies: [ArenaEnemy]
     }
 
     static let candidateSideCount = 4
@@ -432,6 +117,14 @@ struct EnemySpawnDirector {
         let tuning = configuration.tuning(at: survivalTime)
         let activeEnemyCount = activeEnemies.count
         var frame = EnemySpawnFrame()
+        let context = SpawnContext(
+            deltaTime: clampedDelta,
+            tuning: tuning,
+            playableRect: playableRect,
+            playerPosition: playerPosition,
+            pickupCircles: pickupCircles,
+            activeEnemies: activeEnemies
+        )
 
         advancePendingEnemySpawns(
             deltaTime: clampedDelta,
@@ -441,62 +134,35 @@ struct EnemySpawnDirector {
         )
 
         spawnChasersIfNeeded(
-            deltaTime: clampedDelta,
             projectedEnemyCount: activeEnemyCount + frame.newEnemies.count + pendingEnemyCount,
-            tuning: tuning,
-            playableRect: playableRect,
-            playerPosition: playerPosition,
-            pickupCircles: pickupCircles,
+            context: context,
             frame: &frame
         )
 
         spawnFormationTelegraphIfNeeded(
-            deltaTime: clampedDelta,
             projectedEnemyCount: activeEnemyCount + frame.newEnemies.count + pendingEnemyCount,
-            tuning: tuning,
-            playableRect: playableRect,
-            playerPosition: playerPosition,
-            pickupCircles: pickupCircles,
+            context: context,
             frame: &frame
         )
 
         spawnArrowRushTelegraphIfNeeded(
-            deltaTime: clampedDelta,
             projectedEnemyCount: activeEnemyCount + frame.newEnemies.count + pendingEnemyCount,
-            tuning: tuning,
-            playableRect: playableRect,
-            playerPosition: playerPosition,
-            pickupCircles: pickupCircles,
+            context: context,
             frame: &frame
         )
 
         spawnMineDotTelegraphIfNeeded(
-            deltaTime: clampedDelta,
-            tuning: tuning,
-            playableRect: playableRect,
-            playerPosition: playerPosition,
-            pickupCircles: pickupCircles,
-            activeEnemies: activeEnemies,
+            context: context,
             frame: &frame
         )
 
         spawnHunterDotTelegraphIfNeeded(
-            deltaTime: clampedDelta,
-            tuning: tuning,
-            playableRect: playableRect,
-            playerPosition: playerPosition,
-            pickupCircles: pickupCircles,
-            activeEnemies: activeEnemies,
+            context: context,
             frame: &frame
         )
 
         spawnPaddleTrapTelegraphIfNeeded(
-            deltaTime: clampedDelta,
-            tuning: tuning,
-            playableRect: playableRect,
-            playerPosition: playerPosition,
-            pickupCircles: pickupCircles,
-            activeEnemies: activeEnemies,
+            context: context,
             frame: &frame
         )
 
@@ -509,13 +175,13 @@ struct EnemySpawnDirector {
         pickupCircles: [CollisionCircle] = []
     ) -> Bool {
         let playerClearance = configuration.playerSafetyRadius + configuration.enemyRadius
-        guard squaredDistance(from: position, to: playerPosition) >= playerClearance * playerClearance else {
+        guard ArenaGeometry.squaredDistance(from: position, to: playerPosition) >= playerClearance * playerClearance else {
             return false
         }
 
         return pickupCircles.allSatisfy { pickupCircle in
             let clearance = pickupCircle.radius + configuration.enemyRadius + configuration.pickupClearance
-            return squaredDistance(from: position, to: pickupCircle.center) >= clearance * clearance
+            return ArenaGeometry.squaredDistance(from: position, to: pickupCircle.center) >= clearance * clearance
         }
     }
 
@@ -553,40 +219,36 @@ struct EnemySpawnDirector {
     }
 
     private mutating func spawnChasersIfNeeded(
-        deltaTime: TimeInterval,
         projectedEnemyCount: Int,
-        tuning: EnemyPhaseTuning,
-        playableRect: CGRect,
-        playerPosition: CGPoint,
-        pickupCircles: [CollisionCircle],
+        context: SpawnContext,
         frame: inout EnemySpawnFrame
     ) {
-        guard deltaTime > 0, tuning.chaserSpawnInterval > 0 else {
+        guard context.deltaTime > 0, context.tuning.chaserSpawnInterval > 0 else {
             return
         }
 
-        guard projectedEnemyCount < tuning.maxActiveEnemies else {
-            timeUntilNextChaser = max(timeUntilNextChaser, tuning.chaserSpawnInterval)
+        guard projectedEnemyCount < context.tuning.maxActiveEnemies else {
+            timeUntilNextChaser = max(timeUntilNextChaser, context.tuning.chaserSpawnInterval)
             return
         }
 
-        timeUntilNextChaser -= deltaTime
+        timeUntilNextChaser -= context.deltaTime
         var projectedEnemyCount = projectedEnemyCount
 
-        while timeUntilNextChaser <= 0, projectedEnemyCount < tuning.maxActiveEnemies {
+        while timeUntilNextChaser <= 0, projectedEnemyCount < context.tuning.maxActiveEnemies {
             guard let enemy = spawnChaser(
-                in: playableRect,
-                avoiding: playerPosition,
-                pickupCircles: pickupCircles,
-                tuning: tuning
+                in: context.playableRect,
+                avoiding: context.playerPosition,
+                pickupCircles: context.pickupCircles,
+                tuning: context.tuning
             ) else {
-                timeUntilNextChaser = tuning.chaserSpawnInterval
+                timeUntilNextChaser = context.tuning.chaserSpawnInterval
                 return
             }
 
             frame.newEnemies.append(enemy)
             projectedEnemyCount += 1
-            timeUntilNextChaser += tuning.chaserSpawnInterval
+            timeUntilNextChaser += context.tuning.chaserSpawnInterval
         }
     }
 
@@ -622,15 +284,11 @@ struct EnemySpawnDirector {
     }
 
     private mutating func spawnFormationTelegraphIfNeeded(
-        deltaTime: TimeInterval,
         projectedEnemyCount: Int,
-        tuning: EnemyPhaseTuning,
-        playableRect: CGRect,
-        playerPosition: CGPoint,
-        pickupCircles: [CollisionCircle],
+        context: SpawnContext,
         frame: inout EnemySpawnFrame
     ) {
-        guard deltaTime > 0, let formationSpawnInterval = tuning.formationSpawnInterval else {
+        guard context.deltaTime > 0, let formationSpawnInterval = context.tuning.formationSpawnInterval else {
             timeUntilNextFormation = 0
             return
         }
@@ -644,23 +302,23 @@ struct EnemySpawnDirector {
             return
         }
 
-        guard projectedEnemyCount + requiredFormationEnemyCount <= tuning.maxActiveEnemies else {
+        guard projectedEnemyCount + requiredFormationEnemyCount <= context.tuning.maxActiveEnemies else {
             timeUntilNextFormation = max(timeUntilNextFormation, formationSpawnInterval)
             return
         }
 
-        timeUntilNextFormation -= deltaTime
+        timeUntilNextFormation -= context.deltaTime
 
         guard timeUntilNextFormation <= 0 else {
             return
         }
 
-        let availableSlots = tuning.maxActiveEnemies - projectedEnemyCount
+        let availableSlots = context.tuning.maxActiveEnemies - projectedEnemyCount
         guard let formation = makePendingFormation(
-            in: playableRect,
-            playerPosition: playerPosition,
-            pickupCircles: pickupCircles,
-            tuning: tuning,
+            in: context.playableRect,
+            playerPosition: context.playerPosition,
+            pickupCircles: context.pickupCircles,
+            tuning: context.tuning,
             availableSlots: availableSlots
         ) else {
             timeUntilNextFormation = formationSpawnInterval
@@ -701,16 +359,13 @@ struct EnemySpawnDirector {
             .filter { isSafeSpawn($0, avoiding: playerPosition, pickupCircles: pickupCircles) }
             .prefix(max(0, availableSlots))
             .map { position in
-                defer {
-                    nextID += 1
-                }
-
-                return ArenaEnemy(
+                defer { nextID += 1 }
+                return makeFormationEnemy(
+                    at: position,
                     id: nextID,
-                    position: position,
-                    radius: configuration.enemyRadius,
-                    speed: tuning.formationSpeed,
-                    behavior: .formationLine(velocity: velocity, formationID: formationID)
+                    formationID: formationID,
+                    velocity: velocity,
+                    speed: tuning.formationSpeed
                 )
             }
 
@@ -721,20 +376,53 @@ struct EnemySpawnDirector {
         nextEnemyID += enemies.count
         nextFormationID += 1
         nextTelegraphID += 1
+        let telegraph = formationTelegraph(
+            id: telegraphID,
+            direction: direction,
+            laneCount: laneCount,
+            gapLaneIndex: gapLaneIndex,
+            playableRect: playableRect
+        )
 
         return PendingEnemySpawn(
             timeRemaining: configuration.formationTelegraphDuration,
             requiredEnemyCount: requiredFormationEnemyCount,
-            enemies: Array(enemies),
-            telegraph: EnemyTelegraph(
-                id: telegraphID,
-                segments: formationTelegraphSegments(
-                    direction: direction,
-                    laneCount: laneCount,
-                    gapLaneIndex: gapLaneIndex,
-                    playableRect: playableRect
-                )
+            enemies: enemies,
+            telegraph: telegraph
+        )
+    }
+
+    private func formationTelegraph(
+        id: Int,
+        direction: EdgeDirection,
+        laneCount: Int,
+        gapLaneIndex: Int,
+        playableRect: CGRect
+    ) -> EnemyTelegraph {
+        EnemyTelegraph(
+            id: id,
+            segments: formationTelegraphSegments(
+                direction: direction,
+                laneCount: laneCount,
+                gapLaneIndex: gapLaneIndex,
+                playableRect: playableRect
             )
+        )
+    }
+
+    private func makeFormationEnemy(
+        at position: CGPoint,
+        id: Int,
+        formationID: Int,
+        velocity: CGVector,
+        speed: CGFloat
+    ) -> ArenaEnemy {
+        ArenaEnemy(
+            id: id,
+            position: position,
+            radius: configuration.enemyRadius,
+            speed: speed,
+            behavior: .formationLine(velocity: velocity, formationID: formationID)
         )
     }
 
@@ -901,12 +589,6 @@ struct EnemySpawnDirector {
         case .topToBottom:
             return CGVector(dx: 0, dy: -speed)
         }
-    }
-
-    func squaredDistance(from lhs: CGPoint, to rhs: CGPoint) -> CGFloat {
-        let dx = lhs.x - rhs.x
-        let dy = lhs.y - rhs.y
-        return dx * dx + dy * dy
     }
 
     private var requiredFormationEnemyCount: Int {

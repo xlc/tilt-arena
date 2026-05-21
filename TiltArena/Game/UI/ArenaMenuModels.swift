@@ -12,7 +12,6 @@ struct ArenaModeRow: Equatable {
 struct ArenaAwardRow: Equatable {
     let title: String
     let progressText: String
-    let detailText: String
     let progressFraction: Double
     let isComplete: Bool
     let isPlaceholderProgress: Bool
@@ -57,42 +56,36 @@ struct ArenaMenuContent {
                 title: "COMBO SPARK",
                 progress: profile.highestCombo,
                 target: 10,
-                detail: "Reach a 10 combo",
                 placeholder: false
             ),
             award(
                 title: "SCORE CREST",
                 progress: profile.bestScore,
                 target: 5_000,
-                detail: "Score 5000 in Classic",
                 placeholder: false
             ),
             award(
                 title: "FREEZE SHATTER",
                 progress: min(profile.totalEnemiesDestroyed, 25),
                 target: 25,
-                detail: "Shatter frozen enemies",
                 placeholder: true
             ),
             award(
                 title: "DANGER GRAB",
                 progress: min(profile.totalRuns, 5),
                 target: 5,
-                detail: "Take risky weapon pickups",
                 placeholder: true
             ),
             award(
                 title: "WEAPON MASTER",
                 progress: profile.totalEnemiesDestroyed,
                 target: 250,
-                detail: "Destroy enemies with weapons",
                 placeholder: true
             ),
             award(
                 title: "SURVIVOR",
                 progress: Int(profile.longestSurvivalTime),
                 target: 120,
-                detail: "Survive for 120 seconds",
                 placeholder: false
             )
         ]
@@ -134,7 +127,6 @@ struct ArenaMenuContent {
         title: String,
         progress: Int,
         target: Int,
-        detail: String,
         placeholder: Bool
     ) -> ArenaAwardRow {
         let clampedTarget = max(1, target)
@@ -142,7 +134,6 @@ struct ArenaMenuContent {
         return ArenaAwardRow(
             title: title,
             progressText: "\(clampedProgress)/\(clampedTarget)",
-            detailText: detail,
             progressFraction: Double(clampedProgress) / Double(clampedTarget),
             isComplete: clampedProgress >= clampedTarget,
             isPlaceholderProgress: placeholder

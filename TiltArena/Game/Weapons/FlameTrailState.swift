@@ -96,7 +96,7 @@ struct FlameTrailState {
         }
 
         let spacing = max(0, configuration.segmentSpacing)
-        guard spacing == 0 || squaredDistance(from: lastSegment.position, to: position) >= spacing * spacing else {
+        guard spacing == 0 || ArenaGeometry.squaredDistance(from: lastSegment.position, to: position) >= spacing * spacing else {
             return
         }
 
@@ -153,9 +153,4 @@ struct FlameTrailState {
         return burnedEnemyIDs
     }
 
-    private func squaredDistance(from lhs: CGPoint, to rhs: CGPoint) -> CGFloat {
-        let dx = lhs.x - rhs.x
-        let dy = lhs.y - rhs.y
-        return dx * dx + dy * dy
-    }
 }

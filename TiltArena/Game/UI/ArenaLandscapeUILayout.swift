@@ -6,15 +6,11 @@ struct ArenaLandscapeUILayout: Equatable {
     let margin: CGFloat
 
     var safeRect: CGRect {
-        Self.safeRect(sceneSize: sceneSize, safeAreaInsets: safeAreaInsets, margin: margin)
+        ArenaGeometry.safeRect(sceneSize: sceneSize, safeAreaInsets: safeAreaInsets, margin: margin)
     }
 
     var titlePosition: CGPoint {
         CGPoint(x: safeRect.minX, y: safeRect.maxY)
-    }
-
-    var topRightControlPosition: CGPoint {
-        CGPoint(x: safeRect.maxX, y: safeRect.maxY)
     }
 
     var bottomCenterPosition: CGPoint {
@@ -73,22 +69,4 @@ struct ArenaLandscapeUILayout: Equatable {
         )
     }
 
-    static func safeRect(
-        sceneSize: CGSize,
-        safeAreaInsets: UIEdgeInsets,
-        margin: CGFloat
-    ) -> CGRect {
-        let width = max(0, sceneSize.width)
-        let height = max(0, sceneSize.height)
-        let leftInset = max(0, min(safeAreaInsets.left, width))
-        let rightInset = max(0, min(safeAreaInsets.right, width - leftInset))
-        let bottomInset = max(0, min(safeAreaInsets.bottom, height))
-        let topInset = max(0, min(safeAreaInsets.top, height - bottomInset))
-        let minX = leftInset + margin
-        let maxX = max(minX, width - rightInset - margin)
-        let minY = bottomInset + margin
-        let maxY = max(minY, height - topInset - margin)
-
-        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
-    }
 }
