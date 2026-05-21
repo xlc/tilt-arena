@@ -47,7 +47,7 @@ struct TiltSignalProcessor {
         let neutral = settings.calibration.neutralGravity
         let rawInput = CGVector(
             dx: gravity.x - neutral.x,
-            dy: -(gravity.y - neutral.y)
+            dy: gravity.y - neutral.y
         )
         let magnitude = rawInput.length
         let deadZone = configuration.deadZoneMagnitude

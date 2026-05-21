@@ -8,14 +8,15 @@ final class ArenaThemeRenderer {
         self.theme = theme
     }
 
-    func makeArenaBackground(size: CGSize) -> SKNode {
+    func makeArenaBackground(size: CGSize, arenaRect: CGRect? = nil) -> SKNode {
+        let arenaRect = arenaRect ?? CGRect(origin: .zero, size: size)
         let root = SKNode()
         root.zPosition = -100
 
         root.addChild(makeBackdrop(size: size))
-        root.addChild(makeGrid(size: size))
-        root.addChild(makeRadarRings(size: size))
-        root.addChild(makeBorder(size: size))
+        root.addChild(makeGrid(in: arenaRect))
+        root.addChild(makeRadarRings(in: arenaRect))
+        root.addChild(makeBorder(in: arenaRect))
 
         return root
     }
@@ -28,21 +29,21 @@ final class ArenaThemeRenderer {
         return node
     }
 
-    private func makeGrid(size: CGSize) -> SKNode {
+    private func makeGrid(in rect: CGRect) -> SKNode {
         let path = CGMutablePath()
         let spacing: CGFloat = 48
 
-        var x: CGFloat = 0
-        while x <= size.width {
-            path.move(to: CGPoint(x: x, y: 0))
-            path.addLine(to: CGPoint(x: x, y: size.height))
+        var x = rect.minX
+        while x <= rect.maxX {
+            path.move(to: CGPoint(x: x, y: rect.minY))
+            path.addLine(to: CGPoint(x: x, y: rect.maxY))
             x += spacing
         }
 
-        var y: CGFloat = 0
-        while y <= size.height {
-            path.move(to: CGPoint(x: 0, y: y))
-            path.addLine(to: CGPoint(x: size.width, y: y))
+        var y = rect.minY
+        while y <= rect.maxY {
+            path.move(to: CGPoint(x: rect.minX, y: y))
+            path.addLine(to: CGPoint(x: rect.maxX, y: y))
             y += spacing
         }
 
@@ -53,10 +54,10 @@ final class ArenaThemeRenderer {
         return node
     }
 
-    private func makeRadarRings(size: CGSize) -> SKNode {
+    private func makeRadarRings(in rect: CGRect) -> SKNode {
         let root = SKNode()
-        let center = CGPoint(x: size.width / 2, y: size.height / 2)
-        let maxRadius = min(size.width, size.height) * 0.48
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let maxRadius = min(rect.width, rect.height) * 0.48
 
         for index in 1...4 {
             let radius = maxRadius * CGFloat(index) / 4
@@ -71,13 +72,13 @@ final class ArenaThemeRenderer {
         return root
     }
 
-    private func makeBorder(size: CGSize) -> SKNode {
+    private func makeBorder(in arenaRect: CGRect) -> SKNode {
         let inset: CGFloat = 14
         let rect = CGRect(
-            x: inset,
-            y: inset,
-            width: max(0, size.width - inset * 2),
-            height: max(0, size.height - inset * 2)
+            x: arenaRect.minX + inset,
+            y: arenaRect.minY + inset,
+            width: max(0, arenaRect.width - inset * 2),
+            height: max(0, arenaRect.height - inset * 2)
         )
 
         let border = SKShapeNode(rect: rect, cornerRadius: 6)

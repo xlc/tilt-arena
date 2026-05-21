@@ -1,8 +1,19 @@
 // swiftlint:disable file_length
 import SpriteKit
+import UIKit
+
+@MainActor
+protocol ArenaSceneOrientationDelegate: AnyObject {
+    func arenaSceneRequestsRunOrientationLock(
+        _ scene: ArenaScene,
+        preferredOrientation: TiltScreenOrientation
+    ) -> TiltScreenOrientation
+    func arenaSceneRequestsOrientationUnlock(_ scene: ArenaScene)
+}
 
 // swiftlint:disable:next type_body_length
 final class ArenaScene: SKScene {
+    weak var orientationDelegate: ArenaSceneOrientationDelegate?
     let theme = ArenaTheme.darkTacticalRadar
     private let tiltSettingsStore = TiltSettingsStore()
     private let runProfileStore = RunProfileStore()
@@ -56,6 +67,10 @@ final class ArenaScene: SKScene {
     private let hudMargin: CGFloat = 24
     private let pauseControlSize = CGSize(width: 48, height: 48)
     private var uiHitTargets: [ArenaControlHitTarget] = []
+    private var tiltReadoutValueLabels: [SKLabelNode] = []
+    private var tiltReadoutUpdateTime: TimeInterval = 0
+    private var runTiltScreenOrientation: TiltScreenOrientation?
+    private var lastKnownTiltScreenOrientation: TiltScreenOrientation = .landscapeLeft
     private var lastUpdateTime: TimeInterval?
 
     override init(size: CGSize) {
@@ -95,6 +110,7 @@ final class ArenaScene: SKScene {
     }
 
     override func willMove(from view: SKView) {
+        orientationDelegate?.arenaSceneRequestsOrientationUnlock(self)
         tiltInputController.stop()
         lastUpdateTime = nil
     }
@@ -118,18 +134,23 @@ final class ArenaScene: SKScene {
             updatePreRun(deltaTime: deltaTime)
         case .activeGameplay:
             updateGameplay(deltaTime: deltaTime)
-        case .home, .modeSelect, .awards, .options, .pause, .postRun:
+        case .options:
+            updateTiltReadoutDisplay(deltaTime: deltaTime)
+        case .home, .modeSelect, .awards, .pause, .postRun:
             break
         }
     }
 
     func recalibrateTiltControls() {
-        tiltInputController.recalibrateToCurrentAttitude()
+        tiltInputController.recalibrateToCurrentAttitude(orientation: currentTiltScreenOrientation)
         updateRunDisplay()
         rebuildUI()
     }
 
     func refreshSafeAreaLayout() {
+        rebuildArena()
+        let shouldResetPosition = playerNode == nil || uiState == .home
+        placePlayer(resetPosition: shouldResetPosition, resetTrail: shouldResetPosition)
         layoutLabels()
         layoutPauseControl()
         rebuildUI()
@@ -156,7 +177,10 @@ final class ArenaScene: SKScene {
 
     private func rebuildArena() {
         arenaRoot.removeFromParent()
-        arenaRoot = ArenaThemeRenderer(theme: theme).makeArenaBackground(size: size)
+        arenaRoot = ArenaThemeRenderer(theme: theme).makeArenaBackground(
+            size: size,
+            arenaRect: currentGameplayBounds
+        )
         addChild(arenaRoot)
     }
 
@@ -169,14 +193,14 @@ final class ArenaScene: SKScene {
         addChild(uiRoot)
     }
 
-    private func placePlayer(resetPosition: Bool) {
+    private func placePlayer(resetPosition: Bool, resetTrail: Bool = true) {
         ensurePlayerNodes()
 
         let state = resetPosition
-            ? movementController.reset(in: size)
-            : movementController.clampToArena(size)
+            ? movementController.reset(in: currentGameplayBounds)
+            : movementController.clampToArena(currentGameplayBounds)
 
-        applyPlayerState(state, resetTrail: true)
+        applyPlayerState(state, resetTrail: resetTrail)
     }
 
     private func ensurePlayerNodes() {
@@ -201,7 +225,7 @@ final class ArenaScene: SKScene {
 
         let speedFraction = state.velocity.length / max(
             1,
-            movementController.configuration.maximumSpeed(in: size)
+            movementController.configuration.maximumSpeed(in: currentGameplayBounds)
         )
 
         if resetTrail {
@@ -284,9 +308,34 @@ final class ArenaScene: SKScene {
         )
     }
 
+    var currentGameplayBounds: CGRect {
+        currentLandscapeLayout().safeRect
+    }
+
+    var currentPlayableRect: CGRect {
+        movementController.configuration.playableRect(in: currentGameplayBounds)
+    }
+
+    private var currentTiltScreenOrientation: TiltScreenOrientation {
+        if let runTiltScreenOrientation {
+            return runTiltScreenOrientation
+        }
+
+        if let windowOrientation = currentWindowTiltScreenOrientation {
+            lastKnownTiltScreenOrientation = windowOrientation
+            return windowOrientation
+        }
+
+        return lastKnownTiltScreenOrientation
+    }
+
+    private var currentWindowTiltScreenOrientation: TiltScreenOrientation? {
+        TiltScreenOrientation(interfaceOrientation: view?.window?.windowScene?.interfaceOrientation)
+    }
+
     private func updatePreRun(deltaTime: TimeInterval) {
-        let input = tiltInputController.update(deltaTime: deltaTime)
-        let state = movementController.update(input: input, deltaTime: deltaTime, arenaSize: size)
+        let input = tiltInputController.update(deltaTime: deltaTime, orientation: currentTiltScreenOrientation)
+        let state = movementController.update(input: input, deltaTime: deltaTime, arenaBounds: currentGameplayBounds)
         applyPlayerState(state, resetTrail: false)
 
         let holdState = readyHoldController.update(
@@ -306,9 +355,9 @@ final class ArenaScene: SKScene {
             return
         }
 
-        let input = tiltInputController.update(deltaTime: deltaTime)
+        let input = tiltInputController.update(deltaTime: deltaTime, orientation: currentTiltScreenOrientation)
         warpDashState.record(input: input)
-        let state = movementController.update(input: input, deltaTime: deltaTime, arenaSize: size)
+        let state = movementController.update(input: input, deltaTime: deltaTime, arenaBounds: currentGameplayBounds)
         applyPlayerState(state, resetTrail: false)
         updateActiveRun(deltaTime: deltaTime, playerPosition: state.position)
     }
@@ -426,12 +475,11 @@ final class ArenaScene: SKScene {
     }
 
     private func spawnEnemiesIfNeeded(deltaTime: TimeInterval, playerPosition: CGPoint) {
-        let playableRect = movementController.configuration.playableRect(in: size)
         let frame = spawnDirector.update(
             deltaTime: deltaTime,
             survivalTime: runController.survivalTime,
             activeEnemies: enemies,
-            playableRect: playableRect,
+            playableRect: currentPlayableRect,
             playerPosition: playerPosition,
             pickupCircles: pickups.map(\.collisionCircle)
         )
@@ -471,14 +519,13 @@ final class ArenaScene: SKScene {
     }
 
     private func spawnPickupIfNeeded(deltaTime: TimeInterval, playerPosition: CGPoint) {
-        let playableRect = movementController.configuration.playableRect(in: size)
         let enemyCircles = enemies.map(\.collisionCircle)
 
         guard let pickup = pickupPlanner.update(
             deltaTime: deltaTime,
             phase: runController.phase,
             activePickupCount: pickups.count,
-            playableRect: playableRect,
+            playableRect: currentPlayableRect,
             playerPosition: playerPosition,
             enemyCircles: enemyCircles,
             configuration: pickupSpawnConfiguration
@@ -505,8 +552,7 @@ final class ArenaScene: SKScene {
     }
 
     private func cullExitedLinearPatternEnemies() {
-        let playableRect = movementController.configuration.playableRect(in: size)
-        let cullingRect = playableRect.insetBy(
+        let cullingRect = currentPlayableRect.insetBy(
             dx: -spawnDirector.configuration.cullingOutset,
             dy: -spawnDirector.configuration.cullingOutset
         )
@@ -731,7 +777,7 @@ final class ArenaScene: SKScene {
         let state = movementController.dash(
             direction: warpDashState.resolvedDirection(),
             distance: warpDashDistance(),
-            arenaSize: size
+            arenaBounds: currentGameplayBounds
         )
 
         applyPlayerState(state, resetTrail: false)
@@ -743,8 +789,7 @@ final class ArenaScene: SKScene {
     }
 
     private func warpDashDistance() -> CGFloat {
-        let playableRect = movementController.configuration.playableRect(in: size)
-        return min(playableRect.width, playableRect.height)
+        min(currentPlayableRect.width, currentPlayableRect.height)
             * max(0, weaponResolver.configuration.warpDashDistanceFractionOfShortSide)
     }
 
@@ -925,13 +970,44 @@ private extension ArenaScene {
         }
 
         uiState = state
+        syncOrientationLock()
         updateRunDisplay()
         rebuildUI()
+    }
+
+    func syncOrientationLock() {
+        if shouldLockCurrentOrientation {
+            let preferredOrientation = currentWindowTiltScreenOrientation
+                ?? runTiltScreenOrientation
+                ?? lastKnownTiltScreenOrientation
+            let lockedOrientation = orientationDelegate?.arenaSceneRequestsRunOrientationLock(
+                self,
+                preferredOrientation: preferredOrientation
+            ) ?? preferredOrientation
+            runTiltScreenOrientation = lockedOrientation
+            lastKnownTiltScreenOrientation = lockedOrientation
+        } else {
+            runTiltScreenOrientation = nil
+            orientationDelegate?.arenaSceneRequestsOrientationUnlock(self)
+        }
+    }
+
+    var shouldLockCurrentOrientation: Bool {
+        switch uiState {
+        case .preRun, .activeGameplay, .pause, .postRun:
+            return true
+        case .options:
+            return optionsReturnState.requiresLockedRunOrientation
+        case .home, .modeSelect, .awards:
+            return false
+        }
     }
 
     func rebuildUI() {
         uiRoot.removeAllChildren()
         uiHitTargets.removeAll()
+        tiltReadoutValueLabels.removeAll()
+        tiltReadoutUpdateTime = 0
         readyProgressRing = nil
         readyStatusLabel = nil
 
@@ -955,6 +1031,32 @@ private extension ArenaScene {
         }
 
         updateRunDisplay()
+    }
+
+    func updateTiltReadoutDisplay(deltaTime: TimeInterval) {
+        tiltReadoutUpdateTime += deltaTime
+        guard tiltReadoutUpdateTime >= 0.12 else {
+            return
+        }
+
+        updateTiltReadoutDisplay(force: true)
+    }
+
+    func updateTiltReadoutDisplay(force: Bool) {
+        guard force, !tiltReadoutValueLabels.isEmpty else {
+            return
+        }
+
+        tiltReadoutUpdateTime = 0
+        let orientation = currentTiltScreenOrientation
+        let rows = TiltReadoutFormatter.rows(
+            for: tiltInputController.readout(orientation: orientation),
+            fallbackOrientation: orientation
+        )
+
+        for (label, row) in zip(tiltReadoutValueLabels, rows) {
+            label.text = row.value
+        }
     }
 
     func renderHome() {
@@ -1100,31 +1202,31 @@ private extension ArenaScene {
     func renderTiltOptions(in frame: CGRect) {
         addButton(
             "CALIBRATE",
-            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 62, width: 148, height: 40),
+            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 54, width: 148, height: 34),
             action: .calibrate,
             style: .primary
         )
         let settings = tiltSettingsStore.settings
         addSmallLabel(
             "SENSITIVITY \(String(format: "%.1f", settings.clampedSensitivity))",
-            at: CGPoint(x: frame.minX + 14, y: frame.maxY - 90),
+            at: CGPoint(x: frame.minX + 14, y: frame.maxY - 84),
             color: theme.borderColor,
             alignment: .left
         )
         addButton(
             "-",
-            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 140, width: 44, height: 36),
+            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 124, width: 44, height: 30),
             action: .sensitivityDown,
             style: .secondary
         )
         addButton(
             "+",
-            frame: CGRect(x: frame.minX + 70, y: frame.maxY - 140, width: 44, height: 36),
+            frame: CGRect(x: frame.minX + 70, y: frame.maxY - 124, width: 44, height: 30),
             action: .sensitivityUp,
             style: .secondary
         )
 
-        let presetY = frame.maxY - 196
+        let presetY = frame.maxY - 162
         for (index, preset) in [TiltCalibrationPreset.standard, .flatTable, .reclined].enumerated() {
             let buttonFrame = CGRect(
                 x: frame.minX + 14 + CGFloat(index) * 82,
@@ -1139,6 +1241,40 @@ private extension ArenaScene {
                 style: settings.calibration.preset == preset ? .primary : .secondary
             )
         }
+
+        renderTiltReadout(in: frame)
+    }
+
+    func renderTiltReadout(in frame: CGRect) {
+        tiltReadoutValueLabels.removeAll()
+        let rows = TiltReadoutFormatter.rows(
+            for: nil,
+            fallbackOrientation: currentTiltScreenOrientation
+        )
+        let startY = frame.minY + 58
+        let rowSpacing: CGFloat = 12
+
+        for (index, row) in rows.enumerated() {
+            let y = startY - CGFloat(index) * rowSpacing
+            addLabel(
+                row.title,
+                at: CGPoint(x: frame.minX + 14, y: y),
+                fontSize: 10,
+                color: theme.borderColor,
+                alignment: .left
+            )
+            let valueLabel = makeLabel(
+                row.value,
+                at: CGPoint(x: frame.maxX - 14, y: y),
+                fontSize: 10,
+                color: theme.playerAccentColor,
+                alignment: .right
+            )
+            tiltReadoutValueLabels.append(valueLabel)
+            uiRoot.addChild(valueLabel)
+        }
+
+        updateTiltReadoutDisplay(force: true)
     }
 
     func renderLocalOptions(in frame: CGRect) {
@@ -1733,6 +1869,16 @@ private extension ArenaScene {
         color: SKColor,
         alignment: SKLabelHorizontalAlignmentMode
     ) {
+        uiRoot.addChild(makeLabel(text, at: position, fontSize: fontSize, color: color, alignment: alignment))
+    }
+
+    func makeLabel(
+        _ text: String,
+        at position: CGPoint,
+        fontSize: CGFloat,
+        color: SKColor,
+        alignment: SKLabelHorizontalAlignmentMode
+    ) -> SKLabelNode {
         let label = SKLabelNode(fontNamed: fontSize >= 16 ? "Menlo-Bold" : "Menlo")
         label.text = text
         label.fontSize = fontSize
@@ -1741,7 +1887,7 @@ private extension ArenaScene {
         label.verticalAlignmentMode = .center
         label.position = position
         label.zPosition = ArenaUIZPosition.label
-        uiRoot.addChild(label)
+        return label
     }
 
     func presetTitle(_ preset: TiltCalibrationPreset) -> String {

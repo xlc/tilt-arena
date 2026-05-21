@@ -1,12 +1,16 @@
 import Foundation
 
 final class TiltSettingsStore {
+    private static let currentCalibrationSpaceVersion = 2
+
     private let defaults: UserDefaults
     private let settingsKey = "tiltArena.tiltControlSettings"
     private let initialCalibrationKey = "tiltArena.hasCapturedInitialTiltCalibration"
+    private let calibrationSpaceVersionKey = "tiltArena.tiltCalibrationSpaceVersion"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        migrateCalibrationSpaceIfNeeded()
     }
 
     var settings: TiltControlSettings {
@@ -40,12 +44,14 @@ final class TiltSettingsStore {
 
         recalibrate(using: gravity)
         defaults.set(true, forKey: initialCalibrationKey)
+        markCurrentCalibrationSpaceVersion()
     }
 
     func recalibrate(using gravity: TiltGravityVector) {
         var currentSettings = settings
         currentSettings.calibration = .custom(neutralGravity: gravity)
         settings = currentSettings
+        markCurrentCalibrationSpaceVersion()
     }
 
     func selectPreset(_ preset: TiltCalibrationPreset) {
@@ -53,6 +59,7 @@ final class TiltSettingsStore {
         currentSettings.calibration = .defaultCalibration(for: preset)
         settings = currentSettings
         defaults.set(true, forKey: initialCalibrationKey)
+        markCurrentCalibrationSpaceVersion()
     }
 
     func updateSensitivity(_ sensitivity: Double) {
@@ -67,5 +74,30 @@ final class TiltSettingsStore {
     func reset() {
         defaults.removeObject(forKey: settingsKey)
         defaults.removeObject(forKey: initialCalibrationKey)
+        defaults.removeObject(forKey: calibrationSpaceVersionKey)
+    }
+
+    private func migrateCalibrationSpaceIfNeeded() {
+        guard defaults.integer(forKey: calibrationSpaceVersionKey) < Self.currentCalibrationSpaceVersion else {
+            return
+        }
+
+        guard defaults.data(forKey: settingsKey) != nil else {
+            markCurrentCalibrationSpaceVersion()
+            return
+        }
+
+        var currentSettings = settings
+        if currentSettings.calibration.preset == .custom {
+            currentSettings.calibration = TiltControlSettings.defaults.calibration
+            settings = currentSettings
+            defaults.removeObject(forKey: initialCalibrationKey)
+        }
+
+        markCurrentCalibrationSpaceVersion()
+    }
+
+    private func markCurrentCalibrationSpaceVersion() {
+        defaults.set(Self.currentCalibrationSpaceVersion, forKey: calibrationSpaceVersionKey)
     }
 }
