@@ -2,7 +2,7 @@ import XCTest
 @testable import TiltArena
 
 final class ArenaMenuContentTests: XCTestCase {
-    func testModeRowsKeepClassicAvailableAndGateMockModesFromProfile() {
+    func testModeRowsUseModeRulesForAvailabilityAndStatus() {
         var profile = RunProfile()
 
         var rows = ArenaMenuContent.modeRows(profile: profile, selectedMode: .classic)
@@ -19,6 +19,18 @@ final class ArenaMenuContentTests: XCTestCase {
         XCTAssertEqual(rows[1].statusText, "AVAILABLE")
         XCTAssertTrue(rows[2].isAvailable)
         XCTAssertEqual(rows[2].statusText, "AVAILABLE")
+    }
+
+    func testActiveUnlockTextComesFromModeRules() {
+        var profile = RunProfile()
+
+        XCTAssertEqual(ArenaMenuContent.activeUnlockText(profile: profile), "REDLINE 0/5000")
+
+        profile.bestScore = 5_000
+        XCTAssertEqual(ArenaMenuContent.activeUnlockText(profile: profile), "DAILY 0/400")
+
+        profile.totalEnemiesDestroyed = 400
+        XCTAssertEqual(ArenaMenuContent.activeUnlockText(profile: profile), "ALL LOCAL MODES READY")
     }
 
     func testAwardRowsUseProfileDataAndMarkPlaceholderProgress() {

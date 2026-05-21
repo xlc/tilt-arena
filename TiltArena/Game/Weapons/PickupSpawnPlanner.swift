@@ -57,15 +57,23 @@ struct PickupSpawnPlanner {
     private var nextCandidateIndex = 0
     private var timeUntilNextSpawn: TimeInterval
 
-    init(configuration: PickupSpawnConfiguration = PickupSpawnConfiguration()) {
+    init(
+        configuration: PickupSpawnConfiguration = PickupSpawnConfiguration(),
+        sequenceSeed: Int? = nil
+    ) {
         timeUntilNextSpawn = configuration.initialSpawnDelay
+        applySequenceSeed(sequenceSeed, configuration: configuration)
     }
 
-    mutating func reset(configuration: PickupSpawnConfiguration = PickupSpawnConfiguration()) {
+    mutating func reset(
+        configuration: PickupSpawnConfiguration = PickupSpawnConfiguration(),
+        sequenceSeed: Int? = nil
+    ) {
         nextPickupID = 1
         nextKindIndex = 0
         nextCandidateIndex = 0
         timeUntilNextSpawn = configuration.initialSpawnDelay
+        applySequenceSeed(sequenceSeed, configuration: configuration)
     }
 
     mutating func update(
@@ -184,6 +192,20 @@ struct PickupSpawnPlanner {
             x: rect.minX + rect.width * normalized.x,
             y: rect.minY + rect.height * normalized.y
         )
+    }
+
+    private mutating func applySequenceSeed(_ seed: Int?, configuration: PickupSpawnConfiguration) {
+        guard let seed else {
+            return
+        }
+
+        nextKindIndex = positiveModulo(seed, max(1, configuration.weaponKindCycle.count))
+        nextCandidateIndex = positiveModulo(seed / 3, Self.candidatePositions.count)
+    }
+
+    private func positiveModulo(_ value: Int, _ divisor: Int) -> Int {
+        let remainder = value % divisor
+        return remainder >= 0 ? remainder : remainder + divisor
     }
 
 }

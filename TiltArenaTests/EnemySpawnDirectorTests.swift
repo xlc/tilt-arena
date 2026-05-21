@@ -66,6 +66,26 @@ final class EnemySpawnDirectorTests: XCTestCase {
         XCTAssertTrue(cappedFrame.newEnemies.isEmpty)
     }
 
+    func testSequenceSeedOffsetsChaserSpawnsRepeatably() {
+        var configuration = EnemySpawnConfiguration()
+        configuration.playerSafetyRadius = 0
+        configuration.warmup = EnemyPhaseTuning(
+            chaserSpawnInterval: 1,
+            chaserSpeed: 50,
+            maxActiveEnemies: 3,
+            formationSpawnInterval: nil,
+            formationSpeed: 80,
+            formationLaneCount: 5
+        )
+
+        let firstSeedFrame = firstChaserFrame(configuration: configuration, sequenceSeed: 20_260_521)
+        let repeatSeedFrame = firstChaserFrame(configuration: configuration, sequenceSeed: 20_260_521)
+        let nextSeedFrame = firstChaserFrame(configuration: configuration, sequenceSeed: 20_260_522)
+
+        XCTAssertEqual(firstSeedFrame.newEnemies.first?.position, repeatSeedFrame.newEnemies.first?.position)
+        XCTAssertNotEqual(firstSeedFrame.newEnemies.first?.position, nextSeedFrame.newEnemies.first?.position)
+    }
+
     func testEnemyTelegraphsBeforeSpawningAndLeavesPlayerLaneGap() {
         var configuration = formationTestConfiguration()
         configuration.playerSafetyRadius = 20
@@ -511,4 +531,16 @@ final class EnemySpawnDirectorTests: XCTestCase {
         lhs.dx * rhs.dx + lhs.dy * rhs.dy
     }
 
+}
+
+private func firstChaserFrame(configuration: EnemySpawnConfiguration, sequenceSeed: Int) -> EnemySpawnFrame {
+    var director = EnemySpawnDirector(configuration: configuration, sequenceSeed: sequenceSeed)
+    return director.update(
+        deltaTime: 0.1,
+        survivalTime: 0,
+        activeEnemies: [],
+        playableRect: CGRect(x: 0, y: 0, width: 320, height: 600),
+        playerPosition: CGPoint(x: 160, y: 300),
+        pickupCircles: []
+    )
 }

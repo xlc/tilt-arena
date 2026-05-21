@@ -80,11 +80,15 @@ struct EnemySpawnDirector {
         return Set(trapIDs).count
     }
 
-    init(configuration: EnemySpawnConfiguration = EnemySpawnConfiguration()) {
+    init(
+        configuration: EnemySpawnConfiguration = EnemySpawnConfiguration(),
+        sequenceSeed: Int? = nil
+    ) {
         self.configuration = configuration
+        applySequenceSeed(sequenceSeed)
     }
 
-    mutating func reset() {
+    mutating func reset(sequenceSeed: Int? = nil) {
         nextEnemyID = 1
         nextFormationID = 1
         nextTelegraphID = 1
@@ -103,6 +107,7 @@ struct EnemySpawnDirector {
         timeUntilNextHunterDot = 0
         timeUntilNextPaddleTrap = 0
         pendingSpawns.removeAll()
+        applySequenceSeed(sequenceSeed)
     }
 
     mutating func update(
@@ -281,6 +286,25 @@ struct EnemySpawnDirector {
         }
 
         return nil
+    }
+
+    private mutating func applySequenceSeed(_ seed: Int?) {
+        guard let seed else {
+            return
+        }
+
+        nextChaserCandidateIndex = positiveModulo(seed, Self.candidateSideCount * Self.candidateLaneCount)
+        nextFormationDirectionIndex = positiveModulo(seed / 3, EdgeDirection.allCases.count)
+        nextArrowRushDirectionIndex = positiveModulo(seed / 5, EdgeDirection.allCases.count)
+        nextMineDotCandidateIndex = positiveModulo(seed / 7, Self.candidateSideCount * Self.candidateLaneCount)
+        nextHunterDotCandidateIndex = positiveModulo(seed / 11, Self.candidateSideCount * Self.candidateLaneCount)
+        nextPaddleTrapCandidateIndex = positiveModulo(seed / 13, Self.candidateSideCount * Self.candidateLaneCount)
+        nextPaddleTrapOrientationIndex = positiveModulo(seed / 17, 2)
+    }
+
+    private func positiveModulo(_ value: Int, _ divisor: Int) -> Int {
+        let remainder = value % divisor
+        return remainder >= 0 ? remainder : remainder + divisor
     }
 
     private mutating func spawnFormationTelegraphIfNeeded(

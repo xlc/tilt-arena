@@ -25,7 +25,7 @@ final class ArenaScene: SKScene {
     private var readyProgressRing: SKShapeNode?
     private var readyStatusLabel: SKLabelNode?
     private var spawnDirector = EnemySpawnDirector()
-    private let pickupSpawnConfiguration = PickupSpawnConfiguration()
+    private var pickupSpawnConfiguration = PickupSpawnConfiguration()
     private var pickupPlanner = PickupSpawnPlanner()
     let weaponResolver = StartingWeaponResolver()
     private var enemies: [ArenaEnemy] = []
@@ -361,18 +361,22 @@ final class ArenaScene: SKScene {
     }
 
     private func resetGameplayObjects() {
+        let modeSettings = applySelectedModeRunSettings()
         enemies.removeAll()
         enemyNodes.values.forEach { $0.removeFromParent() }
         enemyNodes.removeAll()
         enemyTelegraphNodes.values.forEach { $0.removeFromParent() }
         enemyTelegraphNodes.removeAll()
         formationEnemyIDs.removeAll()
-        spawnDirector.reset()
+        spawnDirector.reset(sequenceSeed: modeSettings.sequenceSeed)
 
         pickups.removeAll()
         pickupNodes.values.forEach { $0.removeFromParent() }
         pickupNodes.removeAll()
-        pickupPlanner.reset(configuration: pickupSpawnConfiguration)
+        pickupPlanner.reset(
+            configuration: pickupSpawnConfiguration,
+            sequenceSeed: modeSettings.sequenceSeed
+        )
         deactivateRazorShield()
         frozenCrasherTimeRemaining = 0
         flameTrailState.reset()
@@ -382,6 +386,13 @@ final class ArenaScene: SKScene {
         warpDashInvulnerabilityTimeRemaining = 0
         decoyBeaconState.reset()
         deactivateDecoyBeaconEffect()
+    }
+
+    private func applySelectedModeRunSettings() -> ArenaModeRunSettings {
+        let settings = ArenaModeRules.runSettings(for: selectedMode)
+        spawnDirector.configuration = settings.enemySpawnConfiguration
+        pickupSpawnConfiguration = settings.pickupSpawnConfiguration
+        return settings
     }
 
     private func resetPlayerFeedback() {
