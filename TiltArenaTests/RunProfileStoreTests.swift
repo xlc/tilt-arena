@@ -56,4 +56,22 @@ final class RunProfileStoreTests: XCTestCase {
 
         XCTAssertEqual(store.profile, RunProfile())
     }
+
+    func testResetClearsPersistedProfile() {
+        let store = RunProfileStore(defaults: defaults)
+        store.record(
+            RunSummary(
+                score: 100,
+                survivalTime: 5,
+                maxCombo: 2,
+                enemiesDestroyed: 3,
+                bestWeapon: .shockwave,
+                timestamp: Date(timeIntervalSince1970: 1)
+            )
+        )
+
+        store.reset()
+
+        XCTAssertEqual(store.profile, RunProfile())
+    }
 }

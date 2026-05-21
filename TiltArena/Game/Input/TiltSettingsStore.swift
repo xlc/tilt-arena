@@ -63,4 +63,9 @@ final class TiltSettingsStore {
         )
         settings = currentSettings
     }
+
+    func reset() {
+        defaults.removeObject(forKey: settingsKey)
+        defaults.removeObject(forKey: initialCalibrationKey)
+    }
 }

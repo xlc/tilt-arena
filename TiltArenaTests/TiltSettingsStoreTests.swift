@@ -50,4 +50,15 @@ final class TiltSettingsStoreTests: XCTestCase {
         XCTAssertFalse(store.needsInitialCalibration)
         XCTAssertEqual(store.settings.calibration, .defaultCalibration(for: .flatTable))
     }
+
+    func testResetRestoresDefaultSettingsAndInitialCalibrationNeed() {
+        let store = TiltSettingsStore(defaults: defaults)
+        store.selectPreset(.reclined)
+        store.updateSensitivity(1.3)
+
+        store.reset()
+
+        XCTAssertTrue(store.needsInitialCalibration)
+        XCTAssertEqual(store.settings, .defaults)
+    }
 }
