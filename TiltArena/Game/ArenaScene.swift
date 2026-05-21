@@ -20,6 +20,7 @@ final class ArenaScene: SKScene {
     private let tiltSettingsStore = TiltSettingsStore()
     private let runProfileStore = RunProfileStore()
     private let localOptionsStore = ArenaLocalOptionsStore()
+    private let hapticsController = ArenaHapticsController()
     private var arenaRoot = SKNode()
     private let uiRoot = SKNode()
     private lazy var tiltInputController = TiltInputController(settingsStore: tiltSettingsStore)
@@ -97,6 +98,7 @@ final class ArenaScene: SKScene {
     override func didMove(to view: SKView) {
         runProfile = runProfileStore.profile
         localOptions = localOptionsStore.options
+        syncHapticsOption()
         backgroundColor = theme.backgroundColor
         rebuildArena()
         if flameTrailEffectNode.parent == nil { addChild(flameTrailEffectNode) }
@@ -493,6 +495,7 @@ final class ArenaScene: SKScene {
         runController.start()
         readyHoldController.reset()
         resetActiveRun()
+        hapticsController.prepare()
         show(.activeGameplay)
     }
 
@@ -511,9 +514,14 @@ final class ArenaScene: SKScene {
     private func finishRun(playFeedback: Bool = true) {
         previousBestScore = runProfile.bestScore
         runController.endRun(mode: selectedMode)
+        let isNewBest = (runController.finalizedSummary?.score ?? runController.score) > previousBestScore
         persistFinalRunIfNeeded()
         if playFeedback {
             playDeathFeedback()
+            playHaptic(.death)
+        }
+        if isNewBest {
+            playHaptic(.newBest)
         }
         show(.postRun)
     }
@@ -767,9 +775,13 @@ final class ArenaScene: SKScene {
         }
 
         for pickup in collectedPickups {
+            let creditedDangerGrab: Bool
             if isDangerGrab(pickup) {
-                runController.recordDangerGrab(pickupID: pickup.id)
+                creditedDangerGrab = runController.recordDangerGrab(pickupID: pickup.id)
+            } else {
+                creditedDangerGrab = false
             }
+            playHaptic(creditedDangerGrab ? .dangerPickup : .pickup)
 
             removePickup(id: pickup.id)
             applyWeapon(pickup.kind, playerPosition: currentPlayerPosition)
@@ -847,7 +859,9 @@ final class ArenaScene: SKScene {
             return
         }
 
+        let previousComboMultiplier = runController.comboMultiplier
         runController.recordEnemyKills(count: enemyIDs.count, weaponKind: weaponKind)
+        playEnemyClearHaptics(killCount: enemyIDs.count, previousComboMultiplier: previousComboMultiplier)
         removeEnemies(ids: enemyIDs)
     }
 
@@ -927,14 +941,19 @@ final class ArenaScene: SKScene {
         razorShieldTimeRemaining = max(0, razorShieldTimeRemaining - max(0, deltaTime))
 
         if razorShieldTimeRemaining == 0 {
-            deactivateRazorShield()
+            deactivateRazorShield(emitHaptic: true)
         }
     }
 
-    private func deactivateRazorShield() {
+    private func deactivateRazorShield(emitHaptic: Bool = false) {
+        let hadActiveShield = razorShieldNode != nil || razorShieldTimeRemaining > 0
         razorShieldTimeRemaining = 0
         razorShieldNode?.removeFromParent()
         razorShieldNode = nil
+
+        if emitHaptic, hadActiveShield, runController.phase == .active {
+            playHaptic(.shieldExpired)
+        }
     }
 
     private func updateFlameTrail(deltaTime: TimeInterval, playerPosition: CGPoint) {
@@ -999,6 +1018,23 @@ final class ArenaScene: SKScene {
         let settle = SKAction.scale(to: 1.0, duration: 0.08)
 
         playerNode?.run(.sequence([pulse, settle]))
+    }
+
+    private func syncHapticsOption() {
+        hapticsController.isEnabled = localOptions.hapticsEnabled
+    }
+
+    private func playHaptic(_ event: ArenaHapticEvent) {
+        hapticsController.play(event)
+    }
+
+    private func playEnemyClearHaptics(killCount: Int, previousComboMultiplier: Int) {
+        playHaptic(.enemyClear(count: killCount))
+
+        let currentComboMultiplier = runController.comboMultiplier
+        if currentComboMultiplier > previousComboMultiplier {
+            playHaptic(.comboMilestone(multiplier: currentComboMultiplier))
+        }
     }
 
     private func updateRunDisplay() {
@@ -1083,12 +1119,18 @@ final class ArenaScene: SKScene {
             radius: runController.configuration.playerHitRadius + runController.configuration.nearMissEdgeGap
         )
 
+        var didRecordNearMiss = false
+
         for enemy in enemies where nearMissCircle.intersects(enemy.collisionCircle) {
             guard !hitCircle.intersects(enemy.collisionCircle) else {
                 continue
             }
 
-            runController.recordNearMiss(enemyID: enemy.id)
+            didRecordNearMiss = runController.recordNearMiss(enemyID: enemy.id) || didRecordNearMiss
+        }
+
+        if didRecordNearMiss {
+            playHaptic(.nearMiss)
         }
     }
 
@@ -1844,6 +1886,7 @@ private extension ArenaScene {
         case .toggleHaptics:
             localOptions.hapticsEnabled.toggle()
             localOptionsStore.options = localOptions
+            syncHapticsOption()
             rebuildUI()
         case .toggleEffects:
             localOptions.reducedEffects.toggle()
@@ -1904,6 +1947,7 @@ private extension ArenaScene {
         localOptionsStore.reset()
         runProfile = RunProfile()
         localOptions = .defaults
+        syncHapticsOption()
         lastProgressionResult = nil
         selectedMode = .classic
         resetDataArmed = false
@@ -2351,7 +2395,9 @@ private extension ArenaScene {
             return
         }
         playFrozenShatterEffect(at: positions(forEnemyIDs: shatterIDs), color: theme.playerColor)
+        let previousComboMultiplier = runController.comboMultiplier
         runController.recordFrozenShatters(count: shatterIDs.count, weaponKind: .freezeBurst)
+        playEnemyClearHaptics(killCount: shatterIDs.count, previousComboMultiplier: previousComboMultiplier)
         removeEnemies(ids: shatterIDs)
     }
 }
