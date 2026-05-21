@@ -14,7 +14,6 @@ struct ArenaAwardRow: Equatable {
     let progressText: String
     let progressFraction: Double
     let isComplete: Bool
-    let isPlaceholderProgress: Bool
 }
 
 struct ArenaMenuContent {
@@ -32,44 +31,7 @@ struct ArenaMenuContent {
     }
 
     static func awardRows(profile: RunProfile) -> [ArenaAwardRow] {
-        [
-            award(
-                title: "COMBO SPARK",
-                progress: profile.highestCombo,
-                target: 10,
-                placeholder: false
-            ),
-            award(
-                title: "SCORE CREST",
-                progress: profile.bestScore,
-                target: 5_000,
-                placeholder: false
-            ),
-            award(
-                title: "FREEZE SHATTER",
-                progress: min(profile.totalEnemiesDestroyed, 25),
-                target: 25,
-                placeholder: true
-            ),
-            award(
-                title: "DANGER GRAB",
-                progress: min(profile.totalRuns, 5),
-                target: 5,
-                placeholder: true
-            ),
-            award(
-                title: "WEAPON MASTER",
-                progress: profile.totalEnemiesDestroyed,
-                target: 250,
-                placeholder: true
-            ),
-            award(
-                title: "SURVIVOR",
-                progress: Int(profile.longestSurvivalTime),
-                target: 120,
-                placeholder: false
-            )
-        ]
+        ArenaAwardID.allCases.map { award(id: $0, profile: profile) }
     }
 
     static func activeUnlockText(profile: RunProfile) -> String {
@@ -79,37 +41,46 @@ struct ArenaMenuContent {
     static func postRunHighlights(
         summary: RunSummary?,
         profile: RunProfile,
-        previousBestScore: Int
+        previousBestScore: Int,
+        progressionResult: ArenaProgressionResult? = nil
     ) -> [String] {
         guard let summary else {
             return ["NO RUN SUMMARY"]
         }
 
         let bestText = summary.score > previousBestScore ? "NEW BEST" : "BEST \(profile.bestScore)"
-        return [
+        var highlights = [
             bestText,
             "TIME \(formatTime(summary.survivalTime))",
             "MAX COMBO \(summary.maxCombo)",
             "KILLS \(summary.enemiesDestroyed)",
-            "WEAPON \(summary.bestWeapon?.displayName.uppercased() ?? "NONE")",
-            activeUnlockText(profile: profile)
+            "WEAPON \(summary.bestWeapon?.displayName.uppercased() ?? "NONE")"
         ]
+
+        if let unlockText = ArenaProgressionRules.unlockSummaryText(
+            weapons: progressionResult?.newlyUnlockedWeapons ?? []
+        ) {
+            highlights.append(unlockText)
+        }
+
+        if let awardText = ArenaProgressionRules.awardSummaryText(
+            ids: progressionResult?.newlyEarnedAwardIDs ?? []
+        ) {
+            highlights.append(awardText)
+        }
+
+        highlights.append(activeUnlockText(profile: profile))
+        return highlights
     }
 
-    private static func award(
-        title: String,
-        progress: Int,
-        target: Int,
-        placeholder: Bool
-    ) -> ArenaAwardRow {
-        let clampedTarget = max(1, target)
-        let clampedProgress = max(0, min(progress, clampedTarget))
+    private static func award(id: ArenaAwardID, profile: RunProfile) -> ArenaAwardRow {
+        let progress = ArenaProgressionRules.awardProgress(for: id, profile: profile)
+
         return ArenaAwardRow(
-            title: title,
-            progressText: "\(clampedProgress)/\(clampedTarget)",
-            progressFraction: Double(clampedProgress) / Double(clampedTarget),
-            isComplete: clampedProgress >= clampedTarget,
-            isPlaceholderProgress: placeholder
+            title: progress.title,
+            progressText: "\(progress.progress)/\(progress.target)",
+            progressFraction: Double(progress.progress) / Double(progress.target),
+            isComplete: progress.isComplete
         )
     }
 

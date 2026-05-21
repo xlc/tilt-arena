@@ -7,17 +7,16 @@ struct ArenaModeRunSettings: Equatable {
 }
 
 struct ArenaModeRules {
-    static let redlineBestScoreRequirement = 5_000
-    static let dailyEnemyUnlockRequirement = 400
+    static let redlineBestScoreRequirement = ArenaProgressionRules.redlineBestScoreRequirement
 
     static func isAvailable(_ mode: ArenaModeKind, profile: RunProfile) -> Bool {
         switch mode {
         case .classic:
             return true
         case .redline:
-            return profile.bestScore >= redlineBestScoreRequirement
+            return ArenaProgressionRules.isRedlineAvailable(profile: profile)
         case .daily:
-            return profile.totalEnemiesDestroyed >= dailyEnemyUnlockRequirement
+            return ArenaProgressionRules.isDailyAvailable(profile: profile)
         }
     }
 
@@ -47,47 +46,58 @@ struct ArenaModeRules {
         case .redline:
             return "\(min(profile.bestScore, redlineBestScoreRequirement))/\(redlineBestScoreRequirement) CLASSIC BEST"
         case .daily:
-            return "\(min(profile.totalEnemiesDestroyed, dailyEnemyUnlockRequirement))/\(dailyEnemyUnlockRequirement) UNLOCK TRACK"
+            return "\(ArenaProgressionRules.unlockedWeapons(for: profile).count)/\(ArenaProgressionRules.allGameplayWeapons.count) WEAPONS"
         }
     }
 
     static func activeUnlockText(profile: RunProfile) -> String {
-        if !isAvailable(.redline, profile: profile) {
-            return "REDLINE \(min(profile.bestScore, redlineBestScoreRequirement))/\(redlineBestScoreRequirement)"
-        }
-
-        if !isAvailable(.daily, profile: profile) {
-            return "DAILY \(min(profile.totalEnemiesDestroyed, dailyEnemyUnlockRequirement))/\(dailyEnemyUnlockRequirement)"
-        }
-
-        return "ALL LOCAL MODES READY"
+        ArenaProgressionRules.nextUnlockText(profile: profile)
     }
 
     static func runSettings(
         for mode: ArenaModeKind,
+        profile: RunProfile? = nil,
         date: Date = Date(),
         calendar: Calendar = .current
     ) -> ArenaModeRunSettings {
+        let settings: ArenaModeRunSettings
+
         switch mode {
         case .classic:
-            return ArenaModeRunSettings(
+            settings = ArenaModeRunSettings(
                 enemySpawnConfiguration: EnemySpawnConfiguration(),
                 pickupSpawnConfiguration: PickupSpawnConfiguration(),
                 sequenceSeed: nil
             )
         case .redline:
-            return ArenaModeRunSettings(
+            settings = ArenaModeRunSettings(
                 enemySpawnConfiguration: redlineEnemySpawnConfiguration(),
                 pickupSpawnConfiguration: redlinePickupSpawnConfiguration(),
                 sequenceSeed: nil
             )
         case .daily:
-            return ArenaModeRunSettings(
+            settings = ArenaModeRunSettings(
                 enemySpawnConfiguration: EnemySpawnConfiguration(),
                 pickupSpawnConfiguration: PickupSpawnConfiguration(),
                 sequenceSeed: dailySeed(for: date, calendar: calendar)
             )
         }
+
+        guard let profile else {
+            return settings
+        }
+
+        var pickupSpawnConfiguration = settings.pickupSpawnConfiguration
+        pickupSpawnConfiguration.weaponKindCycle = ArenaProgressionRules.filteredWeaponCycle(
+            pickupSpawnConfiguration.weaponKindCycle,
+            profile: profile
+        )
+
+        return ArenaModeRunSettings(
+            enemySpawnConfiguration: settings.enemySpawnConfiguration,
+            pickupSpawnConfiguration: pickupSpawnConfiguration,
+            sequenceSeed: settings.sequenceSeed
+        )
     }
 
     static func dailySeed(for date: Date = Date(), calendar: Calendar = .current) -> Int {

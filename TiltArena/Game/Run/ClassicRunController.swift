@@ -37,6 +37,46 @@ struct RunSummary: Codable, Equatable {
     let enemiesDestroyed: Int
     let bestWeapon: WeaponKind?
     let timestamp: Date
+    let mode: ArenaModeKind
+
+    private enum CodingKeys: String, CodingKey {
+        case score
+        case survivalTime
+        case maxCombo
+        case enemiesDestroyed
+        case bestWeapon
+        case timestamp
+        case mode
+    }
+
+    init(
+        score: Int,
+        survivalTime: TimeInterval,
+        maxCombo: Int,
+        enemiesDestroyed: Int,
+        bestWeapon: WeaponKind?,
+        timestamp: Date,
+        mode: ArenaModeKind = .classic
+    ) {
+        self.score = score
+        self.survivalTime = survivalTime
+        self.maxCombo = maxCombo
+        self.enemiesDestroyed = enemiesDestroyed
+        self.bestWeapon = bestWeapon
+        self.timestamp = timestamp
+        self.mode = mode
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        score = try container.decode(Int.self, forKey: .score)
+        survivalTime = try container.decode(TimeInterval.self, forKey: .survivalTime)
+        maxCombo = try container.decode(Int.self, forKey: .maxCombo)
+        enemiesDestroyed = try container.decode(Int.self, forKey: .enemiesDestroyed)
+        bestWeapon = try container.decodeIfPresent(WeaponKind.self, forKey: .bestWeapon)
+        timestamp = try container.decode(Date.self, forKey: .timestamp)
+        mode = try container.decodeIfPresent(ArenaModeKind.self, forKey: .mode) ?? .classic
+    }
 }
 
 struct ClassicRunController {
@@ -79,7 +119,7 @@ struct ClassicRunController {
         phase = .active
     }
 
-    mutating func endRun(at timestamp: Date = Date()) {
+    mutating func endRun(at timestamp: Date = Date(), mode: ArenaModeKind = .classic) {
         guard phase == .active || phase == .paused else {
             return
         }
@@ -91,7 +131,8 @@ struct ClassicRunController {
             maxCombo: maxCombo,
             enemiesDestroyed: enemiesDestroyed,
             bestWeapon: bestWeapon,
-            timestamp: timestamp
+            timestamp: timestamp,
+            mode: mode
         )
     }
 
