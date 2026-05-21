@@ -12,11 +12,17 @@ final class ArenaMenuContentTests: XCTestCase {
         XCTAssertFalse(rows[2].isAvailable)
 
         profile.bestScore = 5_000
-        profile.totalEnemiesDestroyed = 400
+        profile.totalEnemiesDestroyed = 300
         rows = ArenaMenuContent.modeRows(profile: profile, selectedMode: .classic)
 
         XCTAssertTrue(rows[1].isAvailable)
         XCTAssertEqual(rows[1].statusText, "AVAILABLE")
+        XCTAssertFalse(rows[2].isAvailable)
+        XCTAssertEqual(rows[2].statusText, "LOCKED")
+
+        profile.highestCombo = 20
+        rows = ArenaMenuContent.modeRows(profile: profile, selectedMode: .classic)
+
         XCTAssertTrue(rows[2].isAvailable)
         XCTAssertEqual(rows[2].statusText, "AVAILABLE")
     }
@@ -24,16 +30,21 @@ final class ArenaMenuContentTests: XCTestCase {
     func testActiveUnlockTextComesFromModeRules() {
         var profile = RunProfile()
 
-        XCTAssertEqual(ArenaMenuContent.activeUnlockText(profile: profile), "REDLINE 0/5000")
+        XCTAssertEqual(ArenaMenuContent.activeUnlockText(profile: profile), "NEXT FREEZE BURST 0/50 KILLS")
+
+        profile.totalEnemiesDestroyed = 50
+        XCTAssertEqual(ArenaMenuContent.activeUnlockText(profile: profile), "NEXT GRAVITY WELL 50/100 KILLS")
+
+        profile.bestScore = 3_000
+        profile.highestCombo = 20
+        profile.totalEnemiesDestroyed = 300
+        XCTAssertEqual(ArenaMenuContent.activeUnlockText(profile: profile), "REDLINE 3000/5000 BEST")
 
         profile.bestScore = 5_000
-        XCTAssertEqual(ArenaMenuContent.activeUnlockText(profile: profile), "DAILY 0/400")
-
-        profile.totalEnemiesDestroyed = 400
         XCTAssertEqual(ArenaMenuContent.activeUnlockText(profile: profile), "ALL LOCAL MODES READY")
     }
 
-    func testAwardRowsUseProfileDataAndMarkPlaceholderProgress() {
+    func testAwardRowsUseProfileData() {
         var profile = RunProfile()
         profile.bestScore = 2_500
         profile.highestCombo = 8
@@ -44,28 +55,32 @@ final class ArenaMenuContentTests: XCTestCase {
         XCTAssertEqual(rows.first?.title, "COMBO SPARK")
         XCTAssertEqual(rows.first?.progressText, "8/10")
         XCTAssertEqual(rows[1].progressText, "2500/5000")
-        XCTAssertTrue(rows.contains(where: \.isPlaceholderProgress))
+        XCTAssertFalse(rows.first?.isComplete ?? true)
     }
 
-    func testPostRunHighlightsReportNewBestAgainstPreviousBest() {
+    func testPostRunHighlightsReportNewAwardsAndNextUnlock() {
         let summary = RunSummary(
             score: 600,
             survivalTime: 12.5,
-            maxCombo: 7,
-            enemiesDestroyed: 9,
+            maxCombo: 10,
+            enemiesDestroyed: 50,
             bestWeapon: .shockwave,
             timestamp: Date(timeIntervalSince1970: 1)
         )
         var profile = RunProfile()
-        profile.record(summary)
+        let result = profile.record(summary)
 
         let highlights = ArenaMenuContent.postRunHighlights(
             summary: summary,
             profile: profile,
-            previousBestScore: 500
+            previousBestScore: 500,
+            progressionResult: result
         )
 
         XCTAssertEqual(highlights.first, "NEW BEST")
         XCTAssertTrue(highlights.contains("WEAPON SHOCKWAVE"))
+        XCTAssertTrue(highlights.contains("UNLOCK FREEZE BURST"))
+        XCTAssertTrue(highlights.contains("AWARDS COMBO SPARK, FREEZE SHATTER"))
+        XCTAssertEqual(highlights.last, "NEXT GRAVITY WELL 50/100 KILLS")
     }
 }

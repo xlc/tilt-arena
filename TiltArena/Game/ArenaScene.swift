@@ -18,6 +18,7 @@ final class ArenaScene: SKScene {
     private var optionsReturnState: ArenaUISceneState = .home
     private var selectedMode: ArenaModeKind = .classic
     private var previousBestScore = 0
+    private var lastProgressionResult: ArenaProgressionResult?
     private var resetDataArmed = false
     private var hasPersistedFinalRun = false
     private var readyHoldController = ReadyStartHoldController()
@@ -344,7 +345,7 @@ final class ArenaScene: SKScene {
 
     private func finishRun(playFeedback: Bool = true) {
         previousBestScore = runProfile.bestScore
-        runController.endRun()
+        runController.endRun(mode: selectedMode)
         persistFinalRunIfNeeded()
         if playFeedback {
             playDeathFeedback()
@@ -354,6 +355,7 @@ final class ArenaScene: SKScene {
 
     private func resetActiveRun() {
         hasPersistedFinalRun = false
+        lastProgressionResult = nil
         resetGameplayObjects()
         placePlayer(resetPosition: true)
         resetPlayerFeedback()
@@ -389,7 +391,7 @@ final class ArenaScene: SKScene {
     }
 
     private func applySelectedModeRunSettings() -> ArenaModeRunSettings {
-        let settings = ArenaModeRules.runSettings(for: selectedMode)
+        let settings = ArenaModeRules.runSettings(for: selectedMode, profile: runProfile)
         spawnDirector.configuration = settings.enemySpawnConfiguration
         pickupSpawnConfiguration = settings.pickupSpawnConfiguration
         return settings
@@ -889,7 +891,9 @@ final class ArenaScene: SKScene {
             return
         }
 
-        runProfile = runProfileStore.record(summary)
+        let result = runProfileStore.record(summary)
+        runProfile = result.profile
+        lastProgressionResult = result
         hasPersistedFinalRun = true
     }
 
@@ -1276,7 +1280,8 @@ private extension ArenaScene {
         let highlights = ArenaMenuContent.postRunHighlights(
             summary: summary,
             profile: runProfile,
-            previousBestScore: previousBestScore
+            previousBestScore: previousBestScore,
+            progressionResult: lastProgressionResult
         )
         for (index, text) in highlights.enumerated() {
             addSmallLabel(
@@ -1435,6 +1440,7 @@ private extension ArenaScene {
         localOptionsStore.reset()
         runProfile = RunProfile()
         localOptions = .defaults
+        lastProgressionResult = nil
         selectedMode = .classic
         resetDataArmed = false
         rebuildUI()
@@ -1600,8 +1606,7 @@ private extension ArenaScene {
         )
         addProgressBar(
             frame: CGRect(x: frame.minX + 12, y: frame.minY + 9, width: frame.width - 24, height: 5),
-            fraction: row.progressFraction,
-            placeholder: row.isPlaceholderProgress
+            fraction: row.progressFraction
         )
     }
 
@@ -1644,7 +1649,7 @@ private extension ArenaScene {
         uiRoot.addChild(panel)
     }
 
-    func addProgressBar(frame: CGRect, fraction: Double, placeholder: Bool) {
+    func addProgressBar(frame: CGRect, fraction: Double) {
         let background = SKShapeNode(rect: frame, cornerRadius: 2)
         background.zPosition = ArenaUIZPosition.control
         background.fillColor = theme.borderColor.withAlphaComponent(0.18)
@@ -1661,7 +1666,7 @@ private extension ArenaScene {
             cornerRadius: 2
         )
         fill.zPosition = ArenaUIZPosition.controlFill
-        fill.fillColor = (placeholder ? theme.pickupAmber : theme.playerAccentColor).withAlphaComponent(0.85)
+        fill.fillColor = theme.playerAccentColor.withAlphaComponent(0.85)
         fill.strokeColor = .clear
         uiRoot.addChild(fill)
     }

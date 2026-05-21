@@ -2,7 +2,7 @@ import XCTest
 @testable import TiltArena
 
 final class ArenaModeRulesTests: XCTestCase {
-    func testAvailabilityUsesCurrentProgressionProxies() {
+    func testAvailabilityUsesProgressionState() {
         var profile = RunProfile()
 
         XCTAssertTrue(ArenaModeRules.isAvailable(.classic, profile: profile))
@@ -13,7 +13,9 @@ final class ArenaModeRulesTests: XCTestCase {
         XCTAssertTrue(ArenaModeRules.isAvailable(.redline, profile: profile))
         XCTAssertFalse(ArenaModeRules.isAvailable(.daily, profile: profile))
 
-        profile.totalEnemiesDestroyed = ArenaModeRules.dailyEnemyUnlockRequirement
+        profile.bestScore = 3_000
+        profile.highestCombo = 20
+        profile.totalEnemiesDestroyed = 300
         XCTAssertTrue(ArenaModeRules.isAvailable(.daily, profile: profile))
     }
 

@@ -9,7 +9,7 @@ enum ArenaUISceneState: Equatable {
     case postRun
 }
 
-enum ArenaModeKind: String, CaseIterable, Equatable {
+enum ArenaModeKind: String, CaseIterable, Codable, Equatable {
     case classic
     case redline
     case daily
