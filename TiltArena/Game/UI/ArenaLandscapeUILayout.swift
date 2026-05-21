@@ -25,6 +25,19 @@ struct ArenaLandscapeUILayout: Equatable {
         CGRect(x: safeRect.maxX - 156, y: safeRect.minY, width: 156, height: 48)
     }
 
+    func stackedLowerRightButtonFrame(aboveBottomControlHeight bottomControlHeight: CGFloat) -> CGRect {
+        let size = CGSize(width: 156, height: 48)
+        let preferredY = safeRect.minY + max(0, bottomControlHeight) + 16
+        let maximumY = max(safeRect.minY, safeRect.maxY - size.height)
+
+        return CGRect(
+            x: safeRect.maxX - size.width,
+            y: min(preferredY, maximumY),
+            width: size.width,
+            height: size.height
+        )
+    }
+
     var centerPoint: CGPoint {
         CGPoint(x: safeRect.midX, y: safeRect.midY)
     }
