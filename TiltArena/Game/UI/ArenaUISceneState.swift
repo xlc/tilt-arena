@@ -3,6 +3,7 @@ enum ArenaUISceneState: Equatable {
     case modeSelect
     case awards
     case options
+    case calibrationPreview
     case preRun
     case activeGameplay
     case pause
@@ -10,7 +11,7 @@ enum ArenaUISceneState: Equatable {
 
     var requiresLockedRunOrientation: Bool {
         switch self {
-        case .preRun, .activeGameplay, .pause, .postRun:
+        case .calibrationPreview, .preRun, .activeGameplay, .pause, .postRun:
             return true
         case .home, .modeSelect, .awards, .options:
             return false
