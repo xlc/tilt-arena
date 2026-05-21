@@ -24,16 +24,15 @@ final class GameViewController: UIViewController {
         }
 
         if hasPresentedScene {
-            spriteView.scene?.size = spriteView.bounds.size
-            (spriteView.scene as? ArenaScene)?.refreshSafeAreaLayout()
+            updatePresentedSceneSize(in: spriteView)
         } else {
-            let scene = ArenaScene(size: spriteView.bounds.size)
-            scene.orientationDelegate = self
-            scene.scaleMode = .resizeFill
-            spriteView.presentScene(scene)
-            scene.refreshSafeAreaLayout()
-            hasPresentedScene = true
+            presentArenaScene(in: spriteView)
         }
+    }
+
+    override func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+        refreshPresentedSceneSafeAreaLayout()
     }
 
     override var prefersStatusBarHidden: Bool {
@@ -61,6 +60,29 @@ final class GameViewController: UIViewController {
         spriteView.showsFPS = true
         spriteView.showsNodeCount = true
         #endif
+    }
+
+    private func presentArenaScene(in spriteView: SKView) {
+        let scene = ArenaScene(size: spriteView.bounds.size)
+        scene.orientationDelegate = self
+        scene.scaleMode = .resizeFill
+        spriteView.presentScene(scene)
+        scene.refreshSafeAreaLayout()
+        hasPresentedScene = true
+    }
+
+    private func updatePresentedSceneSize(in spriteView: SKView) {
+        let sceneSize = spriteView.bounds.size
+        guard spriteView.scene?.size != sceneSize else {
+            return
+        }
+
+        spriteView.scene?.size = sceneSize
+        refreshPresentedSceneSafeAreaLayout()
+    }
+
+    private func refreshPresentedSceneSafeAreaLayout() {
+        ((view as? SKView)?.scene as? ArenaScene)?.refreshSafeAreaLayout()
     }
 
     @discardableResult

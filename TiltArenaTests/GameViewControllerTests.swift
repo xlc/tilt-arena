@@ -1,3 +1,4 @@
+import SpriteKit
 import UIKit
 import XCTest
 @testable import TiltArena
@@ -58,5 +59,34 @@ final class GameViewControllerTests: XCTestCase {
 
         XCTAssertEqual(lockedOrientation, .landscapeRight)
         XCTAssertEqual(controller.supportedInterfaceOrientations, .landscapeRight)
+    }
+
+    @MainActor
+    func testSafeAreaInsetsChangeRefreshesPresentedSceneLayout() {
+        let spriteView = SafeAreaTestSKView(frame: CGRect(x: 0, y: 0, width: 852, height: 393))
+        let controller = GameViewController()
+        controller.view = spriteView
+        controller.viewDidLoad()
+        controller.viewDidLayoutSubviews()
+
+        guard let scene = spriteView.scene as? ArenaScene else {
+            XCTFail("Expected GameViewController to present ArenaScene.")
+            return
+        }
+
+        XCTAssertEqual(scene.movementController.state.position, CGPoint(x: 426, y: 196.5))
+
+        spriteView.testSafeAreaInsets = UIEdgeInsets(top: 0, left: 59, bottom: 21, right: 47)
+        controller.viewSafeAreaInsetsDidChange()
+
+        XCTAssertEqual(scene.movementController.state.position, CGPoint(x: 432, y: 207))
+    }
+}
+
+private final class SafeAreaTestSKView: SKView {
+    var testSafeAreaInsets: UIEdgeInsets = .zero
+
+    override var safeAreaInsets: UIEdgeInsets {
+        testSafeAreaInsets
     }
 }

@@ -15,6 +15,18 @@ final class ArenaLandscapeUILayoutTests: XCTestCase {
         XCTAssertEqual(layout.bottomCenterPosition, CGPoint(x: 426, y: 45))
     }
 
+    func testSafeRectHonorsAsymmetricLandscapeInsets() {
+        let layout = ArenaLandscapeUILayout(
+            sceneSize: CGSize(width: 932, height: 430),
+            safeAreaInsets: UIEdgeInsets(top: 9, left: 59, bottom: 34, right: 21),
+            margin: 24
+        )
+
+        XCTAssertEqual(layout.safeRect, CGRect(x: 83, y: 58, width: 804, height: 339))
+        XCTAssertEqual(layout.titlePosition, CGPoint(x: 83, y: 397))
+        XCTAssertEqual(layout.bottomCenterPosition, CGPoint(x: 485, y: 58))
+    }
+
     func testBottomButtonsRemainCenteredInLandscapeSafeRect() {
         let layout = ArenaLandscapeUILayout(
             sceneSize: CGSize(width: 800, height: 360),
