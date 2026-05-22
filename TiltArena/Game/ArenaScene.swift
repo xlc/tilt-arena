@@ -33,6 +33,7 @@ final class ArenaScene: SKScene {
     private var arenaRoot = SKNode()
     private let uiRoot = SKNode()
     private lazy var tiltInputController = TiltInputController(settingsStore: tiltSettingsStore)
+    private let keyboardInputController = KeyboardInputController()
     var movementController = PlayerMovementController()
     private var runController = ClassicRunController()
     private var runProfile = RunProfile()
@@ -441,7 +442,7 @@ final class ArenaScene: SKScene {
     }
 
     private func updatePreRun(deltaTime: TimeInterval) {
-        let input = tiltInputController.update(deltaTime: deltaTime, orientation: currentTiltScreenOrientation)
+        let input = movementInput(deltaTime: deltaTime)
         let state = movementController.update(input: input, deltaTime: deltaTime, arenaBounds: currentGameplayBounds)
         applyPlayerState(state, resetTrail: false)
 
@@ -462,7 +463,7 @@ final class ArenaScene: SKScene {
             return
         }
 
-        let input = tiltInputController.update(deltaTime: deltaTime, orientation: currentTiltScreenOrientation)
+        let input = movementInput(deltaTime: deltaTime)
         warpDashState.record(input: input)
         let state = movementController.update(input: input, deltaTime: deltaTime, arenaBounds: currentGameplayBounds)
         applyPlayerState(state, resetTrail: false)
@@ -470,7 +471,7 @@ final class ArenaScene: SKScene {
     }
 
     private func updateCalibrationPreview(deltaTime: TimeInterval) {
-        let input = tiltInputController.update(deltaTime: deltaTime, orientation: currentTiltScreenOrientation)
+        let input = movementInput(deltaTime: deltaTime)
         let state = calibrationPreviewMovementController.update(
             input: input,
             deltaTime: deltaTime,
@@ -479,6 +480,16 @@ final class ArenaScene: SKScene {
 
         applyCalibrationPreviewState(state, resetTrail: false)
         updateTiltReadoutDisplay(deltaTime: deltaTime)
+    }
+
+    private func movementInput(deltaTime: TimeInterval) -> CGVector {
+        let tiltInput = tiltInputController.update(
+            deltaTime: deltaTime,
+            orientation: currentTiltScreenOrientation
+        )
+        let keyboardInput = keyboardInputController.movementInput()
+
+        return keyboardInput.isActive ? keyboardInput.vector : tiltInput
     }
 
     private func enterCalibrationPreview() {
