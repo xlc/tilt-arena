@@ -49,6 +49,8 @@ struct DiagnosticDeviceMetadata: Codable, Equatable {
 }
 
 enum DiagnosticExportMetadataFactory {
+    static let currentSchemaVersion = 2
+
     static func make(
         generatedAt: Date,
         sessionID: String,
@@ -58,7 +60,7 @@ enum DiagnosticExportMetadataFactory {
         locale: Locale = .autoupdatingCurrent
     ) -> DiagnosticExportMetadata {
         DiagnosticExportMetadata(
-            schemaVersion: 1,
+            schemaVersion: currentSchemaVersion,
             generatedAt: DiagnosticDateFormatter.string(from: generatedAt),
             sessionID: sessionID,
             app: DiagnosticAppMetadata(

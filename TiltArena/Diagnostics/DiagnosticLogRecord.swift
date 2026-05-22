@@ -79,7 +79,7 @@ enum DiagnosticMetadataSanitizer {
     static func sanitized(_ metadata: Logger.Metadata) -> [String: String] {
         metadata.reduce(into: [String: String]()) { result, pair in
             let key = sanitizedKey(pair.key)
-            result[key] = shouldRedact(key: key) ? "<redacted>" : sanitizedValue(pair.value)
+            result[key] = sanitizedValue(pair.value, redactionKey: pair.key)
         }
     }
 
@@ -111,7 +111,11 @@ enum DiagnosticMetadataSanitizer {
         String(key.prefix(80))
     }
 
-    private static func sanitizedValue(_ value: Logger.Metadata.Value) -> String {
+    private static func sanitizedValue(_ value: Logger.Metadata.Value, redactionKey: String? = nil) -> String {
+        if let redactionKey, shouldRedact(key: redactionKey) {
+            return "<redacted>"
+        }
+
         let rendered: String
 
         switch value {
@@ -120,10 +124,13 @@ enum DiagnosticMetadataSanitizer {
         case let .stringConvertible(value):
             rendered = value.description
         case let .array(values):
-            rendered = values.map(sanitizedValue).joined(separator: ",")
+            rendered = values.map { sanitizedValue($0) }.joined(separator: ",")
         case let .dictionary(dictionary):
             rendered = dictionary
-                .map { "\($0.key)=\(sanitizedValue($0.value))" }
+                .map { pair in
+                    let key = sanitizedKey(pair.key)
+                    return "\(key)=\(sanitizedValue(pair.value, redactionKey: pair.key))"
+                }
                 .sorted()
                 .joined(separator: ",")
         }
