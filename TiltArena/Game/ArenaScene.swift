@@ -11,9 +11,18 @@ protocol ArenaSceneOrientationDelegate: AnyObject {
     func arenaSceneRequestsOrientationUnlock(_ scene: ArenaScene)
 }
 
+@MainActor
+protocol ArenaSceneDiagnosticsDelegate: AnyObject {
+    func arenaSceneRequestsDiagnosticsExport(
+        _ scene: ArenaScene,
+        snapshot: DiagnosticGameplaySnapshot
+    )
+}
+
 // swiftlint:disable:next type_body_length
 final class ArenaScene: SKScene {
     weak var orientationDelegate: ArenaSceneOrientationDelegate?
+    weak var diagnosticsDelegate: ArenaSceneDiagnosticsDelegate?
     var theme: ArenaTheme {
         localOptions.themeKind.theme
     }
@@ -71,6 +80,7 @@ final class ArenaScene: SKScene {
 #if DEBUG
     private let debugStatsLabel = SKLabelNode(fontNamed: "Menlo")
     private var debugStatsElapsed: TimeInterval = 0
+    private var debugStatsLogElapsed: TimeInterval = 0
     private var debugStatsFrameCount = 0
 #endif
     private let hudMargin: CGFloat = 24
@@ -110,6 +120,10 @@ final class ArenaScene: SKScene {
         updateRunDisplay()
         rebuildUI()
         tiltInputController.start()
+        AppDiagnostics.logger(.scene).notice("scene.presented", metadata: [
+            "width": "\(Int(size.width.rounded()))",
+            "height": "\(Int(size.height.rounded()))"
+        ])
     }
 
     override func didChangeSize(_ oldSize: CGSize) {
@@ -126,12 +140,17 @@ final class ArenaScene: SKScene {
         layoutPauseControl()
         layoutDebugStats()
         rebuildUI()
+        AppDiagnostics.logger(.scene).info("scene.resized", metadata: [
+            "width": "\(Int(size.width.rounded()))",
+            "height": "\(Int(size.height.rounded()))"
+        ])
     }
 
     override func willMove(from view: SKView) {
         orientationDelegate?.arenaSceneRequestsOrientationUnlock(self)
         tiltInputController.stop()
         lastUpdateTime = nil
+        AppDiagnostics.logger(.scene).notice("scene.removed")
     }
 
     override func update(_ currentTime: TimeInterval) {
@@ -166,6 +185,9 @@ final class ArenaScene: SKScene {
 
     func recalibrateTiltControls() {
         tiltInputController.recalibrateToCurrentAttitude(orientation: currentTiltScreenOrientation)
+        AppDiagnostics.logger(.input).notice("input.calibrated", metadata: [
+            "orientation": "\(currentTiltScreenOrientation.rawValue)"
+        ])
         if uiState == .calibrationPreview {
             resetCalibrationPreviewPosition()
         }
@@ -346,6 +368,7 @@ final class ArenaScene: SKScene {
     private func updateDebugStats(deltaTime: TimeInterval) {
         #if DEBUG
         debugStatsElapsed += deltaTime
+        debugStatsLogElapsed += deltaTime
         debugStatsFrameCount += 1
 
         guard debugStatsElapsed >= 0.25 else {
@@ -353,7 +376,15 @@ final class ArenaScene: SKScene {
         }
 
         let framesPerSecond = Double(debugStatsFrameCount) / debugStatsElapsed
-        debugStatsLabel.text = "nodes:\(debugNodeCount(in: self))  \(Int(framesPerSecond.rounded())) fps"
+        let nodeCount = debugNodeCount(in: self)
+        debugStatsLabel.text = "nodes:\(nodeCount)  \(Int(framesPerSecond.rounded())) fps"
+        if debugStatsLogElapsed >= 5 {
+            AppDiagnostics.logger(.performance).info("performance.sample", metadata: [
+                "fps": "\(Int(framesPerSecond.rounded()))",
+                "nodes": "\(nodeCount)"
+            ])
+            debugStatsLogElapsed = 0
+        }
         debugStatsElapsed = 0
         debugStatsFrameCount = 0
         #endif
@@ -489,6 +520,9 @@ final class ArenaScene: SKScene {
         readyStartPoint = movementController.state.position
         resetPlayerFeedback()
         show(.preRun)
+        AppDiagnostics.logger(.run).notice("run.prepared", metadata: [
+            "mode": "\(selectedMode.rawValue)"
+        ])
     }
 
     private func startRun() {
@@ -497,18 +531,29 @@ final class ArenaScene: SKScene {
         resetActiveRun()
         hapticsController.prepare()
         show(.activeGameplay)
+        AppDiagnostics.logger(.run).notice("run.started", metadata: [
+            "mode": "\(selectedMode.rawValue)"
+        ])
     }
 
     private func pauseRun() {
         runController.pause()
         tiltInputController.resetSmoothedInput()
         show(.pause)
+        AppDiagnostics.logger(.run).info("run.paused", metadata: [
+            "score": "\(runController.score)",
+            "survivalTime": "\(runController.survivalTime)"
+        ])
     }
 
     private func resumeRun() {
         tiltInputController.resetSmoothedInput()
         runController.resume()
         show(.activeGameplay)
+        AppDiagnostics.logger(.run).info("run.resumed", metadata: [
+            "score": "\(runController.score)",
+            "survivalTime": "\(runController.survivalTime)"
+        ])
     }
 
     private func finishRun(playFeedback: Bool = true) {
@@ -524,6 +569,7 @@ final class ArenaScene: SKScene {
             playHaptic(.newBest)
         }
         show(.postRun)
+        logFinishedRun(isNewBest: isNewBest)
     }
 
     private func resetActiveRun() {
@@ -664,6 +710,13 @@ final class ArenaScene: SKScene {
     }
 
     private func addSpawnedEnemies(_ spawnedEnemies: [ArenaEnemy]) {
+        if !spawnedEnemies.isEmpty {
+            AppDiagnostics.logger(.spawn).debug("spawn.enemies", metadata: [
+                "count": "\(spawnedEnemies.count)",
+                "survivalTime": "\(runController.survivalTime)"
+            ])
+        }
+
         for enemy in spawnedEnemies {
             enemies.append(enemy)
 
@@ -708,6 +761,10 @@ final class ArenaScene: SKScene {
         }
 
         pickups.append(pickup)
+        AppDiagnostics.logger(.weapon).info("pickup.spawned", metadata: [
+            "id": "\(pickup.id)",
+            "kind": "\(pickup.kind.rawValue)"
+        ])
 
         let node = WeaponPickupNode(pickup: pickup, theme: theme)
         pickupNodes[pickup.id] = node
@@ -782,6 +839,11 @@ final class ArenaScene: SKScene {
                 creditedDangerGrab = false
             }
             playHaptic(creditedDangerGrab ? .dangerPickup : .pickup)
+            AppDiagnostics.logger(.weapon).notice("pickup.collected", metadata: [
+                "id": "\(pickup.id)",
+                "kind": "\(pickup.kind.rawValue)",
+                "dangerGrab": "\(creditedDangerGrab)"
+            ])
 
             removePickup(id: pickup.id)
             applyWeapon(pickup.kind, playerPosition: currentPlayerPosition)
@@ -843,6 +905,12 @@ final class ArenaScene: SKScene {
         }
 
         destroyEnemies(ids: resolution.destroyedEnemyIDs, weaponKind: kind)
+        AppDiagnostics.logger(.weapon).notice("weapon.resolved", metadata: [
+            "kind": "\(kind.rawValue)",
+            "destroyed": "\(resolution.destroyedEnemyIDs.count)",
+            "frozen": "\(resolution.frozenEnemyIDs.count)",
+            "gravityTargets": "\(resolution.gravityWellEnemyIDs.count)"
+        ])
     }
 
     private func positions(forEnemyIDs enemyIDs: Set<Int>) -> [CGPoint] {
@@ -1626,6 +1694,12 @@ private extension ArenaScene {
             frame: CGRect(x: frame.minX + 14, y: frame.maxY - 138, width: 132, height: 34),
             action: .toggleEffects
         )
+        addButton(
+            "LOGS",
+            frame: CGRect(x: frame.maxX - 104, y: frame.maxY - 138, width: 90, height: 34),
+            action: .exportDiagnostics,
+            style: .secondary
+        )
         addSmallLabel(
             "THEME",
             at: CGPoint(x: frame.minX + 14, y: frame.minY + 70),
@@ -1808,7 +1882,10 @@ private extension ArenaScene {
             performNavigationAction(action)
         case .selectMode, .resume, .calibrate, .endRun:
             performRunControlAction(action)
-        case .sensitivityDown, .sensitivityUp, .preset, .toggleAudio, .toggleHaptics, .toggleEffects, .selectTheme, .resetData:
+        case .exportDiagnostics:
+            exportDiagnostics()
+        case .sensitivityDown, .sensitivityUp, .preset, .toggleAudio, .toggleHaptics, .toggleEffects, .selectTheme,
+                .resetData:
             performOptionsAction(action)
         }
     }
@@ -1865,13 +1942,9 @@ private extension ArenaScene {
     func performOptionsAction(_ action: ArenaControlAction) {
         switch action {
         case .sensitivityDown:
-            tiltSettingsStore.updateSensitivity(tiltSettingsStore.settings.clampedSensitivity - 0.1)
-            tiltInputController.resetSmoothedInput()
-            rebuildUI()
+            updateSensitivity(by: -0.1)
         case .sensitivityUp:
-            tiltSettingsStore.updateSensitivity(tiltSettingsStore.settings.clampedSensitivity + 0.1)
-            tiltInputController.resetSmoothedInput()
-            rebuildUI()
+            updateSensitivity(by: 0.1)
         case let .preset(preset):
             tiltSettingsStore.selectPreset(preset)
             tiltInputController.resetSmoothedInput()
@@ -1879,6 +1952,17 @@ private extension ArenaScene {
                 resetCalibrationPreviewPosition()
             }
             rebuildUI()
+        case .toggleAudio, .toggleHaptics, .toggleEffects:
+            performLocalOptionToggle(action)
+        case .selectTheme, .resetData:
+            performLocalDataAction(action)
+        default:
+            break
+        }
+    }
+
+    func performLocalOptionToggle(_ action: ArenaControlAction) {
+        switch action {
         case .toggleAudio:
             localOptions.audioEnabled.toggle()
             localOptionsStore.options = localOptions
@@ -1892,6 +1976,13 @@ private extension ArenaScene {
             localOptions.reducedEffects.toggle()
             localOptionsStore.options = localOptions
             rebuildUI()
+        default:
+            break
+        }
+    }
+
+    func performLocalDataAction(_ action: ArenaControlAction) {
+        switch action {
         case let .selectTheme(themeKind):
             guard localOptions.themeKind != themeKind else {
                 return
@@ -1899,12 +1990,25 @@ private extension ArenaScene {
 
             localOptions.themeKind = themeKind
             localOptionsStore.options = localOptions
+            AppDiagnostics.logger(.app).notice("options.theme_changed", metadata: [
+                "theme": "\(themeKind.rawValue)"
+            ])
             applyThemeChange()
         case .resetData:
             resetLocalDataOrArmConfirmation()
         default:
             break
         }
+    }
+
+    func updateSensitivity(by delta: Double) {
+        tiltSettingsStore.updateSensitivity(tiltSettingsStore.settings.clampedSensitivity + delta)
+        tiltInputController.resetSmoothedInput()
+        rebuildUI()
+    }
+
+    func exportDiagnostics() {
+        diagnosticsDelegate?.arenaSceneRequestsDiagnosticsExport(self, snapshot: diagnosticSnapshot())
     }
 
     func resetMenuPreviewIfNeeded() {
@@ -1951,7 +2055,52 @@ private extension ArenaScene {
         lastProgressionResult = nil
         selectedMode = .classic
         resetDataArmed = false
+        AppDiagnostics.logger(.profile).warning("profile.reset")
         applyThemeChange()
+    }
+
+    func logFinishedRun(isNewBest: Bool) {
+        guard let summary = runController.finalizedSummary else {
+            AppDiagnostics.logger(.run).error("run.finished_missing_summary")
+            return
+        }
+
+        AppDiagnostics.logger(.run).notice("run.finished", metadata: [
+            "mode": "\(summary.mode.rawValue)",
+            "score": "\(summary.score)",
+            "survivalTime": "\(summary.survivalTime)",
+            "maxCombo": "\(summary.maxCombo)",
+            "enemiesDestroyed": "\(summary.enemiesDestroyed)",
+            "bestWeapon": "\(summary.bestWeapon?.rawValue ?? "none")",
+            "newBest": "\(isNewBest)"
+        ])
+    }
+
+    func diagnosticSnapshot() -> DiagnosticGameplaySnapshot {
+        DiagnosticGameplaySnapshot(
+            uiState: uiState.diagnosticName,
+            selectedMode: selectedMode.rawValue,
+            runPhase: runController.phase.diagnosticName,
+            score: runController.score,
+            survivalTime: runController.survivalTime,
+            enemyCount: enemies.count,
+            pickupCount: pickups.count,
+            localOptions: DiagnosticLocalOptionsSnapshot(
+                audioEnabled: localOptions.audioEnabled,
+                hapticsEnabled: localOptions.hapticsEnabled,
+                reducedEffects: localOptions.reducedEffects,
+                theme: localOptions.themeKind.rawValue
+            ),
+            profile: DiagnosticProfileSnapshot(
+                bestScore: runProfile.bestScore,
+                highestCombo: runProfile.highestCombo,
+                longestSurvivalTime: runProfile.longestSurvivalTime,
+                totalRuns: runProfile.totalRuns,
+                totalEnemiesDestroyed: runProfile.totalEnemiesDestroyed,
+                unlockedWeaponCount: runProfile.unlockedWeapons.count,
+                earnedAwardCount: runProfile.earnedAwardIDs.count
+            )
+        )
     }
 
     func addReadyStartCircle(at point: CGPoint) {
@@ -2428,6 +2577,7 @@ private enum ArenaControlAction: Equatable {
     case toggleEffects
     case selectTheme(ArenaThemeKind)
     case resetData
+    case exportDiagnostics
 }
 
 private enum ArenaButtonStyle {
@@ -2445,4 +2595,44 @@ private enum ArenaUIZPosition {
     static let control: CGFloat = 24
     static let controlFill: CGFloat = 25
     static let label: CGFloat = 32
+}
+
+private extension ArenaUISceneState {
+    var diagnosticName: String {
+        switch self {
+        case .home:
+            return "home"
+        case .modeSelect:
+            return "modeSelect"
+        case .awards:
+            return "awards"
+        case .options:
+            return "options"
+        case .calibrationPreview:
+            return "calibrationPreview"
+        case .preRun:
+            return "preRun"
+        case .activeGameplay:
+            return "activeGameplay"
+        case .pause:
+            return "pause"
+        case .postRun:
+            return "postRun"
+        }
+    }
+}
+
+private extension ClassicRunPhase {
+    var diagnosticName: String {
+        switch self {
+        case .preRun:
+            return "preRun"
+        case .active:
+            return "active"
+        case .paused:
+            return "paused"
+        case .gameOver:
+            return "gameOver"
+        }
+    }
 }

@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BUNDLE_ID="${BUNDLE_ID:-com.xlc.TiltArena}"
+SIMULATOR="${SIMULATOR:-booted}"
+
+usage() {
+  cat <<USAGE
+Usage: scripts/tilt-logs <command> [destination]
+
+Commands:
+  path             Print the simulator diagnostics log directory
+  list             List simulator JSONL log files
+  cat              Print all simulator JSONL log files
+  tail             Follow current.jsonl from the booted simulator
+  copy <dest-dir>  Copy simulator JSONL log files to dest-dir
+
+Environment:
+  BUNDLE_ID        Defaults to com.xlc.TiltArena
+  SIMULATOR        Defaults to booted
+USAGE
+}
+
+container_path() {
+  xcrun simctl get_app_container "$SIMULATOR" "$BUNDLE_ID" data
+}
+
+log_dir() {
+  printf '%s/Library/Application Support/Diagnostics/Logs\n' "$(container_path)"
+}
+
+jsonl_files() {
+  local directory
+  directory="$(log_dir)"
+  if [[ ! -d "$directory" ]]; then
+    return
+  fi
+  find "$directory" -maxdepth 1 -name '*.jsonl' -print | sort
+}
+
+command="${1:-}"
+case "$command" in
+  path)
+    log_dir
+    ;;
+  list)
+    jsonl_files
+    ;;
+  cat)
+    while IFS= read -r file; do
+      cat "$file"
+    done < <(jsonl_files)
+    ;;
+  tail)
+    tail -f "$(log_dir)/current.jsonl"
+    ;;
+  copy)
+    destination="${2:-}"
+    if [[ -z "$destination" ]]; then
+      usage >&2
+      exit 2
+    fi
+    mkdir -p "$destination"
+    while IFS= read -r file; do
+      cp "$file" "$destination/"
+    done < <(jsonl_files)
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac

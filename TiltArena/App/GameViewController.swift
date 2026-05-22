@@ -65,6 +65,7 @@ final class GameViewController: UIViewController {
     private func presentArenaScene(in spriteView: SKView) {
         let scene = ArenaScene(size: spriteView.bounds.size)
         scene.orientationDelegate = self
+        scene.diagnosticsDelegate = self
         scene.scaleMode = .resizeFill
         spriteView.presentScene(scene)
         scene.refreshSafeAreaLayout()
@@ -144,5 +145,28 @@ extension GameViewController: ArenaSceneOrientationDelegate {
 
     func arenaSceneRequestsOrientationUnlock(_ scene: ArenaScene) {
         unlockRunOrientation()
+    }
+}
+
+extension GameViewController: ArenaSceneDiagnosticsDelegate {
+    func arenaSceneRequestsDiagnosticsExport(
+        _ scene: ArenaScene,
+        snapshot: DiagnosticGameplaySnapshot
+    ) {
+        do {
+            let bundleURL = try AppDiagnostics.makeExportBundle(gameplay: snapshot)
+            let activityController = UIActivityViewController(
+                activityItems: [bundleURL],
+                applicationActivities: nil
+            )
+            AppDiagnostics.logger(.app).notice("diagnostics.export.presented", metadata: [
+                "bundle": "\(bundleURL.lastPathComponent)"
+            ])
+            present(activityController, animated: true)
+        } catch {
+            AppDiagnostics.logger(.app).error("diagnostics.export.failed", metadata: [
+                "error": "\(error)"
+            ])
+        }
     }
 }
