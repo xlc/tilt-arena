@@ -34,26 +34,22 @@ Core loop:
 
 - Use GitHub Issues as the source of truth for tasks.
 - Create a new GitHub issue for every actionable TODO before implementing it.
-- Always close the issue when the work is completed.
-- If an issue is too large to implement in one pull request, create sub-issues
-  first and implement the smaller sub-issues independently.
+- Close the corresponding issue as part of the commit/finalization step when
+  the work is completed.
+- If an issue is too large to implement in one focused change, create
+  sub-issues first and implement the smaller sub-issues independently.
 - Before starting work on a new GitHub issue, ensure the current branch is
   `master` and up to date.
-- If already on a branch for the issue being worked, continue on that branch.
-- If on a branch for a pull request that has already been merged, switch to
-  `master`, update it, and delete the no longer needed branch.
-- If on a branch for a work-in-progress pull request or the working tree has
-  dirty changes, ask the user what to do before switching branches or editing
-  files.
-- Before starting work on an issue that does not already have a branch, switch
-  to a new branch from `master`.
-- Do not implement work directly on `master`.
-- Link pull requests to the issue they complete, preferably with a closing
-  keyword such as `Closes #123` in the PR body.
-- After work is completed and the pull request is merged, delete the local
-  branch, switch back to `master`, and run `git pull`.
-- For GitHub issue and pull request workflow decisions, use the repo-local
-  skill at `.agents/skills/github-issue-pr-workflow`.
+- Work directly on `master`. Do not create issue branches or pull requests for
+  this solo-dev project.
+- If the working tree has dirty changes, inspect them before editing. Ask the
+  user what to do before switching branches or overwriting unrelated changes.
+- When committing completed issue work, include the closing keyword for the
+  issue in the commit message, such as `Closes #123`, and verify the issue is
+  closed after the commit is pushed to `master`. Close it manually if GitHub
+  automation does not.
+- For GitHub issue workflow decisions, use the repo-local
+  skill at `.agents/skills/github-issue-master-workflow`.
 
 ## Logging and Diagnostics
 

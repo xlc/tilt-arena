@@ -1,0 +1,4 @@
+interface:
+  display_name: "GitHub Issue Master Workflow"
+  short_description: "Issue-first direct-master workflow."
+  default_prompt: "Use $github-issue-master-workflow to plan issue-tracked work, work directly on master, commit completed work with issue-closing keywords, and verify issue closure."
