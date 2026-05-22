@@ -86,16 +86,6 @@ final class DiagnosticLogStore: @unchecked Sendable {
         }
     }
 
-    func removeAllLogs() throws {
-        try lock.withLock {
-            guard fileManager.fileExists(atPath: directoryURL.path) else {
-                return
-            }
-
-            try fileManager.removeItem(at: directoryURL)
-        }
-    }
-
     private static func defaultDirectoryURL() -> URL {
         let baseURL = FileManager.default.urls(
             for: .applicationSupportDirectory,

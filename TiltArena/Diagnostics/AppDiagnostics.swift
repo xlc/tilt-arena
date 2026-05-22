@@ -25,9 +25,7 @@ enum AppDiagnostics {
         }
         isBootstrapped = true
 
-        logger(.app).notice("app.launch", metadata: [
-            "sessionID": "\(currentSessionID)"
-        ])
+        logger(.app).notice("app.launch")
     }
 
     static func logger(_ category: DiagnosticCategory) -> Logger {

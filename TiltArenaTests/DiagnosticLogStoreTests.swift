@@ -125,7 +125,7 @@ final class DiagnosticLogStoreTests: XCTestCase {
         XCTAssertEqual(decodedMetadata.sessionID, "session-2")
     }
 
-    func testExportMetadataOmitsDeviceNameAndVendorIdentifier() throws {
+    func testExportMetadataOmitsDeviceNameVendorIdentifierAndModelIdentifier() throws {
         let metadata = DiagnosticExportMetadataFactory.make(
             generatedAt: Date(timeIntervalSince1970: 4),
             sessionID: "session-3",
@@ -135,7 +135,7 @@ final class DiagnosticLogStoreTests: XCTestCase {
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         let device = try XCTUnwrap(object["device"] as? [String: Any])
 
-        XCTAssertNotNil(device["modelIdentifier"])
+        XCTAssertNil(device["modelIdentifier"])
         XCTAssertNil(device["name"])
         XCTAssertNil(device["identifierForVendor"])
     }

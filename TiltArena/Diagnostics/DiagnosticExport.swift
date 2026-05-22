@@ -1,4 +1,3 @@
-import Darwin
 import Foundation
 
 struct DiagnosticGameplaySnapshot: Codable, Equatable {
@@ -48,7 +47,6 @@ struct DiagnosticAppMetadata: Codable, Equatable {
 struct DiagnosticDeviceMetadata: Codable, Equatable {
     let osName: String
     let osVersion: String
-    let modelIdentifier: String
     let localeIdentifier: String
 }
 
@@ -73,26 +71,10 @@ enum DiagnosticExportMetadataFactory {
             device: DiagnosticDeviceMetadata(
                 osName: "iOS",
                 osVersion: processInfo.operatingSystemVersionString,
-                modelIdentifier: modelIdentifier(),
                 localeIdentifier: locale.identifier
             ),
             gameplay: gameplay
         )
-    }
-
-    private static func modelIdentifier() -> String {
-        var systemInfo = utsname()
-        uname(&systemInfo)
-
-        let bytes = Mirror(reflecting: systemInfo.machine).children.compactMap { child -> UInt8? in
-            guard let value = child.value as? Int8, value != 0 else {
-                return nil
-            }
-
-            return UInt8(value)
-        }
-
-        return String(bytes: bytes, encoding: .ascii) ?? "unknown"
     }
 }
 
