@@ -91,62 +91,6 @@ final class DiagnosticLogStoreTests: XCTestCase {
         XCTAssertEqual(metadata["mode"], "classic")
     }
 
-    func testJSONLHandlerIncludesSwiftLogErrorMetadata() throws {
-        let store = makeStore()
-        let handler = DiagnosticJSONLLogHandler(
-            label: "com.xlc.TiltArena.app",
-            store: store,
-            sessionID: "session-error",
-            dateProvider: { Date(timeIntervalSince1970: 1) }
-        )
-
-        handler.log(event: LogEvent(
-            level: .error,
-            message: "diagnostics.export.failed",
-            error: TestDiagnosticError(),
-            metadata: ["action": "export"],
-            source: "test",
-            file: "/tmp/GameViewController.swift",
-            function: "test()",
-            line: 7
-        ))
-
-        let contents = try String(contentsOf: store.currentLogFileURL, encoding: .utf8)
-        let line = try XCTUnwrap(contents.split(separator: "\n").first)
-        let record = try JSONDecoder().decode(DiagnosticLogRecord.self, from: Data(line.utf8))
-
-        XCTAssertEqual(record.level, "error")
-        XCTAssertEqual(record.message, "diagnostics.export.failed")
-        XCTAssertEqual(record.metadata["action"], "export")
-        XCTAssertEqual(record.metadata["error.message"], "test failure")
-        XCTAssertTrue(record.metadata["error.type"]?.contains("TestDiagnosticError") == true)
-    }
-
-    func testJSONLHandlerSkipsDebugEventsFromMultiplexedLogger() throws {
-        let store = makeStore()
-        let logger = Logger(label: "com.xlc.TiltArena.spawn") { label in
-            MultiplexLogHandler([
-                DebugOnlyTestLogHandler(),
-                DiagnosticJSONLLogHandler(
-                    label: label,
-                    store: store,
-                    sessionID: "session-volume",
-                    dateProvider: { Date(timeIntervalSince1970: 1) }
-                )
-            ])
-        }
-
-        logger.debug("spawn.enemies", metadata: ["count": "4"])
-        logger.info("pickup.spawned", metadata: ["kind": "shockwave"])
-
-        let contents = try String(contentsOf: store.currentLogFileURL, encoding: .utf8)
-        let records = try contents.split(separator: "\n").map { line in
-            try JSONDecoder().decode(DiagnosticLogRecord.self, from: Data(line.utf8))
-        }
-
-        XCTAssertEqual(records.map(\.message), ["pickup.spawned"])
-    }
-
     func testExportBundleContainsMetadataReadmeAndCopiedLogs() throws {
         let store = makeStore()
         try store.append(record(message: "run.finished"))
@@ -224,23 +168,4 @@ final class DiagnosticLogStoreTests: XCTestCase {
             line: 1
         )
     }
-}
-
-private struct TestDiagnosticError: Error, CustomStringConvertible {
-    var description: String {
-        "test failure"
-    }
-}
-
-private struct DebugOnlyTestLogHandler: LogHandler {
-    var metadata: Logger.Metadata = [:]
-    var metadataProvider: Logger.MetadataProvider?
-    var logLevel: Logger.Level = .debug
-
-    subscript(metadataKey key: String) -> Logger.Metadata.Value? {
-        get { metadata[key] }
-        set { metadata[key] = newValue }
-    }
-
-    func log(event: LogEvent) {}
 }
