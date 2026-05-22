@@ -43,9 +43,8 @@ final class DiagnosticLogStore: @unchecked Sendable {
     }
 
     func append(_ record: DiagnosticLogRecord) throws {
-        let data = try encodedLine(for: record)
-
         try lock.withLock {
+            let data = try encodedLine(for: record)
             try prepareDirectoryLocked()
             if try shouldRotateCurrentLogLocked(appendingByteCount: data.count) {
                 try rotateCurrentLogLocked()

@@ -13,9 +13,7 @@ struct DiagnosticGameplaySnapshot: Codable, Equatable {
 }
 
 struct DiagnosticLocalOptionsSnapshot: Codable, Equatable {
-    let audioEnabled: Bool
     let hapticsEnabled: Bool
-    let reducedEffects: Bool
     let theme: String
 }
 

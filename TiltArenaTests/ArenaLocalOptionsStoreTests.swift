@@ -24,18 +24,14 @@ final class ArenaLocalOptionsStoreTests: XCTestCase {
     func testOptionsPersistAndReset() {
         let store = ArenaLocalOptionsStore(defaults: defaults)
         store.options = ArenaLocalOptions(
-            audioEnabled: false,
             hapticsEnabled: false,
-            reducedEffects: true,
             themeKind: .whitePrecisionBoard
         )
 
         XCTAssertEqual(
             ArenaLocalOptionsStore(defaults: defaults).options,
             ArenaLocalOptions(
-                audioEnabled: false,
                 hapticsEnabled: false,
-                reducedEffects: true,
                 themeKind: .whitePrecisionBoard
             )
         )
@@ -58,9 +54,7 @@ final class ArenaLocalOptionsStoreTests: XCTestCase {
         XCTAssertEqual(
             ArenaLocalOptionsStore(defaults: defaults).options,
             ArenaLocalOptions(
-                audioEnabled: false,
                 hapticsEnabled: true,
-                reducedEffects: true,
                 themeKind: .darkTacticalRadar
             )
         )
@@ -80,9 +74,7 @@ final class ArenaLocalOptionsStoreTests: XCTestCase {
         XCTAssertEqual(
             ArenaLocalOptionsStore(defaults: defaults).options,
             ArenaLocalOptions(
-                audioEnabled: false,
                 hapticsEnabled: false,
-                reducedEffects: true,
                 themeKind: .darkTacticalRadar
             )
         )
