@@ -140,7 +140,7 @@ final class ArenaScene: SKScene {
         layoutPauseControl()
         layoutDebugStats()
         rebuildUI()
-        AppDiagnostics.logger(.scene).info("scene.resized", metadata: [
+        AppDiagnostics.logger(.scene).debug("scene.resized", metadata: [
             "width": "\(Int(size.width.rounded()))",
             "height": "\(Int(size.height.rounded()))"
         ])
