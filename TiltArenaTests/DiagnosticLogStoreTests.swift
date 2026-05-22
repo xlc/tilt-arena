@@ -79,6 +79,43 @@ final class DiagnosticLogStoreTests: XCTestCase {
         XCTAssertTrue(logFiles.contains(store.currentLogFileURL))
     }
 
+    func testConcurrentAppendsProduceCompleteLineDelimitedRecords() throws {
+        let store = makeStore(configuration: DiagnosticLogStore.Configuration(
+            maxCurrentFileBytes: 128 * 1_024,
+            maxArchivedFileCount: 0,
+            maxTotalBytes: 256 * 1_024
+        ))
+        let records = (0..<80).map { index in
+            record(message: "event.\(index)")
+        }
+        let queue = DispatchQueue(label: "DiagnosticLogStoreTests.concurrent", attributes: .concurrent)
+        let group = DispatchGroup()
+        let errors = ConcurrentErrorRecorder()
+
+        for record in records {
+            group.enter()
+            queue.async {
+                defer { group.leave() }
+                do {
+                    try store.append(record)
+                } catch {
+                    errors.record(error)
+                }
+            }
+        }
+
+        XCTAssertEqual(group.wait(timeout: .now() + 5), .success)
+        XCTAssertTrue(errors.isEmpty)
+
+        let contents = try String(contentsOf: store.currentLogFileURL, encoding: .utf8)
+        let lines = contents.split(separator: "\n")
+        XCTAssertEqual(lines.count, records.count)
+
+        for line in lines {
+            XCTAssertNoThrow(try JSONDecoder().decode(DiagnosticLogRecord.self, from: Data(line.utf8)))
+        }
+    }
+
     func testMetadataSanitizerRedactsSensitiveKeys() {
         let metadata = DiagnosticMetadataSanitizer.sanitized([
             "token": "secret-token",
@@ -167,5 +204,30 @@ final class DiagnosticLogStoreTests: XCTestCase {
             function: "record()",
             line: 1
         )
+    }
+}
+
+private extension NSLock {
+    func withLock<Result>(_ body: () throws -> Result) rethrows -> Result {
+        lock()
+        defer { unlock() }
+        return try body()
+    }
+}
+
+private final class ConcurrentErrorRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var errors: [any Error] = []
+
+    var isEmpty: Bool {
+        lock.withLock {
+            errors.isEmpty
+        }
+    }
+
+    func record(_ error: any Error) {
+        lock.withLock {
+            errors.append(error)
+        }
     }
 }

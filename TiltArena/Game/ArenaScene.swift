@@ -1688,26 +1688,14 @@ private extension ArenaScene {
 
     func renderLocalOptions(in frame: CGRect) {
         addToggle(
-            title: "AUDIO",
-            isOn: localOptions.audioEnabled,
-            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 54, width: 132, height: 34),
-            action: .toggleAudio
-        )
-        addToggle(
             title: "HAPTICS",
             isOn: localOptions.hapticsEnabled,
-            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 96, width: 132, height: 34),
+            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 54, width: 132, height: 34),
             action: .toggleHaptics
-        )
-        addToggle(
-            title: "EFFECTS",
-            isOn: !localOptions.reducedEffects,
-            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 138, width: 132, height: 34),
-            action: .toggleEffects
         )
         addButton(
             "LOGS",
-            frame: CGRect(x: frame.maxX - 104, y: frame.maxY - 138, width: 90, height: 34),
+            frame: CGRect(x: frame.maxX - 104, y: frame.maxY - 54, width: 90, height: 34),
             action: .exportDiagnostics,
             style: .secondary
         )
@@ -1895,8 +1883,7 @@ private extension ArenaScene {
             performRunControlAction(action)
         case .exportDiagnostics:
             exportDiagnostics()
-        case .sensitivityDown, .sensitivityUp, .preset, .toggleAudio, .toggleHaptics, .toggleEffects, .selectTheme,
-                .resetData:
+        case .sensitivityDown, .sensitivityUp, .preset, .toggleHaptics, .selectTheme, .resetData:
             performOptionsAction(action)
         }
     }
@@ -1963,7 +1950,7 @@ private extension ArenaScene {
                 resetCalibrationPreviewPosition()
             }
             rebuildUI()
-        case .toggleAudio, .toggleHaptics, .toggleEffects:
+        case .toggleHaptics:
             performLocalOptionToggle(action)
         case .selectTheme, .resetData:
             performLocalDataAction(action)
@@ -1974,18 +1961,10 @@ private extension ArenaScene {
 
     func performLocalOptionToggle(_ action: ArenaControlAction) {
         switch action {
-        case .toggleAudio:
-            localOptions.audioEnabled.toggle()
-            localOptionsStore.options = localOptions
-            rebuildUI()
         case .toggleHaptics:
             localOptions.hapticsEnabled.toggle()
             localOptionsStore.options = localOptions
             syncHapticsOption()
-            rebuildUI()
-        case .toggleEffects:
-            localOptions.reducedEffects.toggle()
-            localOptionsStore.options = localOptions
             rebuildUI()
         default:
             break
@@ -2097,9 +2076,7 @@ private extension ArenaScene {
             enemyCount: enemies.count,
             pickupCount: pickups.count,
             localOptions: DiagnosticLocalOptionsSnapshot(
-                audioEnabled: localOptions.audioEnabled,
                 hapticsEnabled: localOptions.hapticsEnabled,
-                reducedEffects: localOptions.reducedEffects,
                 theme: localOptions.themeKind.rawValue
             ),
             profile: DiagnosticProfileSnapshot(
@@ -2583,9 +2560,7 @@ private enum ArenaControlAction: Equatable {
     case sensitivityDown
     case sensitivityUp
     case preset(TiltCalibrationPreset)
-    case toggleAudio
     case toggleHaptics
-    case toggleEffects
     case selectTheme(ArenaThemeKind)
     case resetData
     case exportDiagnostics
