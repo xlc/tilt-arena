@@ -62,6 +62,20 @@ final class GameViewControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testViewDidLoadInstallsLoadingScreenOverlay() {
+        let spriteView = SafeAreaTestSKView(frame: CGRect(x: 0, y: 0, width: 852, height: 393))
+        let controller = GameViewController()
+        controller.view = spriteView
+
+        controller.viewDidLoad()
+
+        XCTAssertEqual(
+            spriteView.subviews.filter { $0.accessibilityIdentifier == "game-loading-screen" }.count,
+            1
+        )
+    }
+
+    @MainActor
     func testSafeAreaInsetsChangeRefreshesPresentedSceneLayout() {
         let spriteView = SafeAreaTestSKView(frame: CGRect(x: 0, y: 0, width: 852, height: 393))
         let controller = GameViewController()

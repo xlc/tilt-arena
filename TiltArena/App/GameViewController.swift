@@ -2,9 +2,15 @@ import SpriteKit
 import UIKit
 
 final class GameViewController: UIViewController {
+    private static let loadingScreenAssetName = "LoadingScreen"
+    private static let minimumLoadingScreenDuration: CFTimeInterval = 0.75
+
     private var hasPresentedScene = false
     private var lockedOrientationMask: UIInterfaceOrientationMask?
     private var lastLandscapeOrientation: UIInterfaceOrientation?
+    private var loadingOverlayInstalledAt: CFTimeInterval?
+    private var loadingOverlayView: UIView?
+    private var isHidingLoadingOverlay = false
 
     override func loadView() {
         view = SKView(frame: .zero)
@@ -13,6 +19,7 @@ final class GameViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         configureSpriteView()
+        installLoadingOverlay()
     }
 
     override func viewDidLayoutSubviews() {
@@ -70,6 +77,7 @@ final class GameViewController: UIViewController {
         spriteView.presentScene(scene)
         scene.refreshSafeAreaLayout()
         hasPresentedScene = true
+        hideLoadingOverlayWhenReady()
     }
 
     private func updatePresentedSceneSize(in spriteView: SKView) {
@@ -84,6 +92,118 @@ final class GameViewController: UIViewController {
 
     private func refreshPresentedSceneSafeAreaLayout() {
         ((view as? SKView)?.scene as? ArenaScene)?.refreshSafeAreaLayout()
+    }
+
+    private func installLoadingOverlay() {
+        guard loadingOverlayView == nil, let spriteView = view as? SKView else {
+            return
+        }
+
+        let overlayView = UIView()
+        overlayView.translatesAutoresizingMaskIntoConstraints = false
+        overlayView.backgroundColor = .black
+        overlayView.isUserInteractionEnabled = false
+        overlayView.accessibilityIdentifier = "game-loading-screen"
+
+        let image = UIImage(
+            named: Self.loadingScreenAssetName,
+            in: Bundle(for: Self.self),
+            compatibleWith: traitCollection
+        )
+        let imageView = UIImageView(image: image)
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        imageView.contentMode = .scaleAspectFill
+        imageView.clipsToBounds = true
+
+        let scrimView = UIView()
+        scrimView.translatesAutoresizingMaskIntoConstraints = false
+        scrimView.backgroundColor = UIColor.black.withAlphaComponent(0.26)
+
+        let titleLabel = UILabel()
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.font = .systemFont(ofSize: 34, weight: .heavy)
+        titleLabel.text = "TILT ARENA"
+        titleLabel.textAlignment = .center
+        titleLabel.textColor = .white
+        titleLabel.adjustsFontSizeToFitWidth = true
+        titleLabel.minimumScaleFactor = 0.65
+
+        let loadingLabel = UILabel()
+        loadingLabel.translatesAutoresizingMaskIntoConstraints = false
+        loadingLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        loadingLabel.text = "LOADING"
+        loadingLabel.textAlignment = .center
+        loadingLabel.textColor = UIColor.white.withAlphaComponent(0.82)
+
+        let spinner = UIActivityIndicatorView(style: .medium)
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+        spinner.color = UIColor(red: 0.18, green: 0.86, blue: 1, alpha: 1)
+        spinner.startAnimating()
+
+        let stackView = UIStackView(arrangedSubviews: [titleLabel, loadingLabel, spinner])
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+        stackView.axis = .vertical
+        stackView.alignment = .center
+        stackView.spacing = 8
+
+        overlayView.addSubview(imageView)
+        overlayView.addSubview(scrimView)
+        overlayView.addSubview(stackView)
+        spriteView.addSubview(overlayView)
+
+        NSLayoutConstraint.activate([
+            overlayView.leadingAnchor.constraint(equalTo: spriteView.leadingAnchor),
+            overlayView.trailingAnchor.constraint(equalTo: spriteView.trailingAnchor),
+            overlayView.topAnchor.constraint(equalTo: spriteView.topAnchor),
+            overlayView.bottomAnchor.constraint(equalTo: spriteView.bottomAnchor),
+
+            imageView.leadingAnchor.constraint(equalTo: overlayView.leadingAnchor),
+            imageView.trailingAnchor.constraint(equalTo: overlayView.trailingAnchor),
+            imageView.topAnchor.constraint(equalTo: overlayView.topAnchor),
+            imageView.bottomAnchor.constraint(equalTo: overlayView.bottomAnchor),
+
+            scrimView.leadingAnchor.constraint(equalTo: overlayView.leadingAnchor),
+            scrimView.trailingAnchor.constraint(equalTo: overlayView.trailingAnchor),
+            scrimView.topAnchor.constraint(equalTo: overlayView.topAnchor),
+            scrimView.bottomAnchor.constraint(equalTo: overlayView.bottomAnchor),
+
+            stackView.centerXAnchor.constraint(equalTo: overlayView.centerXAnchor),
+            stackView.bottomAnchor.constraint(
+                equalTo: overlayView.safeAreaLayoutGuide.bottomAnchor,
+                constant: -26
+            ),
+            stackView.leadingAnchor.constraint(greaterThanOrEqualTo: overlayView.leadingAnchor, constant: 24),
+            stackView.trailingAnchor.constraint(lessThanOrEqualTo: overlayView.trailingAnchor, constant: -24),
+            titleLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 420)
+        ])
+
+        loadingOverlayInstalledAt = CACurrentMediaTime()
+        loadingOverlayView = overlayView
+    }
+
+    private func hideLoadingOverlayWhenReady() {
+        guard let overlayView = loadingOverlayView, !isHidingLoadingOverlay else {
+            return
+        }
+
+        let elapsed = CACurrentMediaTime() - (loadingOverlayInstalledAt ?? CACurrentMediaTime())
+        let delay = max(0, Self.minimumLoadingScreenDuration - elapsed)
+        isHidingLoadingOverlay = true
+
+        UIView.animate(
+            withDuration: 0.25,
+            delay: delay,
+            options: [.beginFromCurrentState, .curveEaseOut],
+            animations: {
+                overlayView.alpha = 0
+            },
+            completion: { [weak self, weak overlayView] _ in
+                overlayView?.removeFromSuperview()
+                self?.loadingOverlayView = nil
+                self?.loadingOverlayInstalledAt = nil
+                self?.isHidingLoadingOverlay = false
+            }
+        )
     }
 
     @discardableResult
