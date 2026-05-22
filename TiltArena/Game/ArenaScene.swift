@@ -1,4 +1,5 @@
 // swiftlint:disable file_length
+import QuartzCore
 import SpriteKit
 import UIKit
 
@@ -30,6 +31,7 @@ final class ArenaScene: SKScene {
     private let runProfileStore = RunProfileStore()
     private let localOptionsStore = ArenaLocalOptionsStore()
     private let hapticsController = ArenaHapticsController()
+    private let audioController = ArenaAudioController()
     private var arenaRoot = SKNode()
     private let uiRoot = SKNode()
     private lazy var tiltInputController = TiltInputController(settingsStore: tiltSettingsStore)
@@ -46,6 +48,9 @@ final class ArenaScene: SKScene {
     private var lastProgressionResult: ArenaProgressionResult?
     private var resetDataArmed = false
     private var hasPersistedFinalRun = false
+    private var isResolvingDeath = false
+    private var deathReplayTrace = DeathReplayTrace()
+    private var lastDeathCollisionSnapshot: DeathCollisionSnapshot?
     private var readyHoldController = ReadyStartHoldController()
     private var readyStartPoint = CGPoint.zero
     private var readyProgressRing: SKShapeNode?
@@ -63,6 +68,7 @@ final class ArenaScene: SKScene {
     private var playerNode: PlayerCraftNode?
     private var playerTrailNode: PlayerTrailNode?
     private var razorShieldTimeRemaining: TimeInterval = 0
+    private var hasPlayedRazorShieldWarning = false
     private var razorShieldNode: SKShapeNode?
     private var frozenCrasherTimeRemaining: TimeInterval = 0
     private var flameTrailState = FlameTrailState()
@@ -109,6 +115,7 @@ final class ArenaScene: SKScene {
     override func didMove(to view: SKView) {
         runProfile = runProfileStore.profile
         localOptions = localOptionsStore.options
+        syncAudioOption()
         syncHapticsOption()
         backgroundColor = theme.backgroundColor
         rebuildArena()
@@ -149,6 +156,7 @@ final class ArenaScene: SKScene {
 
     override func willMove(from view: SKView) {
         orientationDelegate?.arenaSceneRequestsOrientationUnlock(self)
+        audioController.stopMusic()
         tiltInputController.stop()
         lastUpdateTime = nil
         AppDiagnostics.logger(.scene).notice("scene.removed")
@@ -540,6 +548,8 @@ final class ArenaScene: SKScene {
         runController.start()
         readyHoldController.reset()
         resetActiveRun()
+        audioController.resetEventLimiter()
+        audioController.startMusic()
         hapticsController.prepare()
         show(.activeGameplay)
         AppDiagnostics.logger(.run).notice("run.started", metadata: [
@@ -549,6 +559,7 @@ final class ArenaScene: SKScene {
 
     private func pauseRun() {
         runController.pause()
+        audioController.pauseMusic()
         tiltInputController.resetSmoothedInput()
         show(.pause)
         AppDiagnostics.logger(.run).info("run.paused", metadata: [
@@ -560,6 +571,7 @@ final class ArenaScene: SKScene {
     private func resumeRun() {
         tiltInputController.resetSmoothedInput()
         runController.resume()
+        audioController.startMusic()
         show(.activeGameplay)
         AppDiagnostics.logger(.run).info("run.resumed", metadata: [
             "score": "\(runController.score)",
@@ -567,25 +579,51 @@ final class ArenaScene: SKScene {
         ])
     }
 
-    private func finishRun(playFeedback: Bool = true) {
+    private func finishRun(playFeedback: Bool = true, collision: DeathCollisionSnapshot? = nil) {
+        guard !isResolvingDeath else {
+            return
+        }
+
+        isResolvingDeath = playFeedback
         previousBestScore = runProfile.bestScore
         runController.endRun(mode: selectedMode)
+        audioController.stopMusic()
+        lastDeathCollisionSnapshot = collision
         let isNewBest = (runController.finalizedSummary?.score ?? runController.score) > previousBestScore
         persistFinalRunIfNeeded()
         if playFeedback {
+            playAudio(.death)
             playDeathFeedback()
             playHaptic(.death)
         }
         if isNewBest {
+            playAudio(.newBest)
             playHaptic(.newBest)
         }
-        show(.postRun)
+        if playFeedback {
+            run(.sequence([
+                .wait(forDuration: 0.22),
+                .run { [weak self] in
+                    guard let self else {
+                        return
+                    }
+                    self.isResolvingDeath = false
+                    self.show(.postRun)
+                }
+            ]))
+        } else {
+            isResolvingDeath = false
+            show(.postRun)
+        }
         logFinishedRun(isNewBest: isNewBest)
     }
 
     private func resetActiveRun() {
         hasPersistedFinalRun = false
+        isResolvingDeath = false
         lastProgressionResult = nil
+        lastDeathCollisionSnapshot = nil
+        deathReplayTrace.reset()
         resetGameplayObjects()
         placePlayer(resetPosition: true)
         resetPlayerFeedback()
@@ -610,6 +648,7 @@ final class ArenaScene: SKScene {
             sequenceSeed: modeSettings.sequenceSeed
         )
         deactivateRazorShield()
+        hasPlayedRazorShieldWarning = false
         frozenCrasherTimeRemaining = 0
         flameTrailState.reset()
         flameTrailEffectNode.reset()
@@ -687,6 +726,7 @@ final class ArenaScene: SKScene {
         var playerPosition = initialPlayerPosition
 
         runController.update(deltaTime: deltaTime)
+        deathReplayTrace.record(time: runController.survivalTime, position: playerPosition)
         updateWarpDashInvulnerability(deltaTime: deltaTime)
         spawnEnemiesIfNeeded(deltaTime: deltaTime, playerPosition: playerPosition)
         spawnPickupIfNeeded(deltaTime: deltaTime, playerPosition: playerPosition)
@@ -849,6 +889,7 @@ final class ArenaScene: SKScene {
             } else {
                 creditedDangerGrab = false
             }
+            playAudio(creditedDangerGrab ? .dangerPickup : .pickup)
             playHaptic(creditedDangerGrab ? .dangerPickup : .pickup)
             AppDiagnostics.logger(.weapon).notice("pickup.collected", metadata: [
                 "id": "\(pickup.id)",
@@ -941,6 +982,10 @@ final class ArenaScene: SKScene {
         let previousComboMultiplier = runController.comboMultiplier
         runController.recordEnemyKills(count: enemyIDs.count, weaponKind: weaponKind)
         playEnemyClearHaptics(killCount: enemyIDs.count, previousComboMultiplier: previousComboMultiplier)
+        playEnemyClearAudio(killCount: enemyIDs.count, previousComboMultiplier: previousComboMultiplier)
+        if enemyIDs.count >= 8 {
+            playScreenShake(amplitude: 3, duration: 0.14)
+        }
         removeEnemies(ids: enemyIDs)
     }
 
@@ -983,6 +1028,7 @@ final class ArenaScene: SKScene {
 
     private func activateRazorShield(at playerPosition: CGPoint) {
         razorShieldTimeRemaining = weaponResolver.configuration.razorShieldDuration
+        hasPlayedRazorShieldWarning = false
 
         if razorShieldNode == nil {
             let node = SKShapeNode(circleOfRadius: weaponResolver.configuration.razorShieldRadius)
@@ -1018,6 +1064,7 @@ final class ArenaScene: SKScene {
         destroyEnemies(ids: targetIDs, weaponKind: .razorShield)
 
         razorShieldTimeRemaining = max(0, razorShieldTimeRemaining - max(0, deltaTime))
+        playRazorShieldWarningIfNeeded()
 
         if razorShieldTimeRemaining == 0 {
             deactivateRazorShield(emitHaptic: true)
@@ -1027,12 +1074,29 @@ final class ArenaScene: SKScene {
     private func deactivateRazorShield(emitHaptic: Bool = false) {
         let hadActiveShield = razorShieldNode != nil || razorShieldTimeRemaining > 0
         razorShieldTimeRemaining = 0
+        hasPlayedRazorShieldWarning = false
         razorShieldNode?.removeFromParent()
         razorShieldNode = nil
 
         if emitHaptic, hadActiveShield, runController.phase == .active {
+            playAudio(.shieldExpired)
             playHaptic(.shieldExpired)
         }
+    }
+
+    private func playRazorShieldWarningIfNeeded() {
+        guard
+            !hasPlayedRazorShieldWarning,
+            razorShieldTimeRemaining > 0,
+            razorShieldTimeRemaining <= 0.75,
+            runController.phase == .active
+        else {
+            return
+        }
+
+        hasPlayedRazorShieldWarning = true
+        playAudio(.shieldWarning)
+        playHaptic(.shieldWarning)
     }
 
     private func updateFlameTrail(deltaTime: TimeInterval, playerPosition: CGPoint) {
@@ -1082,14 +1146,21 @@ final class ArenaScene: SKScene {
             radius: runController.configuration.playerHitRadius
         )
 
-        guard enemies.contains(where: { playerCircle.intersects($0.collisionCircle) }) else {
+        guard let collidingEnemy = enemies.first(where: { playerCircle.intersects($0.collisionCircle) }) else {
             return
         }
 
-        finishRun()
+        finishRun(
+            collision: DeathCollisionSnapshot(
+                playerPosition: playerPosition,
+                enemyPosition: collidingEnemy.position,
+                enemyRadius: collidingEnemy.radius
+            )
+        )
     }
 
     private func playDeathFeedback() {
+        playScreenShake(amplitude: 5, duration: 0.18)
         let pulse = SKAction.group([
             .scale(to: 1.45, duration: 0.08),
             .fadeAlpha(to: 0.35, duration: 0.08)
@@ -1099,8 +1170,16 @@ final class ArenaScene: SKScene {
         playerNode?.run(.sequence([pulse, settle]))
     }
 
+    private func syncAudioOption() {
+        audioController.isEnabled = localOptions.audioEnabled
+    }
+
     private func syncHapticsOption() {
         hapticsController.isEnabled = localOptions.hapticsEnabled
+    }
+
+    private func playAudio(_ event: ArenaAudioEvent) {
+        audioController.play(event, at: runController.survivalTime)
     }
 
     private func playHaptic(_ event: ArenaHapticEvent) {
@@ -1114,6 +1193,34 @@ final class ArenaScene: SKScene {
         if currentComboMultiplier > previousComboMultiplier {
             playHaptic(.comboMilestone(multiplier: currentComboMultiplier))
         }
+    }
+
+    private func playEnemyClearAudio(killCount: Int, previousComboMultiplier: Int) {
+        playAudio(.enemyClear(count: killCount))
+
+        let currentComboMultiplier = runController.comboMultiplier
+        if currentComboMultiplier > previousComboMultiplier {
+            playAudio(.comboMilestone(multiplier: currentComboMultiplier))
+        }
+    }
+
+    private func playScreenShake(amplitude: CGFloat, duration: TimeInterval) {
+        guard amplitude > 0, duration > 0 else {
+            return
+        }
+
+        let xAnimation = CAKeyframeAnimation(keyPath: "transform.translation.x")
+        xAnimation.values = [0, amplitude, -amplitude * 0.7, amplitude * 0.35, 0]
+        xAnimation.duration = duration
+
+        let yAnimation = CAKeyframeAnimation(keyPath: "transform.translation.y")
+        yAnimation.values = [0, -amplitude * 0.45, amplitude * 0.3, -amplitude * 0.2, 0]
+        yAnimation.duration = duration
+
+        let group = CAAnimationGroup()
+        group.animations = [xAnimation, yAnimation]
+        group.duration = duration
+        view?.layer.add(group, forKey: "arena.screenShake")
     }
 
     private func updateRunDisplay() {
@@ -1209,6 +1316,7 @@ final class ArenaScene: SKScene {
         }
 
         if didRecordNearMiss {
+            playAudio(.nearMiss)
             playHaptic(.nearMiss)
         }
     }
@@ -1688,9 +1796,15 @@ private extension ArenaScene {
 
     func renderLocalOptions(in frame: CGRect) {
         addToggle(
+            title: "AUDIO",
+            isOn: localOptions.audioEnabled,
+            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 54, width: 116, height: 34),
+            action: .toggleAudio
+        )
+        addToggle(
             title: "HAPTICS",
             isOn: localOptions.hapticsEnabled,
-            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 54, width: 132, height: 34),
+            frame: CGRect(x: frame.minX + 140, y: frame.maxY - 54, width: 132, height: 34),
             action: .toggleHaptics
         )
         addButton(
@@ -1807,7 +1921,11 @@ private extension ArenaScene {
         let summary = runController.finalizedSummary
 
         renderPostRunScore(summary: summary, layout: layout)
-        addDeathClarityMarker(at: movementController.state.position)
+        addDeathReplayTrace()
+        addDeathClarityMarker(
+            snapshot: lastDeathCollisionSnapshot,
+            fallbackPosition: movementController.state.position
+        )
         renderPostRunHighlights(summary: summary, in: layout.rightColumnFrame(width: 230))
         renderPostRunButtons(layout: layout)
     }
@@ -1883,7 +2001,7 @@ private extension ArenaScene {
             performRunControlAction(action)
         case .exportDiagnostics:
             exportDiagnostics()
-        case .sensitivityDown, .sensitivityUp, .preset, .toggleHaptics, .selectTheme, .resetData:
+        case .sensitivityDown, .sensitivityUp, .preset, .toggleAudio, .toggleHaptics, .selectTheme, .resetData:
             performOptionsAction(action)
         }
     }
@@ -1950,7 +2068,7 @@ private extension ArenaScene {
                 resetCalibrationPreviewPosition()
             }
             rebuildUI()
-        case .toggleHaptics:
+        case .toggleAudio, .toggleHaptics:
             performLocalOptionToggle(action)
         case .selectTheme, .resetData:
             performLocalDataAction(action)
@@ -1961,6 +2079,11 @@ private extension ArenaScene {
 
     func performLocalOptionToggle(_ action: ArenaControlAction) {
         switch action {
+        case .toggleAudio:
+            localOptions.audioEnabled.toggle()
+            localOptionsStore.options = localOptions
+            syncAudioOption()
+            rebuildUI()
         case .toggleHaptics:
             localOptions.hapticsEnabled.toggle()
             localOptionsStore.options = localOptions
@@ -2009,6 +2132,8 @@ private extension ArenaScene {
         runController = ClassicRunController(configuration: runController.configuration)
         resetGameplayObjects()
         readyHoldController.reset()
+        deathReplayTrace.reset()
+        lastDeathCollisionSnapshot = nil
         placePlayer(resetPosition: true)
         resetPlayerFeedback()
     }
@@ -2041,6 +2166,7 @@ private extension ArenaScene {
         localOptionsStore.reset()
         runProfile = RunProfile()
         localOptions = .defaults
+        syncAudioOption()
         syncHapticsOption()
         lastProgressionResult = nil
         selectedMode = .classic
@@ -2076,6 +2202,7 @@ private extension ArenaScene {
             enemyCount: enemies.count,
             pickupCount: pickups.count,
             localOptions: DiagnosticLocalOptionsSnapshot(
+                audioEnabled: localOptions.audioEnabled,
                 hapticsEnabled: localOptions.hapticsEnabled,
                 theme: localOptions.themeKind.rawValue
             ),
@@ -2177,7 +2304,27 @@ private extension ArenaScene {
         uiRoot.addChild(pickup)
     }
 
-    func addDeathClarityMarker(at position: CGPoint) {
+    func addDeathReplayTrace() {
+        guard deathReplayTrace.samples.count >= 2 else {
+            return
+        }
+
+        let path = CGMutablePath()
+        path.move(to: deathReplayTrace.samples[0].position)
+        for sample in deathReplayTrace.samples.dropFirst() {
+            path.addLine(to: sample.position)
+        }
+
+        let line = SKShapeNode(path: path)
+        line.zPosition = ArenaUIZPosition.content
+        line.strokeColor = theme.playerAccentColor.withAlphaComponent(0.42)
+        line.lineWidth = 2
+        line.glowWidth = theme.kind == .darkTacticalRadar ? 2 : 0
+        uiRoot.addChild(line)
+    }
+
+    func addDeathClarityMarker(snapshot: DeathCollisionSnapshot?, fallbackPosition: CGPoint) {
+        let position = snapshot?.playerPosition ?? fallbackPosition
         let ring = SKShapeNode(circleOfRadius: 30)
         ring.position = position
         ring.zPosition = ArenaUIZPosition.content
@@ -2197,6 +2344,28 @@ private extension ArenaScene {
         cross.lineWidth = 1.5
         cross.zPosition = ArenaUIZPosition.content
         uiRoot.addChild(cross)
+
+        guard let snapshot else {
+            return
+        }
+
+        let enemy = SKShapeNode(circleOfRadius: snapshot.enemyRadius + 4)
+        enemy.position = snapshot.enemyPosition
+        enemy.zPosition = ArenaUIZPosition.content
+        enemy.strokeColor = theme.enemyColor.withAlphaComponent(0.9)
+        enemy.fillColor = theme.enemyColor.withAlphaComponent(0.14)
+        enemy.lineWidth = 1.5
+        enemy.glowWidth = theme.kind == .darkTacticalRadar ? 3 : 0
+        uiRoot.addChild(enemy)
+
+        let impactPath = CGMutablePath()
+        impactPath.move(to: snapshot.playerPosition)
+        impactPath.addLine(to: snapshot.enemyPosition)
+        let impactLine = SKShapeNode(path: impactPath)
+        impactLine.zPosition = ArenaUIZPosition.content
+        impactLine.strokeColor = theme.enemyColor.withAlphaComponent(0.55)
+        impactLine.lineWidth = 1.2
+        uiRoot.addChild(impactLine)
     }
 
     func addModeRow(_ row: ArenaModeRow, frame: CGRect) {
@@ -2535,6 +2704,10 @@ private extension ArenaScene {
         let previousComboMultiplier = runController.comboMultiplier
         runController.recordFrozenShatters(count: shatterIDs.count, weaponKind: .freezeBurst)
         playEnemyClearHaptics(killCount: shatterIDs.count, previousComboMultiplier: previousComboMultiplier)
+        playEnemyClearAudio(killCount: shatterIDs.count, previousComboMultiplier: previousComboMultiplier)
+        if shatterIDs.count >= 8 {
+            playScreenShake(amplitude: 3, duration: 0.14)
+        }
         removeEnemies(ids: shatterIDs)
     }
 }
@@ -2560,6 +2733,7 @@ private enum ArenaControlAction: Equatable {
     case sensitivityDown
     case sensitivityUp
     case preset(TiltCalibrationPreset)
+    case toggleAudio
     case toggleHaptics
     case selectTheme(ArenaThemeKind)
     case resetData

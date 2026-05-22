@@ -196,6 +196,7 @@ final class DiagnosticLogStoreTests: XCTestCase {
                 enemyCount: 0,
                 pickupCount: 0,
                 localOptions: DiagnosticLocalOptionsSnapshot(
+                    audioEnabled: true,
                     hapticsEnabled: true,
                     theme: "darkTacticalRadar"
                 ),
@@ -217,9 +218,9 @@ final class DiagnosticLogStoreTests: XCTestCase {
         let localOptions = try XCTUnwrap(gameplay["localOptions"] as? [String: Any])
 
         XCTAssertEqual(object["schemaVersion"] as? Int, DiagnosticExportMetadataFactory.currentSchemaVersion)
+        XCTAssertEqual(localOptions["audioEnabled"] as? Bool, true)
         XCTAssertEqual(localOptions["hapticsEnabled"] as? Bool, true)
         XCTAssertEqual(localOptions["theme"] as? String, "darkTacticalRadar")
-        XCTAssertNil(localOptions["audioEnabled"])
         XCTAssertNil(localOptions["reducedEffects"])
     }
 

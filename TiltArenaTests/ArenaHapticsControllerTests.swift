@@ -46,7 +46,14 @@ final class ArenaHapticsControllerTests: XCTestCase {
         )
     }
 
-    func testShieldDeathAndNewBestUseDistinctNotificationPatterns() {
+    func testShieldWarningUsesLightImpactPattern() {
+        XCTAssertEqual(
+            ArenaHapticEvent.shieldWarning.pattern,
+            .impact(.light, intensity: 0.52)
+        )
+    }
+
+    func testShieldExpiryDeathAndNewBestUseDistinctNotificationPatterns() {
         XCTAssertEqual(
             ArenaHapticEvent.shieldExpired.pattern,
             .notification(.warning)

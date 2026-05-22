@@ -37,6 +37,7 @@ enum ArenaHapticEvent: Equatable {
     case nearMiss
     case enemyClear(count: Int)
     case comboMilestone(multiplier: Int)
+    case shieldWarning
     case shieldExpired
     case death
     case newBest
@@ -59,6 +60,8 @@ enum ArenaHapticEvent: Equatable {
             return .impact(.heavy, intensity: 1.0)
         case .comboMilestone:
             return .impact(.medium, intensity: 0.78)
+        case .shieldWarning:
+            return .impact(.light, intensity: 0.52)
         case .shieldExpired:
             return .notification(.warning)
         case .death:

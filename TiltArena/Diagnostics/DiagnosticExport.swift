@@ -13,6 +13,7 @@ struct DiagnosticGameplaySnapshot: Codable, Equatable {
 }
 
 struct DiagnosticLocalOptionsSnapshot: Codable, Equatable {
+    let audioEnabled: Bool
     let hapticsEnabled: Bool
     let theme: String
 }
@@ -49,7 +50,7 @@ struct DiagnosticDeviceMetadata: Codable, Equatable {
 }
 
 enum DiagnosticExportMetadataFactory {
-    static let currentSchemaVersion = 2
+    static let currentSchemaVersion = 3
 
     static func make(
         generatedAt: Date,

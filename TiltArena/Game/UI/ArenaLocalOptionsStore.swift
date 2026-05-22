@@ -1,26 +1,31 @@
 import Foundation
 
 struct ArenaLocalOptions: Codable, Equatable {
+    var audioEnabled = true
     var hapticsEnabled = true
     var themeKind: ArenaThemeKind = .darkTacticalRadar
 
     static let defaults = ArenaLocalOptions()
 
     init(
+        audioEnabled: Bool = true,
         hapticsEnabled: Bool = true,
         themeKind: ArenaThemeKind = .darkTacticalRadar
     ) {
+        self.audioEnabled = audioEnabled
         self.hapticsEnabled = hapticsEnabled
         self.themeKind = themeKind
     }
 
     private enum CodingKeys: String, CodingKey {
+        case audioEnabled
         case hapticsEnabled
         case themeKind
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        audioEnabled = try container.decodeIfPresent(Bool.self, forKey: .audioEnabled) ?? true
         hapticsEnabled = try container.decodeIfPresent(Bool.self, forKey: .hapticsEnabled) ?? true
         themeKind = (try? container.decode(ArenaThemeKind.self, forKey: .themeKind)) ?? .darkTacticalRadar
     }
