@@ -558,6 +558,10 @@ final class ArenaScene: SKScene {
     }
 
     private func pauseRun() {
+        guard runController.phase == .active else {
+            return
+        }
+
         runController.pause()
         audioController.pauseMusic()
         tiltInputController.resetSmoothedInput()
@@ -580,7 +584,10 @@ final class ArenaScene: SKScene {
     }
 
     private func finishRun(playFeedback: Bool = true, collision: DeathCollisionSnapshot? = nil) {
-        guard !isResolvingDeath else {
+        guard
+            !isResolvingDeath,
+            runController.phase == .active || runController.phase == .paused
+        else {
             return
         }
 
@@ -1200,7 +1207,7 @@ final class ArenaScene: SKScene {
 
         let currentComboMultiplier = runController.comboMultiplier
         if currentComboMultiplier > previousComboMultiplier {
-            playAudio(.comboMilestone(multiplier: currentComboMultiplier))
+            playAudio(.comboMilestone)
         }
     }
 
@@ -1795,21 +1802,24 @@ private extension ArenaScene {
     }
 
     func renderLocalOptions(in frame: CGRect) {
+        let firstRowY = frame.maxY - 54
+        let secondRowY = frame.maxY - 96
+
         addToggle(
             title: "AUDIO",
             isOn: localOptions.audioEnabled,
-            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 54, width: 116, height: 34),
+            frame: CGRect(x: frame.minX + 14, y: firstRowY, width: 106, height: 34),
             action: .toggleAudio
         )
         addToggle(
             title: "HAPTICS",
             isOn: localOptions.hapticsEnabled,
-            frame: CGRect(x: frame.minX + 140, y: frame.maxY - 54, width: 132, height: 34),
+            frame: CGRect(x: frame.minX + 130, y: firstRowY, width: 126, height: 34),
             action: .toggleHaptics
         )
         addButton(
             "LOGS",
-            frame: CGRect(x: frame.maxX - 104, y: frame.maxY - 54, width: 90, height: 34),
+            frame: CGRect(x: frame.maxX - 104, y: secondRowY, width: 90, height: 34),
             action: .exportDiagnostics,
             style: .secondary
         )

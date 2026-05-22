@@ -5,7 +5,7 @@ final class ArenaAudioControllerTests: XCTestCase {
     func testRequiredEventsMapToDistinctCueFamilies() {
         XCTAssertEqual(ArenaAudioCueCatalog.cue(for: .pickup).family, .pickup)
         XCTAssertEqual(ArenaAudioCueCatalog.cue(for: .dangerPickup).family, .dangerPickup)
-        XCTAssertEqual(ArenaAudioCueCatalog.cue(for: .comboMilestone(multiplier: 2)).family, .comboMilestone)
+        XCTAssertEqual(ArenaAudioCueCatalog.cue(for: .comboMilestone).family, .comboMilestone)
         XCTAssertEqual(ArenaAudioCueCatalog.cue(for: .nearMiss).family, .nearMiss)
         XCTAssertEqual(ArenaAudioCueCatalog.cue(for: .shieldWarning).family, .shieldWarning)
         XCTAssertEqual(ArenaAudioCueCatalog.cue(for: .shieldExpired).family, .shieldExpired)

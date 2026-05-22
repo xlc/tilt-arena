@@ -26,7 +26,7 @@ enum ArenaAudioEvent: Equatable {
     case pickup
     case dangerPickup
     case enemyClear(count: Int)
-    case comboMilestone(multiplier: Int)
+    case comboMilestone
     case nearMiss
     case shieldWarning
     case shieldExpired
@@ -45,14 +45,8 @@ enum ArenaAudioCueCatalog {
             return ArenaAudioCue(family: .majorEnemyClear, frequency: 210, duration: 0.18, volume: 0.24, cooldown: 0.18)
         case .enemyClear:
             return ArenaAudioCue(family: .enemyClear, frequency: 360, duration: 0.05, volume: 0.12, cooldown: 0.08)
-        case let .comboMilestone(multiplier):
-            return ArenaAudioCue(
-                family: .comboMilestone,
-                frequency: multiplier >= 4 ? 980 : 860,
-                duration: 0.11,
-                volume: 0.2,
-                cooldown: 0.16
-            )
+        case .comboMilestone:
+            return ArenaAudioCue(family: .comboMilestone, frequency: 860, duration: 0.11, volume: 0.2, cooldown: 0.16)
         case .nearMiss:
             return ArenaAudioCue(family: .nearMiss, frequency: 1_140, duration: 0.045, volume: 0.09, cooldown: 0.2)
         case .shieldWarning:
@@ -118,12 +112,13 @@ final class ArenaAudioController {
     }
 
     func startMusic() {
-        guard isEnabled else {
+        guard
+            isEnabled,
+            configureAudioSessionIfNeeded(),
+            startEngineIfNeeded()
+        else {
             return
         }
-
-        configureAudioSessionIfNeeded()
-        startEngineIfNeeded()
 
         guard !isMusicPlaying else {
             return
@@ -166,12 +161,13 @@ final class ArenaAudioController {
     }
 
     func play(_ event: ArenaAudioEvent, at time: TimeInterval? = nil) {
-        guard isEnabled else {
+        guard
+            isEnabled,
+            configureAudioSessionIfNeeded(),
+            startEngineIfNeeded()
+        else {
             return
         }
-
-        configureAudioSessionIfNeeded()
-        startEngineIfNeeded()
 
         let playbackTime = time ?? fallbackPlaybackTime()
         guard
@@ -181,14 +177,13 @@ final class ArenaAudioController {
             return
         }
 
-        effectsNode.volume = cue.volume
         effectsNode.scheduleBuffer(buffer, at: nil, options: [])
         effectsNode.play()
     }
 
-    private func configureAudioSessionIfNeeded() {
+    private func configureAudioSessionIfNeeded() -> Bool {
         guard !isConfigured else {
-            return
+            return true
         }
 
         do {
@@ -197,8 +192,10 @@ final class ArenaAudioController {
             try session.setActive(true)
             configureEngineIfNeeded()
             isConfigured = true
+            return true
         } catch {
             AppDiagnostics.logger(.app).warning("audio.session_failed", error: error)
+            return false
         }
     }
 
@@ -211,18 +208,21 @@ final class ArenaAudioController {
         engine.attach(musicNode)
         engine.connect(effectsNode, to: engine.mainMixerNode, format: format)
         engine.connect(musicNode, to: engine.mainMixerNode, format: format)
+        effectsNode.volume = 1
         engine.prepare()
     }
 
-    private func startEngineIfNeeded() {
+    private func startEngineIfNeeded() -> Bool {
         guard !engine.isRunning else {
-            return
+            return true
         }
 
         do {
             try engine.start()
+            return true
         } catch {
             AppDiagnostics.logger(.app).warning("audio.engine_failed", error: error)
+            return false
         }
     }
 
@@ -309,7 +309,7 @@ final class ArenaAudioController {
         case .majorEnemyClear:
             return ArenaAudioCueCatalog.cue(for: .enemyClear(count: 8))
         case .comboMilestone:
-            return ArenaAudioCueCatalog.cue(for: .comboMilestone(multiplier: 2))
+            return ArenaAudioCueCatalog.cue(for: .comboMilestone)
         case .nearMiss:
             return ArenaAudioCueCatalog.cue(for: .nearMiss)
         case .shieldWarning:
