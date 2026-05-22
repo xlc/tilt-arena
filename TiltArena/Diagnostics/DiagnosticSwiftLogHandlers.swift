@@ -40,7 +40,8 @@ struct DiagnosticJSONLLogHandler: LogHandler {
             metadata: DiagnosticMetadataSanitizer.merged(
                 base: metadata,
                 provider: metadataProvider,
-                explicit: event.metadata
+                explicit: event.metadata,
+                error: event.error
             ),
             source: event.source,
             file: event.file,
@@ -73,7 +74,8 @@ struct DiagnosticOSLogHandler: LogHandler {
             DiagnosticMetadataSanitizer.merged(
                 base: metadata,
                 provider: metadataProvider,
-                explicit: event.metadata
+                explicit: event.metadata,
+                error: event.error
             )
         )
         let metadataText = metadata.isEmpty
