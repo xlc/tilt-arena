@@ -117,15 +117,36 @@ final class DiagnosticLogStoreTests: XCTestCase {
     }
 
     func testMetadataSanitizerRedactsSensitiveKeys() {
+        let longSensitiveKey = "\(String(repeating: "x", count: 84))token"
         let metadata = DiagnosticMetadataSanitizer.sanitized([
+            longSensitiveKey: "secret-token",
             "token": "secret-token",
             "userID": "abc",
             "mode": "classic"
         ])
 
+        XCTAssertEqual(metadata[String(longSensitiveKey.prefix(80))], "<redacted>")
         XCTAssertEqual(metadata["token"], "<redacted>")
         XCTAssertEqual(metadata["userID"], "<redacted>")
         XCTAssertEqual(metadata["mode"], "classic")
+    }
+
+    func testMetadataSanitizerRedactsNestedSensitiveDictionaryKeys() {
+        let metadata = DiagnosticMetadataSanitizer.sanitized([
+            "context": .dictionary([
+                "mode": "classic",
+                "nested": .dictionary([
+                    "count": "2",
+                    "email": "player@example.com"
+                ]),
+                "token": "secret-token"
+            ])
+        ])
+
+        XCTAssertEqual(
+            metadata["context"],
+            "mode=classic,nested=count=2,email=<redacted>,token=<redacted>"
+        )
     }
 
     func testExportBundleContainsMetadataReadmeAndCopiedLogs() throws {
@@ -158,8 +179,48 @@ final class DiagnosticLogStoreTests: XCTestCase {
             DiagnosticExportMetadata.self,
             from: Data(contentsOf: bundleURL.appendingPathComponent("metadata.json"))
         )
-        XCTAssertEqual(decodedMetadata.schemaVersion, 1)
+        XCTAssertEqual(decodedMetadata.schemaVersion, DiagnosticExportMetadataFactory.currentSchemaVersion)
         XCTAssertEqual(decodedMetadata.sessionID, "session-2")
+    }
+
+    func testExportMetadataVersionTracksLocalOptionsSnapshotShape() throws {
+        let metadata = DiagnosticExportMetadataFactory.make(
+            generatedAt: Date(timeIntervalSince1970: 5),
+            sessionID: "session-4",
+            gameplay: DiagnosticGameplaySnapshot(
+                uiState: "options",
+                selectedMode: "classic",
+                runPhase: "preRun",
+                score: 0,
+                survivalTime: 0,
+                enemyCount: 0,
+                pickupCount: 0,
+                localOptions: DiagnosticLocalOptionsSnapshot(
+                    hapticsEnabled: true,
+                    theme: "darkTacticalRadar"
+                ),
+                profile: DiagnosticProfileSnapshot(
+                    bestScore: 0,
+                    highestCombo: 0,
+                    longestSurvivalTime: 0,
+                    totalRuns: 0,
+                    totalEnemiesDestroyed: 0,
+                    unlockedWeaponCount: 3,
+                    earnedAwardCount: 0
+                )
+            )
+        )
+
+        let data = try JSONEncoder().encode(metadata)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let gameplay = try XCTUnwrap(object["gameplay"] as? [String: Any])
+        let localOptions = try XCTUnwrap(gameplay["localOptions"] as? [String: Any])
+
+        XCTAssertEqual(object["schemaVersion"] as? Int, DiagnosticExportMetadataFactory.currentSchemaVersion)
+        XCTAssertEqual(localOptions["hapticsEnabled"] as? Bool, true)
+        XCTAssertEqual(localOptions["theme"] as? String, "darkTacticalRadar")
+        XCTAssertNil(localOptions["audioEnabled"])
+        XCTAssertNil(localOptions["reducedEffects"])
     }
 
     func testExportMetadataOmitsDeviceNameVendorIdentifierAndModelIdentifier() throws {
