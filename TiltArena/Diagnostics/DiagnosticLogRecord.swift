@@ -86,7 +86,8 @@ enum DiagnosticMetadataSanitizer {
     static func merged(
         base: Logger.Metadata,
         provider: Logger.MetadataProvider?,
-        explicit: Logger.Metadata?
+        explicit: Logger.Metadata?,
+        error: (any Error)? = nil
     ) -> Logger.Metadata {
         var merged = base
 
@@ -96,6 +97,11 @@ enum DiagnosticMetadataSanitizer {
 
         if let explicit {
             merged.merge(explicit, uniquingKeysWith: { _, explicit in explicit })
+        }
+
+        if let error {
+            merged["error.message"] = "\(error)"
+            merged["error.type"] = "\(String(reflecting: type(of: error)))"
         }
 
         return merged

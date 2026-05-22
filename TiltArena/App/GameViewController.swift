@@ -164,9 +164,7 @@ extension GameViewController: ArenaSceneDiagnosticsDelegate {
             ])
             present(activityController, animated: true)
         } catch {
-            AppDiagnostics.logger(.app).error("diagnostics.export.failed", metadata: [
-                "error": "\(error)"
-            ])
+            AppDiagnostics.logger(.app).error("diagnostics.export.failed", error: error)
         }
     }
 }
