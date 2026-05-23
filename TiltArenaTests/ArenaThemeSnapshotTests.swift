@@ -1,5 +1,4 @@
 import SnapshotTesting
-import SpriteKit
 import UIKit
 import XCTest
 @testable import TiltArena
@@ -24,46 +23,17 @@ final class ArenaThemeSnapshotTests: XCTestCase {
     }
 
     private func makeArenaBackgroundImage(theme: ArenaTheme) throws -> UIImage {
-        let view = SKView(frame: CGRect(origin: .zero, size: sceneSize))
-        view.contentScaleFactor = 1
-        view.ignoresSiblingOrder = false
-        view.shouldCullNonVisibleNodes = false
-
-        let scene = SKScene(size: sceneSize)
-        scene.anchorPoint = .zero
-        scene.backgroundColor = theme.backgroundColor
-        scene.scaleMode = .resizeFill
-        scene.addChild(
-            ArenaThemeRenderer(theme: theme).makeArenaBackground(
-                size: sceneSize,
-                arenaRect: ArenaGeometry.safeRect(
-                    sceneSize: sceneSize,
-                    safeAreaInsets: safeAreaInsets,
-                    margin: 24
+        try SnapshotImageRenderer.render(size: sceneSize, backgroundColor: theme.backgroundColor) { scene in
+            scene.addChild(
+                ArenaThemeRenderer(theme: theme).makeArenaBackground(
+                    size: sceneSize,
+                    arenaRect: ArenaGeometry.safeRect(
+                        sceneSize: sceneSize,
+                        safeAreaInsets: safeAreaInsets,
+                        margin: 24
+                    )
                 )
             )
-        )
-
-        view.presentScene(scene)
-        view.layoutIfNeeded()
-
-        guard let texture = view.texture(from: scene) else {
-            throw SnapshotRenderError.missingTexture
-        }
-
-        let cgImage = texture.cgImage()
-        let sourceScale = max(1, CGFloat(cgImage.width) / sceneSize.width)
-        let sourceImage = UIImage(cgImage: cgImage, scale: sourceScale, orientation: .up)
-        let format = UIGraphicsImageRendererFormat()
-        format.opaque = true
-        format.scale = 1
-
-        return UIGraphicsImageRenderer(size: sceneSize, format: format).image { _ in
-            sourceImage.draw(in: CGRect(origin: .zero, size: sceneSize))
         }
     }
-}
-
-private enum SnapshotRenderError: Error {
-    case missingTexture
 }
