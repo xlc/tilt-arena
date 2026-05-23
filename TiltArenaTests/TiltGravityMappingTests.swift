@@ -47,7 +47,7 @@ final class TiltGravityMappingTests: XCTestCase {
             orientation: .landscapeLeft,
             rawGravity: TiltGravityVector(x: 0.1234, y: -0.9876),
             screenGravity: TiltGravityVector(x: -0.9876, y: -0.1234),
-            neutralGravity: TiltGravityVector(x: 0, y: -0.35),
+            neutralGravity: TiltGravityVector(x: 0, y: 0.35),
             normalizedInput: CGVector(dx: 0.5, dy: -0.25)
         )
 
@@ -57,7 +57,7 @@ final class TiltGravityMappingTests: XCTestCase {
                 TiltReadoutRow(title: "ORIENT", value: "LAND L"),
                 TiltReadoutRow(title: "RAW", value: "+0.123 -0.988"),
                 TiltReadoutRow(title: "SCREEN", value: "-0.988 -0.123"),
-                TiltReadoutRow(title: "NEUTRAL", value: "+0.000 -0.350"),
+                TiltReadoutRow(title: "NEUTRAL", value: "+0.000 +0.350"),
                 TiltReadoutRow(title: "INPUT", value: "+0.500 -0.250")
             ]
         )

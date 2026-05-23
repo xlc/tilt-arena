@@ -99,12 +99,37 @@ final class GameViewController: UIViewController {
             return
         }
 
+        let overlayView = makeLoadingOverlayView()
+        let imageView = makeLoadingImageView()
+        let scrimView = makeLoadingScrimView()
+        let stackView = makeLoadingStackView()
+        for subview in [imageView, scrimView, stackView] {
+            overlayView.addSubview(subview)
+        }
+        spriteView.addSubview(overlayView)
+
+        activateLoadingOverlayConstraints(
+            overlayView: overlayView,
+            imageView: imageView,
+            scrimView: scrimView,
+            stackView: stackView,
+            spriteView: spriteView
+        )
+
+        loadingOverlayInstalledAt = CACurrentMediaTime()
+        loadingOverlayView = overlayView
+    }
+
+    private func makeLoadingOverlayView() -> UIView {
         let overlayView = UIView()
         overlayView.translatesAutoresizingMaskIntoConstraints = false
         overlayView.backgroundColor = .black
         overlayView.isUserInteractionEnabled = false
         overlayView.accessibilityIdentifier = "game-loading-screen"
+        return overlayView
+    }
 
+    private func makeLoadingImageView() -> UIImageView {
         let image = UIImage(
             named: Self.loadingScreenAssetName,
             in: Bundle(for: Self.self),
@@ -114,11 +139,35 @@ final class GameViewController: UIViewController {
         imageView.translatesAutoresizingMaskIntoConstraints = false
         imageView.contentMode = .scaleAspectFill
         imageView.clipsToBounds = true
+        return imageView
+    }
 
+    private func makeLoadingScrimView() -> UIView {
         let scrimView = UIView()
         scrimView.translatesAutoresizingMaskIntoConstraints = false
         scrimView.backgroundColor = UIColor.black.withAlphaComponent(0.26)
+        return scrimView
+    }
 
+    private func makeLoadingStackView() -> UIStackView {
+        let spinner = UIActivityIndicatorView(style: .medium)
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+        spinner.color = UIColor(red: 0.18, green: 0.86, blue: 1, alpha: 1)
+        spinner.startAnimating()
+
+        let stackView = UIStackView(arrangedSubviews: [
+            makeLoadingTitleLabel(),
+            makeLoadingLabel(),
+            spinner
+        ])
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+        stackView.axis = .vertical
+        stackView.alignment = .center
+        stackView.spacing = 8
+        return stackView
+    }
+
+    private func makeLoadingTitleLabel() -> UILabel {
         let titleLabel = UILabel()
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.font = .systemFont(ofSize: 34, weight: .heavy)
@@ -127,30 +176,27 @@ final class GameViewController: UIViewController {
         titleLabel.textColor = .white
         titleLabel.adjustsFontSizeToFitWidth = true
         titleLabel.minimumScaleFactor = 0.65
+        titleLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 420).isActive = true
+        return titleLabel
+    }
 
+    private func makeLoadingLabel() -> UILabel {
         let loadingLabel = UILabel()
         loadingLabel.translatesAutoresizingMaskIntoConstraints = false
         loadingLabel.font = .systemFont(ofSize: 13, weight: .semibold)
         loadingLabel.text = "LOADING"
         loadingLabel.textAlignment = .center
         loadingLabel.textColor = UIColor.white.withAlphaComponent(0.82)
+        return loadingLabel
+    }
 
-        let spinner = UIActivityIndicatorView(style: .medium)
-        spinner.translatesAutoresizingMaskIntoConstraints = false
-        spinner.color = UIColor(red: 0.18, green: 0.86, blue: 1, alpha: 1)
-        spinner.startAnimating()
-
-        let stackView = UIStackView(arrangedSubviews: [titleLabel, loadingLabel, spinner])
-        stackView.translatesAutoresizingMaskIntoConstraints = false
-        stackView.axis = .vertical
-        stackView.alignment = .center
-        stackView.spacing = 8
-
-        overlayView.addSubview(imageView)
-        overlayView.addSubview(scrimView)
-        overlayView.addSubview(stackView)
-        spriteView.addSubview(overlayView)
-
+    private func activateLoadingOverlayConstraints(
+        overlayView: UIView,
+        imageView: UIView,
+        scrimView: UIView,
+        stackView: UIView,
+        spriteView: UIView
+    ) {
         NSLayoutConstraint.activate([
             overlayView.leadingAnchor.constraint(equalTo: spriteView.leadingAnchor),
             overlayView.trailingAnchor.constraint(equalTo: spriteView.trailingAnchor),
@@ -173,12 +219,8 @@ final class GameViewController: UIViewController {
                 constant: -26
             ),
             stackView.leadingAnchor.constraint(greaterThanOrEqualTo: overlayView.leadingAnchor, constant: 24),
-            stackView.trailingAnchor.constraint(lessThanOrEqualTo: overlayView.trailingAnchor, constant: -24),
-            titleLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 420)
+            stackView.trailingAnchor.constraint(lessThanOrEqualTo: overlayView.trailingAnchor, constant: -24)
         ])
-
-        loadingOverlayInstalledAt = CACurrentMediaTime()
-        loadingOverlayView = overlayView
     }
 
     private func hideLoadingOverlayWhenReady() {

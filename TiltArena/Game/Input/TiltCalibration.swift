@@ -10,13 +10,13 @@ enum TiltCalibrationPreset: String, CaseIterable, Codable {
     var defaultNeutralGravity: TiltGravityVector {
         switch self {
         case .standard:
-            TiltGravityVector(x: 0, y: -0.35)
+            TiltGravityVector(x: 0, y: 0.35)
         case .flatTable:
             TiltGravityVector(x: 0, y: 0)
         case .reclined:
-            TiltGravityVector(x: 0, y: -0.65)
+            TiltGravityVector(x: 0, y: 0.65)
         case .custom:
-            TiltGravityVector(x: 0, y: -0.35)
+            TiltGravityVector(x: 0, y: 0.35)
         }
     }
 }

@@ -8,8 +8,9 @@ final class TiltSignalProcessorTests: XCTestCase {
             configuration: TiltSignalConfiguration(deadZoneDegrees: 3, maximumTiltDegrees: 25, smoothingDuration: 0.11)
         )
 
+        let neutralGravity = TiltControlSettings.defaults.calibration.neutralGravity
         let input = processor.inputVector(
-            gravity: TiltGravityVector(x: 0.01, y: -0.35),
+            gravity: TiltGravityVector(x: neutralGravity.x + 0.01, y: neutralGravity.y),
             settings: .defaults,
             deltaTime: 1
         )
@@ -38,7 +39,8 @@ final class TiltSignalProcessorTests: XCTestCase {
     func testSensitivityScalesAndClampsInput() {
         var slowProcessor = TiltSignalProcessor()
         var fastProcessor = TiltSignalProcessor()
-        let gravity = TiltGravityVector(x: 0.2, y: -0.35)
+        let neutralGravity = TiltControlSettings.defaults.calibration.neutralGravity
+        let gravity = TiltGravityVector(x: neutralGravity.x + 0.2, y: neutralGravity.y)
 
         let slowInput = slowProcessor.inputVector(
             gravity: gravity,
@@ -60,14 +62,15 @@ final class TiltSignalProcessorTests: XCTestCase {
             configuration: TiltSignalConfiguration(deadZoneDegrees: 3, maximumTiltDegrees: 25, smoothingDuration: 0.2)
         )
         let settings = TiltControlSettings(calibration: .defaultCalibration(for: .standard), sensitivity: 1)
+        let neutralGravity = settings.calibration.neutralGravity
 
         let firstInput = processor.inputVector(
-            gravity: TiltGravityVector(x: 0.3, y: -0.35),
+            gravity: TiltGravityVector(x: neutralGravity.x + 0.3, y: neutralGravity.y),
             settings: settings,
             deltaTime: 1.0 / 60.0
         )
         let laterInput = processor.inputVector(
-            gravity: TiltGravityVector(x: 0.3, y: -0.35),
+            gravity: TiltGravityVector(x: neutralGravity.x + 0.3, y: neutralGravity.y),
             settings: settings,
             deltaTime: 1.0 / 60.0
         )

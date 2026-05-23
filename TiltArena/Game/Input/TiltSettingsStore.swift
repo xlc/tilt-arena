@@ -1,7 +1,7 @@
 import Foundation
 
 final class TiltSettingsStore {
-    private static let currentCalibrationSpaceVersion = 2
+    private static let currentCalibrationSpaceVersion = 3
 
     private let defaults: UserDefaults
     private let settingsKey = "tiltArena.tiltControlSettings"
@@ -88,10 +88,14 @@ final class TiltSettingsStore {
         }
 
         var currentSettings = settings
-        if currentSettings.calibration.preset == .custom {
+        switch currentSettings.calibration.preset {
+        case .custom:
             currentSettings.calibration = TiltControlSettings.defaults.calibration
             settings = currentSettings
             defaults.removeObject(forKey: initialCalibrationKey)
+        case .standard, .flatTable, .reclined:
+            currentSettings.calibration = .defaultCalibration(for: currentSettings.calibration.preset)
+            settings = currentSettings
         }
 
         markCurrentCalibrationSpaceVersion()
