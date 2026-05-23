@@ -8,18 +8,28 @@ enum SnapshotImageRenderer {
         backgroundColor: SKColor,
         buildScene: (SKScene) -> Void
     ) throws -> UIImage {
-        let view = SKView(frame: CGRect(origin: .zero, size: size))
-        view.contentScaleFactor = 1
-        view.ignoresSiblingOrder = false
-        view.shouldCullNonVisibleNodes = false
-
         let scene = SKScene(size: size)
         scene.anchorPoint = .zero
         scene.backgroundColor = backgroundColor
         scene.scaleMode = .resizeFill
         buildScene(scene)
 
+        return try render(scene: scene)
+    }
+
+    static func render(
+        scene: SKScene,
+        beforeSnapshot: () -> Void = {}
+    ) throws -> UIImage {
+        let size = scene.size
+        let view = SKView(frame: CGRect(origin: .zero, size: size))
+        view.contentScaleFactor = 1
+        view.ignoresSiblingOrder = false
+        view.shouldCullNonVisibleNodes = false
+
         view.presentScene(scene)
+        view.layoutIfNeeded()
+        beforeSnapshot()
         view.layoutIfNeeded()
 
         guard let texture = view.texture(from: scene) else {

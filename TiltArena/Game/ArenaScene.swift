@@ -512,7 +512,33 @@ final class ArenaScene: SKScene {
 
     private func resetCalibrationPreviewPosition() {
         calibrationPreviewMovementController.configuration = movementController.configuration
-        _ = calibrationPreviewMovementController.reset(in: currentGameplayBounds)
+        var state = calibrationPreviewMovementController.reset(in: currentGameplayBounds)
+        let targetPosition = calibrationPreviewStartPosition(in: currentGameplayBounds)
+        let offset = CGVector(
+            dx: targetPosition.x - state.position.x,
+            dy: targetPosition.y - state.position.y
+        )
+        if offset.length > 0 {
+            state = calibrationPreviewMovementController.dash(
+                direction: offset,
+                distance: offset.length,
+                arenaBounds: currentGameplayBounds
+            )
+            state = calibrationPreviewMovementController.update(input: .zero, deltaTime: 0, arenaBounds: currentGameplayBounds)
+        }
+        applyCalibrationPreviewState(state, resetTrail: true)
+    }
+
+    private func calibrationPreviewStartPosition(in arenaBounds: CGRect) -> CGPoint {
+        let controlsWidth = min(292, max(260, arenaBounds.width * 0.38))
+        let playableRect = calibrationPreviewMovementController.configuration.playableRect(in: arenaBounds)
+        let visibleMinX = max(playableRect.minX, arenaBounds.minX + controlsWidth + 48)
+        let preferredX = (visibleMinX + playableRect.maxX) / 2
+
+        return CGPoint(
+            x: min(playableRect.maxX, max(playableRect.minX, preferredX)),
+            y: playableRect.midY
+        )
     }
 
     private func applyCalibrationPreviewState(_ state: PlayerMovementState, resetTrail: Bool) {
@@ -1528,12 +1554,18 @@ private extension ArenaScene {
         let rows = ArenaMenuContent.modeRows(profile: runProfile, selectedMode: selectedMode)
         let rowWidth = layout.safeRect.width * 0.62
         let rowHeight: CGFloat = 58
-        let rowStartY = layout.safeRect.maxY - 118
+        let rowSpacing: CGFloat = 8
+        let minimumRowStartY = layout.safeRect.minY
+            + CGFloat(max(0, rows.count - 1)) * (rowHeight + rowSpacing)
+        let rowStartY = max(
+            layout.safeRect.maxY - 118,
+            minimumRowStartY
+        )
 
         for (index, row) in rows.enumerated() {
             let frame = CGRect(
                 x: layout.safeRect.minX,
-                y: rowStartY - CGFloat(index) * (rowHeight + 14),
+                y: rowStartY - CGFloat(index) * (rowHeight + rowSpacing),
                 width: rowWidth,
                 height: rowHeight
             )
@@ -1560,11 +1592,21 @@ private extension ArenaScene {
         addTitle("AWARDS", at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 48))
 
         let rows = ArenaMenuContent.awardRows(profile: runProfile)
-        let columnWidth = layout.safeRect.width * 0.34
-        let rowHeight: CGFloat = 48
+        let highlightFrame = layout.rightColumnFrame(width: min(190, layout.safeRect.width * 0.34))
+        let columnGap: CGFloat = 12
+        let availableRowsWidth = max(0, highlightFrame.minX - layout.safeRect.minX - 18)
+        let columnWidth = max(128, (availableRowsWidth - columnGap) / 2)
+        let rowSpacing: CGFloat = 10
+        let rowHeight = min(
+            48,
+            max(
+                38,
+                (layout.safeRect.height - 88 - rowSpacing * 2) / 3
+            )
+        )
         let leftX = layout.safeRect.minX
-        let rightX = leftX + columnWidth + 18
-        let startY = layout.safeRect.maxY - 118
+        let rightX = leftX + columnWidth + columnGap
+        let startY = layout.safeRect.maxY - 112
 
         for (index, row) in rows.enumerated() {
             let column = index / 3
@@ -1572,14 +1614,13 @@ private extension ArenaScene {
             let x = column == 0 ? leftX : rightX
             let frame = CGRect(
                 x: x,
-                y: startY - CGFloat(rowIndex) * (rowHeight + 14),
+                y: startY - CGFloat(rowIndex) * (rowHeight + rowSpacing),
                 width: columnWidth,
                 height: rowHeight
             )
             addAwardRow(row, frame: frame)
         }
 
-        let highlightFrame = layout.rightColumnFrame(width: 190)
         addPanel(frame: highlightFrame, stroke: theme.playerAccentColor.withAlphaComponent(0.42))
         addSmallLabel(
             "ACTIVE UNLOCK",
@@ -1590,14 +1631,8 @@ private extension ArenaScene {
         addLabel(
             ArenaMenuContent.activeUnlockText(profile: runProfile),
             at: CGPoint(x: highlightFrame.minX + 14, y: highlightFrame.maxY - 54),
-            fontSize: 15,
+            fontSize: 13,
             color: theme.playerAccentColor,
-            alignment: .left
-        )
-        addSmallLabel(
-            "LOCAL PROGRESS ONLY",
-            at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.minY + 16),
-            color: theme.borderColor,
             alignment: .left
         )
     }
@@ -1607,8 +1642,22 @@ private extension ArenaScene {
         addBackButton(layout: layout)
         addTitle("OPTIONS", at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 48))
 
-        let left = layout.leftColumnFrame(width: 270)
-        let right = layout.rightColumnFrame(width: 270)
+        let panelY = layout.safeRect.minY + 32
+        let panelHeight = max(0, layout.safeRect.height - 72)
+        let leftWidth = min(270, layout.safeRect.width * 0.46)
+        let rightWidth = min(270, layout.safeRect.width * 0.42)
+        let left = CGRect(
+            x: layout.safeRect.minX,
+            y: panelY,
+            width: leftWidth,
+            height: panelHeight
+        )
+        let right = CGRect(
+            x: layout.safeRect.maxX - rightWidth,
+            y: panelY,
+            width: rightWidth,
+            height: panelHeight
+        )
         addPanel(frame: left)
         addPanel(frame: right)
 
@@ -1751,11 +1800,13 @@ private extension ArenaScene {
         )
 
         let presetY = frame.maxY - 162
+        let presetSpacing: CGFloat = 8
+        let presetWidth = min(74, max(44, (frame.width - 28 - presetSpacing * 2) / 3))
         for (index, preset) in [TiltCalibrationPreset.standard, .flatTable, .reclined].enumerated() {
             let buttonFrame = CGRect(
-                x: frame.minX + 14 + CGFloat(index) * 82,
+                x: frame.minX + 14 + CGFloat(index) * (presetWidth + presetSpacing),
                 y: presetY,
-                width: 74,
+                width: presetWidth,
                 height: 34
             )
             addButton(
@@ -1765,8 +1816,6 @@ private extension ArenaScene {
                 style: settings.calibration.preset == preset ? .primary : .secondary
             )
         }
-
-        renderTiltReadout(in: frame)
     }
 
     func renderTiltReadout(in frame: CGRect) {
@@ -1802,51 +1851,109 @@ private extension ArenaScene {
     }
 
     func renderLocalOptions(in frame: CGRect) {
-        let firstRowY = frame.maxY - 54
-        let secondRowY = frame.maxY - 96
+        let contentMinX = frame.minX + 14
+        let contentWidth = max(0, frame.width - 28)
+        let rowSpacing: CGFloat = 10
+        let pairedButtonWidth = max(0, (contentWidth - rowSpacing) / 2)
 
+        renderLocalToggleOptions(
+            contentMinX: contentMinX,
+            topRowY: frame.maxY - 54,
+            pairedButtonWidth: pairedButtonWidth,
+            rowSpacing: rowSpacing
+        )
+        renderThemeOptions(
+            contentMinX: contentMinX,
+            contentWidth: contentWidth,
+            themeRowY: frame.minY + 58,
+            rowSpacing: rowSpacing
+        )
+        renderLocalActionOptions(
+            contentMinX: contentMinX,
+            bottomRowY: frame.minY + 16,
+            pairedButtonWidth: pairedButtonWidth,
+            rowSpacing: rowSpacing
+        )
+    }
+
+    func renderLocalToggleOptions(
+        contentMinX: CGFloat,
+        topRowY: CGFloat,
+        pairedButtonWidth: CGFloat,
+        rowSpacing: CGFloat
+    ) {
         addToggle(
             title: "AUDIO",
             isOn: localOptions.audioEnabled,
-            frame: CGRect(x: frame.minX + 14, y: firstRowY, width: 106, height: 34),
+            frame: CGRect(x: contentMinX, y: topRowY, width: pairedButtonWidth, height: 34),
             action: .toggleAudio
         )
         addToggle(
             title: "HAPTICS",
             isOn: localOptions.hapticsEnabled,
-            frame: CGRect(x: frame.minX + 130, y: firstRowY, width: 126, height: 34),
+            frame: CGRect(
+                x: contentMinX + pairedButtonWidth + rowSpacing,
+                y: topRowY,
+                width: pairedButtonWidth,
+                height: 34
+            ),
             action: .toggleHaptics
         )
-        addButton(
-            "LOGS",
-            frame: CGRect(x: frame.maxX - 104, y: secondRowY, width: 90, height: 34),
-            action: .exportDiagnostics,
-            style: .secondary
-        )
+    }
+
+    func renderThemeOptions(
+        contentMinX: CGFloat,
+        contentWidth: CGFloat,
+        themeRowY: CGFloat,
+        rowSpacing: CGFloat
+    ) {
         addSmallLabel(
             "THEME",
-            at: CGPoint(x: frame.minX + 14, y: frame.minY + 70),
+            at: CGPoint(x: contentMinX, y: themeRowY + 42),
             color: theme.borderColor,
             alignment: .left
         )
 
-        for (index, themeKind) in ArenaThemeKind.allCases.enumerated() {
+        let themeKinds = ArenaThemeKind.allCases
+        let themeButtonWidth = max(
+            0,
+            (contentWidth - CGFloat(max(0, themeKinds.count - 1)) * rowSpacing) / CGFloat(themeKinds.count)
+        )
+        for (index, themeKind) in themeKinds.enumerated() {
             addButton(
                 themeKind.shortTitle,
                 frame: CGRect(
-                    x: frame.minX + 14 + CGFloat(index) * 70,
-                    y: frame.minY + 26,
-                    width: 62,
+                    x: contentMinX + CGFloat(index) * (themeButtonWidth + rowSpacing),
+                    y: themeRowY,
+                    width: themeButtonWidth,
                     height: 30
                 ),
                 action: .selectTheme(themeKind),
                 style: localOptions.themeKind == themeKind ? .primary : .secondary
             )
         }
+    }
 
+    func renderLocalActionOptions(
+        contentMinX: CGFloat,
+        bottomRowY: CGFloat,
+        pairedButtonWidth: CGFloat,
+        rowSpacing: CGFloat
+    ) {
+        addButton(
+            "LOGS",
+            frame: CGRect(x: contentMinX, y: bottomRowY, width: pairedButtonWidth, height: 30),
+            action: .exportDiagnostics,
+            style: .secondary
+        )
         addButton(
             resetDataArmed ? "CONFIRM" : "RESET",
-            frame: CGRect(x: frame.maxX - 104, y: frame.minY + 26, width: 90, height: 30),
+            frame: CGRect(
+                x: contentMinX + pairedButtonWidth + rowSpacing,
+                y: bottomRowY,
+                width: pairedButtonWidth,
+                height: 30
+            ),
             action: .resetData,
             style: .danger
         )
@@ -2291,8 +2398,8 @@ private extension ArenaScene {
         let offsets = [
             CGPoint(x: -120, y: 52),
             CGPoint(x: 104, y: 42),
-            CGPoint(x: 142, y: -58),
-            CGPoint(x: -92, y: -74)
+            CGPoint(x: 44, y: -2),
+            CGPoint(x: -116, y: -28)
         ]
 
         for offset in offsets {
@@ -2380,6 +2487,7 @@ private extension ArenaScene {
 
     func addModeRow(_ row: ArenaModeRow, frame: CGRect) {
         let selected = row.kind == selectedMode
+        let detailFontSize: CGFloat = frame.width < 340 ? 10 : 12
         addPanel(
             frame: frame,
             stroke: selected ? theme.playerAccentColor.withAlphaComponent(0.85) : theme.borderColor.withAlphaComponent(0.35),
@@ -2392,9 +2500,10 @@ private extension ArenaScene {
             color: row.isAvailable ? theme.playerColor : theme.borderColor.withAlphaComponent(0.75),
             alignment: .left
         )
-        addSmallLabel(
+        addLabel(
             row.subtitle,
             at: CGPoint(x: frame.minX + 14, y: frame.minY + 17),
+            fontSize: detailFontSize,
             color: theme.borderColor,
             alignment: .left
         )
@@ -2404,9 +2513,10 @@ private extension ArenaScene {
             color: row.isAvailable ? theme.playerAccentColor : theme.borderColor,
             alignment: .right
         )
-        addSmallLabel(
+        addLabel(
             row.progressText,
             at: CGPoint(x: frame.maxX - 14, y: frame.minY + 17),
+            fontSize: detailFontSize,
             color: theme.borderColor,
             alignment: .right
         )
@@ -2415,15 +2525,18 @@ private extension ArenaScene {
 
     func addAwardRow(_ row: ArenaAwardRow, frame: CGRect) {
         addPanel(frame: frame, stroke: row.isComplete ? theme.playerAccentColor : theme.borderColor.withAlphaComponent(0.35))
-        addSmallLabel(
+        let fontSize: CGFloat = frame.width < 170 ? 10 : 12
+        addLabel(
             row.title,
             at: CGPoint(x: frame.minX + 12, y: frame.maxY - 17),
+            fontSize: fontSize,
             color: row.isComplete ? theme.playerAccentColor : theme.playerColor,
             alignment: .left
         )
-        addSmallLabel(
+        addLabel(
             row.progressText,
             at: CGPoint(x: frame.maxX - 12, y: frame.maxY - 17),
+            fontSize: fontSize,
             color: theme.borderColor,
             alignment: .right
         )
@@ -2590,6 +2703,44 @@ private extension ArenaScene {
         }
     }
 }
+
+#if DEBUG
+extension ArenaScene {
+    func prepareForVisualSnapshot(
+        state: ArenaUISceneState,
+        profile: RunProfile = RunProfile(),
+        localOptions: ArenaLocalOptions = .defaults,
+        selectedMode: ArenaModeKind = .classic,
+        resetDataArmed: Bool = false
+    ) {
+        self.runProfile = profile
+        self.localOptions = localOptions
+        self.selectedMode = selectedMode
+        self.resetDataArmed = resetDataArmed
+        optionsReturnState = .home
+        calibrationReturnState = .home
+        lastProgressionResult = nil
+        lastDeathCollisionSnapshot = nil
+        hasPersistedFinalRun = false
+        runController = ClassicRunController()
+        readyHoldController.reset()
+        deathReplayTrace.reset()
+        resetGameplayObjects()
+        placePlayer(resetPosition: true)
+        resetPlayerFeedback()
+        syncAudioOption()
+        syncHapticsOption()
+        applyThemeChange()
+        debugStatsLabel.isHidden = true
+
+        if state == .calibrationPreview {
+            resetCalibrationPreviewPosition()
+        }
+
+        show(state)
+    }
+}
+#endif
 
 private extension ArenaScene {
     func activateDecoyBeacon(at position: CGPoint) {
