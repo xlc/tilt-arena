@@ -17,6 +17,9 @@ packages:
   SwiftLog:
     url: https://github.com/apple/swift-log
     from: "1.6.0"
+  SnapshotTesting:
+    url: https://github.com/pointfreeco/swift-snapshot-testing
+    from: "1.19.2"
 
 targets:
   TiltArena:
@@ -49,6 +52,8 @@ targets:
       - target: TiltArena
       - package: SwiftLog
         product: Logging
+      - package: SnapshotTesting
+        product: SnapshotTesting
     settings:
       base:
         CODE_SIGN_STYLE: Automatic
