@@ -84,8 +84,6 @@ final class ArenaScene: SKScene {
     private let timerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
     private let bestMarkerLabel = SKLabelNode(fontNamed: "Menlo")
     private let comboLabel = SKLabelNode(fontNamed: "Menlo-Bold")
-    private let pauseControlNode = SKNode()
-    private let pauseIconNode = SKNode()
 #if DEBUG
     private let debugStatsLabel = SKLabelNode(fontNamed: "Menlo")
     private var debugStatsElapsed: TimeInterval = 0
@@ -93,7 +91,6 @@ final class ArenaScene: SKScene {
     private var debugStatsFrameCount = 0
 #endif
     private let hudMargin: CGFloat = 24
-    private let pauseControlSize = CGSize(width: 48, height: 48)
     private var uiHitTargets: [ArenaControlHitTarget] = []
     private var calibrationPreviewMovementController = PlayerMovementController()
     private var calibrationPreviewPlayerNode: PlayerCraftNode?
@@ -143,7 +140,6 @@ final class ArenaScene: SKScene {
         rebuildArena()
         if flameTrailEffectNode.parent == nil { addChild(flameTrailEffectNode) }
         configureLabels()
-        configurePauseControl()
         configureUIRoot()
         configureDebugStats()
         placePlayer(resetPosition: true)
@@ -167,7 +163,6 @@ final class ArenaScene: SKScene {
             resetCalibrationPreviewPosition()
         }
         layoutLabels()
-        layoutPauseControl()
         layoutDebugStats()
         rebuildUI()
         AppDiagnostics.logger(.scene).debug("scene.resized", metadata: [
@@ -234,7 +229,6 @@ final class ArenaScene: SKScene {
             resetCalibrationPreviewPosition()
         }
         layoutLabels()
-        layoutPauseControl()
         layoutDebugStats()
         rebuildUI()
     }
@@ -244,7 +238,7 @@ final class ArenaScene: SKScene {
             return
         }
 
-        if uiState == .activeGameplay, touches.contains(where: isPauseControlTouch) {
+        if uiState == .activeGameplay {
             pauseRun()
             return
         }
@@ -325,7 +319,7 @@ final class ArenaScene: SKScene {
 
         configureLabel(bestMarkerLabel, fontSize: 12, color: theme.borderColor)
         bestMarkerLabel.horizontalAlignmentMode = .right
-        bestMarkerLabel.verticalAlignmentMode = .center
+        bestMarkerLabel.verticalAlignmentMode = .top
 
         configureLabel(comboLabel, fontSize: 14, color: theme.playerAccentColor)
         comboLabel.horizontalAlignmentMode = .center
@@ -340,18 +334,6 @@ final class ArenaScene: SKScene {
         layoutLabels()
     }
 
-    private func configurePauseControl() {
-        guard pauseControlNode.parent == nil else {
-            return
-        }
-
-        pauseControlNode.zPosition = 60
-        rebuildPauseControlAppearance()
-        addChild(pauseControlNode)
-        layoutPauseControl()
-        updatePauseControl()
-    }
-
     private func configureLabel(_ label: SKLabelNode, fontSize: CGFloat, color: SKColor) {
         label.fontSize = fontSize
         label.fontColor = color
@@ -362,15 +344,8 @@ final class ArenaScene: SKScene {
         let layout = currentHUDLayout()
 
         timerLabel.position = layout.timerPosition
-        bestMarkerLabel.position = CGPoint(
-            x: layout.pauseControlPosition.x - pauseControlSize.width,
-            y: layout.pauseControlPosition.y
-        )
+        bestMarkerLabel.position = layout.bestMarkerPosition
         comboLabel.position = layout.comboPosition
-    }
-
-    private func layoutPauseControl() {
-        pauseControlNode.position = currentHUDLayout().pauseControlPosition
     }
 
     private func configureDebugStats() {
@@ -433,8 +408,7 @@ final class ArenaScene: SKScene {
         ArenaHUDLayout(
             sceneSize: size,
             safeAreaInsets: view?.safeAreaInsets ?? .zero,
-            margin: hudMargin,
-            pauseControlSize: pauseControlSize
+            margin: hudMargin
         )
     }
 
@@ -732,7 +706,6 @@ final class ArenaScene: SKScene {
         backgroundColor = theme.backgroundColor
         configureLabels()
         configureDebugStats()
-        rebuildPauseControlAppearance()
         rebuildArena()
         refreshGameplayNodesForTheme()
         rebuildUI()
@@ -1426,7 +1399,6 @@ final class ArenaScene: SKScene {
             timerLabel.text = "BEST \(runProfile.bestScore)"
         }
 
-        updatePauseControl()
     }
 
     private func formatSurvivalTime(_ time: TimeInterval) -> String {
@@ -1444,23 +1416,6 @@ final class ArenaScene: SKScene {
             runController.comboMultiplier,
             runController.comboTimeRemaining
         )
-    }
-
-    private func isPauseControlTouch(_ touch: UITouch) -> Bool {
-        pauseControlFrame.contains(touch.location(in: self))
-    }
-
-    private var pauseControlFrame: CGRect {
-        CGRect(
-            x: pauseControlNode.position.x - pauseControlSize.width / 2,
-            y: pauseControlNode.position.y - pauseControlSize.height / 2,
-            width: pauseControlSize.width,
-            height: pauseControlSize.height
-        )
-    }
-
-    private func updatePauseControl() {
-        pauseControlNode.isHidden = uiState != .activeGameplay || runController.phase != .active
     }
 
     private func recordNearMisses(playerPosition: CGPoint) {
@@ -1509,32 +1464,6 @@ final class ArenaScene: SKScene {
         hasPersistedFinalRun = true
     }
 
-    private func addPauseControlBackground() {
-        let background = SKShapeNode(rectOf: pauseControlSize, cornerRadius: 8)
-        background.fillColor = theme.borderColor.withAlphaComponent(0.12)
-        background.strokeColor = theme.borderColor.withAlphaComponent(0.55)
-        background.lineWidth = 1
-        pauseControlNode.addChild(background)
-    }
-
-    private func configurePauseIcon() {
-        pauseIconNode.removeAllChildren()
-        for xOffset in [CGFloat(-5.5), CGFloat(5.5)] {
-            let bar = SKShapeNode(rectOf: CGSize(width: 5, height: 18), cornerRadius: 1.5)
-            bar.position = CGPoint(x: xOffset, y: 0)
-            bar.fillColor = theme.playerColor
-            bar.strokeColor = theme.playerColor
-            pauseIconNode.addChild(bar)
-        }
-
-        pauseControlNode.addChild(pauseIconNode)
-    }
-
-    private func rebuildPauseControlAppearance() {
-        pauseControlNode.removeAllChildren()
-        addPauseControlBackground()
-        configurePauseIcon()
-    }
 }
 
 private extension ArenaScene {
