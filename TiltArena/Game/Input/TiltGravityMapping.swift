@@ -87,6 +87,23 @@ enum TiltReadoutFormatter {
         ]
     }
 
+    static func gameplayRows(
+        for readout: TiltInputReadout?,
+        fallbackOrientation: TiltScreenOrientation
+    ) -> [TiltReadoutRow] {
+        guard let readout else {
+            return [
+                TiltReadoutRow(title: "ORIENTATION", value: fallbackOrientation.displayName),
+                TiltReadoutRow(title: "MOVE INPUT", value: "--")
+            ]
+        }
+
+        return [
+            TiltReadoutRow(title: "ORIENTATION", value: readout.orientation.displayName),
+            TiltReadoutRow(title: "MOVE INPUT", value: format(readout.normalizedInput))
+        ]
+    }
+
     private static func format(_ vector: TiltGravityVector) -> String {
         String(format: "%+.3f %+.3f", vector.x, vector.y)
     }

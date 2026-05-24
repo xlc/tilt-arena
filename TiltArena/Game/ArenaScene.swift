@@ -1527,7 +1527,7 @@ private extension ArenaScene {
 
         tiltReadoutUpdateTime = 0
         let orientation = currentTiltScreenOrientation
-        let rows = TiltReadoutFormatter.rows(
+        let rows = TiltReadoutFormatter.gameplayRows(
             for: tiltInputController.readout(orientation: orientation),
             fallbackOrientation: orientation
         )
@@ -1583,23 +1583,25 @@ private extension ArenaScene {
 
     func renderModeSelect() {
         let layout = currentLandscapeLayout()
-        addBackButton(layout: layout)
-        addTitle("MODES", at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 48))
+        let contentFrame = addMenuChrome(title: "MODES", layout: layout)
 
         let rows = ArenaMenuContent.modeRows(profile: runProfile, selectedMode: selectedMode)
-        let rowWidth = layout.safeRect.width * 0.62
-        let rowHeight: CGFloat = 58
+        let detailWidth = min(168, contentFrame.width * 0.34)
+        let columnGap: CGFloat = 14
+        let rowWidth = max(0, contentFrame.width - detailWidth - columnGap)
         let rowSpacing: CGFloat = 8
-        let minimumRowStartY = layout.safeRect.minY
-            + CGFloat(max(0, rows.count - 1)) * (rowHeight + rowSpacing)
-        let rowStartY = max(
-            layout.safeRect.maxY - 118,
-            minimumRowStartY
+        let availableRowHeight = (
+            contentFrame.height - CGFloat(max(0, rows.count - 1)) * rowSpacing
+        ) / CGFloat(max(1, rows.count))
+        let rowHeight = min(
+            50,
+            max(40, availableRowHeight)
         )
+        let rowStartY = contentFrame.maxY - rowHeight
 
         for (index, row) in rows.enumerated() {
             let frame = CGRect(
-                x: layout.safeRect.minX,
+                x: contentFrame.minX,
                 y: rowStartY - CGFloat(index) * (rowHeight + rowSpacing),
                 width: rowWidth,
                 height: rowHeight
@@ -1607,91 +1609,68 @@ private extension ArenaScene {
             addModeRow(row, frame: frame)
         }
 
-        addButton(
-            "PLAY",
-            frame: layout.lowerRightButtonFrame,
-            action: .play,
-            style: .primary
+        let detailFrame = CGRect(
+            x: contentFrame.maxX - detailWidth,
+            y: contentFrame.minY,
+            width: detailWidth,
+            height: contentFrame.height
         )
-        addSmallLabel(
-            "LOCAL ONLY",
-            at: CGPoint(x: layout.safeRect.maxX, y: layout.lowerRightButtonFrame.maxY + 20),
-            color: theme.borderColor,
-            alignment: .right
-        )
+        renderSelectedModeSummary(in: detailFrame)
     }
 
     func renderAwards() {
         let layout = currentLandscapeLayout()
-        addBackButton(layout: layout)
-        addTitle("AWARDS", at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 48))
+        let contentFrame = addMenuChrome(title: "AWARDS", layout: layout)
 
         let rows = ArenaMenuContent.awardRows(profile: runProfile)
-        let highlightFrame = layout.rightColumnFrame(width: min(190, layout.safeRect.width * 0.34))
-        let columnGap: CGFloat = 12
-        let availableRowsWidth = max(0, highlightFrame.minX - layout.safeRect.minX - 18)
-        let columnWidth = max(128, (availableRowsWidth - columnGap) / 2)
-        let rowSpacing: CGFloat = 10
-        let rowHeight = min(
-            48,
-            max(
-                38,
-                (layout.safeRect.height - 88 - rowSpacing * 2) / 3
-            )
+        let unlockFrame = CGRect(
+            x: contentFrame.minX,
+            y: contentFrame.maxY - 42,
+            width: contentFrame.width,
+            height: 42
         )
-        let leftX = layout.safeRect.minX
-        let rightX = leftX + columnWidth + columnGap
-        let startY = layout.safeRect.maxY - 112
+        renderActiveUnlockBanner(in: unlockFrame)
+
+        let columnCount = 3
+        let columnGap: CGFloat = 10
+        let rowSpacing: CGFloat = 8
+        let columnWidth = max(
+            0,
+            (contentFrame.width - CGFloat(columnCount - 1) * columnGap) / CGFloat(columnCount)
+        )
+        let awardTopY = unlockFrame.minY - 12
+        let rowHeight = min(46, max(34, (awardTopY - contentFrame.minY - rowSpacing) / 2))
 
         for (index, row) in rows.enumerated() {
-            let column = index / 3
-            let rowIndex = index % 3
-            let x = column == 0 ? leftX : rightX
+            let column = index % columnCount
+            let rowIndex = index / columnCount
             let frame = CGRect(
-                x: x,
-                y: startY - CGFloat(rowIndex) * (rowHeight + rowSpacing),
+                x: contentFrame.minX + CGFloat(column) * (columnWidth + columnGap),
+                y: awardTopY - rowHeight - CGFloat(rowIndex) * (rowHeight + rowSpacing),
                 width: columnWidth,
                 height: rowHeight
             )
             addAwardRow(row, frame: frame)
         }
-
-        addPanel(frame: highlightFrame, stroke: theme.playerAccentColor.withAlphaComponent(0.42))
-        addSmallLabel(
-            "ACTIVE UNLOCK",
-            at: CGPoint(x: highlightFrame.minX + 14, y: highlightFrame.maxY - 24),
-            color: theme.borderColor,
-            alignment: .left
-        )
-        addLabel(
-            ArenaMenuContent.activeUnlockText(profile: runProfile),
-            at: CGPoint(x: highlightFrame.minX + 14, y: highlightFrame.maxY - 54),
-            fontSize: 13,
-            color: theme.playerAccentColor,
-            alignment: .left
-        )
     }
 
     func renderOptions() {
         let layout = currentLandscapeLayout()
-        addBackButton(layout: layout)
-        addTitle("OPTIONS", at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 48))
+        let contentFrame = addMenuChrome(title: "OPTIONS", layout: layout)
 
-        let panelY = layout.safeRect.minY + 32
-        let panelHeight = max(0, layout.safeRect.height - 72)
-        let leftWidth = min(270, layout.safeRect.width * 0.46)
-        let rightWidth = min(270, layout.safeRect.width * 0.42)
+        let columnGap: CGFloat = 18
+        let columnWidth = max(0, (contentFrame.width - columnGap) / 2)
         let left = CGRect(
-            x: layout.safeRect.minX,
-            y: panelY,
-            width: leftWidth,
-            height: panelHeight
+            x: contentFrame.minX,
+            y: contentFrame.minY,
+            width: columnWidth,
+            height: contentFrame.height
         )
         let right = CGRect(
-            x: layout.safeRect.maxX - rightWidth,
-            y: panelY,
-            width: rightWidth,
-            height: panelHeight
+            x: contentFrame.maxX - columnWidth,
+            y: contentFrame.minY,
+            width: columnWidth,
+            height: contentFrame.height
         )
         addPanel(frame: left)
         addPanel(frame: right)
@@ -1702,6 +1681,24 @@ private extension ArenaScene {
 
     func renderCalibrationPreview() {
         let layout = currentLandscapeLayout()
+        addCalibrationPreviewWorld(layout: layout)
+
+        let controlsFrame = calibrationControlsFrame(layout: layout)
+        addPanel(
+            frame: controlsFrame,
+            fill: theme.panelFillColor.withAlphaComponent(0.98)
+        )
+        addCalibrationHeader(in: controlsFrame)
+        renderCalibrationControls(in: controlsFrame)
+        addSmallLabel(
+            calibrationText,
+            at: CGPoint(x: layout.safeRect.maxX - 12, y: layout.safeRect.minY + 20),
+            color: theme.borderColor,
+            alignment: .right
+        )
+    }
+
+    func addCalibrationPreviewWorld(layout: ArenaLandscapeUILayout) {
         let worldNode = SKNode()
         worldNode.zPosition = ArenaUIZPosition.preview
         uiRoot.addChild(worldNode)
@@ -1728,67 +1725,71 @@ private extension ArenaScene {
 
         let state = calibrationPreviewMovementController.clampToArena(currentGameplayBounds)
         applyCalibrationPreviewState(state, resetTrail: true)
+    }
 
-        let controlsWidth = min(292, max(260, layout.safeRect.width * 0.38))
-        let controlsHeight: CGFloat = 238
-        let controlsFrame = CGRect(
-            x: layout.safeRect.minX,
-            y: layout.safeRect.maxY - controlsHeight,
+    func calibrationControlsFrame(layout: ArenaLandscapeUILayout) -> CGRect {
+        let controlsWidth = min(278, max(252, layout.safeRect.width * 0.36))
+        let controlsHeight = max(0, min(210, layout.safeRect.height - 28))
+        return CGRect(
+            x: layout.safeRect.minX + 14,
+            y: layout.safeRect.maxY - controlsHeight - 14,
             width: controlsWidth,
             height: controlsHeight
         )
+    }
 
-        addPanel(
-            frame: controlsFrame,
-            fill: theme.panelFillColor.withAlphaComponent(0.9)
+    func addCalibrationHeader(in frame: CGRect) {
+        addBackButton(
+            frame: CGRect(
+                x: frame.minX + 12,
+                y: frame.maxY - 46,
+                width: 42,
+                height: 34
+            )
         )
-        addBackButton(layout: layout)
         addTitle(
             "CALIBRATE",
-            at: CGPoint(x: controlsFrame.minX + 56, y: controlsFrame.maxY - 21)
-        )
-        renderCalibrationControls(in: controlsFrame)
-        addSmallLabel(
-            calibrationText,
-            at: CGPoint(x: layout.safeRect.maxX, y: layout.safeRect.minY + 16),
-            color: theme.borderColor,
-            alignment: .right
+            at: CGPoint(x: frame.minX + 66, y: frame.maxY - 29)
         )
     }
 
     func renderCalibrationControls(in frame: CGRect) {
         let settings = tiltSettingsStore.settings
+        addSectionLabel("NEUTRAL", at: CGPoint(x: frame.minX + 14, y: frame.maxY - 62))
         addButton(
             "SET",
-            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 72, width: 82, height: 34),
+            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 100, width: 82, height: 34),
             action: .calibrate,
             style: .primary
         )
         addSmallLabel(
             "SENSITIVITY \(String(format: "%.1f", settings.clampedSensitivity))",
-            at: CGPoint(x: frame.minX + 112, y: frame.maxY - 55),
+            at: CGPoint(x: frame.minX + 112, y: frame.maxY - 66),
             color: theme.borderColor,
             alignment: .left
         )
         addButton(
             "-",
-            frame: CGRect(x: frame.minX + 112, y: frame.maxY - 90, width: 44, height: 30),
+            frame: CGRect(x: frame.minX + 112, y: frame.maxY - 112, width: 44, height: 30),
             action: .sensitivityDown,
             style: .secondary
         )
         addButton(
             "+",
-            frame: CGRect(x: frame.minX + 168, y: frame.maxY - 90, width: 44, height: 30),
+            frame: CGRect(x: frame.minX + 168, y: frame.maxY - 112, width: 44, height: 30),
             action: .sensitivityUp,
             style: .secondary
         )
 
-        let presetY = frame.maxY - 128
+        addSectionLabel("PRESET", at: CGPoint(x: frame.minX + 14, y: frame.maxY - 128))
+        let presetY = frame.maxY - 164
         for (index, preset) in [TiltCalibrationPreset.standard, .flatTable, .reclined].enumerated() {
+            let presetSpacing: CGFloat = 8
+            let presetWidth = (frame.width - 28 - presetSpacing * 2) / 3
             let buttonFrame = CGRect(
-                x: frame.minX + 14 + CGFloat(index) * 82,
+                x: frame.minX + 14 + CGFloat(index) * (presetWidth + presetSpacing),
                 y: presetY,
-                width: 74,
+                width: presetWidth,
                 height: 30
             )
             addButton(
@@ -1800,41 +1801,43 @@ private extension ArenaScene {
         }
 
         renderTiltReadout(in: CGRect(
-            x: frame.minX,
-            y: frame.minY,
-            width: frame.width,
-            height: 96
+            x: frame.minX + 14,
+            y: frame.minY + 8,
+            width: frame.width - 28,
+            height: 24
         ))
     }
 
     func renderTiltOptions(in frame: CGRect) {
+        addSectionLabel("TILT CONTROL", at: CGPoint(x: frame.minX + 14, y: frame.maxY - 22))
         addButton(
             "CALIBRATE",
-            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 54, width: 148, height: 34),
+            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 64, width: 112, height: 34),
             action: .openCalibrationPreview,
             style: .primary
         )
         let settings = tiltSettingsStore.settings
         addSmallLabel(
-            "SENSITIVITY \(String(format: "%.1f", settings.clampedSensitivity))",
-            at: CGPoint(x: frame.minX + 14, y: frame.maxY - 84),
+            "SENS \(String(format: "%.1f", settings.clampedSensitivity))",
+            at: CGPoint(x: frame.minX + 142, y: frame.maxY - 36),
             color: theme.borderColor,
             alignment: .left
         )
         addButton(
             "-",
-            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 124, width: 44, height: 30),
+            frame: CGRect(x: frame.minX + 142, y: frame.maxY - 82, width: 40, height: 30),
             action: .sensitivityDown,
             style: .secondary
         )
         addButton(
             "+",
-            frame: CGRect(x: frame.minX + 70, y: frame.maxY - 124, width: 44, height: 30),
+            frame: CGRect(x: frame.minX + 192, y: frame.maxY - 82, width: 40, height: 30),
             action: .sensitivityUp,
             style: .secondary
         )
 
-        let presetY = frame.maxY - 162
+        addSectionLabel("PRESET", at: CGPoint(x: frame.minX + 14, y: frame.minY + 70))
+        let presetY = frame.minY + 22
         let presetSpacing: CGFloat = 8
         let presetWidth = min(74, max(44, (frame.width - 28 - presetSpacing * 2) / 3))
         for (index, preset) in [TiltCalibrationPreset.standard, .flatTable, .reclined].enumerated() {
@@ -1855,12 +1858,12 @@ private extension ArenaScene {
 
     func renderTiltReadout(in frame: CGRect) {
         tiltReadoutValueLabels.removeAll()
-        let rows = TiltReadoutFormatter.rows(
+        let rows = TiltReadoutFormatter.gameplayRows(
             for: nil,
             fallbackOrientation: currentTiltScreenOrientation
         )
-        let startY = frame.minY + 58
-        let rowSpacing: CGFloat = 12
+        let startY = frame.maxY
+        let rowSpacing: CGFloat = 16
 
         for (index, row) in rows.enumerated() {
             let y = startY - CGFloat(index) * rowSpacing
@@ -1891,21 +1894,22 @@ private extension ArenaScene {
         let rowSpacing: CGFloat = 10
         let pairedButtonWidth = max(0, (contentWidth - rowSpacing) / 2)
 
+        addSectionLabel("FEEDBACK", at: CGPoint(x: contentMinX, y: frame.maxY - 22))
         renderLocalToggleOptions(
             contentMinX: contentMinX,
-            topRowY: frame.maxY - 54,
+            topRowY: frame.maxY - 64,
             pairedButtonWidth: pairedButtonWidth,
             rowSpacing: rowSpacing
         )
         renderThemeOptions(
             contentMinX: contentMinX,
             contentWidth: contentWidth,
-            themeRowY: frame.minY + 58,
+            themeRowY: frame.minY + 52,
             rowSpacing: rowSpacing
         )
         renderLocalActionOptions(
             contentMinX: contentMinX,
-            bottomRowY: frame.minY + 16,
+            bottomRowY: frame.minY + 14,
             pairedButtonWidth: pairedButtonWidth,
             rowSpacing: rowSpacing
         )
@@ -1942,13 +1946,6 @@ private extension ArenaScene {
         themeRowY: CGFloat,
         rowSpacing: CGFloat
     ) {
-        addSmallLabel(
-            "THEME",
-            at: CGPoint(x: contentMinX, y: themeRowY + 42),
-            color: theme.borderColor,
-            alignment: .left
-        )
-
         let themeKinds = ArenaThemeKind.allCases
         let themeButtonWidth = max(
             0,
@@ -1961,7 +1958,7 @@ private extension ArenaScene {
                     x: contentMinX + CGFloat(index) * (themeButtonWidth + rowSpacing),
                     y: themeRowY,
                     width: themeButtonWidth,
-                    height: 30
+                    height: 32
                 ),
                 action: .selectTheme(themeKind),
                 style: localOptions.themeKind == themeKind ? .primary : .secondary
@@ -2303,7 +2300,7 @@ private extension ArenaScene {
     }
 
     var calibrationText: String {
-        "CAL \(tiltSettingsStore.settings.calibration.preset.rawValue.uppercased())"
+        "\(presetDisplayTitle(tiltSettingsStore.settings.calibration.preset)) CALIBRATION"
     }
 
     func resetLocalDataOrArmConfirmation() {
@@ -2520,6 +2517,88 @@ private extension ArenaScene {
         uiRoot.addChild(impactLine)
     }
 
+    func addMenuChrome(title: String, layout: ArenaLandscapeUILayout) -> CGRect {
+        addMenuBackdrop(layout: layout)
+        addBackButton(
+            frame: CGRect(
+                x: layout.safeRect.minX + 14,
+                y: layout.safeRect.maxY - 48,
+                width: 42,
+                height: 34
+            )
+        )
+        addTitle(title, at: CGPoint(x: layout.safeRect.minX + 68, y: layout.safeRect.maxY - 31))
+        addDividerLine(
+            from: CGPoint(x: layout.safeRect.minX + 14, y: layout.safeRect.maxY - 62),
+            to: CGPoint(x: layout.safeRect.maxX - 14, y: layout.safeRect.maxY - 62),
+            color: theme.panelStrokeColor.withAlphaComponent(0.72)
+        )
+
+        return CGRect(
+            x: layout.safeRect.minX + 14,
+            y: layout.safeRect.minY + 16,
+            width: max(0, layout.safeRect.width - 28),
+            height: max(0, layout.safeRect.height - 76)
+        )
+    }
+
+    func addMenuBackdrop(layout: ArenaLandscapeUILayout) {
+        let backdrop = SKShapeNode(rect: layout.safeRect, cornerRadius: 10)
+        backdrop.zPosition = ArenaUIZPosition.scrim
+        backdrop.fillColor = theme.panelFillColor
+        backdrop.strokeColor = theme.panelStrokeColor.withAlphaComponent(0.65)
+        backdrop.lineWidth = 1.2
+        uiRoot.addChild(backdrop)
+    }
+
+    func renderSelectedModeSummary(in frame: CGRect) {
+        guard let row = modeRowsByKind[selectedMode] else {
+            return
+        }
+
+        addPanel(frame: frame, stroke: theme.playerAccentColor.withAlphaComponent(0.62))
+        addSectionLabel("SELECTED MODE", at: CGPoint(x: frame.minX + 14, y: frame.maxY - 24))
+        addLabel(
+            row.title,
+            at: CGPoint(x: frame.minX + 14, y: frame.maxY - 54),
+            fontSize: 18,
+            color: theme.playerColor,
+            alignment: .left
+        )
+        addSmallLabel(
+            row.subtitle.uppercased(),
+            at: CGPoint(x: frame.minX + 14, y: frame.maxY - 78),
+            color: theme.borderColor,
+            alignment: .left
+        )
+        let metadataY = frame.minY + 66
+        addLabel(
+            row.progressText,
+            at: CGPoint(x: frame.minX + 14, y: metadataY),
+            fontSize: 10,
+            color: theme.playerAccentColor,
+            alignment: .left
+        )
+        addButton(
+            "PLAY",
+            frame: CGRect(x: frame.minX + 14, y: frame.minY + 14, width: frame.width - 28, height: 40),
+            action: .play,
+            style: .primary
+        )
+    }
+
+    func renderActiveUnlockBanner(in frame: CGRect) {
+        addPanel(frame: frame, stroke: theme.playerAccentColor.withAlphaComponent(0.55))
+        addSectionLabel("NEXT UNLOCK", at: CGPoint(x: frame.minX + 14, y: frame.midY + 7))
+        addLabel(
+            ArenaMenuContent.activeUnlockText(profile: runProfile),
+            at: CGPoint(x: frame.minX + 132, y: frame.midY - 1),
+            fontSize: 13,
+            color: theme.playerAccentColor,
+            alignment: .left
+        )
+    }
+
     func addModeRow(_ row: ArenaModeRow, frame: CGRect) {
         let selected = row.kind == selectedMode
         let detailFontSize: CGFloat = frame.width < 340 ? 10 : 12
@@ -2530,27 +2609,27 @@ private extension ArenaScene {
         )
         addLabel(
             row.title,
-            at: CGPoint(x: frame.minX + 14, y: frame.maxY - 22),
-            fontSize: 17,
+            at: CGPoint(x: frame.minX + 14, y: frame.maxY - 16),
+            fontSize: 15,
             color: row.isAvailable ? theme.playerColor : theme.borderColor.withAlphaComponent(0.75),
             alignment: .left
         )
         addLabel(
             row.subtitle,
-            at: CGPoint(x: frame.minX + 14, y: frame.minY + 17),
+            at: CGPoint(x: frame.minX + 14, y: frame.minY + 12),
             fontSize: detailFontSize,
             color: theme.borderColor,
             alignment: .left
         )
         addSmallLabel(
             row.statusText,
-            at: CGPoint(x: frame.maxX - 14, y: frame.maxY - 22),
+            at: CGPoint(x: frame.maxX - 14, y: frame.maxY - 16),
             color: row.isAvailable ? theme.playerAccentColor : theme.borderColor,
             alignment: .right
         )
         addLabel(
             row.progressText,
-            at: CGPoint(x: frame.maxX - 14, y: frame.minY + 17),
+            at: CGPoint(x: frame.maxX - 14, y: frame.minY + 12),
             fontSize: detailFontSize,
             color: theme.borderColor,
             alignment: .right
@@ -2590,10 +2669,10 @@ private extension ArenaScene {
         )
     }
 
-    func addBackButton(layout: ArenaLandscapeUILayout) {
+    func addBackButton(frame: CGRect) {
         addButton(
             "<",
-            frame: CGRect(x: layout.safeRect.minX, y: layout.safeRect.maxY - 38, width: 42, height: 34),
+            frame: frame,
             action: .back,
             style: .secondary
         )
@@ -2642,6 +2721,17 @@ private extension ArenaScene {
         uiRoot.addChild(fill)
     }
 
+    func addDividerLine(from start: CGPoint, to end: CGPoint, color: SKColor) {
+        let path = CGMutablePath()
+        path.move(to: start)
+        path.addLine(to: end)
+        let line = SKShapeNode(path: path)
+        line.zPosition = ArenaUIZPosition.panel
+        line.strokeColor = color
+        line.lineWidth = 1
+        uiRoot.addChild(line)
+    }
+
     func addButton(
         _ title: String,
         frame: CGRect,
@@ -2654,16 +2744,16 @@ private extension ArenaScene {
 
         switch style {
         case .primary:
-            fill = theme.playerAccentColor.withAlphaComponent(0.16)
+            fill = theme.playerAccentColor.withAlphaComponent(0.22)
             stroke = theme.playerAccentColor.withAlphaComponent(0.95)
             text = theme.playerColor
         case .secondary:
-            fill = theme.borderColor.withAlphaComponent(0.09)
-            stroke = theme.borderColor.withAlphaComponent(0.55)
-            text = theme.borderColor
+            fill = theme.borderColor.withAlphaComponent(0.13)
+            stroke = theme.borderColor.withAlphaComponent(0.68)
+            text = theme.playerColor.withAlphaComponent(0.76)
         case .danger:
-            fill = theme.enemyColor.withAlphaComponent(0.08)
-            stroke = theme.enemyColor.withAlphaComponent(0.55)
+            fill = theme.enemyColor.withAlphaComponent(0.12)
+            stroke = theme.enemyColor.withAlphaComponent(0.72)
             text = theme.enemyColor.withAlphaComponent(0.9)
         }
 
@@ -2695,6 +2785,16 @@ private extension ArenaScene {
         alignment: SKLabelHorizontalAlignmentMode
     ) {
         addLabel(text, at: position, fontSize: 12, color: color, alignment: alignment)
+    }
+
+    func addSectionLabel(_ text: String, at position: CGPoint) {
+        addLabel(
+            text,
+            at: position,
+            fontSize: 10,
+            color: theme.borderColor.withAlphaComponent(0.82),
+            alignment: .left
+        )
     }
 
     func addLabel(
@@ -2730,9 +2830,22 @@ private extension ArenaScene {
         case .standard:
             return "STD"
         case .flatTable:
-            return "FLAT"
+            return "TABLE"
         case .reclined:
             return "RECL"
+        case .custom:
+            return "CUSTOM"
+        }
+    }
+
+    func presetDisplayTitle(_ preset: TiltCalibrationPreset) -> String {
+        switch preset {
+        case .standard:
+            return "STANDARD"
+        case .flatTable:
+            return "TABLE"
+        case .reclined:
+            return "RECLINED"
         case .custom:
             return "CUSTOM"
         }

@@ -63,6 +63,32 @@ final class TiltGravityMappingTests: XCTestCase {
         )
     }
 
+    func testReadoutFormatterUsesGameplayRowsForCalibrationUI() {
+        let readout = TiltInputReadout(
+            orientation: .landscapeLeft,
+            rawGravity: TiltGravityVector(x: 0.1234, y: -0.9876),
+            screenGravity: TiltGravityVector(x: -0.9876, y: -0.1234),
+            neutralGravity: TiltGravityVector(x: 0, y: 0.35),
+            normalizedInput: CGVector(dx: 0.5, dy: -0.25)
+        )
+
+        XCTAssertEqual(
+            TiltReadoutFormatter.gameplayRows(for: readout, fallbackOrientation: .landscapeRight),
+            [
+                TiltReadoutRow(title: "ORIENTATION", value: "LAND L"),
+                TiltReadoutRow(title: "MOVE INPUT", value: "+0.500 -0.250")
+            ]
+        )
+
+        XCTAssertEqual(
+            TiltReadoutFormatter.gameplayRows(for: nil, fallbackOrientation: .landscapeRight),
+            [
+                TiltReadoutRow(title: "ORIENTATION", value: "LAND R"),
+                TiltReadoutRow(title: "MOVE INPUT", value: "--")
+            ]
+        )
+    }
+
     private func input(from rawGravity: TiltGravityVector, orientation: TiltScreenOrientation) -> CGVector {
         TiltSignalProcessor().normalizedInputVector(
             gravity: TiltGravityMapper.screenGravity(from: rawGravity, orientation: orientation),
