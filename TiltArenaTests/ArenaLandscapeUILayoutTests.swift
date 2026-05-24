@@ -15,6 +15,20 @@ final class ArenaLandscapeUILayoutTests: XCTestCase {
         XCTAssertEqual(layout.bottomCenterPosition, CGPoint(x: 426, y: 45))
     }
 
+    func testGameplayRectUsesCameraInsetsWithoutReservingVerticalControlArea() {
+        let layout = ArenaLandscapeUILayout(
+            sceneSize: CGSize(width: 852, height: 393),
+            safeAreaInsets: UIEdgeInsets(top: 0, left: 59, bottom: 21, right: 59),
+            margin: 24
+        )
+
+        XCTAssertEqual(layout.gameplayRect, CGRect(x: 67, y: 8, width: 718, height: 377))
+        XCTAssertLessThan(layout.gameplayRect.minY, layout.safeRect.minY)
+        XCTAssertGreaterThan(layout.gameplayRect.maxY, layout.safeRect.maxY)
+        XCTAssertGreaterThanOrEqual(layout.gameplayRect.minX, 59)
+        XCTAssertLessThanOrEqual(layout.gameplayRect.maxX, 852 - 59)
+    }
+
     func testSafeRectHonorsAsymmetricLandscapeInsets() {
         let layout = ArenaLandscapeUILayout(
             sceneSize: CGSize(width: 932, height: 430),
@@ -25,6 +39,20 @@ final class ArenaLandscapeUILayoutTests: XCTestCase {
         XCTAssertEqual(layout.safeRect, CGRect(x: 83, y: 58, width: 804, height: 339))
         XCTAssertEqual(layout.titlePosition, CGPoint(x: 83, y: 397))
         XCTAssertEqual(layout.bottomCenterPosition, CGPoint(x: 485, y: 58))
+    }
+
+    func testGameplayRectHonorsAsymmetricCameraInsets() {
+        let layout = ArenaLandscapeUILayout(
+            sceneSize: CGSize(width: 932, height: 430),
+            safeAreaInsets: UIEdgeInsets(top: 9, left: 59, bottom: 34, right: 21),
+            margin: 24
+        )
+
+        XCTAssertEqual(layout.gameplayRect, CGRect(x: 67, y: 8, width: 836, height: 414))
+        XCTAssertEqual(layout.safeRect.minY, 58)
+        XCTAssertEqual(layout.gameplayRect.minY, 8)
+        XCTAssertGreaterThanOrEqual(layout.gameplayRect.minX, 59)
+        XCTAssertLessThanOrEqual(layout.gameplayRect.maxX, 932 - 21)
     }
 
     func testBottomButtonsRemainCenteredInLandscapeSafeRect() {

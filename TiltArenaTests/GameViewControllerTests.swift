@@ -93,7 +93,7 @@ final class GameViewControllerTests: XCTestCase {
         spriteView.testSafeAreaInsets = UIEdgeInsets(top: 0, left: 59, bottom: 21, right: 47)
         controller.viewSafeAreaInsetsDidChange()
 
-        XCTAssertEqual(scene.movementController.state.position, CGPoint(x: 432, y: 207))
+        XCTAssertEqual(scene.movementController.state.position, CGPoint(x: 432, y: 196.5))
     }
 }
 

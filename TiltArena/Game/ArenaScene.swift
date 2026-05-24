@@ -447,7 +447,7 @@ final class ArenaScene: SKScene {
     }
 
     var currentGameplayBounds: CGRect {
-        currentLandscapeLayout().safeRect
+        currentLandscapeLayout().gameplayRect
     }
 
     var currentPlayableRect: CGRect {
@@ -1668,7 +1668,7 @@ private extension ArenaScene {
             color: theme.playerAccentColor,
             alignment: .left
         )
-        addPreviewThreats(in: layout.safeRect)
+        addPreviewThreats(in: layout.gameplayRect)
         addButton(
             "PLAY",
             frame: layout.stackedLowerRightButtonFrame(aboveBottomControlHeight: bottomButtonSize.height),
@@ -1820,7 +1820,7 @@ private extension ArenaScene {
 
         let previewArena = ArenaThemeRenderer(theme: theme).makeArenaBackground(
             size: size,
-            arenaRect: layout.safeRect
+            arenaRect: layout.gameplayRect
         )
         previewArena.zPosition = ArenaUIZPosition.preview
         worldNode.addChild(previewArena)

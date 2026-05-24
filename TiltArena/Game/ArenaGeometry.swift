@@ -28,4 +28,22 @@ enum ArenaGeometry {
 
         return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
+
+    static func landscapeGameplayRect(
+        sceneSize: CGSize,
+        safeAreaInsets: UIEdgeInsets,
+        edgeMargin: CGFloat
+    ) -> CGRect {
+        let width = max(0, sceneSize.width)
+        let height = max(0, sceneSize.height)
+        let margin = max(0, edgeMargin)
+        let leftInset = max(0, min(safeAreaInsets.left, width))
+        let rightInset = max(0, min(safeAreaInsets.right, width - leftInset))
+        let minX = leftInset + margin
+        let maxX = max(minX, width - rightInset - margin)
+        let minY = min(margin, height)
+        let maxY = max(minY, height - margin)
+
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    }
 }

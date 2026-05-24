@@ -2,6 +2,7 @@ import UIKit
 
 struct ArenaLandscapeUILayout: Equatable {
     private static let controlBorderGap: CGFloat = 12
+    private static let gameplayEdgeMargin: CGFloat = 8
 
     let sceneSize: CGSize
     let safeAreaInsets: UIEdgeInsets
@@ -9,6 +10,14 @@ struct ArenaLandscapeUILayout: Equatable {
 
     var safeRect: CGRect {
         ArenaGeometry.safeRect(sceneSize: sceneSize, safeAreaInsets: safeAreaInsets, margin: margin)
+    }
+
+    var gameplayRect: CGRect {
+        ArenaGeometry.landscapeGameplayRect(
+            sceneSize: sceneSize,
+            safeAreaInsets: safeAreaInsets,
+            edgeMargin: Self.gameplayEdgeMargin
+        )
     }
 
     var controlRect: CGRect {
