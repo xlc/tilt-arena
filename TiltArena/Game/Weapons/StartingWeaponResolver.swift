@@ -6,8 +6,10 @@ struct StartingWeaponConfiguration: Equatable {
     var seekerTargetLimit: Int = 4
     var razorShieldRadius: CGFloat = 32
     var razorShieldDuration: TimeInterval = 4
-    var freezeBurstRadius: CGFloat = 112
+    var freezeBurstRadius: CGFloat = 140
+    var freezeExpansionDuration: TimeInterval = 0.25
     var freezeDuration: TimeInterval = 4
+    var freezeThawGraceDuration: TimeInterval = 0.35
     var frozenCrasherDuration: TimeInterval = 2.4
     var gravityWellRadius: CGFloat = 132
     var gravityWellPullDuration: TimeInterval = 0.85
@@ -144,7 +146,7 @@ struct StartingWeaponResolver {
 
     private func gravityWellTargets(playerPosition: CGPoint, enemies: [ArenaEnemy]) -> Set<Int> {
         let wellCircle = CollisionCircle(center: playerPosition, radius: configuration.gravityWellRadius)
-        return Set(enemies.filter { !$0.isFrozen && wellCircle.intersects($0.collisionCircle) }.map(\.id))
+        return Set(enemies.filter { wellCircle.intersects($0.collisionCircle) }.map(\.id))
     }
 
     private func chainLightningTargets(playerPosition: CGPoint, enemies: [ArenaEnemy]) -> [Int] {

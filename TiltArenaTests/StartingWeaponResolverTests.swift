@@ -90,12 +90,12 @@ final class StartingWeaponResolverTests: XCTestCase {
         XCTAssertEqual(resolution.frozenEnemyIDs, [])
     }
 
-    func testGravityWellTargetsUnfrozenEnemiesInsideRadiusWithoutDestroyingThem() {
+    func testGravityWellTargetsEnemiesInsideRadiusIncludingFrozenEnemiesWithoutDestroyingThem() {
         let resolver = StartingWeaponResolver(
             configuration: StartingWeaponConfiguration(gravityWellRadius: 50)
         )
         var frozenEnemy = enemy(id: 3, position: CGPoint(x: 20, y: 0))
-        frozenEnemy.freeze(duration: 1)
+        frozenEnemy.freeze(duration: 1, thawGraceDuration: 0.35)
         let enemies = [
             enemy(id: 1, position: CGPoint(x: 20, y: 0)),
             enemy(id: 2, position: CGPoint(x: 80, y: 0)),
@@ -109,7 +109,27 @@ final class StartingWeaponResolverTests: XCTestCase {
         )
 
         XCTAssertEqual(resolution.destroyedEnemyIDs, [])
-        XCTAssertEqual(resolution.gravityWellEnemyIDs, [1])
+        XCTAssertEqual(resolution.gravityWellEnemyIDs, [1, 3])
+    }
+
+    func testGravityWellCollapseCanClearFrozenEnemiesInsideClearRadius() {
+        var frozenEnemy = enemy(id: 3, position: CGPoint(x: 20, y: 0))
+        frozenEnemy.freeze(duration: 1, thawGraceDuration: 0.35)
+        let state = GravityWellState(
+            center: .zero,
+            enemyIDs: [1, 2, 3],
+            timeRemaining: 0
+        )
+        let enemies = [
+            enemy(id: 1, position: CGPoint(x: 12, y: 0)),
+            enemy(id: 2, position: CGPoint(x: 80, y: 0)),
+            frozenEnemy
+        ]
+
+        XCTAssertEqual(
+            state.collapseTargets(enemies: enemies, clearRadius: 24),
+            [1, 3]
+        )
     }
 
     func testGravityWellHandlesEmptyArena() {

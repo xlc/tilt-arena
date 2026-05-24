@@ -90,6 +90,38 @@ final class ArenaEnemyTests: XCTestCase {
         XCTAssertEqual(enemy.position.x, 10, accuracy: 0.0001)
     }
 
+    func testFrozenEnemyEntersHarmlessShatterableThawGraceBeforeMoving() {
+        var enemy = ArenaEnemy(id: 1, position: CGPoint(x: 0, y: 0), radius: 8, speed: 100)
+
+        enemy.freeze(duration: 1, thawGraceDuration: 0.35)
+        XCTAssertFalse(enemy.canDamagePlayer)
+
+        enemy.advance(toward: CGPoint(x: 100, y: 0), deltaTime: 1)
+
+        XCTAssertFalse(enemy.isFrozen)
+        XCTAssertTrue(enemy.isThawing)
+        XCTAssertTrue(enemy.isShatterableFrozen)
+        XCTAssertFalse(enemy.canDamagePlayer)
+        XCTAssertEqual(enemy.position.x, 0, accuracy: 0.0001)
+
+        enemy.advance(toward: CGPoint(x: 100, y: 0), deltaTime: 0.2)
+
+        XCTAssertTrue(enemy.isThawing)
+        XCTAssertFalse(enemy.canDamagePlayer)
+        XCTAssertEqual(enemy.position.x, 0, accuracy: 0.0001)
+
+        enemy.advance(toward: CGPoint(x: 100, y: 0), deltaTime: 0.15)
+
+        XCTAssertFalse(enemy.isThawing)
+        XCTAssertFalse(enemy.isShatterableFrozen)
+        XCTAssertTrue(enemy.canDamagePlayer)
+        XCTAssertEqual(enemy.position.x, 0, accuracy: 0.0001)
+
+        enemy.advance(toward: CGPoint(x: 100, y: 0), deltaTime: 0.1)
+
+        XCTAssertEqual(enemy.position.x, 10, accuracy: 0.0001)
+    }
+
     func testFrozenEnemyPreservesBehaviorAndFormationIdentity() {
         var enemy = ArenaEnemy(
             id: 1,
@@ -115,7 +147,7 @@ final class ArenaEnemyTests: XCTestCase {
         XCTAssertEqual(enemy.formationID, 4)
     }
 
-    func testGravityPullMovesTowardTargetWithoutOvershootingOrMovingFrozenEnemies() {
+    func testGravityPullMovesTowardTargetWithoutOvershootingAndCanMoveFrozenEnemies() {
         var enemy = ArenaEnemy(id: 1, position: CGPoint(x: 0, y: 0), radius: 8, speed: 0)
 
         enemy.pullToward(CGPoint(x: 30, y: 40), distance: 25)
@@ -128,11 +160,17 @@ final class ArenaEnemyTests: XCTestCase {
         XCTAssertEqual(enemy.position.x, 30, accuracy: 0.0001)
         XCTAssertEqual(enemy.position.y, 40, accuracy: 0.0001)
 
-        enemy.freeze(duration: 1)
-        enemy.pullToward(.zero, distance: 100)
+        enemy.freeze(duration: 1, thawGraceDuration: 0.35)
+        enemy.pullToward(.zero, distance: 25)
 
-        XCTAssertEqual(enemy.position.x, 30, accuracy: 0.0001)
-        XCTAssertEqual(enemy.position.y, 40, accuracy: 0.0001)
+        XCTAssertEqual(enemy.position.x, 15, accuracy: 0.0001)
+        XCTAssertEqual(enemy.position.y, 20, accuracy: 0.0001)
+        XCTAssertTrue(enemy.isFrozen)
+
+        enemy.advance(toward: CGPoint(x: 100, y: 100), deltaTime: 0.5)
+
+        XCTAssertEqual(enemy.position.x, 15, accuracy: 0.0001)
+        XCTAssertEqual(enemy.position.y, 20, accuracy: 0.0001)
     }
 
     func testHunterDotUsesPredictedPlayerPosition() {

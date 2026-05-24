@@ -149,62 +149,6 @@ extension ArenaScene {
         }
     }
 
-    func playFreezeBurstEffect(
-        at position: CGPoint,
-        targets: [WeaponImpactTarget],
-        onImpact: @escaping (Set<Int>) -> Void
-    ) {
-        let radius = weaponResolver.configuration.freezeBurstRadius
-        let duration = weaponEffectTiming.waveDuration(radius: radius)
-        let ring = makeEffectRing(
-            radius: radius,
-            strokeColor: theme.pickupBlue.withAlphaComponent(0.9),
-            fillColor: theme.pickupBlue.withAlphaComponent(0.1),
-            lineWidth: 2,
-            glowWidth: 6
-        )
-        ring.position = position
-        ring.setScale(0.08)
-        addWeaponEffectNode(ring)
-
-        let innerRing = makeEffectRing(
-            radius: radius * 0.46,
-            strokeColor: theme.playerColor.withAlphaComponent(0.7),
-            fillColor: .clear,
-            lineWidth: 1.2,
-            glowWidth: 3
-        )
-        innerRing.position = position
-        innerRing.setScale(0.1)
-        addWeaponEffectNode(innerRing)
-
-        ring.run(.sequence([
-            .group([
-                .scale(to: 1, duration: duration),
-                .fadeOut(withDuration: duration)
-            ]),
-            .removeFromParent()
-        ]))
-        innerRing.run(.sequence([
-            .wait(forDuration: duration * 0.2),
-            .group([
-                .scale(to: 1, duration: duration * 0.78),
-                .fadeOut(withDuration: duration * 0.78)
-            ]),
-            .removeFromParent()
-        ]))
-
-        for target in targets {
-            playImpactBurst(
-                at: target,
-                delay: weaponEffectTiming.waveDuration(from: position, to: target.position),
-                color: theme.pickupBlue,
-                radius: 13,
-                onImpact: onImpact
-            )
-        }
-    }
-
     func playGravityWellEffect(at position: CGPoint, duration: TimeInterval? = nil) {
         gravityWellEffectNode?.removeFromParent()
         let container = SKNode()
@@ -597,7 +541,7 @@ extension ArenaScene {
         ]))
     }
 
-    private func makeEffectRing(
+    func makeEffectRing(
         radius: CGFloat,
         strokeColor: SKColor,
         fillColor: SKColor,

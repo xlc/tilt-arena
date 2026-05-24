@@ -52,11 +52,13 @@ private extension EnemyNode {
     struct VisualSignature: Equatable {
         let role: VisualRole
         let isFrozen: Bool
+        let isThawing: Bool
         let radius: CGFloat
 
         init(enemy: ArenaEnemy) {
             role = VisualRole(enemy: enemy)
             isFrozen = enemy.isFrozen
+            isThawing = enemy.isThawing
             radius = enemy.radius
         }
     }
@@ -94,12 +96,24 @@ private extension EnemyNode {
             markerNode.isHidden = true
         }
         markerNode.fillColor = .clear
+        resetThawAnimation()
+        applyBaseStyle()
+        applyRoleStyle(enemy)
+
+        if enemy.isFrozen {
+            applyFrozenStyle()
+        } else if enemy.isThawing {
+            applyThawingStyle()
+            startThawAnimation()
+        }
+    }
+
+    func applyBaseStyle() {
         markerNode.strokeColor = theme.playerColor.withAlphaComponent(0.9)
         markerNode.lineWidth = 1.5
         markerNode.lineCap = .round
         markerNode.lineJoin = .round
         markerNode.glowWidth = 1
-
         ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.55)
         ringNode.lineWidth = 1.1
         ringNode.glowWidth = 1
@@ -107,7 +121,9 @@ private extension EnemyNode {
         bodyNode.strokeColor = theme.enemyColor.withAlphaComponent(0.9)
         bodyNode.lineWidth = 1
         bodyNode.glowWidth = 3
+    }
 
+    func applyRoleStyle(_ enemy: ArenaEnemy) {
         if enemy.isMineDot {
             ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.95)
             ringNode.lineWidth = 2
@@ -126,16 +142,61 @@ private extension EnemyNode {
             bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.78)
             bodyNode.glowWidth = 2
         }
+    }
 
-        if enemy.isFrozen {
-            ringNode.strokeColor = theme.pickupBlue.withAlphaComponent(0.9)
-            ringNode.lineWidth = 2
-            ringNode.glowWidth = 3
-            bodyNode.fillColor = theme.pickupBlue.withAlphaComponent(0.55)
-            bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.95)
-            bodyNode.glowWidth = 4
-            markerNode.strokeColor = theme.playerColor.withAlphaComponent(0.95)
-        }
+    func applyFrozenStyle() {
+        ringNode.strokeColor = theme.pickupBlue.withAlphaComponent(0.9)
+        ringNode.lineWidth = 2
+        ringNode.glowWidth = 3
+        bodyNode.fillColor = theme.pickupBlue.withAlphaComponent(0.55)
+        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.95)
+        bodyNode.glowWidth = 4
+        markerNode.strokeColor = theme.playerColor.withAlphaComponent(0.95)
+    }
+
+    func applyThawingStyle() {
+        ringNode.strokeColor = theme.pickupBlue.withAlphaComponent(0.58)
+        ringNode.lineWidth = 1.7
+        ringNode.glowWidth = 2.5
+        bodyNode.fillColor = theme.pickupBlue.withAlphaComponent(0.28)
+        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.72)
+        bodyNode.glowWidth = 3
+        markerNode.strokeColor = theme.playerColor.withAlphaComponent(0.75)
+    }
+
+    func resetThawAnimation() {
+        bodyNode.removeAction(forKey: "enemy.thaw.body")
+        ringNode.removeAction(forKey: "enemy.thaw.ring")
+        markerNode.removeAction(forKey: "enemy.thaw.marker")
+        bodyNode.alpha = 1
+        ringNode.alpha = 1
+        markerNode.alpha = 1
+        ringNode.setScale(1)
+    }
+
+    func startThawAnimation() {
+        let bodyPulse = SKAction.repeatForever(.sequence([
+            .fadeAlpha(to: 0.42, duration: 0.09),
+            .fadeAlpha(to: 0.88, duration: 0.09)
+        ]))
+        let ringPulse = SKAction.repeatForever(.sequence([
+            .group([
+                .scale(to: 1.18, duration: 0.11),
+                .fadeAlpha(to: 0.45, duration: 0.11)
+            ]),
+            .group([
+                .scale(to: 1, duration: 0.11),
+                .fadeAlpha(to: 0.9, duration: 0.11)
+            ])
+        ]))
+        let markerPulse = SKAction.repeatForever(.sequence([
+            .fadeAlpha(to: 0.35, duration: 0.08),
+            .fadeAlpha(to: 0.85, duration: 0.08)
+        ]))
+
+        bodyNode.run(bodyPulse, withKey: "enemy.thaw.body")
+        ringNode.run(ringPulse, withKey: "enemy.thaw.ring")
+        markerNode.run(markerPulse, withKey: "enemy.thaw.marker")
     }
 
     static func bodyPath(for enemy: ArenaEnemy, radius: CGFloat) -> CGPath {
@@ -155,7 +216,7 @@ private extension EnemyNode {
     }
 
     static func markerPath(for enemy: ArenaEnemy, radius: CGFloat) -> CGPath? {
-        if enemy.isFrozen {
+        if enemy.isShatterableFrozen {
             return snowflakePath(radius: radius)
         }
 

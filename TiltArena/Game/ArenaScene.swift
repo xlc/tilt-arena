@@ -78,6 +78,7 @@ final class ArenaScene: SKScene {
     private var hasPlayedRazorShieldWarning = false
     private var razorShieldNode: SKShapeNode?
     private var frozenCrasherTimeRemaining: TimeInterval = 0
+    private var freezeBurstWaveStates: [FreezeBurstWaveState] = []
     private var flameTrailState = FlameTrailState()
     private lazy var flameTrailEffectNode = FlameTrailEffectNode(theme: theme)
     private var gravityWellState: GravityWellState?
@@ -653,6 +654,7 @@ final class ArenaScene: SKScene {
         previousBestScore = runProfile.bestScore
         runController.endRun(mode: selectedMode)
         clearWeaponEffectNodes(paused: true)
+        freezeBurstWaveStates.removeAll()
         audioController.stopMusic()
         lastDeathCollisionSnapshot = collision
         let isNewBest = (runController.finalizedSummary?.score ?? runController.score) > previousBestScore
@@ -718,6 +720,7 @@ final class ArenaScene: SKScene {
         deactivateRazorShield()
         hasPlayedRazorShieldWarning = false
         frozenCrasherTimeRemaining = 0
+        freezeBurstWaveStates.removeAll()
         flameTrailState.reset()
         flameTrailEffectNode.reset()
         deactivateGravityWell()
@@ -856,6 +859,7 @@ final class ArenaScene: SKScene {
         advanceEnemies(deltaTime: deltaTime, playerPosition: playerPosition)
         updateDecoyBeacon(deltaTime: deltaTime)
         updateGravityWell(deltaTime: deltaTime)
+        updateFreezeBurstWaves(deltaTime: deltaTime)
         removeExpiredEnemies()
         cullExitedLinearPatternEnemies()
         updateRazorShield(deltaTime: deltaTime, playerPosition: playerPosition)
@@ -1069,20 +1073,7 @@ final class ArenaScene: SKScene {
         case .razorShield:
             activateRazorShield(at: playerPosition)
         case .freezeBurst:
-            let targets = impactTargets(forEnemyIDs: resolution.frozenEnemyIDs)
-            markPendingWeaponImpacts(targets)
-            playFreezeBurstEffect(at: playerPosition, targets: targets) { [weak self] enemyIDs in
-                guard let self else {
-                    return
-                }
-
-                self.pendingWeaponImpactEnemyIDs.subtract(enemyIDs)
-                self.freezeEnemies(ids: enemyIDs, duration: self.weaponResolver.configuration.freezeDuration)
-                self.frozenCrasherTimeRemaining = max(
-                    self.frozenCrasherTimeRemaining,
-                    self.weaponResolver.configuration.frozenCrasherDuration
-                )
-            }
+            activateFreezeBurstWave(at: playerPosition)
         case .gravityWell:
             activateGravityWell(
                 at: playerPosition,
@@ -1382,7 +1373,9 @@ final class ArenaScene: SKScene {
         )
 
         guard let collidingEnemy = enemies.first(where: {
-            !pendingWeaponImpactEnemyIDs.contains($0.id) && playerCircle.intersects($0.collisionCircle)
+            !pendingWeaponImpactEnemyIDs.contains($0.id)
+                && $0.canDamagePlayer
+                && playerCircle.intersects($0.collisionCircle)
         }) else {
             return
         }
@@ -3262,6 +3255,40 @@ extension ArenaScene {
 #endif
 
 private extension ArenaScene {
+    func activateFreezeBurstWave(at center: CGPoint) {
+        freezeBurstWaveStates.append(
+            FreezeBurstWaveState(
+                center: center,
+                maximumRadius: weaponResolver.configuration.freezeBurstRadius,
+                duration: weaponResolver.configuration.freezeExpansionDuration
+            )
+        )
+        playFreezeBurstEffect(
+            at: center,
+            duration: weaponResolver.configuration.freezeExpansionDuration
+        )
+    }
+
+    func updateFreezeBurstWaves(deltaTime: TimeInterval) {
+        guard !freezeBurstWaveStates.isEmpty else {
+            return
+        }
+
+        var activeStates: [FreezeBurstWaveState] = []
+        for var state in freezeBurstWaveStates {
+            let frame = state.update(deltaTime: deltaTime, enemies: weaponTargetableEnemies())
+            freezeEnemies(
+                ids: frame.frozenEnemyIDs,
+                duration: weaponResolver.configuration.freezeDuration,
+                thawGraceDuration: weaponResolver.configuration.freezeThawGraceDuration
+            )
+            if !frame.isComplete {
+                activeStates.append(state)
+            }
+        }
+        freezeBurstWaveStates = activeStates
+    }
+
     func activateDecoyBeacon(at position: CGPoint) {
         decoyBeaconState.activate(at: position)
         guard decoyBeaconState.isActive else {
@@ -3331,14 +3358,9 @@ private extension ArenaScene {
         gravityWellEffectNode?.removeFromParent()
         gravityWellEffectNode = nil
 
-        let clearCircle = CollisionCircle(
-            center: state.center,
-            radius: weaponResolver.configuration.gravityWellClearRadius
-        )
-        let destroyedIDs = Set(
-            enemies
-                .filter { state.enemyIDs.contains($0.id) && !$0.isFrozen && clearCircle.intersects($0.collisionCircle) }
-                .map(\.id)
+        let destroyedIDs = state.collapseTargets(
+            enemies: enemies,
+            clearRadius: weaponResolver.configuration.gravityWellClearRadius
         )
         let targets = impactTargets(forEnemyIDs: destroyedIDs)
         markPendingWeaponImpacts(targets)
@@ -3353,14 +3375,19 @@ private extension ArenaScene {
         gravityWellEffectNode = nil
     }
 
-    func freezeEnemies(ids enemyIDs: Set<Int>, duration: TimeInterval) {
+    func freezeEnemies(ids enemyIDs: Set<Int>, duration: TimeInterval, thawGraceDuration: TimeInterval) {
         guard !enemyIDs.isEmpty, duration > 0 else {
             return
         }
         for index in enemies.indices where enemyIDs.contains(enemies[index].id) {
-            enemies[index].freeze(duration: duration)
+            enemies[index].freeze(duration: duration, thawGraceDuration: thawGraceDuration)
             enemyNodes[enemies[index].id]?.apply(enemies[index])
+            playFreezeAppliedEffect(at: enemies[index].position, radius: enemies[index].radius)
         }
+        frozenCrasherTimeRemaining = max(
+            frozenCrasherTimeRemaining,
+            weaponResolver.configuration.frozenCrasherDuration
+        )
     }
 
     func updateFrozenCrasher(deltaTime: TimeInterval) {
@@ -3372,16 +3399,15 @@ private extension ArenaScene {
     }
 
     func shatterFrozenContactEnemies(playerPosition: CGPoint) {
-        guard frozenCrasherTimeRemaining > 0 else {
-            return
-        }
         let playerCircle = CollisionCircle(
             center: playerPosition,
             radius: runController.configuration.playerHitRadius
         )
         let shatterIDs = Set(
             enemies
-                .filter { $0.isFrozen && playerCircle.intersects($0.collisionCircle) }
+                .filter {
+                    canShatterOnContact($0) && playerCircle.intersects($0.collisionCircle)
+                }
                 .map(\.id)
         )
 
@@ -3400,6 +3426,10 @@ private extension ArenaScene {
             )
         }
         removeEnemies(ids: shatterIDs)
+    }
+
+    func canShatterOnContact(_ enemy: ArenaEnemy) -> Bool {
+        enemy.isThawing || (frozenCrasherTimeRemaining > 0 && enemy.isFrozen)
     }
 }
 

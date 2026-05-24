@@ -18,6 +18,8 @@ struct ArenaEnemy: Equatable, Identifiable {
     var speed: CGFloat
     var behavior: EnemyBehavior = .chaser
     var frozenTimeRemaining: TimeInterval = 0
+    var thawGraceTimeRemaining: TimeInterval = 0
+    var thawGraceDuration: TimeInterval = 0
 
     var formationID: Int? {
         switch behavior {
@@ -79,15 +81,30 @@ struct ArenaEnemy: Equatable, Identifiable {
         frozenTimeRemaining > 0
     }
 
-    mutating func freeze(duration: TimeInterval) {
-        frozenTimeRemaining = max(frozenTimeRemaining, max(0, duration))
+    var isThawing: Bool {
+        frozenTimeRemaining == 0 && thawGraceTimeRemaining > 0
     }
 
-    mutating func pullToward(_ target: CGPoint, distance: CGFloat) {
-        guard !isFrozen else {
+    var isShatterableFrozen: Bool {
+        isFrozen || isThawing
+    }
+
+    var canDamagePlayer: Bool {
+        !isShatterableFrozen
+    }
+
+    mutating func freeze(duration: TimeInterval, thawGraceDuration: TimeInterval = 0) {
+        let clampedDuration = max(0, duration)
+        guard clampedDuration > 0 else {
             return
         }
 
+        frozenTimeRemaining = max(frozenTimeRemaining, clampedDuration)
+        self.thawGraceDuration = max(self.thawGraceDuration, max(0, thawGraceDuration))
+        thawGraceTimeRemaining = 0
+    }
+
+    mutating func pullToward(_ target: CGPoint, distance: CGFloat) {
         let dx = target.x - position.x
         let dy = target.y - position.y
         let targetDistance = hypot(dx, dy)
@@ -107,8 +124,16 @@ struct ArenaEnemy: Equatable, Identifiable {
         let clampedTime = max(0, deltaTime)
         let clampedDelta = CGFloat(clampedTime)
 
-        guard !isFrozen else {
+        if isFrozen {
             frozenTimeRemaining = max(0, frozenTimeRemaining - clampedTime)
+            if frozenTimeRemaining == 0 {
+                thawGraceTimeRemaining = max(thawGraceTimeRemaining, thawGraceDuration)
+            }
+            return
+        }
+
+        if isThawing {
+            thawGraceTimeRemaining = max(0, thawGraceTimeRemaining - clampedTime)
             return
         }
 
