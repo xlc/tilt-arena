@@ -3,6 +3,7 @@ enum ArenaUISceneState: Equatable {
     case modeSelect
     case awards
     case options
+    case developerTuning
     case calibrationPreview
     case preRun
     case activeGameplay
@@ -13,7 +14,7 @@ enum ArenaUISceneState: Equatable {
         switch self {
         case .calibrationPreview, .preRun, .activeGameplay, .pause, .postRun:
             return true
-        case .home, .modeSelect, .awards, .options:
+        case .home, .modeSelect, .awards, .options, .developerTuning:
             return false
         }
     }

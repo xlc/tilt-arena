@@ -37,6 +37,7 @@ final class ArenaScene: SKScene {
     private let uiRoot = SKNode()
     private lazy var tiltInputController = TiltInputController(settingsStore: tiltSettingsStore)
     private let keyboardInputController = KeyboardInputController()
+    private var gameTuning = GameTuningConfiguration.defaults
     var movementController = PlayerMovementController()
     private var runController = ClassicRunController()
     private var runProfile = RunProfile()
@@ -44,12 +45,15 @@ final class ArenaScene: SKScene {
     private var uiState: ArenaUISceneState = .home
     private var optionsReturnState: ArenaUISceneState = .home
     private var calibrationReturnState: ArenaUISceneState = .home
+    private var developerReturnState: ArenaUISceneState = .home
     private var selectedMode: ArenaModeKind = .classic
     private var previousBestScore = 0
     private var lastProgressionResult: ArenaProgressionResult?
     private var resetDataArmed = false
     private var hasPersistedFinalRun = false
     private var isResolvingDeath = false
+    private var developerTuningPageIndex = 0
+    private var developerTuningCopyConfirmation: String?
     private var deathReplayTrace = DeathReplayTrace()
     private var lastDeathCollisionSnapshot: DeathCollisionSnapshot?
     private var readyHoldController = ReadyStartHoldController()
@@ -59,8 +63,8 @@ final class ArenaScene: SKScene {
     private var spawnDirector = EnemySpawnDirector()
     private var pickupSpawnConfiguration = PickupSpawnConfiguration()
     private var pickupPlanner = PickupSpawnPlanner()
-    let weaponResolver = StartingWeaponResolver()
-    let weaponEffectTiming = WeaponEffectTiming()
+    var weaponResolver = StartingWeaponResolver()
+    var weaponEffectTiming = WeaponEffectTiming()
     private var enemies: [ArenaEnemy] = []
     private var enemyNodes: [Int: EnemyNode] = [:]
     private var pendingWeaponImpactEnemyIDs: Set<Int> = []
@@ -124,6 +128,7 @@ final class ArenaScene: SKScene {
     }
 
     private func configureSceneDefaults() {
+        applyGameTuning()
         anchorPoint = .zero
         backgroundColor = theme.backgroundColor
     }
@@ -206,7 +211,7 @@ final class ArenaScene: SKScene {
             updateGameplay(deltaTime: deltaTime)
         case .options:
             updateTiltReadoutDisplay(deltaTime: deltaTime)
-        case .home, .modeSelect, .awards, .pause, .postRun:
+        case .home, .modeSelect, .awards, .developerTuning, .pause, .postRun:
             break
         }
     }
@@ -722,11 +727,66 @@ final class ArenaScene: SKScene {
         deactivateDecoyBeaconEffect()
     }
 
+    private func applyGameTuning(rebuildPlayerVisuals: Bool = false) {
+        movementController.configuration = gameTuning.playerMovement
+        calibrationPreviewMovementController.configuration = gameTuning.playerMovement
+        runController.configuration = gameTuning.run
+        readyHoldController.configuration = gameTuning.readyStart
+        weaponResolver.configuration = gameTuning.startingWeapons
+        weaponEffectTiming = gameTuning.weaponEffectTiming
+        flameTrailState.configuration = gameTuning.flameTrail
+        decoyBeaconState.configuration = gameTuning.decoyBeacon
+        deathReplayTrace.duration = gameTuning.feedback.deathReplayDuration
+        _ = applySelectedModeRunSettings()
+
+        if rebuildPlayerVisuals {
+            playerNode?.removeFromParent()
+            playerNode = nil
+            calibrationPreviewPlayerNode?.removeFromParent()
+            calibrationPreviewPlayerNode = nil
+        }
+
+        if playerNode != nil {
+            placePlayer(resetPosition: false, resetTrail: false)
+        }
+
+        if uiState == .calibrationPreview {
+            resetCalibrationPreviewPosition()
+        }
+
+        if let razorShieldNode {
+            let remainingShieldTime = razorShieldTimeRemaining
+            razorShieldNode.removeFromParent()
+            self.razorShieldNode = nil
+            if remainingShieldTime > 0 {
+                let node = SKShapeNode(circleOfRadius: weaponResolver.configuration.razorShieldRadius)
+                node.zPosition = 19
+                styleRazorShieldNode(node)
+                node.position = movementController.state.position
+                node.isHidden = false
+                addWeaponEffectNode(node)
+                self.razorShieldNode = node
+                razorShieldTimeRemaining = remainingShieldTime
+            }
+        }
+    }
+
     private func applySelectedModeRunSettings() -> ArenaModeRunSettings {
         let settings = ArenaModeRules.runSettings(for: selectedMode, profile: runProfile)
-        spawnDirector.configuration = settings.enemySpawnConfiguration
-        pickupSpawnConfiguration = settings.pickupSpawnConfiguration
-        return settings
+        let modeTuning = gameTuning.modeTuning(for: selectedMode)
+        var tunedPickupConfiguration = modeTuning.pickupSpawnConfiguration
+        tunedPickupConfiguration.weaponKindCycle = ArenaProgressionRules.filteredWeaponCycle(
+            tunedPickupConfiguration.weaponKindCycle,
+            profile: runProfile
+        )
+
+        spawnDirector.configuration = modeTuning.enemySpawnConfiguration
+        pickupSpawnConfiguration = tunedPickupConfiguration
+        return ArenaModeRunSettings(
+            enemySpawnConfiguration: modeTuning.enemySpawnConfiguration,
+            pickupSpawnConfiguration: tunedPickupConfiguration,
+            sequenceSeed: settings.sequenceSeed
+        )
     }
 
     private func resetPlayerFeedback() {
@@ -1118,8 +1178,11 @@ final class ArenaScene: SKScene {
         runController.recordEnemyKills(count: enemyIDs.count, weaponKind: weaponKind)
         playEnemyClearHaptics(killCount: enemyIDs.count, previousComboMultiplier: previousComboMultiplier)
         playEnemyClearAudio(killCount: enemyIDs.count, previousComboMultiplier: previousComboMultiplier)
-        if enemyIDs.count >= 8 {
-            playScreenShake(amplitude: 3, duration: 0.14)
+        if enemyIDs.count >= gameTuning.feedback.multiKillShakeThreshold {
+            playScreenShake(
+                amplitude: gameTuning.feedback.multiKillShakeAmplitude,
+                duration: gameTuning.feedback.multiKillShakeDuration
+            )
         }
         removeEnemies(ids: enemyIDs)
     }
@@ -1255,7 +1318,7 @@ final class ArenaScene: SKScene {
         guard
             !hasPlayedRazorShieldWarning,
             razorShieldTimeRemaining > 0,
-            razorShieldTimeRemaining <= 0.75,
+            razorShieldTimeRemaining <= gameTuning.feedback.razorShieldWarningLeadTime,
             runController.phase == .active
         else {
             return
@@ -1334,7 +1397,10 @@ final class ArenaScene: SKScene {
     }
 
     private func playDeathFeedback() {
-        playScreenShake(amplitude: 5, duration: 0.18)
+        playScreenShake(
+            amplitude: gameTuning.feedback.deathShakeAmplitude,
+            duration: gameTuning.feedback.deathShakeDuration
+        )
         let pulse = SKAction.group([
             .scale(to: 1.45, duration: 0.08),
             .fadeAlpha(to: 0.35, duration: 0.08)
@@ -1401,7 +1467,7 @@ final class ArenaScene: SKScene {
         timerLabel.alpha = uiState == .pause || uiState == .postRun ? 0.55 : 1
 
         switch uiState {
-        case .home, .modeSelect, .awards, .options, .calibrationPreview:
+        case .home, .modeSelect, .awards, .options, .developerTuning, .calibrationPreview:
             timerLabel.isHidden = true
             bestMarkerLabel.isHidden = true
             comboLabel.isHidden = true
@@ -1534,6 +1600,8 @@ private extension ArenaScene {
             return true
         case .options:
             return optionsReturnState.requiresLockedRunOrientation
+        case .developerTuning:
+            return developerReturnState.requiresLockedRunOrientation
         case .home, .modeSelect, .awards:
             return false
         }
@@ -1559,6 +1627,8 @@ private extension ArenaScene {
             renderAwards()
         case .options:
             renderOptions()
+        case .developerTuning:
+            renderDeveloperTuning()
         case .calibrationPreview:
             renderCalibrationPreview()
         case .preRun:
@@ -1579,7 +1649,7 @@ private extension ArenaScene {
         switch uiState {
         case .home, .preRun, .activeGameplay, .pause, .postRun:
             isVisible = true
-        case .modeSelect, .awards, .options, .calibrationPreview:
+        case .modeSelect, .awards, .options, .developerTuning, .calibrationPreview:
             isVisible = false
         }
 
@@ -1656,6 +1726,14 @@ private extension ArenaScene {
             action: .openOptions,
             style: .secondary
         )
+        #if DEBUG
+        addButton(
+            "DEV",
+            frame: CGRect(x: layout.safeRect.maxX - 70, y: layout.safeRect.maxY - 42, width: 70, height: 34),
+            action: .openDeveloperTuning,
+            style: .secondary
+        )
+        #endif
     }
 
     func renderModeSelect() {
@@ -1754,6 +1832,121 @@ private extension ArenaScene {
 
         renderTiltOptions(in: left)
         renderLocalOptions(in: right)
+    }
+
+    func renderDeveloperTuning() {
+        let layout = currentLandscapeLayout()
+        let contentFrame = addMenuChrome(title: "DEV TUNING", layout: layout)
+
+        addButton(
+            "COPY ALL",
+            frame: CGRect(x: layout.safeRect.maxX - 136, y: layout.safeRect.maxY - 48, width: 122, height: 34),
+            action: .copyTuningParameters,
+            style: .primary
+        )
+
+        if let developerTuningCopyConfirmation {
+            addLabel(
+                developerTuningCopyConfirmation,
+                at: CGPoint(x: layout.safeRect.maxX - 150, y: layout.safeRect.maxY - 66),
+                fontSize: 9,
+                color: theme.playerAccentColor,
+                alignment: .right
+            )
+        }
+
+        let parameters = GameTuningParameterCatalog.parameters
+        let pageSize = developerTuningPageSize(in: contentFrame)
+        let pageCount = max(1, Int(ceil(Double(parameters.count) / Double(pageSize))))
+        developerTuningPageIndex = min(max(0, developerTuningPageIndex), pageCount - 1)
+
+        let pageStart = developerTuningPageIndex * pageSize
+        let pageEnd = min(parameters.count, pageStart + pageSize)
+        let visibleParameters = Array(parameters[pageStart..<pageEnd])
+        let controlsY = contentFrame.maxY - 28
+
+        addButton(
+            "<",
+            frame: CGRect(x: contentFrame.minX, y: controlsY - 15, width: 38, height: 30),
+            action: .developerTuningPreviousPage,
+            style: developerTuningPageIndex == 0 ? .secondary : .primary
+        )
+        addButton(
+            ">",
+            frame: CGRect(x: contentFrame.minX + 48, y: controlsY - 15, width: 38, height: 30),
+            action: .developerTuningNextPage,
+            style: developerTuningPageIndex + 1 >= pageCount ? .secondary : .primary
+        )
+        addSmallLabel(
+            "PAGE \(developerTuningPageIndex + 1)/\(pageCount)  \(parameters.count) VALUES",
+            at: CGPoint(x: contentFrame.minX + 104, y: controlsY),
+            color: theme.borderColor,
+            alignment: .left
+        )
+
+        let rowHeight = developerTuningRowHeight(in: contentFrame)
+        let rowStartY = contentFrame.maxY - 58
+        for (index, parameter) in visibleParameters.enumerated() {
+            let rowFrame = CGRect(
+                x: contentFrame.minX,
+                y: rowStartY - CGFloat(index + 1) * rowHeight,
+                width: contentFrame.width,
+                height: rowHeight - 4
+            )
+            renderDeveloperTuningRow(parameter, frame: rowFrame)
+        }
+    }
+
+    func developerTuningPageSize(in frame: CGRect) -> Int {
+        let usableHeight = max(0, frame.height - 62)
+        return max(1, Int(floor(usableHeight / developerTuningRowHeight(in: frame))))
+    }
+
+    func developerTuningRowHeight(in frame: CGRect) -> CGFloat {
+        frame.height < 230 ? 28 : 32
+    }
+
+    func renderDeveloperTuningRow(_ parameter: GameTuningParameterSpec, frame: CGRect) {
+        addPanel(
+            frame: frame,
+            stroke: theme.borderColor.withAlphaComponent(0.28),
+            fill: theme.backgroundColor.withAlphaComponent(0.42)
+        )
+
+        let compact = frame.width < 560
+        addLabel(
+            parameter.group.uppercased(),
+            at: CGPoint(x: frame.minX + 10, y: frame.midY),
+            fontSize: compact ? 7 : 8,
+            color: theme.borderColor.withAlphaComponent(0.8),
+            alignment: .left
+        )
+        addLabel(
+            parameter.title.uppercased(),
+            at: CGPoint(x: frame.minX + (compact ? 86 : 126), y: frame.midY),
+            fontSize: compact ? 8 : 9,
+            color: theme.playerColor,
+            alignment: .left
+        )
+        addLabel(
+            parameter.displayValue(in: gameTuning),
+            at: CGPoint(x: frame.maxX - 90, y: frame.midY),
+            fontSize: 10,
+            color: theme.playerAccentColor,
+            alignment: .right
+        )
+        addButton(
+            "-",
+            frame: CGRect(x: frame.maxX - 78, y: frame.midY - 12, width: 32, height: 24),
+            action: .adjustTuningParameter(parameter.id, .decrease),
+            style: .secondary
+        )
+        addButton(
+            "+",
+            frame: CGRect(x: frame.maxX - 38, y: frame.midY - 12, width: 32, height: 24),
+            action: .adjustTuningParameter(parameter.id, .increase),
+            style: .secondary
+        )
     }
 
     func renderCalibrationPreview() {
@@ -2133,6 +2326,14 @@ private extension ArenaScene {
             action: .openOptions,
             style: .secondary
         )
+        #if DEBUG
+        addButton(
+            "DEV",
+            frame: CGRect(x: layout.safeRect.maxX - 150, y: layout.safeRect.midY - 88, width: 150, height: 38),
+            action: .openDeveloperTuning,
+            style: .secondary
+        )
+        #endif
         addButton(
             "END RUN",
             frame: CGRect(x: layout.safeRect.minX, y: layout.safeRect.minY, width: 132, height: 36),
@@ -2221,7 +2422,15 @@ private extension ArenaScene {
 
     func perform(_ action: ArenaControlAction) {
         switch action {
-        case .play, .playAgain, .openModes, .openAwards, .openOptions, .openCalibrationPreview, .home, .back:
+        case .play,
+                .playAgain,
+                .openModes,
+                .openAwards,
+                .openOptions,
+                .openDeveloperTuning,
+                .openCalibrationPreview,
+                .home,
+                .back:
             performNavigationAction(action)
         case .selectMode, .resume, .calibrate, .endRun:
             performRunControlAction(action)
@@ -2229,6 +2438,11 @@ private extension ArenaScene {
             exportDiagnostics()
         case .sensitivityDown, .sensitivityUp, .preset, .toggleAudio, .toggleHaptics, .selectTheme, .resetData:
             performOptionsAction(action)
+        case .developerTuningPreviousPage,
+                .developerTuningNextPage,
+                .adjustTuningParameter,
+                .copyTuningParameters:
+            performDeveloperTuningAction(action)
         }
     }
 
@@ -2246,6 +2460,10 @@ private extension ArenaScene {
         case .openOptions:
             optionsReturnState = uiState
             show(.options)
+        case .openDeveloperTuning:
+            developerReturnState = uiState
+            developerTuningCopyConfirmation = nil
+            show(.developerTuning)
         case .openCalibrationPreview:
             enterCalibrationPreview()
         case .home:
@@ -2254,6 +2472,9 @@ private extension ArenaScene {
         case .back where uiState == .calibrationPreview:
             tiltInputController.resetSmoothedInput()
             show(calibrationReturnState)
+        case .back where uiState == .developerTuning:
+            developerTuningCopyConfirmation = nil
+            show(developerReturnState)
         case .back:
             show(uiState == .options ? optionsReturnState : .home)
         default:
@@ -2298,6 +2519,40 @@ private extension ArenaScene {
             performLocalOptionToggle(action)
         case .selectTheme, .resetData:
             performLocalDataAction(action)
+        default:
+            break
+        }
+    }
+
+    func performDeveloperTuningAction(_ action: ArenaControlAction) {
+        switch action {
+        case .developerTuningPreviousPage:
+            developerTuningPageIndex = max(0, developerTuningPageIndex - 1)
+            rebuildUI()
+        case .developerTuningNextPage:
+            let pageSize = developerTuningPageSize(in: currentLandscapeLayout().safeRect)
+            let pageCount = max(
+                1,
+                Int(ceil(Double(GameTuningParameterCatalog.parameters.count) / Double(pageSize)))
+            )
+            developerTuningPageIndex = min(pageCount - 1, developerTuningPageIndex + 1)
+            rebuildUI()
+        case let .adjustTuningParameter(parameterID, direction):
+            let oldPlayerRadius = gameTuning.playerMovement.visualRadius
+            gameTuning.adjustParameter(id: parameterID, direction: direction)
+            let didChangePlayerRadius = oldPlayerRadius != gameTuning.playerMovement.visualRadius
+            applyGameTuning(rebuildPlayerVisuals: didChangePlayerRadius)
+            developerTuningCopyConfirmation = nil
+            rebuildArena()
+            layoutLabels()
+            rebuildUI()
+        case .copyTuningParameters:
+            UIPasteboard.general.string = gameTuning.sourceSnapshot()
+            developerTuningCopyConfirmation = "COPIED"
+            AppDiagnostics.logger(.app).info("dev.tuning_copied", metadata: [
+                "parameters": "\(GameTuningParameterCatalog.parameters.count)"
+            ])
+            rebuildUI()
         default:
             break
         }
@@ -2944,6 +3199,9 @@ extension ArenaScene {
         self.resetDataArmed = resetDataArmed
         optionsReturnState = .home
         calibrationReturnState = .home
+        developerReturnState = .home
+        developerTuningPageIndex = 0
+        developerTuningCopyConfirmation = nil
         lastProgressionResult = nil
         lastDeathCollisionSnapshot = nil
         hasPersistedFinalRun = false
@@ -3135,8 +3393,11 @@ private extension ArenaScene {
         runController.recordFrozenShatters(count: shatterIDs.count, weaponKind: .freezeBurst)
         playEnemyClearHaptics(killCount: shatterIDs.count, previousComboMultiplier: previousComboMultiplier)
         playEnemyClearAudio(killCount: shatterIDs.count, previousComboMultiplier: previousComboMultiplier)
-        if shatterIDs.count >= 8 {
-            playScreenShake(amplitude: 3, duration: 0.14)
+        if shatterIDs.count >= gameTuning.feedback.multiKillShakeThreshold {
+            playScreenShake(
+                amplitude: gameTuning.feedback.multiKillShakeAmplitude,
+                duration: gameTuning.feedback.multiKillShakeDuration
+            )
         }
         removeEnemies(ids: shatterIDs)
     }
@@ -3153,6 +3414,7 @@ private enum ArenaControlAction: Equatable {
     case openModes
     case openAwards
     case openOptions
+    case openDeveloperTuning
     case openCalibrationPreview
     case home
     case back
@@ -3168,6 +3430,10 @@ private enum ArenaControlAction: Equatable {
     case selectTheme(ArenaThemeKind)
     case resetData
     case exportDiagnostics
+    case developerTuningPreviousPage
+    case developerTuningNextPage
+    case adjustTuningParameter(String, GameTuningAdjustmentDirection)
+    case copyTuningParameters
 }
 
 private enum ArenaButtonStyle {
@@ -3198,6 +3464,8 @@ private extension ArenaUISceneState {
             return "awards"
         case .options:
             return "options"
+        case .developerTuning:
+            return "developerTuning"
         case .calibrationPreview:
             return "calibrationPreview"
         case .preRun:
