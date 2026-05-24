@@ -59,7 +59,7 @@ struct EnemyPhaseTuning: Equatable {
 }
 
 struct EnemySpawnConfiguration: Equatable {
-    var enemyRadius: CGFloat = 8
+    var enemyRadius: CGFloat = 5
     var playerSafetyRadius: CGFloat = 120
     var pickupClearance: CGFloat = 8
     var formationTelegraphDuration: TimeInterval = 1.1

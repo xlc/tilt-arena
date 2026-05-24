@@ -23,6 +23,12 @@ final class EnemySpawnDirectorTests: XCTestCase {
         XCTAssertEqual(pressureStart.formationSpawnInterval, configuration.pressure.formationSpawnInterval)
     }
 
+    func testDefaultEnemyRadiusKeepsDotCompact() {
+        let configuration = EnemySpawnConfiguration()
+
+        XCTAssertEqual(configuration.enemyRadius, 5)
+    }
+
     func testChaserSpawningRespectsCapPlayerSafetyAndPickupAvoidance() {
         var configuration = EnemySpawnConfiguration()
         configuration.warmup = EnemyPhaseTuning(
