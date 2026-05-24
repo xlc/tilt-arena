@@ -30,9 +30,8 @@ struct PickupSpawnConfiguration: Equatable {
         .novaBomb
     ]
 
-    var initialSpawnDelay: TimeInterval = 4.5
-    var spawnInterval: TimeInterval = 4.5
-    var maxActivePickups: Int = 2
+    var refillDelay: TimeInterval = 0.5
+    var maxActivePickups: Int = 3
     var pickupRadius: CGFloat = 12
     var edgeInset: CGFloat = 44
     var playerClearance: CGFloat = 84
@@ -41,6 +40,7 @@ struct PickupSpawnConfiguration: Equatable {
 }
 
 struct PickupSpawnPlanner {
+    private static let spawnTimerEpsilon: TimeInterval = 0.000_001
     private static let candidatePositions: [(x: CGFloat, y: CGFloat)] = [
         (0.50, 0.28),
         (0.24, 0.52),
@@ -55,13 +55,12 @@ struct PickupSpawnPlanner {
     private(set) var nextPickupID = 1
     private var nextKindIndex = 0
     private var nextCandidateIndex = 0
-    private var timeUntilNextSpawn: TimeInterval
+    private var timeUntilNextSpawn: TimeInterval = 0
 
     init(
         configuration: PickupSpawnConfiguration = PickupSpawnConfiguration(),
         sequenceSeed: Int? = nil
     ) {
-        timeUntilNextSpawn = configuration.initialSpawnDelay
         applySequenceSeed(sequenceSeed, configuration: configuration)
     }
 
@@ -72,7 +71,7 @@ struct PickupSpawnPlanner {
         nextPickupID = 1
         nextKindIndex = 0
         nextCandidateIndex = 0
-        timeUntilNextSpawn = configuration.initialSpawnDelay
+        timeUntilNextSpawn = 0
         applySequenceSeed(sequenceSeed, configuration: configuration)
     }
 
@@ -84,38 +83,46 @@ struct PickupSpawnPlanner {
         playerPosition: CGPoint,
         enemyCircles: [CollisionCircle],
         configuration: PickupSpawnConfiguration = PickupSpawnConfiguration()
-    ) -> WeaponPickup? {
+    ) -> [WeaponPickup] {
         guard phase == .active else {
-            return nil
+            return []
         }
 
-        guard configuration.spawnInterval > 0, configuration.maxActivePickups > 0 else {
-            return nil
+        guard configuration.maxActivePickups > 0 else {
+            return []
         }
 
-        guard activePickupCount < configuration.maxActivePickups else {
-            timeUntilNextSpawn = max(timeUntilNextSpawn, configuration.spawnInterval)
-            return nil
+        let missingPickupCount = configuration.maxActivePickups - activePickupCount
+        guard missingPickupCount > 0 else {
+            timeUntilNextSpawn = max(0, configuration.refillDelay)
+            return []
         }
 
         timeUntilNextSpawn -= max(0, deltaTime)
+        if abs(timeUntilNextSpawn) <= Self.spawnTimerEpsilon {
+            timeUntilNextSpawn = 0
+        }
 
         guard timeUntilNextSpawn <= 0 else {
-            return nil
+            return []
         }
 
-        guard let pickup = spawnPickup(
-            in: playableRect,
-            avoiding: playerPosition,
-            enemyCircles: enemyCircles,
-            configuration: configuration
-        ) else {
-            timeUntilNextSpawn = configuration.spawnInterval
-            return nil
+        var pickups: [WeaponPickup] = []
+        for _ in 0..<missingPickupCount {
+            guard let pickup = spawnPickup(
+                in: playableRect,
+                avoiding: playerPosition,
+                enemyCircles: enemyCircles,
+                configuration: configuration
+            ) else {
+                break
+            }
+
+            pickups.append(pickup)
         }
 
-        timeUntilNextSpawn = configuration.spawnInterval
-        return pickup
+        timeUntilNextSpawn = max(0, configuration.refillDelay)
+        return pickups
     }
 
     mutating func spawnPickup(

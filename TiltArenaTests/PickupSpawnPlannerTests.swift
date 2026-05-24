@@ -2,38 +2,13 @@ import XCTest
 @testable import TiltArena
 
 final class PickupSpawnPlannerTests: XCTestCase {
-    func testPickupScheduleWaitsForInitialDelayAndRespectsActiveCap() {
-        let configuration = PickupSpawnConfiguration(
-            initialSpawnDelay: 1,
-            spawnInterval: 4.5,
-            maxActivePickups: 1
-        )
+    func testPickupScheduleRespectsActiveCap() {
+        let configuration = PickupSpawnConfiguration(maxActivePickups: 1)
         var planner = PickupSpawnPlanner(configuration: configuration)
         let rect = CGRect(x: 0, y: 0, width: 320, height: 640)
         let playerPosition = CGPoint(x: 160, y: 320)
 
-        XCTAssertNil(planner.update(
-            deltaTime: 0.9,
-            phase: .active,
-            activePickupCount: 0,
-            playableRect: rect,
-            playerPosition: playerPosition,
-            enemyCircles: [],
-            configuration: configuration
-        ))
-
-        let firstPickup = planner.update(
-            deltaTime: 0.1,
-            phase: .active,
-            activePickupCount: 0,
-            playableRect: rect,
-            playerPosition: playerPosition,
-            enemyCircles: [],
-            configuration: configuration
-        )
-        XCTAssertNotNil(firstPickup)
-
-        XCTAssertNil(planner.update(
+        XCTAssertTrue(planner.update(
             deltaTime: 10,
             phase: .active,
             activePickupCount: 1,
@@ -41,39 +16,151 @@ final class PickupSpawnPlannerTests: XCTestCase {
             playerPosition: playerPosition,
             enemyCircles: [],
             configuration: configuration
-        ))
+        ).isEmpty)
+
+        planner.reset(configuration: configuration)
+        let firstPickup = planner.update(
+            deltaTime: 0,
+            phase: .active,
+            activePickupCount: 0,
+            playableRect: rect,
+            playerPosition: playerPosition,
+            enemyCircles: [],
+            configuration: configuration
+        )
+        XCTAssertEqual(firstPickup.count, 1)
     }
 
-    func testPickupScheduleDoesNotAdvanceWhilePaused() {
-        let configuration = PickupSpawnConfiguration(initialSpawnDelay: 1, spawnInterval: 4.5)
+    func testPickupScheduleDoesNotSpawnWhilePaused() {
+        let configuration = PickupSpawnConfiguration()
         var planner = PickupSpawnPlanner(configuration: configuration)
         let rect = CGRect(x: 0, y: 0, width: 320, height: 640)
+        let playerPosition = CGPoint(x: -1_000, y: -1_000)
 
-        XCTAssertNil(planner.update(
+        XCTAssertTrue(planner.update(
             deltaTime: 5,
             phase: .paused,
             activePickupCount: 0,
             playableRect: rect,
-            playerPosition: CGPoint(x: 160, y: 320),
+            playerPosition: playerPosition,
             enemyCircles: [],
             configuration: configuration
-        ))
+        ).isEmpty)
 
-        XCTAssertNil(planner.update(
-            deltaTime: 0.9,
+        XCTAssertEqual(planner.update(
+            deltaTime: 0,
             phase: .active,
             activePickupCount: 0,
             playableRect: rect,
-            playerPosition: CGPoint(x: 160, y: 320),
+            playerPosition: playerPosition,
             enemyCircles: [],
             configuration: configuration
-        ))
+        ).count, 3)
+    }
+
+    func testPickupScheduleFillsMissingSlotsUpToActiveTarget() {
+        let configuration = PickupSpawnConfiguration(maxActivePickups: 3)
+        var planner = PickupSpawnPlanner(configuration: configuration)
+
+        let pickups = planner.update(
+            deltaTime: 0,
+            phase: .active,
+            activePickupCount: 0,
+            playableRect: CGRect(x: 0, y: 0, width: 320, height: 640),
+            playerPosition: CGPoint(x: -1_000, y: -1_000),
+            enemyCircles: [],
+            configuration: configuration
+        )
+
+        XCTAssertEqual(pickups.count, 3)
+        XCTAssertEqual(pickups.map(\.id), [1, 2, 3])
+    }
+
+    func testPickupScheduleRefillsUsedPickupAfterDelay() {
+        let configuration = PickupSpawnConfiguration(
+            refillDelay: 0.5,
+            maxActivePickups: 3
+        )
+        var planner = PickupSpawnPlanner(configuration: configuration)
+        let rect = CGRect(x: 0, y: 0, width: 320, height: 640)
+        let playerPosition = CGPoint(x: -1_000, y: -1_000)
+
+        XCTAssertEqual(planner.update(
+            deltaTime: 0,
+            phase: .active,
+            activePickupCount: 0,
+            playableRect: rect,
+            playerPosition: playerPosition,
+            enemyCircles: [],
+            configuration: configuration
+        ).count, 3)
+
+        XCTAssertTrue(planner.update(
+            deltaTime: 0.49,
+            phase: .active,
+            activePickupCount: 2,
+            playableRect: rect,
+            playerPosition: playerPosition,
+            enemyCircles: [],
+            configuration: configuration
+        ).isEmpty)
+
+        let refill = planner.update(
+            deltaTime: 0.01,
+            phase: .active,
+            activePickupCount: 2,
+            playableRect: rect,
+            playerPosition: playerPosition,
+            enemyCircles: [],
+            configuration: configuration
+        )
+
+        XCTAssertEqual(refill.count, 1)
+        XCTAssertEqual(refill.first?.id, 4)
+    }
+
+    func testPickupRefillDelayDoesNotAdvanceWhilePaused() {
+        let configuration = PickupSpawnConfiguration(
+            refillDelay: 0.5,
+            maxActivePickups: 3
+        )
+        var planner = PickupSpawnPlanner(configuration: configuration)
+        let rect = CGRect(x: 0, y: 0, width: 320, height: 640)
+        let playerPosition = CGPoint(x: -1_000, y: -1_000)
+
+        XCTAssertEqual(planner.update(
+            deltaTime: 0,
+            phase: .active,
+            activePickupCount: 0,
+            playableRect: rect,
+            playerPosition: playerPosition,
+            enemyCircles: [],
+            configuration: configuration
+        ).count, 3)
+
+        XCTAssertTrue(planner.update(
+            deltaTime: 5,
+            phase: .paused,
+            activePickupCount: 2,
+            playableRect: rect,
+            playerPosition: playerPosition,
+            enemyCircles: [],
+            configuration: configuration
+        ).isEmpty)
+
+        XCTAssertTrue(planner.update(
+            deltaTime: 0.49,
+            phase: .active,
+            activePickupCount: 2,
+            playableRect: rect,
+            playerPosition: playerPosition,
+            enemyCircles: [],
+            configuration: configuration
+        ).isEmpty)
     }
 
     func testPickupPlacementAvoidsPlayerAndEnemiesInsideInsetPlayableRect() {
         let configuration = PickupSpawnConfiguration(
-            initialSpawnDelay: 0,
-            spawnInterval: 4.5,
             pickupRadius: 10,
             edgeInset: 40,
             playerClearance: 70,
@@ -107,7 +194,6 @@ final class PickupSpawnPlannerTests: XCTestCase {
 
     func testResetRestartsPickupIDsAndKindCycle() {
         let configuration = PickupSpawnConfiguration(
-            initialSpawnDelay: 0,
             weaponKindCycle: [.seekerSwarm, .freezeBurst]
         )
         var planner = PickupSpawnPlanner(configuration: configuration)
@@ -136,7 +222,6 @@ final class PickupSpawnPlannerTests: XCTestCase {
 
     func testConfiguredKindCycleControlsPickupOrder() {
         let configuration = PickupSpawnConfiguration(
-            initialSpawnDelay: 0,
             weaponKindCycle: [.razorShield, .freezeBurst]
         )
 
@@ -149,7 +234,7 @@ final class PickupSpawnPlannerTests: XCTestCase {
     }
 
     func testSequenceSeedOffsetsPickupOrderRepeatably() {
-        let configuration = PickupSpawnConfiguration(initialSpawnDelay: 0)
+        let configuration = PickupSpawnConfiguration()
         let firstSeedKinds = spawnKinds(count: 4, configuration: configuration, sequenceSeed: 20_260_521)
         let repeatSeedKinds = spawnKinds(count: 4, configuration: configuration, sequenceSeed: 20_260_521)
         let nextSeedKinds = spawnKinds(count: 4, configuration: configuration, sequenceSeed: 20_260_522)
@@ -160,7 +245,6 @@ final class PickupSpawnPlannerTests: XCTestCase {
 
     func testSequenceSeedUsesActivePickupCycleLength() {
         let configuration = PickupSpawnConfiguration(
-            initialSpawnDelay: 0,
             weaponKindCycle: [
                 .shockwave,
                 .warpDash,
@@ -208,7 +292,6 @@ final class PickupSpawnPlannerTests: XCTestCase {
 
     func testEmptyKindCycleDoesNotSpawnPickup() {
         let configuration = PickupSpawnConfiguration(
-            initialSpawnDelay: 0,
             weaponKindCycle: []
         )
         var planner = PickupSpawnPlanner(configuration: configuration)

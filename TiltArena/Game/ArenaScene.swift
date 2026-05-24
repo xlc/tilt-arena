@@ -855,7 +855,7 @@ final class ArenaScene: SKScene {
     private func spawnPickupIfNeeded(deltaTime: TimeInterval, playerPosition: CGPoint) {
         let enemyCircles = enemies.map(\.collisionCircle)
 
-        guard let pickup = pickupPlanner.update(
+        let spawnedPickups = pickupPlanner.update(
             deltaTime: deltaTime,
             phase: runController.phase,
             activePickupCount: pickups.count,
@@ -863,19 +863,23 @@ final class ArenaScene: SKScene {
             playerPosition: playerPosition,
             enemyCircles: enemyCircles,
             configuration: pickupSpawnConfiguration
-        ) else {
+        )
+
+        guard !spawnedPickups.isEmpty else {
             return
         }
 
-        pickups.append(pickup)
-        AppDiagnostics.logger(.weapon).info("pickup.spawned", metadata: [
-            "id": "\(pickup.id)",
-            "kind": "\(pickup.kind.rawValue)"
-        ])
+        for pickup in spawnedPickups {
+            pickups.append(pickup)
+            AppDiagnostics.logger(.weapon).info("pickup.spawned", metadata: [
+                "id": "\(pickup.id)",
+                "kind": "\(pickup.kind.rawValue)"
+            ])
 
-        let node = WeaponPickupNode(pickup: pickup, theme: theme)
-        pickupNodes[pickup.id] = node
-        addChild(node)
+            let node = WeaponPickupNode(pickup: pickup, theme: theme)
+            pickupNodes[pickup.id] = node
+            addChild(node)
+        }
     }
 
     private func advanceEnemies(deltaTime: TimeInterval, playerPosition: CGPoint) {

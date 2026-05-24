@@ -189,9 +189,7 @@ struct ArenaModeRules {
 
     private static func redlinePickupSpawnConfiguration() -> PickupSpawnConfiguration {
         PickupSpawnConfiguration(
-            initialSpawnDelay: 5.0,
-            spawnInterval: 5.2,
-            maxActivePickups: 2,
+            maxActivePickups: 3,
             weaponKindCycle: [
                 .flameTrail,
                 .warpDash,
