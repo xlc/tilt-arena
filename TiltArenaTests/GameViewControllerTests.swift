@@ -95,6 +95,43 @@ final class GameViewControllerTests: XCTestCase {
 
         XCTAssertEqual(scene.movementController.state.position, CGPoint(x: 432, y: 196.5))
     }
+
+    @MainActor
+    func testPausedRunSuspendsWeaponEffectPlaybackUntilResume() {
+        let scene = ArenaScene(size: CGSize(width: 852, height: 393))
+        scene.prepareActiveRunForTesting()
+        scene.addWeaponEffectNodeForTesting(SKNode())
+
+        XCTAssertFalse(scene.isWeaponEffectPlaybackPausedForTesting)
+        XCTAssertEqual(scene.weaponEffectNodeCountForTesting, 1)
+
+        scene.pauseRunForTesting()
+
+        XCTAssertTrue(scene.isWeaponEffectPlaybackPausedForTesting)
+        XCTAssertEqual(scene.weaponEffectNodeCountForTesting, 1)
+
+        scene.resumeRunForTesting()
+
+        XCTAssertFalse(scene.isWeaponEffectPlaybackPausedForTesting)
+        XCTAssertEqual(scene.weaponEffectNodeCountForTesting, 1)
+    }
+
+    @MainActor
+    func testEndingRunClearsPendingWeaponEffectsUntilNextRun() {
+        let scene = ArenaScene(size: CGSize(width: 852, height: 393))
+        scene.prepareActiveRunForTesting()
+        scene.addWeaponEffectNodeForTesting(SKNode())
+
+        scene.finishRunForTesting()
+
+        XCTAssertTrue(scene.isWeaponEffectPlaybackPausedForTesting)
+        XCTAssertEqual(scene.weaponEffectNodeCountForTesting, 0)
+
+        scene.prepareActiveRunForTesting()
+
+        XCTAssertFalse(scene.isWeaponEffectPlaybackPausedForTesting)
+        XCTAssertEqual(scene.weaponEffectNodeCountForTesting, 0)
+    }
 }
 
 private final class SafeAreaTestSKView: SKView {

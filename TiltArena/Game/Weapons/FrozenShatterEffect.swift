@@ -11,7 +11,7 @@ extension ArenaScene {
             ring.glowWidth = 4
             ring.zPosition = 18
             ring.setScale(0.35)
-            addChild(ring)
+            addWeaponEffectNode(ring)
 
             let burst = SKAction.group([
                 .scale(to: 1.2, duration: 0.1),

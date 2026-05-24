@@ -22,7 +22,7 @@ extension ArenaScene {
         )
         ring.position = position
         ring.setScale(0.08)
-        addChild(ring)
+        addWeaponEffectNode(ring)
 
         for index in 0..<12 {
             let angle = CGFloat(index) * .pi / 6
@@ -33,7 +33,7 @@ extension ArenaScene {
             spoke.glowWidth = 2
             spoke.zPosition = 18
             spoke.alpha = 0
-            addChild(spoke)
+            addWeaponEffectNode(spoke)
             spoke.run(.sequence([
                 .wait(forDuration: duration * 0.15),
                 .group([
@@ -86,7 +86,7 @@ extension ArenaScene {
         )
         ring.position = center
         ring.setScale(0.04)
-        addChild(ring)
+        addWeaponEffectNode(ring)
 
         for index in 0..<16 {
             let angle = CGFloat(index) * .pi / 8
@@ -97,7 +97,7 @@ extension ArenaScene {
             spoke.glowWidth = 3
             spoke.zPosition = 18
             spoke.alpha = 0
-            addChild(spoke)
+            addWeaponEffectNode(spoke)
             spoke.run(.sequence([
                 .wait(forDuration: duration * 0.08),
                 .fadeAlpha(to: 0.75, duration: duration * 0.18),
@@ -165,7 +165,7 @@ extension ArenaScene {
         )
         ring.position = position
         ring.setScale(0.08)
-        addChild(ring)
+        addWeaponEffectNode(ring)
 
         let innerRing = makeEffectRing(
             radius: radius * 0.46,
@@ -176,7 +176,7 @@ extension ArenaScene {
         )
         innerRing.position = position
         innerRing.setScale(0.1)
-        addChild(innerRing)
+        addWeaponEffectNode(innerRing)
 
         ring.run(.sequence([
             .group([
@@ -210,7 +210,7 @@ extension ArenaScene {
         let container = SKNode()
         container.position = position
         container.zPosition = 18
-        addChild(container)
+        addWeaponEffectNode(container)
         gravityWellEffectNode = container
 
         let radius = weaponResolver.configuration.gravityWellRadius
@@ -264,7 +264,7 @@ extension ArenaScene {
         )
         ring.position = position
         ring.setScale(1.25)
-        addChild(ring)
+        addWeaponEffectNode(ring)
         ring.run(.sequence([
             .group([
                 .scale(to: 0.2, duration: delay),
@@ -279,7 +279,7 @@ extension ArenaScene {
             tether.lineWidth = 1.2
             tether.glowWidth = 4
             tether.zPosition = 18
-            addChild(tether)
+            addWeaponEffectNode(tether)
             tether.run(.sequence([
                 .fadeOut(withDuration: delay),
                 .removeFromParent()
@@ -299,7 +299,7 @@ extension ArenaScene {
         streak.lineWidth = 2.2
         streak.glowWidth = 6
         streak.zPosition = 18
-        addChild(streak)
+        addWeaponEffectNode(streak)
 
         for index in 1...5 {
             let progress = CGFloat(index) / 6
@@ -314,7 +314,7 @@ extension ArenaScene {
             ghost.glowWidth = 3
             ghost.zPosition = 18
             ghost.alpha = 0
-            addChild(ghost)
+            addWeaponEffectNode(ghost)
             ghost.run(.sequence([
                 .wait(forDuration: TimeInterval(index) * 0.018),
                 .fadeAlpha(to: 0.8, duration: 0.035),
@@ -331,7 +331,7 @@ extension ArenaScene {
         endpoint.glowWidth = 4
         endpoint.zPosition = 18
         endpoint.setScale(0.35)
-        addChild(endpoint)
+        addWeaponEffectNode(endpoint)
 
         let fade = SKAction.group([
             .fadeOut(withDuration: 0.18),
@@ -385,7 +385,7 @@ extension ArenaScene {
         let container = SKNode()
         container.position = position
         container.zPosition = 18
-        addChild(container)
+        addWeaponEffectNode(container)
         decoyBeaconEffectNode = container
 
         let body = SKShapeNode(path: Self.makeDecoyBeaconPath(radius: 13))
@@ -440,7 +440,7 @@ extension ArenaScene {
         )
         ring.position = position
         ring.setScale(0.24)
-        addChild(ring)
+        addWeaponEffectNode(ring)
 
         let burst = SKAction.group([
             .scale(to: 1, duration: 0.18),
@@ -483,7 +483,7 @@ extension ArenaScene {
         trail.glowWidth = 3
         trail.zPosition = 18
         trail.alpha = 0
-        addChild(trail)
+        addWeaponEffectNode(trail)
 
         let projectile = SKShapeNode(circleOfRadius: 4)
         projectile.position = origin
@@ -493,7 +493,7 @@ extension ArenaScene {
         projectile.glowWidth = 4
         projectile.zPosition = 19
         projectile.alpha = 0
-        addChild(projectile)
+        addWeaponEffectNode(projectile)
 
         trail.run(.sequence([
             .wait(forDuration: delay),
@@ -539,7 +539,7 @@ extension ArenaScene {
         ring.position = target.position
         ring.alpha = 0
         ring.setScale(0.35)
-        addChild(ring)
+        addWeaponEffectNode(ring)
 
         let spark = SKShapeNode(path: Self.crossPath(radius: radius * 0.7))
         spark.position = target.position
@@ -548,7 +548,7 @@ extension ArenaScene {
         spark.glowWidth = 4
         spark.zPosition = 20
         spark.alpha = 0
-        addChild(spark)
+        addWeaponEffectNode(spark)
 
         let impact = SKAction.sequence([
             .wait(forDuration: max(0, delay)),
@@ -586,7 +586,7 @@ extension ArenaScene {
 
         let node = SKNode()
         node.zPosition = 18
-        addChild(node)
+        addWeaponEffectNode(node)
         let targetIDs = Set(targets.map(\.id))
         node.run(.sequence([
             .wait(forDuration: max(0, delay)),

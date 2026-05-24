@@ -33,6 +33,7 @@ final class ArenaScene: SKScene {
     private let hapticsController = ArenaHapticsController()
     private let audioController = ArenaAudioController()
     private var arenaRoot = SKNode()
+    private let weaponEffectsRoot = SKNode()
     private let uiRoot = SKNode()
     private lazy var tiltInputController = TiltInputController(settingsStore: tiltSettingsStore)
     private let keyboardInputController = KeyboardInputController()
@@ -138,6 +139,7 @@ final class ArenaScene: SKScene {
         syncHapticsOption()
         backgroundColor = theme.backgroundColor
         rebuildArena()
+        configureWeaponEffectsRoot()
         if flameTrailEffectNode.parent == nil { addChild(flameTrailEffectNode) }
         configureLabels()
         configureUIRoot()
@@ -268,6 +270,33 @@ final class ArenaScene: SKScene {
 
         uiRoot.zPosition = 70
         addChild(uiRoot)
+    }
+
+    private func configureWeaponEffectsRoot() {
+        guard weaponEffectsRoot.parent == nil else {
+            return
+        }
+
+        weaponEffectsRoot.zPosition = 0
+        weaponEffectsRoot.isPaused = false
+        addChild(weaponEffectsRoot)
+    }
+
+    func addWeaponEffectNode(_ node: SKNode) {
+        configureWeaponEffectsRoot()
+        weaponEffectsRoot.addChild(node)
+    }
+
+    private func setWeaponEffectPlaybackPaused(_ isPaused: Bool) {
+        configureWeaponEffectsRoot()
+        weaponEffectsRoot.isPaused = isPaused
+    }
+
+    private func clearWeaponEffectNodes(paused: Bool = false) {
+        configureWeaponEffectsRoot()
+        weaponEffectsRoot.removeAllActions()
+        weaponEffectsRoot.removeAllChildren()
+        weaponEffectsRoot.isPaused = paused
     }
 
     private func placePlayer(resetPosition: Bool, resetTrail: Bool = true) {
@@ -587,6 +616,7 @@ final class ArenaScene: SKScene {
         runController.pause()
         audioController.pauseMusic()
         tiltInputController.resetSmoothedInput()
+        setWeaponEffectPlaybackPaused(true)
         show(.pause)
         AppDiagnostics.logger(.run).info("run.paused", metadata: [
             "score": "\(runController.score)",
@@ -597,6 +627,7 @@ final class ArenaScene: SKScene {
     private func resumeRun() {
         tiltInputController.resetSmoothedInput()
         runController.resume()
+        setWeaponEffectPlaybackPaused(false)
         audioController.startMusic()
         show(.activeGameplay)
         AppDiagnostics.logger(.run).info("run.resumed", metadata: [
@@ -616,6 +647,7 @@ final class ArenaScene: SKScene {
         isResolvingDeath = playFeedback
         previousBestScore = runProfile.bestScore
         runController.endRun(mode: selectedMode)
+        clearWeaponEffectNodes(paused: true)
         audioController.stopMusic()
         lastDeathCollisionSnapshot = collision
         let isNewBest = (runController.finalizedSummary?.score ?? runController.score) > previousBestScore
@@ -677,6 +709,7 @@ final class ArenaScene: SKScene {
             configuration: pickupSpawnConfiguration,
             sequenceSeed: modeSettings.sequenceSeed
         )
+        clearWeaponEffectNodes(paused: false)
         deactivateRazorShield()
         hasPlayedRazorShieldWarning = false
         frozenCrasherTimeRemaining = 0
@@ -1137,7 +1170,7 @@ final class ArenaScene: SKScene {
             let node = SKShapeNode(circleOfRadius: weaponResolver.configuration.razorShieldRadius)
             node.zPosition = 19
             styleRazorShieldNode(node)
-            addChild(node)
+            addWeaponEffectNode(node)
             razorShieldNode = node
         }
 
@@ -2930,6 +2963,42 @@ extension ArenaScene {
         }
 
         show(state)
+    }
+
+    func prepareActiveRunForTesting() {
+        localOptions = ArenaLocalOptions(
+            audioEnabled: false,
+            hapticsEnabled: false,
+            themeKind: localOptions.themeKind
+        )
+        syncAudioOption()
+        syncHapticsOption()
+        preparePreRun()
+        startRun()
+    }
+
+    func pauseRunForTesting() {
+        pauseRun()
+    }
+
+    func resumeRunForTesting() {
+        resumeRun()
+    }
+
+    func finishRunForTesting() {
+        finishRun(playFeedback: false)
+    }
+
+    func addWeaponEffectNodeForTesting(_ node: SKNode) {
+        addWeaponEffectNode(node)
+    }
+
+    var isWeaponEffectPlaybackPausedForTesting: Bool {
+        weaponEffectsRoot.isPaused
+    }
+
+    var weaponEffectNodeCountForTesting: Int {
+        weaponEffectsRoot.children.count
     }
 }
 #endif

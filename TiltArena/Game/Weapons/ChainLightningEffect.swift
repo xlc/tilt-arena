@@ -21,7 +21,7 @@ extension ArenaScene {
         charge.lineWidth = 0.8
         charge.glowWidth = 5
         charge.zPosition = 20
-        addChild(charge)
+        addWeaponEffectNode(charge)
 
         var previousPoint = origin
         var previousDelay: TimeInterval = 0
@@ -36,7 +36,7 @@ extension ArenaScene {
             segment.glowWidth = 5
             segment.zPosition = 18
             segment.alpha = 0
-            addChild(segment)
+            addWeaponEffectNode(segment)
 
             let core = SKShapeNode(path: Self.chainSegmentPath(from: previousPoint, to: target.position))
             core.strokeColor = coreColor.withAlphaComponent(0.9)
@@ -87,7 +87,7 @@ extension ArenaScene {
         ring.zPosition = 19
         ring.alpha = 0
         ring.setScale(0.35)
-        addChild(ring)
+        addWeaponEffectNode(ring)
 
         let core = SKShapeNode(path: Self.chainSparkPath(radius: 9))
         core.position = target.position
@@ -96,7 +96,7 @@ extension ArenaScene {
         core.glowWidth = 3
         core.zPosition = 20
         core.alpha = 0
-        addChild(core)
+        addWeaponEffectNode(core)
 
         ring.run(.sequence([
             .wait(forDuration: max(0, delay)),
