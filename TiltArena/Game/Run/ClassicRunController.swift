@@ -9,8 +9,8 @@ enum ClassicRunPhase: Equatable {
 }
 
 struct ClassicRunConfiguration: Equatable {
-    var playerVisualRadius: CGFloat = 14
-    var playerHitRadiusScale: CGFloat = 0.65
+    var playerVisualRadius: CGFloat = 12
+    var playerHitRadiusScale: CGFloat = 0.40
     var baseEnemyScore = 10
     var eliteEnemyScore = 25
     var frozenShatterScore = 25

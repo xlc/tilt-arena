@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 
 struct PlayerMovementConfiguration: Equatable {
-    var visualRadius: CGFloat = 14
+    var visualRadius: CGFloat = 12
     var borderInset: CGFloat = 18
     var arenaCrossingDuration: TimeInterval = 2.5
 

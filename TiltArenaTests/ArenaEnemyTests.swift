@@ -219,10 +219,11 @@ final class ArenaEnemyTests: XCTestCase {
         XCTAssertFalse(player.intersects(distantEnemy))
     }
 
-    func testPlayerHitRadiusIsSmallerThanVisibleCraft() {
-        let config = ClassicRunConfiguration(playerVisualRadius: 14, playerHitRadiusScale: 0.65)
+    func testPlayerHitRadiusStaysWellInsideVisibleCraft() {
+        let config = ClassicRunConfiguration()
 
         XCTAssertLessThan(config.playerHitRadius, config.playerVisualRadius)
-        XCTAssertEqual(config.playerHitRadius, 9.1, accuracy: 0.0001)
+        XCTAssertEqual(config.playerVisualRadius, 12, accuracy: 0.0001)
+        XCTAssertEqual(config.playerHitRadius, 4.8, accuracy: 0.0001)
     }
 }

@@ -3,6 +3,14 @@ import XCTest
 @testable import TiltArena
 
 final class PlayerMovementControllerTests: XCTestCase {
+    func testDefaultConfigurationUsesSmallerPlayerVisualRadius() {
+        let configuration = PlayerMovementConfiguration()
+        let playableRect = configuration.playableRect(in: CGSize(width: 390, height: 844))
+
+        XCTAssertEqual(configuration.visualRadius, 12, accuracy: 0.0001)
+        XCTAssertEqual(playableRect, CGRect(x: 30, y: 30, width: 330, height: 784))
+    }
+
     func testResetPlacesPlayerAtPlayableCenter() {
         var controller = PlayerMovementController()
         let state = controller.reset(in: CGSize(width: 390, height: 844))
