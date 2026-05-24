@@ -291,6 +291,51 @@ final class StartingWeaponResolverTests: XCTestCase {
         XCTAssertEqual(resolution.destroyedEnemyIDs, [])
     }
 
+    func testWeaponEffectTimingKeepsProjectileImpactsTrackable() {
+        let timing = WeaponEffectTiming(
+            projectileSpeed: 500,
+            waveSpeed: 600,
+            minimumTravelDuration: 0.08,
+            maximumProjectileTravelDuration: 0.42,
+            maximumWaveTravelDuration: 0.72
+        )
+
+        XCTAssertEqual(
+            timing.projectileDuration(from: .zero, to: CGPoint(x: 100, y: 0)),
+            0.2,
+            accuracy: 0.0001
+        )
+        XCTAssertEqual(
+            timing.projectileDuration(from: .zero, to: CGPoint(x: 1_000, y: 0)),
+            0.42,
+            accuracy: 0.0001
+        )
+    }
+
+    func testWeaponEffectTimingAccumulatesChainImpactDelays() {
+        let timing = WeaponEffectTiming(
+            projectileSpeed: 500,
+            waveSpeed: 600,
+            minimumTravelDuration: 0.08,
+            maximumProjectileTravelDuration: 0.42,
+            maximumWaveTravelDuration: 0.72
+        )
+
+        let delays = timing.chainImpactDelays(
+            origin: .zero,
+            targets: [
+                CGPoint(x: 50, y: 0),
+                CGPoint(x: 150, y: 0),
+                CGPoint(x: 150, y: 40)
+            ]
+        )
+
+        XCTAssertEqual(delays.count, 3)
+        XCTAssertEqual(delays[0], 0.1, accuracy: 0.0001)
+        XCTAssertEqual(delays[1], 0.3, accuracy: 0.0001)
+        XCTAssertEqual(delays[2], 0.38, accuracy: 0.0001)
+    }
+
     private func enemy(id: Int, position: CGPoint) -> ArenaEnemy {
         ArenaEnemy(id: id, position: position, radius: 8, speed: 0)
     }

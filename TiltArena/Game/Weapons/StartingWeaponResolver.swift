@@ -26,6 +26,61 @@ struct WeaponResolution: Equatable {
     var chainLightningEnemyIDs: [Int] = []
 }
 
+struct WeaponEffectTiming: Equatable {
+    var projectileSpeed: CGFloat = 520
+    var waveSpeed: CGFloat = 620
+    var minimumTravelDuration: TimeInterval = 0.08
+    var maximumProjectileTravelDuration: TimeInterval = 0.42
+    var maximumWaveTravelDuration: TimeInterval = 0.72
+
+    func projectileDuration(from origin: CGPoint, to target: CGPoint) -> TimeInterval {
+        duration(
+            distance: distance(from: origin, to: target),
+            speed: projectileSpeed,
+            maximumDuration: maximumProjectileTravelDuration
+        )
+    }
+
+    func waveDuration(from origin: CGPoint, to target: CGPoint) -> TimeInterval {
+        duration(
+            distance: distance(from: origin, to: target),
+            speed: waveSpeed,
+            maximumDuration: maximumWaveTravelDuration
+        )
+    }
+
+    func waveDuration(radius: CGFloat) -> TimeInterval {
+        duration(
+            distance: max(0, radius),
+            speed: waveSpeed,
+            maximumDuration: maximumWaveTravelDuration
+        )
+    }
+
+    func chainImpactDelays(origin: CGPoint, targets: [CGPoint]) -> [TimeInterval] {
+        var currentOrigin = origin
+        var elapsed: TimeInterval = 0
+        return targets.map { target in
+            elapsed += projectileDuration(from: currentOrigin, to: target)
+            currentOrigin = target
+            return elapsed
+        }
+    }
+
+    private func duration(distance: CGFloat, speed: CGFloat, maximumDuration: TimeInterval) -> TimeInterval {
+        guard distance > 0, speed > 0 else {
+            return minimumTravelDuration
+        }
+
+        let rawDuration = TimeInterval(distance / speed)
+        return min(maximumDuration, max(minimumTravelDuration, rawDuration))
+    }
+
+    private func distance(from origin: CGPoint, to target: CGPoint) -> CGFloat {
+        hypot(target.x - origin.x, target.y - origin.y)
+    }
+}
+
 struct StartingWeaponResolver {
     var configuration = StartingWeaponConfiguration()
 

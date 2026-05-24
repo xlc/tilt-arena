@@ -59,8 +59,10 @@ final class ArenaScene: SKScene {
     private var pickupSpawnConfiguration = PickupSpawnConfiguration()
     private var pickupPlanner = PickupSpawnPlanner()
     let weaponResolver = StartingWeaponResolver()
+    let weaponEffectTiming = WeaponEffectTiming()
     private var enemies: [ArenaEnemy] = []
     private var enemyNodes: [Int: EnemyNode] = [:]
+    private var pendingWeaponImpactEnemyIDs: Set<Int> = []
     private var enemyTelegraphNodes: [Int: EnemyTelegraphNode] = [:]
     private var formationEnemyIDs: [Int: Set<Int>] = [:]
     private var pickups: [WeaponPickup] = []
@@ -688,6 +690,7 @@ final class ArenaScene: SKScene {
         enemies.removeAll()
         enemyNodes.values.forEach { $0.removeFromParent() }
         enemyNodes.removeAll()
+        pendingWeaponImpactEnemyIDs.removeAll()
         enemyTelegraphNodes.values.forEach { $0.removeFromParent() }
         enemyTelegraphNodes.removeAll()
         formationEnemyIDs.removeAll()
@@ -877,6 +880,10 @@ final class ArenaScene: SKScene {
 
     private func advanceEnemies(deltaTime: TimeInterval, playerPosition: CGPoint) {
         for index in enemies.indices {
+            guard !pendingWeaponImpactEnemyIDs.contains(enemies[index].id) else {
+                continue
+            }
+
             let targetPosition = decoyBeaconState.targetPosition(
                 for: enemies[index],
                 fallback: playerPosition
@@ -903,6 +910,7 @@ final class ArenaScene: SKScene {
         }
 
         enemies.removeAll { exitedEnemyIDs.contains($0.id) }
+        pendingWeaponImpactEnemyIDs.subtract(exitedEnemyIDs)
         for enemyID in exitedEnemyIDs {
             enemyNodes.removeValue(forKey: enemyID)?.removeFromParent()
         }
@@ -916,6 +924,7 @@ final class ArenaScene: SKScene {
         }
 
         enemies.removeAll { expiredEnemyIDs.contains($0.id) }
+        pendingWeaponImpactEnemyIDs.subtract(expiredEnemyIDs)
         removeFormationEnemies(ids: expiredEnemyIDs, awardCompletion: false)
 
         for enemyID in expiredEnemyIDs {
@@ -967,37 +976,59 @@ final class ArenaScene: SKScene {
         let resolution = weaponResolver.resolve(
             kind: kind,
             playerPosition: playerPosition,
-            enemies: enemies
+            enemies: weaponTargetableEnemies()
         )
 
         switch kind {
         case .shockwave:
-            playShockwaveEffect(at: playerPosition)
+            let targets = impactTargets(forEnemyIDs: resolution.destroyedEnemyIDs)
+            markPendingWeaponImpacts(targets)
+            playShockwaveEffect(at: playerPosition, targets: targets) { [weak self] enemyIDs in
+                self?.destroyEnemies(ids: enemyIDs, weaponKind: .shockwave)
+            }
         case .seekerSwarm:
-            let targetPositions = positions(forEnemyIDs: resolution.destroyedEnemyIDs)
-            playSeekerSwarmEffect(from: playerPosition, to: targetPositions)
+            let targets = impactTargets(forEnemyIDs: resolution.destroyedEnemyIDs)
+                .sorted { lhs, rhs in
+                    ArenaGeometry.squaredDistance(from: lhs.position, to: playerPosition)
+                        < ArenaGeometry.squaredDistance(from: rhs.position, to: playerPosition)
+                }
+            markPendingWeaponImpacts(targets)
+            playSeekerSwarmEffect(from: playerPosition, to: targets) { [weak self] enemyIDs in
+                self?.destroyEnemies(ids: enemyIDs, weaponKind: .seekerSwarm)
+            }
         case .razorShield:
             activateRazorShield(at: playerPosition)
         case .freezeBurst:
-            freezeEnemies(ids: resolution.frozenEnemyIDs, duration: weaponResolver.configuration.freezeDuration)
-            frozenCrasherTimeRemaining = max(
-                frozenCrasherTimeRemaining,
-                weaponResolver.configuration.frozenCrasherDuration
-            )
-            playFreezeBurstEffect(at: playerPosition)
+            let targets = impactTargets(forEnemyIDs: resolution.frozenEnemyIDs)
+            markPendingWeaponImpacts(targets)
+            playFreezeBurstEffect(at: playerPosition, targets: targets) { [weak self] enemyIDs in
+                guard let self else {
+                    return
+                }
+
+                self.pendingWeaponImpactEnemyIDs.subtract(enemyIDs)
+                self.freezeEnemies(ids: enemyIDs, duration: self.weaponResolver.configuration.freezeDuration)
+                self.frozenCrasherTimeRemaining = max(
+                    self.frozenCrasherTimeRemaining,
+                    self.weaponResolver.configuration.frozenCrasherDuration
+                )
+            }
         case .gravityWell:
             activateGravityWell(
                 at: playerPosition,
                 enemyIDs: resolution.gravityWellEnemyIDs
             )
         case .chainLightning:
-            let targetPositions = positions(forEnemyIDs: resolution.chainLightningEnemyIDs)
+            let targets = impactTargets(forEnemyIDs: resolution.chainLightningEnemyIDs)
+            markPendingWeaponImpacts(targets)
             playChainLightningEffect(
                 from: playerPosition,
-                through: targetPositions,
+                through: targets,
                 accentColor: theme.playerAccentColor,
                 coreColor: theme.playerColor
-            )
+            ) { [weak self] enemyIDs in
+                self?.destroyEnemies(ids: enemyIDs, weaponKind: .chainLightning)
+            }
         case .flameTrail:
             flameTrailState.activate(at: playerPosition)
             flameTrailEffectNode.apply(segments: flameTrailState.segments)
@@ -1006,10 +1037,13 @@ final class ArenaScene: SKScene {
         case .decoyBeacon:
             activateDecoyBeacon(at: playerPosition)
         case .novaBomb:
-            playNovaBombEffect()
+            let targets = impactTargets(forEnemyIDs: resolution.destroyedEnemyIDs)
+            markPendingWeaponImpacts(targets)
+            playNovaBombEffect(targets: targets) { [weak self] enemyIDs in
+                self?.destroyEnemies(ids: enemyIDs, weaponKind: .novaBomb)
+            }
         }
 
-        destroyEnemies(ids: resolution.destroyedEnemyIDs, weaponKind: kind)
         AppDiagnostics.logger(.weapon).notice("weapon.resolved", metadata: [
             "kind": "\(kind.rawValue)",
             "destroyed": "\(resolution.destroyedEnemyIDs.count)",
@@ -1022,16 +1056,54 @@ final class ArenaScene: SKScene {
         enemies.compactMap { enemyIDs.contains($0.id) ? $0.position : nil }
     }
 
-    private func positions(forEnemyIDs enemyIDs: [Int]) -> [CGPoint] {
-        let positionsByID = Dictionary(uniqueKeysWithValues: enemies.map { ($0.id, $0.position) })
-        return enemyIDs.compactMap { positionsByID[$0] }
+    private func weaponTargetableEnemies() -> [ArenaEnemy] {
+        enemies.filter { !pendingWeaponImpactEnemyIDs.contains($0.id) }
+    }
+
+    private func impactTargets(forEnemyIDs enemyIDs: Set<Int>) -> [WeaponImpactTarget] {
+        enemies.compactMap { enemy in
+            enemyIDs.contains(enemy.id) ? WeaponImpactTarget(id: enemy.id, position: enemy.position) : nil
+        }
+    }
+
+    private func impactTargets(forEnemyIDs enemyIDs: [Int]) -> [WeaponImpactTarget] {
+        let enemiesByID = Dictionary(uniqueKeysWithValues: enemies.map { ($0.id, $0) })
+        return enemyIDs.compactMap { enemyID in
+            guard let enemy = enemiesByID[enemyID] else {
+                return nil
+            }
+
+            return WeaponImpactTarget(id: enemy.id, position: enemy.position)
+        }
+    }
+
+    private func markPendingWeaponImpacts(_ targets: [WeaponImpactTarget]) {
+        let targetIDs = Set(targets.map(\.id))
+        pendingWeaponImpactEnemyIDs.formUnion(targetIDs)
+
+        for targetID in targetIDs {
+            guard let node = enemyNodes[targetID] else {
+                continue
+            }
+
+            node.removeAction(forKey: "weapon.pending")
+            let pulse = SKAction.sequence([
+                .fadeAlpha(to: 0.48, duration: 0.06),
+                .fadeAlpha(to: 1.0, duration: 0.06)
+            ])
+            node.run(.repeat(pulse, count: 3), withKey: "weapon.pending")
+        }
     }
 
     private func destroyEnemies(ids enemyIDs: Set<Int>, weaponKind: WeaponKind?) {
+        let liveEnemyIDs = Set(enemies.map(\.id))
+        let enemyIDs = enemyIDs.intersection(liveEnemyIDs)
+
         guard !enemyIDs.isEmpty else {
             return
         }
 
+        pendingWeaponImpactEnemyIDs.subtract(enemyIDs)
         let previousComboMultiplier = runController.comboMultiplier
         runController.recordEnemyKills(count: enemyIDs.count, weaponKind: weaponKind)
         playEnemyClearHaptics(killCount: enemyIDs.count, previousComboMultiplier: previousComboMultiplier)
@@ -1044,6 +1116,7 @@ final class ArenaScene: SKScene {
 
     private func removeEnemies(ids enemyIDs: Set<Int>) {
         enemies.removeAll { enemyIDs.contains($0.id) }
+        pendingWeaponImpactEnemyIDs.subtract(enemyIDs)
         removeFormationEnemies(ids: enemyIDs, awardCompletion: true)
 
         for enemyID in enemyIDs {
@@ -1100,6 +1173,33 @@ final class ArenaScene: SKScene {
         node.fillColor = .clear
         node.lineWidth = 2
         node.glowWidth = 4
+        node.removeAllChildren()
+        node.removeAction(forKey: "razor.spin")
+
+        for index in 0..<3 {
+            let angle = CGFloat(index) * (2 * .pi / 3)
+            let blade = SKShapeNode(path: razorShieldBladePath(radius: weaponResolver.configuration.razorShieldRadius))
+            blade.zRotation = angle
+            blade.strokeColor = theme.playerColor.withAlphaComponent(0.86)
+            blade.lineWidth = 1.4
+            blade.lineCap = .round
+            blade.glowWidth = 3
+            node.addChild(blade)
+        }
+
+        node.run(.repeatForever(.rotate(byAngle: .pi * 2, duration: 0.72)), withKey: "razor.spin")
+    }
+
+    private func razorShieldBladePath(radius: CGFloat) -> CGPath {
+        let path = CGMutablePath()
+        path.addArc(
+            center: .zero,
+            radius: radius,
+            startAngle: -.pi / 8,
+            endAngle: .pi / 4,
+            clockwise: false
+        )
+        return path
     }
 
     private func updateRazorShield(deltaTime: TimeInterval, playerPosition: CGPoint) {
@@ -1113,8 +1213,12 @@ final class ArenaScene: SKScene {
         let targetIDs = weaponResolver.shieldTargets(
             playerPosition: playerPosition,
             enemies: enemies
-        )
-        destroyEnemies(ids: targetIDs, weaponKind: .razorShield)
+        ).subtracting(pendingWeaponImpactEnemyIDs)
+        let targets = impactTargets(forEnemyIDs: targetIDs)
+        markPendingWeaponImpacts(targets)
+        playRazorShieldImpactEffect(from: playerPosition, targets: targets) { [weak self] enemyIDs in
+            self?.destroyEnemies(ids: enemyIDs, weaponKind: .razorShield)
+        }
 
         razorShieldTimeRemaining = max(0, razorShieldTimeRemaining - max(0, deltaTime))
         playRazorShieldWarningIfNeeded()
@@ -1154,7 +1258,12 @@ final class ArenaScene: SKScene {
 
     private func updateFlameTrail(deltaTime: TimeInterval, playerPosition: CGPoint) {
         let frame = flameTrailState.update(deltaTime: deltaTime, playerPosition: playerPosition, enemies: enemies)
-        destroyEnemies(ids: frame.burnedEnemyIDs, weaponKind: .flameTrail)
+        let targetIDs = frame.burnedEnemyIDs.subtracting(pendingWeaponImpactEnemyIDs)
+        let targets = impactTargets(forEnemyIDs: targetIDs)
+        markPendingWeaponImpacts(targets)
+        playFlameTrailImpactEffect(at: targets) { [weak self] enemyIDs in
+            self?.destroyEnemies(ids: enemyIDs, weaponKind: .flameTrail)
+        }
         flameTrailEffectNode.apply(segments: frame.segments)
     }
 
@@ -1199,7 +1308,9 @@ final class ArenaScene: SKScene {
             radius: runController.configuration.playerHitRadius
         )
 
-        guard let collidingEnemy = enemies.first(where: { playerCircle.intersects($0.collisionCircle) }) else {
+        guard let collidingEnemy = enemies.first(where: {
+            !pendingWeaponImpactEnemyIDs.contains($0.id) && playerCircle.intersects($0.collisionCircle)
+        }) else {
             return
         }
 
@@ -2905,17 +3016,21 @@ private extension ArenaScene {
     }
 
     func updateDecoyBeacon(deltaTime: TimeInterval) {
-        let frame = decoyBeaconState.update(deltaTime: deltaTime, enemies: enemies)
+        let frame = decoyBeaconState.update(deltaTime: deltaTime, enemies: weaponTargetableEnemies())
 
         guard let explosionCenter = frame.explosionCenter else {
             return
         }
 
+        let targets = impactTargets(forEnemyIDs: frame.destroyedEnemyIDs)
+        markPendingWeaponImpacts(targets)
         playDecoyBeaconExplosionEffect(
             at: explosionCenter,
-            radius: decoyBeaconState.configuration.explosionRadius
-        )
-        destroyEnemies(ids: frame.destroyedEnemyIDs, weaponKind: .decoyBeacon)
+            radius: decoyBeaconState.configuration.explosionRadius,
+            targets: targets
+        ) { [weak self] enemyIDs in
+            self?.destroyEnemies(ids: enemyIDs, weaponKind: .decoyBeacon)
+        }
     }
 
     func activateGravityWell(at center: CGPoint, enemyIDs: Set<Int>) {
@@ -2965,7 +3080,11 @@ private extension ArenaScene {
                 .filter { state.enemyIDs.contains($0.id) && !$0.isFrozen && clearCircle.intersects($0.collisionCircle) }
                 .map(\.id)
         )
-        destroyEnemies(ids: destroyedIDs, weaponKind: .gravityWell)
+        let targets = impactTargets(forEnemyIDs: destroyedIDs)
+        markPendingWeaponImpacts(targets)
+        playGravityWellCollapseEffect(at: state.center, targets: targets) { [weak self] enemyIDs in
+            self?.destroyEnemies(ids: enemyIDs, weaponKind: .gravityWell)
+        }
     }
 
     func deactivateGravityWell() {
