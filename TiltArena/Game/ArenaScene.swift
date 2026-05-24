@@ -27,9 +27,9 @@ final class ArenaScene: SKScene {
     var theme: ArenaTheme {
         localOptions.themeKind.theme
     }
-    private let tiltSettingsStore = TiltSettingsStore()
-    private let runProfileStore = RunProfileStore()
-    private let localOptionsStore = ArenaLocalOptionsStore()
+    private let tiltSettingsStore: TiltSettingsStore
+    private let runProfileStore: RunProfileStore
+    private let localOptionsStore: ArenaLocalOptionsStore
     private let hapticsController = ArenaHapticsController()
     private let audioController = ArenaAudioController()
     private var arenaRoot = SKNode()
@@ -103,7 +103,27 @@ final class ArenaScene: SKScene {
     private var lastUpdateTime: TimeInterval?
 
     override init(size: CGSize) {
+        tiltSettingsStore = TiltSettingsStore()
+        runProfileStore = RunProfileStore()
+        localOptionsStore = ArenaLocalOptionsStore()
         super.init(size: size)
+        configureSceneDefaults()
+    }
+
+    init(
+        size: CGSize,
+        tiltSettingsStore: TiltSettingsStore,
+        runProfileStore: RunProfileStore = RunProfileStore(),
+        localOptionsStore: ArenaLocalOptionsStore = ArenaLocalOptionsStore()
+    ) {
+        self.tiltSettingsStore = tiltSettingsStore
+        self.runProfileStore = runProfileStore
+        self.localOptionsStore = localOptionsStore
+        super.init(size: size)
+        configureSceneDefaults()
+    }
+
+    private func configureSceneDefaults() {
         anchorPoint = .zero
         backgroundColor = theme.backgroundColor
     }
@@ -1451,6 +1471,7 @@ private extension ArenaScene {
         tiltReadoutUpdateTime = 0
         readyProgressRing = nil
         readyStatusLabel = nil
+        updatePersistentGameplayNodeVisibility()
 
         switch uiState {
         case .home:
@@ -1474,6 +1495,20 @@ private extension ArenaScene {
         }
 
         updateRunDisplay()
+    }
+
+    func updatePersistentGameplayNodeVisibility() {
+        let isVisible: Bool
+        switch uiState {
+        case .home, .preRun, .activeGameplay, .pause, .postRun:
+            isVisible = true
+        case .modeSelect, .awards, .options, .calibrationPreview:
+            isVisible = false
+        }
+
+        playerNode?.isHidden = !isVisible
+        playerTrailNode?.isHidden = !isVisible
+        flameTrailEffectNode.isHidden = !isVisible
     }
 
     func updateTiltReadoutDisplay(deltaTime: TimeInterval) {

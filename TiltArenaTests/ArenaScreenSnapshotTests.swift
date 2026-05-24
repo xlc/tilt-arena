@@ -51,7 +51,7 @@ final class ArenaScreenSnapshotTests: XCTestCase {
     }
 
     private func makeScreenImage(state: ArenaUISceneState, themeKind: ArenaThemeKind) throws -> UIImage {
-        let scene = ArenaScene(size: sceneSize)
+        let scene = try makeSnapshotScene()
         scene.scaleMode = .resizeFill
 
         return try SnapshotImageRenderer.render(scene: scene) {
@@ -65,6 +65,23 @@ final class ArenaScreenSnapshotTests: XCTestCase {
                 )
             )
         }
+    }
+
+    private func makeSnapshotScene() throws -> ArenaScene {
+        let suiteName = "TiltArena.ArenaScreenSnapshotTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+
+        defaults.removePersistentDomain(forName: suiteName)
+        addTeardownBlock {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        return ArenaScene(
+            size: sceneSize,
+            tiltSettingsStore: TiltSettingsStore(defaults: defaults),
+            runProfileStore: RunProfileStore(defaults: defaults),
+            localOptionsStore: ArenaLocalOptionsStore(defaults: defaults)
+        )
     }
 
     private func progressedProfile() -> RunProfile {
