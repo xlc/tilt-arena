@@ -6,6 +6,20 @@ import XCTest
 
 @MainActor
 final class ArenaVisualRoleSnapshotTests: XCTestCase {
+    private static let weaponLabels: [WeaponKind: String] = [
+        .shockwave: "SHOCK",
+        .seekerSwarm: "SEEKER",
+        .razorShield: "SHIELD",
+        .freezeBurst: "FREEZE",
+        .gravityWell: "GRAV",
+        .chainLightning: "CHAIN",
+        .flameTrail: "FLAME",
+        .warpDash: "WARP",
+        .powerWave: "WAVE",
+        .ricochetLance: "LANCE",
+        .novaBomb: "NOVA"
+    ]
+
     private let sceneSize = CGSize(width: 720, height: 420)
     private let arenaRect = CGRect(x: 24, y: 32, width: 672, height: 364)
 
@@ -119,13 +133,15 @@ final class ArenaVisualRoleSnapshotTests: XCTestCase {
             .flameTrail,
             .warpDash,
             .powerWave,
+            .ricochetLance,
             .novaBomb
         ]
         for (index, kind) in pickupKinds.enumerated() {
+            let pickupX = 58 + CGFloat(index) * 58
             let pickup = WeaponPickup(
                 id: index + 1,
                 kind: kind,
-                position: CGPoint(x: 72 + CGFloat(index) * 64, y: 100),
+                position: CGPoint(x: pickupX, y: 100),
                 radius: 12
             )
             scene.addChild(WeaponPickupNode(pickup: pickup, theme: theme))
@@ -139,28 +155,7 @@ final class ArenaVisualRoleSnapshotTests: XCTestCase {
     }
 
     private func label(for kind: WeaponKind) -> String {
-        switch kind {
-        case .shockwave:
-            return "SHOCK"
-        case .seekerSwarm:
-            return "SEEKER"
-        case .razorShield:
-            return "SHIELD"
-        case .freezeBurst:
-            return "FREEZE"
-        case .gravityWell:
-            return "GRAV"
-        case .chainLightning:
-            return "CHAIN"
-        case .flameTrail:
-            return "FLAME"
-        case .warpDash:
-            return "WARP"
-        case .powerWave:
-            return "WAVE"
-        case .novaBomb:
-            return "NOVA"
-        }
+        Self.weaponLabels[kind] ?? kind.displayName.uppercased()
     }
 
     private func addContactLabel(_ text: String, at position: CGPoint, to scene: SKScene, theme: ArenaTheme) {

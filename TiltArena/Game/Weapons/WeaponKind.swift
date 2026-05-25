@@ -8,6 +8,7 @@ enum WeaponKind: String, CaseIterable, Codable, Equatable {
     case flameTrail
     case warpDash
     case powerWave
+    case ricochetLance
     case novaBomb
 
     init(from decoder: Decoder) throws {
@@ -54,6 +55,8 @@ enum WeaponKind: String, CaseIterable, Codable, Equatable {
             return "Warp Dash"
         case .powerWave:
             return "Power Wave"
+        case .ricochetLance:
+            return "Ricochet Lance"
         case .novaBomb:
             return "Nova Bomb"
         }

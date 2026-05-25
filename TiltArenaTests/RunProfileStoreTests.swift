@@ -116,9 +116,9 @@ final class RunProfileStoreTests: XCTestCase {
             RunSummary(
                 score: 5_000,
                 survivalTime: 120,
-                maxCombo: 20,
+                maxCombo: 30,
                 enemiesDestroyed: 300,
-                bestWeapon: .novaBomb,
+                bestWeapon: .ricochetLance,
                 timestamp: timestamp,
                 mode: .daily
             )

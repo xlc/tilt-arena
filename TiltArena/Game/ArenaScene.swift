@@ -1113,8 +1113,8 @@ final class ArenaScene: SKScene {
         case .flameTrail:
             flameTrailState.activate(at: playerPosition)
             flameTrailEffectNode.apply(segments: flameTrailState.segments)
-        case .warpDash:
-            loggedDestroyedCount = performWarpDash(from: playerPosition)
+        case .warpDash, .ricochetLance:
+            loggedDestroyedCount = performDirectionalWeapon(kind, from: playerPosition)
         case .powerWave:
             activatePowerWave(at: playerPosition)
         case .novaBomb:
@@ -1411,6 +1411,35 @@ final class ArenaScene: SKScene {
     private func warpDashDistance() -> CGFloat {
         min(currentPlayableRect.width, currentPlayableRect.height)
             * max(0, weaponResolver.configuration.warpDashDistanceFractionOfShortSide)
+    }
+
+    private func performDirectionalWeapon(_ kind: WeaponKind, from playerPosition: CGPoint) -> Int {
+        switch kind {
+        case .warpDash:
+            return performWarpDash(from: playerPosition)
+        case .ricochetLance:
+            return fireRicochetLance(from: playerPosition)
+        case .shockwave, .seekerSwarm, .razorShield, .freezeBurst, .gravityWell,
+             .chainLightning, .flameTrail, .powerWave, .novaBomb:
+            return 0
+        }
+    }
+
+    private func fireRicochetLance(from playerPosition: CGPoint) -> Int {
+        let result = RicochetLancePath.resolve(
+            origin: playerPosition,
+            direction: warpDashState.resolvedDirection(),
+            playableRect: currentPlayableRect,
+            enemies: weaponTargetableEnemies(),
+            configuration: weaponResolver.configuration
+        )
+        let targets = impactTargets(forEnemyIDs: result.destroyedEnemyIDs)
+        markPendingWeaponImpacts(targets)
+        playRicochetLanceEffect(segments: result.segments, targets: targets) { [weak self] enemyIDs in
+            self?.destroyEnemies(ids: enemyIDs, weaponKind: .ricochetLance)
+        }
+
+        return targets.count
     }
 
     private func updateWarpDashInvulnerability(deltaTime: TimeInterval) {

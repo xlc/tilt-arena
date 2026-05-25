@@ -14,6 +14,9 @@ final class StartingWeaponResolverTests: XCTestCase {
         XCTAssertEqual(configuration.powerWaveRange, 180)
         XCTAssertEqual(configuration.powerWaveFanAngleDegrees, 70)
         XCTAssertEqual(configuration.powerWaveExpansionDuration, 0.24)
+        XCTAssertEqual(configuration.ricochetLanceRange, 560)
+        XCTAssertEqual(configuration.ricochetLanceBeamWidth, 18)
+        XCTAssertEqual(configuration.ricochetLanceMaximumBounces, 3)
     }
 
     func testShockwaveClearsEnemiesInsideRadius() {
@@ -276,6 +279,24 @@ final class StartingWeaponResolverTests: XCTestCase {
         )
 
         XCTAssertEqual(resolution.destroyedEnemyIDs, [])
+    }
+
+    func testRicochetLanceSelectionIsHandledOutsideResolver() {
+        let resolver = StartingWeaponResolver()
+        let enemies = [
+            enemy(id: 1, position: CGPoint(x: 20, y: 0))
+        ]
+
+        let resolution = resolver.resolve(
+            kind: .ricochetLance,
+            playerPosition: .zero,
+            enemies: enemies
+        )
+
+        XCTAssertEqual(resolution.destroyedEnemyIDs, [])
+        XCTAssertEqual(resolution.frozenEnemyIDs, [])
+        XCTAssertEqual(resolution.gravityWellEnemyIDs, [])
+        XCTAssertEqual(resolution.chainLightningEnemyIDs, [])
     }
 
     func testFlameTrailDoesNotInstantlyResolveTargets() {

@@ -20,7 +20,7 @@ final class ArenaMenuContentTests: XCTestCase {
         XCTAssertFalse(rows[2].isAvailable)
         XCTAssertEqual(rows[2].statusText, "LOCKED")
 
-        profile.highestCombo = 20
+        profile.highestCombo = 30
         rows = ArenaMenuContent.modeRows(profile: profile, selectedMode: .classic)
 
         XCTAssertTrue(rows[2].isAvailable)
@@ -38,6 +38,9 @@ final class ArenaMenuContentTests: XCTestCase {
         profile.bestScore = 3_000
         profile.highestCombo = 20
         profile.totalEnemiesDestroyed = 300
+        XCTAssertEqual(ArenaMenuContent.activeUnlockText(profile: profile), "NEXT RICOCHET LANCE 20/30 COMBO")
+
+        profile.highestCombo = 30
         XCTAssertEqual(ArenaMenuContent.activeUnlockText(profile: profile), "REDLINE 3000/5000 BEST")
 
         profile.bestScore = 5_000

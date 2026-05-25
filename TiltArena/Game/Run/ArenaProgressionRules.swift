@@ -99,7 +99,8 @@ struct ArenaProgressionRules {
         WeaponUnlockMilestone(weapon: .chainLightning, requirement: .totalEnemiesDestroyed(175)),
         WeaponUnlockMilestone(weapon: .warpDash, requirement: .highestCombo(20)),
         WeaponUnlockMilestone(weapon: .powerWave, requirement: .bestScore(3_000)),
-        WeaponUnlockMilestone(weapon: .novaBomb, requirement: .totalEnemiesDestroyed(300))
+        WeaponUnlockMilestone(weapon: .novaBomb, requirement: .totalEnemiesDestroyed(300)),
+        WeaponUnlockMilestone(weapon: .ricochetLance, requirement: .highestCombo(30))
     ]
 
     static var allGameplayWeapons: [WeaponKind] {

@@ -34,6 +34,20 @@ final class ArenaProgressionRulesTests: XCTestCase {
 
         profile.totalEnemiesDestroyed = 300
         profile.bestScore = 3_000
+        XCTAssertEqual(ArenaProgressionRules.unlockedWeapons(for: profile), [
+            .shockwave,
+            .seekerSwarm,
+            .razorShield,
+            .freezeBurst,
+            .gravityWell,
+            .flameTrail,
+            .chainLightning,
+            .warpDash,
+            .powerWave,
+            .novaBomb
+        ])
+
+        profile.highestCombo = 30
         XCTAssertEqual(ArenaProgressionRules.unlockedWeapons(for: profile), ArenaProgressionRules.allGameplayWeapons)
     }
 
@@ -63,7 +77,7 @@ final class ArenaProgressionRulesTests: XCTestCase {
 
         profile.totalEnemiesDestroyed = 300
         profile.bestScore = 3_000
-        profile.highestCombo = 20
+        profile.highestCombo = 30
         classic = ArenaModeRules.runSettings(for: .classic, profile: profile)
         let fullyUnlockedDaily = ArenaModeRules.runSettings(for: .daily, profile: profile)
 
@@ -93,6 +107,7 @@ final class ArenaProgressionRulesTests: XCTestCase {
         XCTAssertTrue(redline.pickupSpawnConfiguration.weaponKindCycle.contains(.flameTrail))
         XCTAssertTrue(redline.pickupSpawnConfiguration.weaponKindCycle.contains(.warpDash))
         XCTAssertFalse(redline.pickupSpawnConfiguration.weaponKindCycle.contains(.novaBomb))
+        XCTAssertFalse(redline.pickupSpawnConfiguration.weaponKindCycle.contains(.ricochetLance))
     }
 
     func testAwardCompletionAndNewAwardsUseProfileState() {

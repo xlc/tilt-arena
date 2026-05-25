@@ -452,6 +452,9 @@ enum GameTuningParameterCatalog {
         specs.append(cgFloat("startingWeapons.powerWaveRange", "Weapons", "power wave range", \.startingWeapons.powerWaveRange, 4, 0, nil, 1))
         specs.append(cgFloat("startingWeapons.powerWaveFanAngleDegrees", "Weapons", "power wave angle", \.startingWeapons.powerWaveFanAngleDegrees, 2, 0, 360, 1))
         specs.append(double("startingWeapons.powerWaveExpansionDuration", "Weapons", "power wave expand", \.startingWeapons.powerWaveExpansionDuration, 0.02, 0, nil, 2))
+        specs.append(cgFloat("startingWeapons.ricochetLanceRange", "Weapons", "ricochet range", \.startingWeapons.ricochetLanceRange, 20, 0, nil, 1))
+        specs.append(cgFloat("startingWeapons.ricochetLanceBeamWidth", "Weapons", "ricochet width", \.startingWeapons.ricochetLanceBeamWidth, 1, 0, nil, 1))
+        specs.append(int("startingWeapons.ricochetLanceMaximumBounces", "Weapons", "ricochet bounces", \.startingWeapons.ricochetLanceMaximumBounces, 1, 0, nil))
         specs.append(int("startingWeapons.novaBombMaximumTargetCount", "Weapons", "nova max targets", \.startingWeapons.novaBombMaximumTargetCount, 1, 0, nil))
         specs.append(double("startingWeapons.novaBombTargetFraction", "Weapons", "nova target fraction", \.startingWeapons.novaBombTargetFraction, 0.05, 0, 1, 2))
     }

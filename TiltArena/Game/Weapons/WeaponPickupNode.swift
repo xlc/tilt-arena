@@ -67,30 +67,34 @@ final class WeaponPickupNode: SKNode {
 
     private static func color(for kind: WeaponKind, theme: ArenaTheme) -> SKColor {
         switch kind {
-        case .shockwave:
+        case .shockwave, .flameTrail, .powerWave, .novaBomb:
             return theme.pickupAmber
-        case .seekerSwarm:
+        case .seekerSwarm, .gravityWell, .warpDash:
             return theme.pickupViolet
-        case .razorShield:
+        case .razorShield, .freezeBurst, .chainLightning, .ricochetLance:
             return theme.pickupBlue
-        case .freezeBurst:
-            return theme.pickupBlue
-        case .gravityWell:
-            return theme.pickupViolet
-        case .chainLightning:
-            return theme.pickupBlue
-        case .flameTrail:
-            return theme.pickupAmber
-        case .warpDash:
-            return theme.pickupViolet
-        case .powerWave:
-            return theme.pickupAmber
-        case .novaBomb:
-            return theme.pickupAmber
         }
     }
 
     private static func bodyPath(for kind: WeaponKind, radius: CGFloat) -> CGPath {
+        switch kind {
+        case .shockwave, .seekerSwarm, .razorShield, .freezeBurst, .gravityWell:
+            return primaryBodyPath(for: kind, radius: radius)
+        case .chainLightning, .flameTrail, .warpDash, .powerWave, .ricochetLance, .novaBomb:
+            return advancedBodyPath(for: kind, radius: radius)
+        }
+    }
+
+    private static func markPath(for kind: WeaponKind, radius: CGFloat) -> CGPath? {
+        switch kind {
+        case .shockwave, .seekerSwarm, .razorShield, .freezeBurst, .gravityWell:
+            return primaryMarkPath(for: kind, radius: radius)
+        case .chainLightning, .flameTrail, .warpDash, .powerWave, .ricochetLance, .novaBomb:
+            return advancedMarkPath(for: kind, radius: radius)
+        }
+    }
+
+    private static func primaryBodyPath(for kind: WeaponKind, radius: CGFloat) -> CGPath {
         switch kind {
         case .shockwave:
             return diamondPath(radius: radius)
@@ -102,6 +106,13 @@ final class WeaponPickupNode: SKNode {
             return hexagonPath(radius: radius)
         case .gravityWell:
             return circlePath(radius: radius * 0.96)
+        case .chainLightning, .flameTrail, .warpDash, .powerWave, .ricochetLance, .novaBomb:
+            return circlePath(radius: radius)
+        }
+    }
+
+    private static func advancedBodyPath(for kind: WeaponKind, radius: CGFloat) -> CGPath {
+        switch kind {
         case .chainLightning:
             return boltPath(radius: radius)
         case .flameTrail:
@@ -110,12 +121,16 @@ final class WeaponPickupNode: SKNode {
             return trianglePath(radius: radius)
         case .powerWave:
             return powerWavePath(radius: radius)
+        case .ricochetLance:
+            return lancePath(radius: radius)
         case .novaBomb:
             return starPath(radius: radius)
+        case .shockwave, .seekerSwarm, .razorShield, .freezeBurst, .gravityWell:
+            return circlePath(radius: radius)
         }
     }
 
-    private static func markPath(for kind: WeaponKind, radius: CGFloat) -> CGPath? {
+    private static func primaryMarkPath(for kind: WeaponKind, radius: CGFloat) -> CGPath? {
         switch kind {
         case .shockwave:
             return ringMarkPath(radius: radius)
@@ -127,6 +142,13 @@ final class WeaponPickupNode: SKNode {
             return snowflakeMarkPath(radius: radius)
         case .gravityWell:
             return orbitMarkPath(radius: radius)
+        case .chainLightning, .flameTrail, .warpDash, .powerWave, .ricochetLance, .novaBomb:
+            return nil
+        }
+    }
+
+    private static func advancedMarkPath(for kind: WeaponKind, radius: CGFloat) -> CGPath? {
+        switch kind {
         case .chainLightning:
             return nil
         case .flameTrail:
@@ -135,8 +157,12 @@ final class WeaponPickupNode: SKNode {
             return dashMarkPath(radius: radius)
         case .powerWave:
             return powerWaveMarkPath(radius: radius)
+        case .ricochetLance:
+            return ricochetMarkPath(radius: radius)
         case .novaBomb:
             return burstMarkPath(radius: radius)
+        case .shockwave, .seekerSwarm, .razorShield, .freezeBurst, .gravityWell:
+            return nil
         }
     }
 
@@ -200,6 +226,17 @@ final class WeaponPickupNode: SKNode {
         path.addLine(to: CGPoint(x: -radius * 0.56, y: radius * 0.76))
         path.addLine(to: CGPoint(x: -radius * 0.2, y: 0))
         path.addLine(to: CGPoint(x: -radius * 0.56, y: -radius * 0.76))
+        path.closeSubpath()
+        return path
+    }
+
+    private static func lancePath(radius: CGFloat) -> CGPath {
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: radius * 1.05, y: 0))
+        path.addLine(to: CGPoint(x: radius * 0.12, y: radius * 0.32))
+        path.addLine(to: CGPoint(x: -radius * 0.82, y: radius * 0.18))
+        path.addLine(to: CGPoint(x: -radius * 0.82, y: -radius * 0.18))
+        path.addLine(to: CGPoint(x: radius * 0.12, y: -radius * 0.32))
         path.closeSubpath()
         return path
     }
@@ -346,6 +383,15 @@ final class WeaponPickupNode: SKNode {
             path.addLine(to: CGPoint(x: radius * 0.04 + offset, y: 0))
             path.addLine(to: CGPoint(x: -radius * 0.46 + offset, y: radius * 0.42))
         }
+        return path
+    }
+
+    private static func ricochetMarkPath(radius: CGFloat) -> CGPath {
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: -radius * 0.58, y: -radius * 0.44))
+        path.addLine(to: CGPoint(x: -radius * 0.04, y: -radius * 0.04))
+        path.addLine(to: CGPoint(x: -radius * 0.28, y: radius * 0.12))
+        path.addLine(to: CGPoint(x: radius * 0.58, y: radius * 0.44))
         return path
     }
 

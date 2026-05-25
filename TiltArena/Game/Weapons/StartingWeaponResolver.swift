@@ -27,6 +27,9 @@ struct StartingWeaponConfiguration: Equatable {
     var powerWaveRange: CGFloat = 180
     var powerWaveFanAngleDegrees: CGFloat = 70
     var powerWaveExpansionDuration: TimeInterval = 0.24
+    var ricochetLanceRange: CGFloat = 560
+    var ricochetLanceBeamWidth: CGFloat = 18
+    var ricochetLanceMaximumBounces: Int = 3
     var novaBombMaximumTargetCount: Int = 15
     var novaBombTargetFraction: Double = 0.8
 }
@@ -114,7 +117,7 @@ struct StartingWeaponResolver {
                 destroyedEnemyIDs: Set(targetIDs),
                 chainLightningEnemyIDs: targetIDs
             )
-        case .flameTrail, .warpDash, .powerWave:
+        case .flameTrail, .warpDash, .powerWave, .ricochetLance:
             return WeaponResolution()
         case .novaBomb:
             return WeaponResolution()

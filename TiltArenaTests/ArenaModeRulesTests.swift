@@ -14,7 +14,7 @@ final class ArenaModeRulesTests: XCTestCase {
         XCTAssertFalse(ArenaModeRules.isAvailable(.daily, profile: profile))
 
         profile.bestScore = 3_000
-        profile.highestCombo = 20
+        profile.highestCombo = 30
         profile.totalEnemiesDestroyed = 300
         XCTAssertTrue(ArenaModeRules.isAvailable(.daily, profile: profile))
     }
@@ -37,7 +37,8 @@ final class ArenaModeRulesTests: XCTestCase {
             .chainLightning,
             .flameTrail,
             .warpDash,
-            .powerWave
+            .powerWave,
+            .ricochetLance
         ]
         let cycle = redline.pickupSpawnConfiguration.weaponKindCycle
         let panicCount = cycle.filter { panicWeapons.contains($0) }.count

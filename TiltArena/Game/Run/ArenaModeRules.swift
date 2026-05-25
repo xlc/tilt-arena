@@ -200,6 +200,7 @@ struct ArenaModeRules {
                 .flameTrail,
                 .warpDash,
                 .powerWave,
+                .ricochetLance,
                 .freezeBurst,
                 .gravityWell,
                 .razorShield,
@@ -207,6 +208,7 @@ struct ArenaModeRules {
                 .flameTrail,
                 .warpDash,
                 .powerWave,
+                .ricochetLance,
                 .shockwave
             ]
         )
