@@ -736,7 +736,9 @@ final class ArenaScene: SKScene {
     private func applyGameTuning(rebuildPlayerVisuals: Bool = false) {
         movementController.configuration = gameTuning.playerMovement
         calibrationPreviewMovementController.configuration = gameTuning.playerMovement
-        runController.configuration = gameTuning.run
+        var runConfiguration = gameTuning.run
+        runConfiguration.playerVisualRadius = gameTuning.playerMovement.visualRadius
+        runController.configuration = runConfiguration
         readyHoldController.configuration = gameTuning.readyStart
         weaponResolver.configuration = gameTuning.startingWeapons
         weaponEffectTiming = gameTuning.weaponEffectTiming
@@ -2528,7 +2530,7 @@ private extension ArenaScene {
             developerTuningPageIndex = max(0, developerTuningPageIndex - 1)
             rebuildUI()
         case .developerTuningNextPage:
-            let pageSize = developerTuningPageSize(in: currentLandscapeLayout().safeRect)
+            let pageSize = developerTuningPageSize(in: menuContentFrame(layout: currentLandscapeLayout()))
             let pageCount = max(
                 1,
                 Int(ceil(Double(GameTuningParameterCatalog.parameters.count) / Double(pageSize)))
@@ -2864,7 +2866,11 @@ private extension ArenaScene {
             color: theme.panelStrokeColor.withAlphaComponent(0.72)
         )
 
-        return CGRect(
+        return menuContentFrame(layout: layout)
+    }
+
+    func menuContentFrame(layout: ArenaLandscapeUILayout) -> CGRect {
+        CGRect(
             x: layout.safeRect.minX + 14,
             y: layout.safeRect.minY + 16,
             width: max(0, layout.safeRect.width - 28),
@@ -3255,6 +3261,35 @@ extension ArenaScene {
 
     var weaponEffectNodeCountForTesting: Int {
         weaponEffectsRoot.children.count
+    }
+
+    var developerTuningPageIndexForTesting: Int {
+        developerTuningPageIndex
+    }
+
+    var devTuningPageCountForTesting: Int {
+        let pageSize = developerTuningPageSize(in: menuContentFrame(layout: currentLandscapeLayout()))
+        return max(1, Int(ceil(Double(GameTuningParameterCatalog.parameters.count) / Double(pageSize))))
+    }
+
+    var playerHitRadiusForTesting: CGFloat {
+        runController.configuration.playerHitRadius
+    }
+
+    var playerVisualRadiusForTesting: CGFloat {
+        movementController.configuration.visualRadius
+    }
+
+    func openDeveloperTuningForTesting() {
+        performNavigationAction(.openDeveloperTuning)
+    }
+
+    func advanceDeveloperTuningPageForTesting() {
+        performDeveloperTuningAction(.developerTuningNextPage)
+    }
+
+    func adjustTuningParameterForTesting(id: String, direction: GameTuningAdjustmentDirection) {
+        performDeveloperTuningAction(.adjustTuningParameter(id, direction))
     }
 }
 #endif

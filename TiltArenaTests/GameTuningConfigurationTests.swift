@@ -7,6 +7,7 @@ final class GameTuningConfigurationTests: XCTestCase {
 
         XCTAssertEqual(ids.count, Set(ids).count)
         XCTAssertGreaterThan(ids.count, 250)
+        XCTAssertFalse(ids.contains("run.playerVisualRadius"))
     }
 
     func testAdjustParameterUpdatesNestedGameplayValue() {
@@ -50,6 +51,7 @@ final class GameTuningConfigurationTests: XCTestCase {
 
         XCTAssertTrue(snapshot.contains("var tuning = GameTuningConfiguration.defaults"))
         XCTAssertTrue(snapshot.contains("tuning.playerMovement.visualRadius = 15.0"))
+        XCTAssertFalse(snapshot.contains("tuning.run.playerVisualRadius"))
         XCTAssertTrue(snapshot.contains("tuning.classic.enemySpawnConfiguration.warmup.formationSpawnInterval = nil"))
         XCTAssertTrue(snapshot.contains("tuning.classic.pickupSpawnConfiguration.weaponKindCycle = ["))
         XCTAssertTrue(snapshot.contains("return tuning"))

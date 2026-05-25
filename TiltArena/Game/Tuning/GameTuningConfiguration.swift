@@ -288,7 +288,6 @@ enum GameTuningParameterCatalog {
     }
 
     private static func appendRunParameters(to specs: inout [GameTuningParameterSpec]) {
-        specs.append(cgFloat("run.playerVisualRadius", "Scoring", "player visual radius", \.run.playerVisualRadius, 1, 1, nil, 1))
         specs.append(cgFloat("run.playerHitRadiusScale", "Scoring", "hit radius scale", \.run.playerHitRadiusScale, 0.05, 0.05, 2, 2))
         specs.append(int("run.baseEnemyScore", "Scoring", "base enemy score", \.run.baseEnemyScore, 1, 0, nil))
         specs.append(int("run.itemPickupScore", "Scoring", "item pickup score", \.run.itemPickupScore, 1, 0, nil))

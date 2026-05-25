@@ -132,6 +132,38 @@ final class GameViewControllerTests: XCTestCase {
         XCTAssertFalse(scene.isWeaponEffectPlaybackPausedForTesting)
         XCTAssertEqual(scene.weaponEffectNodeCountForTesting, 0)
     }
+
+    @MainActor
+    func testDeveloperTuningNextPageReachesRenderedLastPage() {
+        let scene = ArenaScene(size: CGSize(width: 560, height: 280))
+        scene.prepareForVisualSnapshot(state: .home)
+        scene.openDeveloperTuningForTesting()
+        let lastRenderedPageIndex = scene.devTuningPageCountForTesting - 1
+
+        XCTAssertGreaterThan(lastRenderedPageIndex, 0)
+
+        for _ in 0..<(lastRenderedPageIndex + 5) {
+            scene.advanceDeveloperTuningPageForTesting()
+        }
+
+        XCTAssertEqual(scene.developerTuningPageIndexForTesting, lastRenderedPageIndex)
+    }
+
+    @MainActor
+    func testPlayerVisualRadiusTuningKeepsHitRadiusInSync() {
+        let scene = ArenaScene(size: CGSize(width: 852, height: 393))
+        scene.prepareActiveRunForTesting()
+        let originalVisualRadius = scene.playerVisualRadiusForTesting
+
+        scene.adjustTuningParameterForTesting(id: "playerMovement.visualRadius", direction: .increase)
+
+        XCTAssertEqual(scene.playerVisualRadiusForTesting, originalVisualRadius + 1, accuracy: 0.0001)
+        XCTAssertEqual(
+            scene.playerHitRadiusForTesting,
+            scene.playerVisualRadiusForTesting * ClassicRunConfiguration().playerHitRadiusScale,
+            accuracy: 0.0001
+        )
+    }
 }
 
 private final class SafeAreaTestSKView: SKView {
