@@ -5,10 +5,10 @@ import XCTest
 
 @MainActor
 final class GameCenterServiceTests: XCTestCase {
-    private var defaults: UserDefaults!
-    private var suiteName: String!
-    private var scoreSubmissionStore: GameCenterScoreSubmissionStore!
-    private var achievementProgressStore: GameCenterAchievementProgressStore!
+    private nonisolated(unsafe) var defaults: UserDefaults!
+    private nonisolated(unsafe) var suiteName: String!
+    private nonisolated(unsafe) var scoreSubmissionStore: GameCenterScoreSubmissionStore!
+    private nonisolated(unsafe) var achievementProgressStore: GameCenterAchievementProgressStore!
 
     override func setUp() {
         super.setUp()
