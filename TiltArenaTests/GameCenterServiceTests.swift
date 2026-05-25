@@ -322,6 +322,27 @@ final class GameCenterServiceTests: XCTestCase {
         XCTAssertNil(presenter.presentedViewController)
     }
 
+    func testMenuStatusReflectsAuthenticationState() {
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: false)
+        let service = makeService(localPlayer: client)
+
+        XCTAssertEqual(service.menuStatus, .signInRequired)
+        service.authenticate(presenter: nil)
+        XCTAssertEqual(service.menuStatus, .syncing)
+        client.completeAuthentication(viewController: UIViewController(), error: nil)
+        XCTAssertEqual(service.menuStatus, .signInRequired)
+        client.isAuthenticated = true
+        client.completeAuthentication(viewController: nil, error: nil)
+        XCTAssertEqual(service.menuStatus, .ready)
+    }
+
+    func testMenuStatusReportsUnavailableWhenGameCenterIsUnsupported() {
+        let client = FakeGameCenterLocalPlayerClient(isAvailable: false)
+        let service = makeService(localPlayer: client)
+
+        XCTAssertEqual(service.menuStatus, .unavailable)
+    }
+
     func testRunFinishedAchievementEventSubmitsMilestoneProgress() {
         let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
         let service = makeService(localPlayer: client)
@@ -377,7 +398,6 @@ final class GameCenterServiceTests: XCTestCase {
 
         service.reportAchievementEvent(.weaponOrbCollected)
         service.reportAchievementEvent(.weaponOrbCollected)
-
         XCTAssertEqual(client.submittedAchievementBatches.count, 1)
         XCTAssertTrue(achievementProgressStore.pendingProgress.isEmpty)
     }
@@ -389,12 +409,9 @@ final class GameCenterServiceTests: XCTestCase {
 
         service.reportAchievementEvent(.weaponOrbCollected)
         service.reportAchievementEvent(.weaponOrbCollected)
-
         XCTAssertEqual(client.submittedAchievementBatches.count, 1)
         XCTAssertEqual(achievementProgressStore.pendingProgress.count, 1)
-
         client.completeNextAchievementReport()
-
         XCTAssertTrue(achievementProgressStore.pendingProgress.isEmpty)
     }
 

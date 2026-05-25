@@ -6,6 +6,10 @@ import GameKit
 import Logging
 import UIKit
 
+extension Notification.Name {
+    static let gameCenterMenuStatusDidChange = Notification.Name("TiltArena.gameCenterMenuStatusDidChange")
+}
+
 @MainActor
 protocol GameCenterAuthenticationPresenting: AnyObject {
     func presentGameCenterAuthentication(_ viewController: UIViewController)
@@ -74,6 +78,29 @@ enum GameCenterLeaderboardPresentationResult: Equatable {
     case unavailable(GameCenterLeaderboardUnavailableReason)
 }
 
+enum GameCenterMenuStatus: Equatable {
+    case hidden
+    case ready
+    case signInRequired
+    case unavailable
+    case syncing
+
+    var menuMessage: String? {
+        switch self {
+        case .hidden:
+            return nil
+        case .ready:
+            return "GAME CENTER READY"
+        case .signInRequired:
+            return "SIGN IN TO VIEW RANKS"
+        case .unavailable:
+            return "GAME CENTER UNAVAILABLE"
+        case .syncing:
+            return "GAME CENTER SYNCING"
+        }
+    }
+}
+
 struct GameCenterAuthenticationFailure: Equatable {
     let reason: GameCenterAuthenticationFailureReason
     let domain: String
@@ -127,6 +154,31 @@ final class GameCenterService {
     private var isRetryingQueuedAchievements = false
 
     private(set) var authenticationState: GameCenterAuthenticationState = .notStarted
+
+    var menuStatus: GameCenterMenuStatus {
+        if isRetryingQueuedScores || isRetryingQueuedAchievements {
+            return .syncing
+        }
+
+        guard localPlayer.isAvailable else {
+            return .unavailable
+        }
+
+        if localPlayer.isAuthenticated || authenticationState == .authenticated {
+            return .ready
+        }
+
+        switch authenticationState {
+        case .notStarted, .needsUserAuthentication, .declined:
+            return .signInRequired
+        case .authenticating:
+            return .syncing
+        case .unsupported, .failed:
+            return .unavailable
+        case .authenticated:
+            return .ready
+        }
+    }
 
     init(
         localPlayer: GameCenterLocalPlayerClient = GameKitLocalPlayerClient(),
@@ -270,6 +322,7 @@ final class GameCenterService {
         }
 
         isRetryingQueuedScores = true
+        notifyMenuStatusChanged()
         logger.info("game_center.score_retry_started", metadata: [
             "pendingCount": "\(submissions.count)"
         ])
@@ -292,6 +345,7 @@ final class GameCenterService {
         }
 
         isRetryingQueuedAchievements = true
+        notifyMenuStatusChanged()
         logger.info("game_center.achievement_retry_started", metadata: [
             "pendingCount": "\(progress.count)"
         ])
@@ -302,6 +356,7 @@ final class GameCenterService {
 
             defer {
                 self.isRetryingQueuedAchievements = false
+                self.notifyMenuStatusChanged()
             }
 
             if let error {
@@ -401,7 +456,11 @@ final class GameCenterService {
     }
 
     private func updateState(_ state: GameCenterAuthenticationState) {
+        let previousState = authenticationState
         authenticationState = state
+        if state != previousState {
+            notifyMenuStatusChanged()
+        }
     }
 
     private func retryQueuedSubmissions() {
@@ -552,6 +611,7 @@ final class GameCenterService {
         guard index < submissions.count else {
             scoreSubmissionStore.removeSubmissions(withQueueKeys: completedQueueKeys)
             isRetryingQueuedScores = false
+            notifyMenuStatusChanged()
             logger.info("game_center.score_retry_finished", metadata: [
                 "submittedCount": "\(completedQueueKeys.count)",
                 "remainingCount": "\(scoreSubmissionStore.pendingSubmissions.count)"
@@ -616,6 +676,10 @@ final class GameCenterService {
             "achievementCount": "\(progress.count)",
             "maxPercentComplete": "\(progress.map(\.percentComplete).max() ?? 0)"
         ]
+    }
+
+    private func notifyMenuStatusChanged() {
+        NotificationCenter.default.post(name: .gameCenterMenuStatusDidChange, object: self)
     }
 
     private func scoreSubmissionMetadata(

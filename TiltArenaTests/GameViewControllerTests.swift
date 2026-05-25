@@ -193,6 +193,39 @@ final class GameViewControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testHomeScreenSurfacesGameCenterReadyStatus() {
+        let scene = ArenaScene(size: CGSize(width: 852, height: 393))
+        let delegate = FakeArenaSceneGameCenterDelegate(menuStatus: .ready)
+        scene.gameCenterDelegate = delegate
+
+        scene.prepareForVisualSnapshot(state: .home)
+
+        XCTAssertEqual(scene.gameCenterStatusMessageForTesting, "GAME CENTER READY")
+    }
+
+    @MainActor
+    func testPostRunScreenSurfacesGameCenterUnavailableStatus() {
+        let scene = ArenaScene(size: CGSize(width: 852, height: 393))
+        let delegate = FakeArenaSceneGameCenterDelegate(menuStatus: .unavailable)
+        scene.gameCenterDelegate = delegate
+
+        scene.prepareForVisualSnapshot(state: .postRun)
+
+        XCTAssertEqual(scene.gameCenterStatusMessageForTesting, "GAME CENTER UNAVAILABLE")
+    }
+
+    @MainActor
+    func testActiveGameplayDoesNotSurfaceGameCenterStatus() {
+        let scene = ArenaScene(size: CGSize(width: 852, height: 393))
+        let delegate = FakeArenaSceneGameCenterDelegate(menuStatus: .ready)
+        scene.gameCenterDelegate = delegate
+
+        scene.prepareForVisualSnapshot(state: .activeGameplay)
+
+        XCTAssertNil(scene.gameCenterStatusMessageForTesting)
+    }
+
+    @MainActor
     func testPlayerVisualRadiusTuningKeepsHitRadiusInSync() {
         let scene = ArenaScene(size: CGSize(width: 852, height: 393))
         scene.prepareActiveRunForTesting()
@@ -220,10 +253,19 @@ private final class SafeAreaTestSKView: SKView {
 @MainActor
 private final class FakeArenaSceneGameCenterDelegate: ArenaSceneGameCenterDelegate {
     private let result: GameCenterLeaderboardPresentationResult
+    var menuStatus: GameCenterMenuStatus
     private(set) weak var requestedScene: ArenaScene?
 
-    init(result: GameCenterLeaderboardPresentationResult) {
+    init(
+        result: GameCenterLeaderboardPresentationResult = .presented,
+        menuStatus: GameCenterMenuStatus = .hidden
+    ) {
         self.result = result
+        self.menuStatus = menuStatus
+    }
+
+    func arenaSceneGameCenterMenuStatus(_ scene: ArenaScene) -> GameCenterMenuStatus {
+        menuStatus
     }
 
     func arenaSceneRequestsClassicLeaderboard(_ scene: ArenaScene) -> GameCenterLeaderboardPresentationResult {

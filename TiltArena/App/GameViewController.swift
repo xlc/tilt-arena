@@ -23,6 +23,7 @@ final class GameViewController: UIViewController {
         super.viewDidLoad()
         configureSpriteView()
         installLoadingOverlay()
+        installGameCenterStatusObserver()
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -105,6 +106,23 @@ final class GameViewController: UIViewController {
 
     private func refreshPresentedSceneSafeAreaLayout() {
         ((view as? SKView)?.scene as? ArenaScene)?.refreshSafeAreaLayout()
+    }
+
+    private func refreshPresentedSceneGameCenterStatus() {
+        ((view as? SKView)?.scene as? ArenaScene)?.refreshGameCenterMenuStatus()
+    }
+
+    private func installGameCenterStatusObserver() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(gameCenterMenuStatusDidChange),
+            name: .gameCenterMenuStatusDidChange,
+            object: nil
+        )
+    }
+
+    @objc private func gameCenterMenuStatusDidChange(_ notification: Notification) {
+        refreshPresentedSceneGameCenterStatus()
     }
 
     private func installLoadingOverlay() {
@@ -367,6 +385,10 @@ extension GameViewController: GameCenterLeaderboardPresenting {
 }
 
 extension GameViewController: ArenaSceneGameCenterDelegate {
+    func arenaSceneGameCenterMenuStatus(_ scene: ArenaScene) -> GameCenterMenuStatus {
+        GameCenterService.shared.menuStatus
+    }
+
     func arenaSceneRequestsClassicLeaderboard(_ scene: ArenaScene) -> GameCenterLeaderboardPresentationResult {
         let result = GameCenterService.shared.presentClassicSurvivalLeaderboard(presenter: self)
         if result == .unavailable(.authenticationRequired) {

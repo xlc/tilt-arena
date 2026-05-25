@@ -22,6 +22,7 @@ protocol ArenaSceneDiagnosticsDelegate: AnyObject {
 
 @MainActor
 protocol ArenaSceneGameCenterDelegate: AnyObject {
+    func arenaSceneGameCenterMenuStatus(_ scene: ArenaScene) -> GameCenterMenuStatus
     func arenaSceneRequestsClassicLeaderboard(_ scene: ArenaScene) -> GameCenterLeaderboardPresentationResult
 }
 
@@ -246,6 +247,14 @@ final class ArenaScene: SKScene {
         }
         layoutLabels()
         layoutDebugStats()
+        rebuildUI()
+    }
+
+    func refreshGameCenterMenuStatus() {
+        guard uiState == .home || uiState == .postRun else {
+            return
+        }
+
         rebuildUI()
     }
 
@@ -2483,12 +2492,12 @@ private extension ArenaScene {
         at position: CGPoint,
         alignment: SKLabelHorizontalAlignmentMode
     ) {
-        guard let gameCenterStatusMessage else {
+        guard let statusMessage = currentGameCenterStatusMessage() else {
             return
         }
 
         addSmallLabel(
-            gameCenterStatusMessage,
+            statusMessage,
             at: position,
             color: theme.playerAccentColor,
             alignment: alignment
@@ -2533,6 +2542,15 @@ private extension ArenaScene {
             gameCenterStatusMessage = reason.gameplayStatusMessage
             rebuildUI()
         }
+    }
+
+    func currentGameCenterStatusMessage() -> String? {
+        guard uiState == .home || uiState == .postRun else {
+            return nil
+        }
+
+        return gameCenterStatusMessage
+            ?? gameCenterDelegate?.arenaSceneGameCenterMenuStatus(self).menuMessage
     }
 
     func performNavigationAction(_ action: ArenaControlAction) {
@@ -3379,7 +3397,7 @@ extension ArenaScene {
     }
 
     var gameCenterStatusMessageForTesting: String? {
-        gameCenterStatusMessage
+        currentGameCenterStatusMessage()
     }
 
     func requestClassicLeaderboardForTesting() {
