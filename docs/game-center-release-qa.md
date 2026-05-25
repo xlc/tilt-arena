@@ -41,14 +41,14 @@ metadata also live in `Assets/GameCenterAchievements/manifest.json`.
 
 | Reference name | Achievement ID | Display name | Pre-earned description | Earned description | Points | Hidden | Repeatable | Asset |
 | --- | --- | --- | --- | --- | ---: | --- | --- | --- |
-| First Run | `com.xlc.tiltarena.achievement.first_run` | First Vector | Finish one Classic run. | You finished your first Classic run. | 25 | No | No | `first-run.png` |
-| First Weapon Orb | `com.xlc.tiltarena.achievement.first_weapon_orb` | Orb Contact | Collect one weapon orb. | You collected your first weapon orb. | 25 | No | No | `first-weapon-orb.png` |
-| First Enemy Clear | `com.xlc.tiltarena.achievement.first_enemy_clear` | First Clear | Destroy one enemy. | You destroyed your first enemy. | 25 | No | No | `first-enemy-clear.png` |
-| First Chain Reaction | `com.xlc.tiltarena.achievement.first_chain_reaction` | Chain Ignition | Destroy two enemies with one weapon clear. | You triggered your first chain reaction. | 50 | No | No | `first-chain-reaction.png` |
-| Combo 10 | `com.xlc.tiltarena.achievement.combo_10` | Combo 10 | Reach a 10 combo. | You reached a 10 combo. | 100 | No | No | `combo-10.png` |
-| Combo 50 | `com.xlc.tiltarena.achievement.combo_50` | Combo 50 | Reach a 50 combo. | You reached a 50 combo. | 100 | No | No | `combo-50.png` |
-| Survive 60 | `com.xlc.tiltarena.achievement.survive_60` | One-Minute Line | Survive 60 seconds in Classic. | You survived 60 seconds in Classic. | 100 | No | No | `survive-60.png` |
-| Score 100000 | `com.xlc.tiltarena.achievement.score_100000` | Six-Figure Signal | Score 100,000 in Classic. | You scored 100,000 in Classic. | 100 | No | No | `score-100000.png` |
+| First Run | `com.xlc.tiltarena.achievement.first_run` | First Vector | Finish one Classic run. | You finished your first Classic run. | 25 | No | No | `first-run.jpg` |
+| First Weapon Orb | `com.xlc.tiltarena.achievement.first_weapon_orb` | Orb Contact | Collect one weapon orb. | You collected your first weapon orb. | 25 | No | No | `first-weapon-orb.jpg` |
+| First Enemy Clear | `com.xlc.tiltarena.achievement.first_enemy_clear` | First Clear | Destroy one enemy. | You destroyed your first enemy. | 25 | No | No | `first-enemy-clear.jpg` |
+| First Chain Reaction | `com.xlc.tiltarena.achievement.first_chain_reaction` | Chain Ignition | Destroy two enemies with one weapon clear. | You triggered your first chain reaction. | 50 | No | No | `first-chain-reaction.jpg` |
+| Combo 10 | `com.xlc.tiltarena.achievement.combo_10` | Combo 10 | Reach a 10 combo. | You reached a 10 combo. | 100 | No | No | `combo-10.jpg` |
+| Combo 50 | `com.xlc.tiltarena.achievement.combo_50` | Combo 50 | Reach a 50 combo. | You reached a 50 combo. | 100 | No | No | `combo-50.jpg` |
+| Survive 60 | `com.xlc.tiltarena.achievement.survive_60` | One-Minute Line | Survive 60 seconds in Classic. | You survived 60 seconds in Classic. | 100 | No | No | `survive-60.jpg` |
+| Score 100000 | `com.xlc.tiltarena.achievement.score_100000` | Six-Figure Signal | Score 100,000 in Classic. | You scored 100,000 in Classic. | 100 | No | No | `score-100000.jpg` |
 
 For each leaderboard and achievement:
 

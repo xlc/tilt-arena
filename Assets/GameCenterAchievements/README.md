@@ -14,11 +14,11 @@ scripts/validate-game-center-achievement-assets
 
 | Achievement ID | Display name | Points | Asset |
 | --- | --- | ---: | --- |
-| `com.xlc.tiltarena.achievement.first_run` | First Vector | 25 | `final/first-run.png` |
-| `com.xlc.tiltarena.achievement.first_weapon_orb` | Orb Contact | 25 | `final/first-weapon-orb.png` |
-| `com.xlc.tiltarena.achievement.first_enemy_clear` | First Clear | 25 | `final/first-enemy-clear.png` |
-| `com.xlc.tiltarena.achievement.first_chain_reaction` | Chain Ignition | 50 | `final/first-chain-reaction.png` |
-| `com.xlc.tiltarena.achievement.combo_10` | Combo 10 | 100 | `final/combo-10.png` |
-| `com.xlc.tiltarena.achievement.combo_50` | Combo 50 | 100 | `final/combo-50.png` |
-| `com.xlc.tiltarena.achievement.survive_60` | One-Minute Line | 100 | `final/survive-60.png` |
-| `com.xlc.tiltarena.achievement.score_100000` | Six-Figure Signal | 100 | `final/score-100000.png` |
+| `com.xlc.tiltarena.achievement.first_run` | First Vector | 25 | `final/first-run.jpg` |
+| `com.xlc.tiltarena.achievement.first_weapon_orb` | Orb Contact | 25 | `final/first-weapon-orb.jpg` |
+| `com.xlc.tiltarena.achievement.first_enemy_clear` | First Clear | 25 | `final/first-enemy-clear.jpg` |
+| `com.xlc.tiltarena.achievement.first_chain_reaction` | Chain Ignition | 50 | `final/first-chain-reaction.jpg` |
+| `com.xlc.tiltarena.achievement.combo_10` | Combo 10 | 100 | `final/combo-10.jpg` |
+| `com.xlc.tiltarena.achievement.combo_50` | Combo 50 | 100 | `final/combo-50.jpg` |
+| `com.xlc.tiltarena.achievement.survive_60` | One-Minute Line | 100 | `final/survive-60.jpg` |
+| `com.xlc.tiltarena.achievement.score_100000` | Six-Figure Signal | 100 | `final/score-100000.jpg` |

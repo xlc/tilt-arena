@@ -15,7 +15,7 @@ for name in \
     survive-60 \
     score-100000
 do
-    file="$ASSET_DIR/$name.png"
+    file="$ASSET_DIR/$name.jpg"
 
     if [ ! -f "$file" ]; then
         printf 'missing: %s\n' "$file"
@@ -41,7 +41,7 @@ do
     space=$(printf '%s\n' "$props" | awk '$1 == "space:" { print $2; exit }')
     has_alpha=$(printf '%s\n' "$props" | awk '$1 == "hasAlpha:" { print $2; exit }')
 
-    if [ "$format" != "png" ] ||
+    if [ "$format" != "jpeg" ] ||
         [ "$width" != "1024" ] ||
         [ "$height" != "1024" ] ||
         [ "$dpi_width" != "72.000" ] ||

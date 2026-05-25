@@ -1,6 +1,6 @@
 {
   "assetRequirements": {
-    "format": "png",
+    "format": "jpeg",
     "pixelWidth": 1024,
     "pixelHeight": 1024,
     "minimumDpi": 72,
@@ -17,7 +17,7 @@
       "points": 25,
       "hidden": false,
       "repeatable": false,
-      "image": "final/first-run.png"
+      "image": "final/first-run.jpg"
     },
     {
       "referenceName": "First Weapon Orb",
@@ -28,7 +28,7 @@
       "points": 25,
       "hidden": false,
       "repeatable": false,
-      "image": "final/first-weapon-orb.png"
+      "image": "final/first-weapon-orb.jpg"
     },
     {
       "referenceName": "First Enemy Clear",
@@ -39,7 +39,7 @@
       "points": 25,
       "hidden": false,
       "repeatable": false,
-      "image": "final/first-enemy-clear.png"
+      "image": "final/first-enemy-clear.jpg"
     },
     {
       "referenceName": "First Chain Reaction",
@@ -50,7 +50,7 @@
       "points": 50,
       "hidden": false,
       "repeatable": false,
-      "image": "final/first-chain-reaction.png"
+      "image": "final/first-chain-reaction.jpg"
     },
     {
       "referenceName": "Combo 10",
@@ -61,7 +61,7 @@
       "points": 100,
       "hidden": false,
       "repeatable": false,
-      "image": "final/combo-10.png"
+      "image": "final/combo-10.jpg"
     },
     {
       "referenceName": "Combo 50",
@@ -72,7 +72,7 @@
       "points": 100,
       "hidden": false,
       "repeatable": false,
-      "image": "final/combo-50.png"
+      "image": "final/combo-50.jpg"
     },
     {
       "referenceName": "Survive 60",
@@ -83,7 +83,7 @@
       "points": 100,
       "hidden": false,
       "repeatable": false,
-      "image": "final/survive-60.png"
+      "image": "final/survive-60.jpg"
     },
     {
       "referenceName": "Score 100000",
@@ -94,7 +94,7 @@
       "points": 100,
       "hidden": false,
       "repeatable": false,
-      "image": "final/score-100000.png"
+      "image": "final/score-100000.jpg"
     }
   ]
 }
