@@ -1067,76 +1067,89 @@ final class ArenaScene: SKScene {
     }
 
     private func applyWeapon(_ kind: WeaponKind, playerPosition: CGPoint) {
-        let resolution = weaponResolver.resolve(
+        var rng = SystemRandomNumberGenerator()
+        let application = WeaponApplicationCoordinator(resolver: weaponResolver).application(
             kind: kind,
             playerPosition: playerPosition,
-            enemies: weaponTargetableEnemies()
+            enemies: weaponTargetableEnemies(),
+            using: &rng
         )
-        var loggedDestroyedCount = resolution.destroyedEnemyIDs.count
-        let loggedFrozenCount = resolution.frozenEnemyIDs.count
-        let loggedGravityTargetCount = resolution.gravityWellEnemyIDs.count
+        var log = application.log
 
-        switch kind {
-        case .shockwave:
-            loggedDestroyedCount = 0
-            activateShockwaveWave(at: playerPosition)
-        case .seekerSwarm:
-            let targets = impactTargets(forEnemyIDs: resolution.destroyedEnemyIDs)
-                .sorted { lhs, rhs in
-                    ArenaGeometry.squaredDistance(from: lhs.position, to: playerPosition)
-                        < ArenaGeometry.squaredDistance(from: rhs.position, to: playerPosition)
-                }
-            markPendingWeaponImpacts(targets)
-            playSeekerSwarmEffect(from: playerPosition, to: targets) { [weak self] enemyIDs in
-                self?.destroyEnemies(ids: enemyIDs, weaponKind: .seekerSwarm)
-            }
-        case .razorShield:
-            activateRazorShield(at: playerPosition)
-        case .freezeBurst:
-            activateFreezeBurstWave(at: playerPosition)
-        case .gravityWell:
-            activateGravityWell(
-                at: playerPosition,
-                enemyIDs: resolution.gravityWellEnemyIDs
-            )
-        case .chainLightning:
-            let targets = impactTargets(forEnemyIDs: resolution.chainLightningEnemyIDs)
-            markPendingWeaponImpacts(targets)
-            playChainLightningEffect(
-                from: playerPosition,
-                through: targets,
-                accentColor: theme.playerAccentColor,
-                coreColor: theme.playerColor
-            ) { [weak self] enemyIDs in
-                self?.destroyEnemies(ids: enemyIDs, weaponKind: .chainLightning)
-            }
-        case .flameTrail:
-            flameTrailState.activate(at: playerPosition)
-            flameTrailEffectNode.apply(segments: flameTrailState.segments)
-        case .warpDash, .ricochetLance:
-            loggedDestroyedCount = performDirectionalWeapon(kind, from: playerPosition)
-        case .powerWave:
-            activatePowerWave(at: playerPosition)
-        case .novaBomb:
-            var rng = SystemRandomNumberGenerator()
-            let targetIDs = NovaBombTargetSelector(configuration: weaponResolver.configuration).selectedEnemyIDs(
-                from: weaponTargetableEnemies(),
-                using: &rng
-            )
-            loggedDestroyedCount = targetIDs.count
-            let targets = impactTargets(forEnemyIDs: targetIDs)
-            markPendingWeaponImpacts(targets)
-            playNovaBombEffect(targets: targets) { [weak self] enemyIDs in
-                self?.destroyEnemies(ids: enemyIDs, weaponKind: .novaBomb)
-            }
+        if let directionalDestroyedCount = performWeaponApplicationEffect(application.effect, from: playerPosition) {
+            log.destroyedCount = directionalDestroyedCount
         }
 
         AppDiagnostics.logger(.weapon).notice("weapon.resolved", metadata: [
             "kind": "\(kind.rawValue)",
-            "destroyed": "\(loggedDestroyedCount)",
-            "frozen": "\(loggedFrozenCount)",
-            "gravityTargets": "\(loggedGravityTargetCount)"
+            "destroyed": "\(log.destroyedCount)",
+            "frozen": "\(log.frozenCount)",
+            "gravityTargets": "\(log.gravityTargetCount)"
         ])
+    }
+
+    private func performWeaponApplicationEffect(
+        _ effect: WeaponApplication.Effect,
+        from playerPosition: CGPoint
+    ) -> Int? {
+        switch effect {
+        case .shockwaveWave:
+            activateShockwaveWave(at: playerPosition)
+        case .seekerSwarm(let enemyIDs):
+            playSeekerSwarm(enemyIDs: enemyIDs, from: playerPosition)
+        case .razorShield:
+            activateRazorShield(at: playerPosition)
+        case .freezeBurstWave:
+            activateFreezeBurstWave(at: playerPosition)
+        case .gravityWell(let enemyIDs):
+            activateGravityWell(at: playerPosition, enemyIDs: enemyIDs)
+        case .chainLightning(let enemyIDs):
+            playChainLightning(enemyIDs: enemyIDs, from: playerPosition)
+        case .flameTrail:
+            flameTrailState.activate(at: playerPosition)
+            flameTrailEffectNode.apply(segments: flameTrailState.segments)
+        case .directional(let kind):
+            return performDirectionalWeapon(kind, from: playerPosition)
+        case .powerWave:
+            activatePowerWave(at: playerPosition)
+        case .novaBomb(let enemyIDs):
+            playNovaBomb(enemyIDs: enemyIDs)
+        }
+
+        return nil
+    }
+
+    private func playSeekerSwarm(enemyIDs: Set<Int>, from playerPosition: CGPoint) {
+        let targets = impactTargets(forEnemyIDs: enemyIDs)
+            .sorted { lhs, rhs in
+                ArenaGeometry.squaredDistance(from: lhs.position, to: playerPosition)
+                    < ArenaGeometry.squaredDistance(from: rhs.position, to: playerPosition)
+            }
+        markPendingWeaponImpacts(targets)
+        playSeekerSwarmEffect(from: playerPosition, to: targets) { [weak self] enemyIDs in
+            self?.destroyEnemies(ids: enemyIDs, weaponKind: .seekerSwarm)
+        }
+    }
+
+    private func playChainLightning(enemyIDs: [Int], from playerPosition: CGPoint) {
+        let targets = impactTargets(forEnemyIDs: enemyIDs)
+        markPendingWeaponImpacts(targets)
+        playChainLightningEffect(
+            from: playerPosition,
+            through: targets,
+            accentColor: theme.playerAccentColor,
+            coreColor: theme.playerColor
+        ) { [weak self] enemyIDs in
+            self?.destroyEnemies(ids: enemyIDs, weaponKind: .chainLightning)
+        }
+    }
+
+    private func playNovaBomb(enemyIDs: Set<Int>) {
+        let targets = impactTargets(forEnemyIDs: enemyIDs)
+        markPendingWeaponImpacts(targets)
+        playNovaBombEffect(targets: targets) { [weak self] enemyIDs in
+            self?.destroyEnemies(ids: enemyIDs, weaponKind: .novaBomb)
+        }
     }
 
     private func positions(forEnemyIDs enemyIDs: Set<Int>) -> [CGPoint] {
