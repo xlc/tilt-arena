@@ -16,9 +16,8 @@ struct ClassicRunConfiguration: Equatable {
     var comboWindow: TimeInterval = 1.2
     var killsPerMultiplierStep = 10
     var survivalBonusStartTime: TimeInterval = 60
-    var survivalBonusInterval: TimeInterval = 10
-    var survivalBonusBaseScore = 10
-    var survivalBonusScorePerEnemyDestroyed = 1
+    var survivalBonusInterval: TimeInterval = 1
+    var survivalBonusEnemySqrtDivisor: Double = 10
 
     var playerHitRadius: CGFloat {
         playerVisualRadius * playerHitRadiusScale
@@ -86,6 +85,7 @@ struct ClassicRunController {
     private(set) var bestWeapon: WeaponKind?
     private(set) var finalizedSummary: RunSummary?
     private var creditedSurvivalBonusIntervals = 0
+    private var survivalBonusRemainder: Double = 0
     private var creditedItemPickupIDs: Set<Int> = []
     private var weaponKillCounts: [WeaponKind: Int] = [:]
 
@@ -190,6 +190,7 @@ struct ClassicRunController {
         bestWeapon = nil
         finalizedSummary = nil
         creditedSurvivalBonusIntervals = 0
+        survivalBonusRemainder = 0
         creditedItemPickupIDs.removeAll()
         weaponKillCounts.removeAll()
     }
@@ -223,10 +224,18 @@ struct ClassicRunController {
         }
 
         let newIntervals = eligibleIntervals - creditedSurvivalBonusIntervals
-        let intervalScore = max(0, configuration.survivalBonusBaseScore)
-            + enemiesDestroyed * max(0, configuration.survivalBonusScorePerEnemyDestroyed)
-        score += newIntervals * intervalScore
+        survivalBonusRemainder += Double(newIntervals) * survivalBonusScorePerInterval()
+        let wholePoints = Int(survivalBonusRemainder)
+        if wholePoints > 0 {
+            score += wholePoints
+            survivalBonusRemainder -= Double(wholePoints)
+        }
         creditedSurvivalBonusIntervals = eligibleIntervals
+    }
+
+    private func survivalBonusScorePerInterval() -> Double {
+        let divisor = max(0.1, configuration.survivalBonusEnemySqrtDivisor)
+        return 1 + sqrt(Double(max(0, enemiesDestroyed))) / divisor
     }
 
     private mutating func recordKill(scoreValue: Int, weaponKind: WeaponKind?) {

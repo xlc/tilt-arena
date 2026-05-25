@@ -150,22 +150,30 @@ final class ClassicRunControllerTests: XCTestCase {
         XCTAssertEqual(controller.currentCombo, 0)
     }
 
-    func testSurvivalBonusScalesWithEnemiesDestroyed() {
-        var controller = ClassicRunController()
+    func testSurvivalBonusAccumulatesSqrtEnemyScaleEverySecond() {
+        var configuration = ClassicRunConfiguration()
+        configuration.baseEnemyScore = 0
+        var controller = ClassicRunController(configuration: configuration)
 
         controller.start()
-        controller.recordEnemyKills(count: 10, weaponKind: .razorShield)
-        controller.update(deltaTime: 70)
+        controller.recordEnemyKills(count: 25, weaponKind: .razorShield)
+        controller.update(deltaTime: 60.5)
 
-        XCTAssertEqual(controller.score, 130)
-        XCTAssertEqual(controller.enemiesDestroyed, 10)
+        XCTAssertEqual(controller.score, 0)
+        XCTAssertEqual(controller.enemiesDestroyed, 25)
         XCTAssertEqual(controller.bestWeapon, .razorShield)
 
-        controller.recordEnemyKills(count: 5, weaponKind: .freezeBurst)
-        controller.update(deltaTime: 10)
+        controller.update(deltaTime: 0.6)
+        XCTAssertEqual(controller.score, 1)
 
-        XCTAssertEqual(controller.score, 205)
-        XCTAssertEqual(controller.enemiesDestroyed, 15)
+        controller.update(deltaTime: 1)
+        XCTAssertEqual(controller.score, 3)
+
+        controller.recordEnemyKills(count: 75, weaponKind: .freezeBurst)
+        controller.update(deltaTime: 1)
+
+        XCTAssertEqual(controller.score, 5)
+        XCTAssertEqual(controller.enemiesDestroyed, 100)
     }
 
     func testRunSummaryFinalizesOnceAndResetsOnRestart() {

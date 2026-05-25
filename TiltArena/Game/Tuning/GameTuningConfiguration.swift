@@ -296,8 +296,7 @@ enum GameTuningParameterCatalog {
         specs.append(int("run.killsPerMultiplierStep", "Scoring", "kills per multiplier", \.run.killsPerMultiplierStep, 1, 1, nil))
         specs.append(double("run.survivalBonusStartTime", "Scoring", "survival bonus start", \.run.survivalBonusStartTime, 5, 0, nil, 1))
         specs.append(double("run.survivalBonusInterval", "Scoring", "survival bonus interval", \.run.survivalBonusInterval, 1, 0, nil, 1))
-        specs.append(int("run.survivalBonusBaseScore", "Scoring", "survival bonus base", \.run.survivalBonusBaseScore, 1, 0, nil))
-        specs.append(int("run.survivalBonusScorePerEnemyDestroyed", "Scoring", "survival bonus per kill", \.run.survivalBonusScorePerEnemyDestroyed, 1, 0, nil))
+        specs.append(double("run.survivalBonusEnemySqrtDivisor", "Scoring", "survival bonus sqrt divisor", \.run.survivalBonusEnemySqrtDivisor, 0.5, 0.1, nil, 1))
     }
 
     private static func appendReadyStartParameters(to specs: inout [GameTuningParameterSpec]) {
