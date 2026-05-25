@@ -89,4 +89,3 @@ offline retry, and foreground retry validation.
 
 - #113: Add additional Game Center leaderboards.
 - #114: Add production Game Center achievement artwork.
-- #115: Plan Android leaderboard and achievement parity.
