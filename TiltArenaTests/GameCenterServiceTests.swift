@@ -5,13 +5,13 @@ import XCTest
 
 @MainActor
 final class GameCenterServiceTests: XCTestCase {
-    private nonisolated(unsafe) var defaults: UserDefaults!
-    private nonisolated(unsafe) var suiteName: String!
-    private nonisolated(unsafe) var scoreSubmissionStore: GameCenterScoreSubmissionStore!
-    private nonisolated(unsafe) var achievementProgressStore: GameCenterAchievementProgressStore!
+    private var defaults: UserDefaults!
+    private var suiteName: String!
+    private var scoreSubmissionStore: GameCenterScoreSubmissionStore!
+    private var achievementProgressStore: GameCenterAchievementProgressStore!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         suiteName = "GameCenterServiceTests.\(UUID().uuidString)"
         defaults = UserDefaults(suiteName: suiteName)
         defaults.removePersistentDomain(forName: suiteName)
@@ -19,13 +19,13 @@ final class GameCenterServiceTests: XCTestCase {
         achievementProgressStore = GameCenterAchievementProgressStore(defaults: defaults)
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         defaults.removePersistentDomain(forName: suiteName)
         scoreSubmissionStore = nil
         achievementProgressStore = nil
         defaults = nil
         suiteName = nil
-        super.tearDown()
+        try await super.tearDown()
     }
 
     func testUnsupportedClientDoesNotInstallAuthenticationHandler() {
