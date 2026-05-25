@@ -291,18 +291,13 @@ enum GameTuningParameterCatalog {
         specs.append(cgFloat("run.playerVisualRadius", "Scoring", "player visual radius", \.run.playerVisualRadius, 1, 1, nil, 1))
         specs.append(cgFloat("run.playerHitRadiusScale", "Scoring", "hit radius scale", \.run.playerHitRadiusScale, 0.05, 0.05, 2, 2))
         specs.append(int("run.baseEnemyScore", "Scoring", "base enemy score", \.run.baseEnemyScore, 1, 0, nil))
-        specs.append(int("run.eliteEnemyScore", "Scoring", "elite enemy score", \.run.eliteEnemyScore, 1, 0, nil))
-        specs.append(int("run.frozenShatterScore", "Scoring", "frozen shatter score", \.run.frozenShatterScore, 1, 0, nil))
-        specs.append(int("run.formationBonusScore", "Scoring", "formation bonus", \.run.formationBonusScore, 5, 0, nil))
-        specs.append(int("run.nearMissScore", "Scoring", "near miss score", \.run.nearMissScore, 1, 0, nil))
-        specs.append(int("run.dangerGrabScore", "Scoring", "danger grab score", \.run.dangerGrabScore, 1, 0, nil))
+        specs.append(int("run.itemPickupScore", "Scoring", "item pickup score", \.run.itemPickupScore, 1, 0, nil))
         specs.append(double("run.comboWindow", "Scoring", "combo window", \.run.comboWindow, 0.1, 0, nil, 2))
         specs.append(int("run.killsPerMultiplierStep", "Scoring", "kills per multiplier", \.run.killsPerMultiplierStep, 1, 1, nil))
         specs.append(double("run.survivalBonusStartTime", "Scoring", "survival bonus start", \.run.survivalBonusStartTime, 5, 0, nil, 1))
         specs.append(double("run.survivalBonusInterval", "Scoring", "survival bonus interval", \.run.survivalBonusInterval, 1, 0, nil, 1))
-        specs.append(int("run.survivalBonusPointsPerInterval", "Scoring", "survival bonus points", \.run.survivalBonusPointsPerInterval, 1, 0, nil))
-        specs.append(cgFloat("run.nearMissEdgeGap", "Scoring", "near miss edge gap", \.run.nearMissEdgeGap, 1, 0, nil, 1))
-        specs.append(cgFloat("run.dangerGrabEnemyDistance", "Scoring", "danger grab distance", \.run.dangerGrabEnemyDistance, 4, 0, nil, 1))
+        specs.append(int("run.survivalBonusBaseScore", "Scoring", "survival bonus base", \.run.survivalBonusBaseScore, 1, 0, nil))
+        specs.append(int("run.survivalBonusScorePerEnemyDestroyed", "Scoring", "survival bonus per kill", \.run.survivalBonusScorePerEnemyDestroyed, 1, 0, nil))
     }
 
     private static func appendReadyStartParameters(to specs: inout [GameTuningParameterSpec]) {

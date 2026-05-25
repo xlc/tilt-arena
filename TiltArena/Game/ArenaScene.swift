@@ -870,7 +870,6 @@ final class ArenaScene: SKScene {
         updateFrozenCrasher(deltaTime: deltaTime)
         updateFlameTrail(deltaTime: deltaTime, playerPosition: playerPosition)
         resolveWarpDashContactKills(playerPosition: playerPosition)
-        recordNearMisses(playerPosition: playerPosition)
         detectPlayerCollision(playerPosition: playerPosition)
         updateWarpDashInvulnerability(deltaTime: deltaTime)
         updateRunDisplay()
@@ -1004,7 +1003,7 @@ final class ArenaScene: SKScene {
 
         enemies.removeAll { expiredEnemyIDs.contains($0.id) }
         pendingWeaponImpactEnemyIDs.subtract(expiredEnemyIDs)
-        removeFormationEnemies(ids: expiredEnemyIDs, awardCompletion: false)
+        removeFormationEnemies(ids: expiredEnemyIDs)
 
         for enemyID in expiredEnemyIDs {
             enemyNodes.removeValue(forKey: enemyID)?.removeFromParent()
@@ -1024,18 +1023,12 @@ final class ArenaScene: SKScene {
         }
 
         for pickup in collectedPickups {
-            let creditedDangerGrab: Bool
-            if isDangerGrab(pickup) {
-                creditedDangerGrab = runController.recordDangerGrab(pickupID: pickup.id)
-            } else {
-                creditedDangerGrab = false
-            }
-            playAudio(creditedDangerGrab ? .dangerPickup : .pickup)
-            playHaptic(creditedDangerGrab ? .dangerPickup : .pickup)
+            _ = runController.recordItemPickup(pickupID: pickup.id)
+            playAudio(.pickup)
+            playHaptic(.pickup)
             AppDiagnostics.logger(.weapon).notice("pickup.collected", metadata: [
                 "id": "\(pickup.id)",
-                "kind": "\(pickup.kind.rawValue)",
-                "dangerGrab": "\(creditedDangerGrab)"
+                "kind": "\(pickup.kind.rawValue)"
             ])
 
             removePickup(id: pickup.id)
@@ -1192,7 +1185,7 @@ final class ArenaScene: SKScene {
     private func removeEnemies(ids enemyIDs: Set<Int>) {
         enemies.removeAll { enemyIDs.contains($0.id) }
         pendingWeaponImpactEnemyIDs.subtract(enemyIDs)
-        removeFormationEnemies(ids: enemyIDs, awardCompletion: true)
+        removeFormationEnemies(ids: enemyIDs)
 
         for enemyID in enemyIDs {
             guard let node = enemyNodes.removeValue(forKey: enemyID) else {
@@ -1207,7 +1200,7 @@ final class ArenaScene: SKScene {
         }
     }
 
-    private func removeFormationEnemies(ids enemyIDs: Set<Int>, awardCompletion: Bool) {
+    private func removeFormationEnemies(ids enemyIDs: Set<Int>) {
         for formationID in formationEnemyIDs.keys.sorted() {
             guard var remainingEnemyIDs = formationEnemyIDs[formationID] else {
                 continue
@@ -1217,10 +1210,6 @@ final class ArenaScene: SKScene {
 
             if remainingEnemyIDs.isEmpty {
                 formationEnemyIDs.removeValue(forKey: formationID)
-
-                if awardCompletion {
-                    runController.recordFormationBonus()
-                }
             } else {
                 formationEnemyIDs[formationID] = remainingEnemyIDs
             }
@@ -1559,41 +1548,6 @@ final class ArenaScene: SKScene {
             runController.comboMultiplier,
             runController.comboTimeRemaining
         )
-    }
-
-    private func recordNearMisses(playerPosition: CGPoint) {
-        let hitCircle = CollisionCircle(
-            center: playerPosition,
-            radius: runController.configuration.playerHitRadius
-        )
-        let nearMissCircle = CollisionCircle(
-            center: playerPosition,
-            radius: runController.configuration.playerHitRadius + runController.configuration.nearMissEdgeGap
-        )
-
-        var didRecordNearMiss = false
-
-        for enemy in enemies where nearMissCircle.intersects(enemy.collisionCircle) {
-            guard !hitCircle.intersects(enemy.collisionCircle) else {
-                continue
-            }
-
-            didRecordNearMiss = runController.recordNearMiss(enemyID: enemy.id) || didRecordNearMiss
-        }
-
-        if didRecordNearMiss {
-            playAudio(.nearMiss)
-            playHaptic(.nearMiss)
-        }
-    }
-
-    private func isDangerGrab(_ pickup: WeaponPickup) -> Bool {
-        enemies.contains { enemy in
-            let dangerDistance = runController.configuration.dangerGrabEnemyDistance
-                + pickup.radius
-                + enemy.radius
-            return ArenaGeometry.squaredDistance(from: pickup.position, to: enemy.position) <= dangerDistance * dangerDistance
-        }
     }
 
     private func persistFinalRunIfNeeded() {
@@ -3503,7 +3457,7 @@ private extension ArenaScene {
         }
         playFrozenShatterEffect(at: positions(forEnemyIDs: shatterIDs), color: theme.playerColor)
         let previousComboMultiplier = runController.comboMultiplier
-        runController.recordFrozenShatters(count: shatterIDs.count, weaponKind: .freezeBurst)
+        runController.recordEnemyKills(count: shatterIDs.count, weaponKind: .freezeBurst)
         playEnemyClearHaptics(killCount: shatterIDs.count, previousComboMultiplier: previousComboMultiplier)
         playEnemyClearAudio(killCount: shatterIDs.count, previousComboMultiplier: previousComboMultiplier)
         if shatterIDs.count >= gameTuning.feedback.multiKillShakeThreshold {

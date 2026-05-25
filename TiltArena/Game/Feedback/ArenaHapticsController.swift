@@ -33,8 +33,6 @@ struct ArenaHapticPattern: Equatable {
 
 enum ArenaHapticEvent: Equatable {
     case pickup
-    case dangerPickup
-    case nearMiss
     case enemyClear(count: Int)
     case comboMilestone(multiplier: Int)
     case shieldWarning
@@ -46,10 +44,6 @@ enum ArenaHapticEvent: Equatable {
         switch self {
         case .pickup:
             return .impact(.light, intensity: 0.45)
-        case .dangerPickup:
-            return .impact(.heavy, intensity: 0.82)
-        case .nearMiss:
-            return .impact(.light, intensity: 0.35)
         case let .enemyClear(count) where count >= 8:
             return .impact(.heavy, intensity: 0.9)
         case let .enemyClear(count) where count >= 3:

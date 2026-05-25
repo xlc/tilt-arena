@@ -4,9 +4,7 @@ import XCTest
 final class ArenaAudioControllerTests: XCTestCase {
     func testRequiredEventsMapToDistinctCueFamilies() {
         XCTAssertEqual(ArenaAudioCueCatalog.cue(for: .pickup).family, .pickup)
-        XCTAssertEqual(ArenaAudioCueCatalog.cue(for: .dangerPickup).family, .dangerPickup)
         XCTAssertEqual(ArenaAudioCueCatalog.cue(for: .comboMilestone).family, .comboMilestone)
-        XCTAssertEqual(ArenaAudioCueCatalog.cue(for: .nearMiss).family, .nearMiss)
         XCTAssertEqual(ArenaAudioCueCatalog.cue(for: .shieldWarning).family, .shieldWarning)
         XCTAssertEqual(ArenaAudioCueCatalog.cue(for: .shieldExpired).family, .shieldExpired)
         XCTAssertEqual(ArenaAudioCueCatalog.cue(for: .death).family, .death)
@@ -25,9 +23,9 @@ final class ArenaAudioControllerTests: XCTestCase {
     func testPlaybackLimiterSuppressesRepeatedHighVolumeEventsInsideCooldown() {
         var limiter = ArenaAudioPlaybackLimiter()
 
-        XCTAssertNotNil(limiter.cueIfAllowed(for: .nearMiss, at: 1.0))
-        XCTAssertNil(limiter.cueIfAllowed(for: .nearMiss, at: 1.1))
-        XCTAssertNotNil(limiter.cueIfAllowed(for: .nearMiss, at: 1.21))
+        XCTAssertNotNil(limiter.cueIfAllowed(for: .shieldWarning, at: 1.0))
+        XCTAssertNil(limiter.cueIfAllowed(for: .shieldWarning, at: 1.1))
+        XCTAssertNotNil(limiter.cueIfAllowed(for: .shieldWarning, at: 1.36))
     }
 
     func testPlaybackLimiterUsesSeparateCooldownsPerCueFamily() {

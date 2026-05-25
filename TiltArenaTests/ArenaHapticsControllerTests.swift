@@ -2,21 +2,10 @@ import XCTest
 @testable import TiltArena
 
 final class ArenaHapticsControllerTests: XCTestCase {
-    func testPickupAndDangerPickupUseDistinctImpactPatterns() {
+    func testPickupUsesLightImpactPattern() {
         XCTAssertEqual(
             ArenaHapticEvent.pickup.pattern,
             .impact(.light, intensity: 0.45)
-        )
-        XCTAssertEqual(
-            ArenaHapticEvent.dangerPickup.pattern,
-            .impact(.heavy, intensity: 0.82)
-        )
-    }
-
-    func testNearMissUsesLightImpactPattern() {
-        XCTAssertEqual(
-            ArenaHapticEvent.nearMiss.pattern,
-            .impact(.light, intensity: 0.35)
         )
     }
 

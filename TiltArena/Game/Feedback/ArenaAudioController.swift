@@ -3,11 +3,9 @@ import Foundation
 
 enum ArenaAudioCueFamily: String, CaseIterable, Equatable {
     case pickup
-    case dangerPickup
     case enemyClear
     case majorEnemyClear
     case comboMilestone
-    case nearMiss
     case shieldWarning
     case shieldExpired
     case death
@@ -24,10 +22,8 @@ struct ArenaAudioCue: Equatable {
 
 enum ArenaAudioEvent: Equatable {
     case pickup
-    case dangerPickup
     case enemyClear(count: Int)
     case comboMilestone
-    case nearMiss
     case shieldWarning
     case shieldExpired
     case death
@@ -39,16 +35,12 @@ enum ArenaAudioCueCatalog {
         switch event {
         case .pickup:
             return ArenaAudioCue(family: .pickup, frequency: 760, duration: 0.07, volume: 0.16, cooldown: 0.04)
-        case .dangerPickup:
-            return ArenaAudioCue(family: .dangerPickup, frequency: 420, duration: 0.12, volume: 0.22, cooldown: 0.08)
         case let .enemyClear(count) where count >= 8:
             return ArenaAudioCue(family: .majorEnemyClear, frequency: 210, duration: 0.18, volume: 0.24, cooldown: 0.18)
         case .enemyClear:
             return ArenaAudioCue(family: .enemyClear, frequency: 360, duration: 0.05, volume: 0.12, cooldown: 0.08)
         case .comboMilestone:
             return ArenaAudioCue(family: .comboMilestone, frequency: 860, duration: 0.11, volume: 0.2, cooldown: 0.16)
-        case .nearMiss:
-            return ArenaAudioCue(family: .nearMiss, frequency: 1_140, duration: 0.045, volume: 0.09, cooldown: 0.2)
         case .shieldWarning:
             return ArenaAudioCue(family: .shieldWarning, frequency: 540, duration: 0.08, volume: 0.16, cooldown: 0.35)
         case .shieldExpired:
@@ -302,16 +294,12 @@ final class ArenaAudioController {
         switch family {
         case .pickup:
             return ArenaAudioCueCatalog.cue(for: .pickup)
-        case .dangerPickup:
-            return ArenaAudioCueCatalog.cue(for: .dangerPickup)
         case .enemyClear:
             return ArenaAudioCueCatalog.cue(for: .enemyClear(count: 1))
         case .majorEnemyClear:
             return ArenaAudioCueCatalog.cue(for: .enemyClear(count: 8))
         case .comboMilestone:
             return ArenaAudioCueCatalog.cue(for: .comboMilestone)
-        case .nearMiss:
-            return ArenaAudioCueCatalog.cue(for: .nearMiss)
         case .shieldWarning:
             return ArenaAudioCueCatalog.cue(for: .shieldWarning)
         case .shieldExpired:
@@ -327,11 +315,11 @@ final class ArenaAudioController {
         switch family {
         case .pickup, .newBest:
             return 1 + progress * 0.5
-        case .dangerPickup, .death, .shieldExpired:
+        case .death, .shieldExpired:
             return 1 - progress * 0.45
         case .majorEnemyClear:
             return 0.8 + progress * 0.9
-        case .enemyClear, .comboMilestone, .nearMiss, .shieldWarning:
+        case .enemyClear, .comboMilestone, .shieldWarning:
             return 1
         }
     }

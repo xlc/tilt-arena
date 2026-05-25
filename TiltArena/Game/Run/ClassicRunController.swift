@@ -12,18 +12,13 @@ struct ClassicRunConfiguration: Equatable {
     var playerVisualRadius: CGFloat = 12
     var playerHitRadiusScale: CGFloat = 0.40
     var baseEnemyScore = 10
-    var eliteEnemyScore = 25
-    var frozenShatterScore = 25
-    var formationBonusScore = 100
-    var nearMissScore = 5
-    var dangerGrabScore = 25
+    var itemPickupScore = 50
     var comboWindow: TimeInterval = 1.2
     var killsPerMultiplierStep = 10
     var survivalBonusStartTime: TimeInterval = 60
     var survivalBonusInterval: TimeInterval = 10
-    var survivalBonusPointsPerInterval = 10
-    var nearMissEdgeGap: CGFloat = 18
-    var dangerGrabEnemyDistance: CGFloat = 80
+    var survivalBonusBaseScore = 10
+    var survivalBonusScorePerEnemyDestroyed = 1
 
     var playerHitRadius: CGFloat {
         playerVisualRadius * playerHitRadiusScale
@@ -91,8 +86,7 @@ struct ClassicRunController {
     private(set) var bestWeapon: WeaponKind?
     private(set) var finalizedSummary: RunSummary?
     private var creditedSurvivalBonusIntervals = 0
-    private var creditedNearMissEnemyIDs: Set<Int> = []
-    private var creditedDangerGrabPickupIDs: Set<Int> = []
+    private var creditedItemPickupIDs: Set<Int> = []
     private var weaponKillCounts: [WeaponKind: Int] = [:]
 
     init(configuration: ClassicRunConfiguration = ClassicRunConfiguration()) {
@@ -166,56 +160,14 @@ struct ClassicRunController {
         }
     }
 
-    mutating func recordEliteKill(weaponKind: WeaponKind?) {
-        guard phase == .active else {
-            return
-        }
-
-        recordKill(scoreValue: configuration.eliteEnemyScore, weaponKind: weaponKind)
-    }
-
-    mutating func recordFrozenShatters(count: Int, weaponKind: WeaponKind?) {
-        guard phase == .active else {
-            return
-        }
-
-        let shatterCount = max(0, count)
-        guard shatterCount > 0 else {
-            return
-        }
-
-        for _ in 0..<shatterCount {
-            recordKill(scoreValue: configuration.frozenShatterScore, weaponKind: weaponKind)
-        }
-    }
-
-    mutating func recordFormationBonus(_ bonus: Int? = nil) {
-        guard phase == .active else {
-            return
-        }
-
-        score += max(0, bonus ?? configuration.formationBonusScore)
-    }
-
     @discardableResult
-    mutating func recordNearMiss(enemyID: Int) -> Bool {
-        guard phase == .active, !creditedNearMissEnemyIDs.contains(enemyID) else {
+    mutating func recordItemPickup(pickupID: Int) -> Bool {
+        guard phase == .active, !creditedItemPickupIDs.contains(pickupID) else {
             return false
         }
 
-        creditedNearMissEnemyIDs.insert(enemyID)
-        score += max(0, configuration.nearMissScore)
-        return true
-    }
-
-    @discardableResult
-    mutating func recordDangerGrab(pickupID: Int) -> Bool {
-        guard phase == .active, !creditedDangerGrabPickupIDs.contains(pickupID) else {
-            return false
-        }
-
-        creditedDangerGrabPickupIDs.insert(pickupID)
-        score += max(0, configuration.dangerGrabScore)
+        creditedItemPickupIDs.insert(pickupID)
+        score += max(0, configuration.itemPickupScore)
         return true
     }
 
@@ -238,8 +190,7 @@ struct ClassicRunController {
         bestWeapon = nil
         finalizedSummary = nil
         creditedSurvivalBonusIntervals = 0
-        creditedNearMissEnemyIDs.removeAll()
-        creditedDangerGrabPickupIDs.removeAll()
+        creditedItemPickupIDs.removeAll()
         weaponKillCounts.removeAll()
     }
 
@@ -272,7 +223,9 @@ struct ClassicRunController {
         }
 
         let newIntervals = eligibleIntervals - creditedSurvivalBonusIntervals
-        score += newIntervals * max(0, configuration.survivalBonusPointsPerInterval)
+        let intervalScore = max(0, configuration.survivalBonusBaseScore)
+            + enemiesDestroyed * max(0, configuration.survivalBonusScorePerEnemyDestroyed)
+        score += newIntervals * intervalScore
         creditedSurvivalBonusIntervals = eligibleIntervals
     }
 

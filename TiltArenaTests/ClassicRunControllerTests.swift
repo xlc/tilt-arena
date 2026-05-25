@@ -137,55 +137,35 @@ final class ClassicRunControllerTests: XCTestCase {
         XCTAssertEqual(controller.score, 120)
     }
 
-    func testNearMissAndDangerGrabScoreOncePerID() {
+    func testItemPickupScoresOncePerID() {
         var controller = ClassicRunController()
 
         controller.start()
 
-        XCTAssertTrue(controller.recordNearMiss(enemyID: 7))
-        XCTAssertFalse(controller.recordNearMiss(enemyID: 7))
-        XCTAssertTrue(controller.recordDangerGrab(pickupID: 3))
-        XCTAssertFalse(controller.recordDangerGrab(pickupID: 3))
-
-        XCTAssertEqual(controller.score, 30)
-    }
-
-    func testEliteFormationAndSurvivalBonusHooks() {
-        var controller = ClassicRunController()
-
-        controller.start()
-        controller.recordEliteKill(weaponKind: .razorShield)
-        controller.recordFormationBonus()
-        controller.update(deltaTime: 70)
-
-        XCTAssertEqual(controller.score, 135)
-        XCTAssertEqual(controller.enemiesDestroyed, 1)
-        XCTAssertEqual(controller.bestWeapon, .razorShield)
-    }
-
-    func testFrozenShattersUseHigherScoreAndUpdateComboAndBestWeapon() {
-        var controller = ClassicRunController()
-
-        controller.start()
-        controller.recordFrozenShatters(count: 2, weaponKind: .freezeBurst)
+        XCTAssertTrue(controller.recordItemPickup(pickupID: 3))
+        XCTAssertFalse(controller.recordItemPickup(pickupID: 3))
 
         XCTAssertEqual(controller.score, 50)
-        XCTAssertEqual(controller.enemiesDestroyed, 2)
-        XCTAssertEqual(controller.currentCombo, 2)
-        XCTAssertEqual(controller.maxCombo, 2)
-        XCTAssertEqual(controller.comboTimeRemaining, 1.2, accuracy: 0.0001)
-        XCTAssertEqual(controller.bestWeapon, .freezeBurst)
+        XCTAssertEqual(controller.enemiesDestroyed, 0)
+        XCTAssertEqual(controller.currentCombo, 0)
     }
 
-    func testFrozenShattersIgnoreNegativeCounts() {
+    func testSurvivalBonusScalesWithEnemiesDestroyed() {
         var controller = ClassicRunController()
 
         controller.start()
-        controller.recordFrozenShatters(count: -1, weaponKind: .freezeBurst)
+        controller.recordEnemyKills(count: 10, weaponKind: .razorShield)
+        controller.update(deltaTime: 70)
 
-        XCTAssertEqual(controller.score, 0)
-        XCTAssertEqual(controller.enemiesDestroyed, 0)
-        XCTAssertNil(controller.bestWeapon)
+        XCTAssertEqual(controller.score, 130)
+        XCTAssertEqual(controller.enemiesDestroyed, 10)
+        XCTAssertEqual(controller.bestWeapon, .razorShield)
+
+        controller.recordEnemyKills(count: 5, weaponKind: .freezeBurst)
+        controller.update(deltaTime: 10)
+
+        XCTAssertEqual(controller.score, 205)
+        XCTAssertEqual(controller.enemiesDestroyed, 15)
     }
 
     func testRunSummaryFinalizesOnceAndResetsOnRestart() {
