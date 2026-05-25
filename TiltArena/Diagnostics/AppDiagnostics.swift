@@ -60,4 +60,5 @@ enum DiagnosticCategory: String {
     case weapon
     case profile
     case performance
+    case gameCenter = "game_center"
 }

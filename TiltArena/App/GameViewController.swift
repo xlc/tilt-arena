@@ -22,6 +22,15 @@ final class GameViewController: UIViewController {
         installLoadingOverlay()
     }
 
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        guard !Self.isRunningUnitTests else {
+            return
+        }
+
+        GameCenterService.shared.authenticate(presenter: self)
+    }
+
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         rememberCurrentLandscapeOrientation()
@@ -287,6 +296,10 @@ final class GameViewController: UIViewController {
         }
     }
 
+    private static var isRunningUnitTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
     private func rememberCurrentLandscapeOrientation() {
         if let orientation = Self.landscapeOrientation(for: view.window?.windowScene?.interfaceOrientation) {
             lastLandscapeOrientation = orientation
@@ -328,5 +341,11 @@ extension GameViewController: ArenaSceneDiagnosticsDelegate {
         } catch {
             AppDiagnostics.logger(.app).error("diagnostics.export.failed", error: error)
         }
+    }
+}
+
+extension GameViewController: GameCenterAuthenticationPresenting {
+    func presentGameCenterAuthentication(_ viewController: UIViewController) {
+        present(viewController, animated: true)
     }
 }
