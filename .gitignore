@@ -1,3 +1,12 @@
 build/
 DerivedData/
-TiltArena.xcodeproj/
+
+# XcodeGen output stays ignored except for the SwiftPM lockfile Xcode uses.
+TiltArena.xcodeproj/*
+!TiltArena.xcodeproj/project.xcworkspace/
+TiltArena.xcodeproj/project.xcworkspace/*
+!TiltArena.xcodeproj/project.xcworkspace/xcshareddata/
+TiltArena.xcodeproj/project.xcworkspace/xcshareddata/*
+!TiltArena.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+TiltArena.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/*
+!TiltArena.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
