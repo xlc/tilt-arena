@@ -18,6 +18,13 @@ protocol GameCenterLocalPlayerClient: AnyObject {
     func setAuthenticateHandler(
         _ handler: @escaping @MainActor (_ viewController: UIViewController?, _ error: Error?) -> Void
     )
+
+    func submitScore(
+        _ score: Int,
+        context: Int,
+        leaderboardIDs: [String],
+        completion: @escaping @MainActor (Error?) -> Void
+    )
 }
 
 enum GameCenterAuthenticationState: Equatable {
@@ -82,19 +89,23 @@ final class GameCenterService {
     static let shared = GameCenterService()
 
     private let localPlayer: GameCenterLocalPlayerClient
+    private let scoreSubmissionStore: GameCenterScoreSubmissionStore
     private let logger: Logger
     private var hasInstalledAuthenticationHandler = false
     private var shouldSuppressAutomaticPrompt = false
     private weak var authenticationPresenter: GameCenterAuthenticationPresenting?
     private var canPresentAuthenticationPrompt = false
+    private var isRetryingQueuedScores = false
 
     private(set) var authenticationState: GameCenterAuthenticationState = .notStarted
 
     init(
         localPlayer: GameCenterLocalPlayerClient = GameKitLocalPlayerClient(),
+        scoreSubmissionStore: GameCenterScoreSubmissionStore = GameCenterScoreSubmissionStore(),
         logger: Logger = AppDiagnostics.logger(.gameCenter)
     ) {
         self.localPlayer = localPlayer
+        self.scoreSubmissionStore = scoreSubmissionStore
         self.logger = logger
     }
 
@@ -111,6 +122,7 @@ final class GameCenterService {
         if localPlayer.isAuthenticated {
             updateState(.authenticated)
             logger.notice("game_center.authenticated")
+            retryQueuedScores()
             return
         }
 
@@ -127,6 +139,47 @@ final class GameCenterService {
         shouldSuppressAutomaticPrompt = false
         hasInstalledAuthenticationHandler = false
         authenticate(presenter: presenter, allowsPrompt: true)
+    }
+
+    func submitRunScore(_ summary: RunSummary) {
+        guard summary.mode == .classic else {
+            return
+        }
+
+        let submission = GameCenterScoreSubmission.classicSurvival(from: summary)
+        guard localPlayer.isAvailable else {
+            enqueueScoreSubmission(submission, reason: "unavailable")
+            return
+        }
+
+        guard localPlayer.isAuthenticated else {
+            enqueueScoreSubmission(submission, reason: "unauthenticated")
+            return
+        }
+
+        submitScore(submission, queueRecoverableFailure: true)
+    }
+
+    func retryQueuedScores() {
+        guard localPlayer.isAvailable, localPlayer.isAuthenticated else {
+            return
+        }
+
+        guard !isRetryingQueuedScores else {
+            logger.debug("game_center.score_retry_skipped_in_flight")
+            return
+        }
+
+        let submissions = scoreSubmissionStore.pendingSubmissions
+        guard !submissions.isEmpty else {
+            return
+        }
+
+        isRetryingQueuedScores = true
+        logger.info("game_center.score_retry_started", metadata: [
+            "pendingCount": "\(submissions.count)"
+        ])
+        retryQueuedScores(submissions, startingAt: 0, completedQueueKeys: [])
     }
 
     private func installAuthenticationHandlerIfNeeded() {
@@ -176,6 +229,7 @@ final class GameCenterService {
         if localPlayer.isAuthenticated {
             updateState(.authenticated)
             logger.notice("game_center.authenticated")
+            retryQueuedScores()
         } else {
             updateState(.needsUserAuthentication)
             logger.info("game_center.auth_incomplete")
@@ -207,6 +261,148 @@ final class GameCenterService {
     private func updateState(_ state: GameCenterAuthenticationState) {
         authenticationState = state
     }
+
+    private func submitScore(
+        _ submission: GameCenterScoreSubmission,
+        queueRecoverableFailure: Bool
+    ) {
+        localPlayer.submitScore(
+            submission.score,
+            context: submission.context,
+            leaderboardIDs: [submission.leaderboardID]
+        ) { [weak self] error in
+            guard let self else {
+                return
+            }
+
+            if let error {
+                self.handleScoreSubmissionFailure(
+                    submission,
+                    error: error,
+                    queueRecoverableFailure: queueRecoverableFailure
+                )
+                return
+            }
+
+            self.logger.notice("game_center.score_submitted", metadata: [
+                "leaderboardID": "\(submission.leaderboardID)",
+                "score": "\(submission.score)"
+            ])
+        }
+    }
+
+    private func handleScoreSubmissionFailure(
+        _ submission: GameCenterScoreSubmission,
+        error: Error,
+        queueRecoverableFailure: Bool
+    ) {
+        let nsError = error as NSError
+        let metadata = scoreSubmissionMetadata(
+            submission,
+            additionalMetadata: [
+                "domain": "\(nsError.domain)",
+                "code": "\(nsError.code)"
+            ]
+        )
+
+        guard queueRecoverableFailure, shouldQueueScoreSubmissionFailure(error) else {
+            logger.warning("game_center.score_submit_failed", error: error, metadata: metadata)
+            return
+        }
+
+        enqueueScoreSubmission(submission, reason: "recoverableFailure")
+        logger.warning("game_center.score_submit_queued_after_failure", error: error, metadata: metadata)
+    }
+
+    private func enqueueScoreSubmission(_ submission: GameCenterScoreSubmission, reason: String) {
+        let didEnqueue = scoreSubmissionStore.enqueue(submission)
+        logger.info("game_center.score_queued", metadata: scoreSubmissionMetadata(
+            submission,
+            additionalMetadata: [
+                "reason": "\(reason)",
+                "alreadyPending": "\(!didEnqueue)"
+            ]
+        ))
+    }
+
+    private func retryQueuedScores(
+        _ submissions: [GameCenterScoreSubmission],
+        startingAt index: Int,
+        completedQueueKeys: Set<String>
+    ) {
+        guard index < submissions.count else {
+            scoreSubmissionStore.removeSubmissions(withQueueKeys: completedQueueKeys)
+            isRetryingQueuedScores = false
+            logger.info("game_center.score_retry_finished", metadata: [
+                "submittedCount": "\(completedQueueKeys.count)",
+                "remainingCount": "\(scoreSubmissionStore.pendingSubmissions.count)"
+            ])
+            return
+        }
+
+        let submission = submissions[index]
+        localPlayer.submitScore(
+            submission.score,
+            context: submission.context,
+            leaderboardIDs: [submission.leaderboardID]
+        ) { [weak self] error in
+            guard let self else {
+                return
+            }
+
+            var updatedCompletedQueueKeys = completedQueueKeys
+            if let error {
+                self.logger.warning(
+                    "game_center.score_retry_failed",
+                    error: error,
+                    metadata: self.scoreSubmissionMetadata(submission)
+                )
+            } else {
+                updatedCompletedQueueKeys.insert(submission.queueKey)
+                self.logger.notice("game_center.score_retry_submitted", metadata: self.scoreSubmissionMetadata(submission))
+            }
+
+            self.retryQueuedScores(
+                submissions,
+                startingAt: index + 1,
+                completedQueueKeys: updatedCompletedQueueKeys
+            )
+        }
+    }
+
+    private func shouldQueueScoreSubmissionFailure(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain {
+            return true
+        }
+
+        #if canImport(GameKit)
+        guard nsError.domain == GKErrorDomain, let code = GKError.Code(rawValue: nsError.code) else {
+            return false
+        }
+
+        switch code {
+        case .unknown, .communicationsFailure, .notAuthenticated, .authenticationInProgress, .connectionTimeout:
+            return true
+        default:
+            return false
+        }
+        #else
+        return false
+        #endif
+    }
+
+    private func scoreSubmissionMetadata(
+        _ submission: GameCenterScoreSubmission,
+        additionalMetadata: Logger.Metadata = [:]
+    ) -> Logger.Metadata {
+        var metadata: Logger.Metadata = [
+            "leaderboardID": "\(submission.leaderboardID)",
+            "score": "\(submission.score)"
+        ]
+        metadata.merge(additionalMetadata) { _, new in new }
+        return metadata
+    }
 }
 
 #if canImport(GameKit)
@@ -229,6 +425,24 @@ final class GameKitLocalPlayerClient: GameCenterLocalPlayerClient {
             }
         }
     }
+
+    func submitScore(
+        _ score: Int,
+        context: Int,
+        leaderboardIDs: [String],
+        completion: @escaping @MainActor (Error?) -> Void
+    ) {
+        GKLeaderboard.submitScore(
+            score,
+            context: context,
+            player: GKLocalPlayer.local,
+            leaderboardIDs: leaderboardIDs
+        ) { error in
+            Task { @MainActor in
+                completion(error)
+            }
+        }
+    }
 }
 #else
 @MainActor
@@ -244,5 +458,14 @@ final class GameKitLocalPlayerClient: GameCenterLocalPlayerClient {
     func setAuthenticateHandler(
         _ handler: @escaping @MainActor (_ viewController: UIViewController?, _ error: Error?) -> Void
     ) {}
+
+    func submitScore(
+        _ score: Int,
+        context: Int,
+        leaderboardIDs: [String],
+        completion: @escaping @MainActor (Error?) -> Void
+    ) {
+        completion(NSError(domain: "GameCenterUnavailable", code: 1))
+    }
 }
 #endif

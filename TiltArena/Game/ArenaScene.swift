@@ -1562,6 +1562,7 @@ final class ArenaScene: SKScene {
         runProfile = result.profile
         lastProgressionResult = result
         hasPersistedFinalRun = true
+        GameCenterService.shared.submitRunScore(summary)
     }
 
 }

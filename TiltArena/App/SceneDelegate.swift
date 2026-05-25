@@ -32,5 +32,6 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     func sceneWillEnterForeground(_ scene: UIScene) {
         AppDiagnostics.logger(.app).notice("app.foreground")
+        GameCenterService.shared.retryQueuedScores()
     }
 }
