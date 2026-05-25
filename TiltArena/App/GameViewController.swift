@@ -32,7 +32,7 @@ final class GameViewController: UIViewController {
             return
         }
 
-        GameCenterService.shared.authenticate(presenter: self)
+        GameCenterService.shared.authenticate(presenter: nil, allowsPrompt: false)
     }
 
     override func viewDidLayoutSubviews() {

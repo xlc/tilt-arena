@@ -72,16 +72,24 @@ final class GameCenterServiceTests: XCTestCase {
         XCTAssertTrue(presenter.presentedViewController === viewController)
     }
 
-    func testPromptIsDeferredWhenAutomaticPromptIsNotAllowed() {
+    func testPromptIsDeferredWhenAutomaticPromptIsNotAllowedAndExplicitRetryCanPresent() {
         let client = FakeGameCenterLocalPlayerClient()
         let presenter = FakeGameCenterAuthenticationPresenter()
         let service = makeService(localPlayer: client)
+        let explicitPrompt = UIViewController()
 
-        service.authenticate(presenter: presenter, allowsPrompt: false)
+        service.authenticate(presenter: nil, allowsPrompt: false)
         client.completeAuthentication(viewController: UIViewController(), error: nil)
 
         XCTAssertEqual(service.authenticationState, .needsUserAuthentication)
         XCTAssertNil(presenter.presentedViewController)
+
+        service.retryAuthentication(presenter: presenter)
+        client.completeAuthentication(viewController: explicitPrompt, error: nil)
+
+        XCTAssertEqual(service.authenticationState, .needsUserAuthentication)
+        XCTAssertEqual(client.authenticateHandlerInstallCount, 2)
+        XCTAssertTrue(presenter.presentedViewController === explicitPrompt)
     }
 
     func testCancelledAuthenticationSuppressesLaterAutomaticPrompt() {
@@ -558,9 +566,7 @@ private final class FakeGameCenterLocalPlayerClient: GameCenterLocalPlayerClient
     private var pendingScoreCompletions: [@MainActor (Error?) -> Void] = []
     private var pendingAchievementCompletions: [@MainActor (Error?) -> Void] = []
 
-    var didInstallAuthenticateHandler: Bool {
-        authenticateHandlerInstallCount > 0
-    }
+    var didInstallAuthenticateHandler: Bool { authenticateHandlerInstallCount > 0 }
 
     private var handler: ((UIViewController?, Error?) -> Void)?
 
@@ -600,8 +606,7 @@ private final class FakeGameCenterLocalPlayerClient: GameCenterLocalPlayerClient
     }
 
     func completeNextScoreSubmission(error: Error? = nil) {
-        let completion = pendingScoreCompletions.removeFirst()
-        completion(error ?? submitScoreError)
+        pendingScoreCompletions.removeFirst()(error ?? submitScoreError)
     }
 
     func reportAchievements(
@@ -622,8 +627,7 @@ private final class FakeGameCenterLocalPlayerClient: GameCenterLocalPlayerClient
     }
 
     func completeNextAchievementReport(error: Error? = nil) {
-        let completion = pendingAchievementCompletions.removeFirst()
-        completion(error ?? reportAchievementsError)
+        pendingAchievementCompletions.removeFirst()(error ?? reportAchievementsError)
     }
 }
 
