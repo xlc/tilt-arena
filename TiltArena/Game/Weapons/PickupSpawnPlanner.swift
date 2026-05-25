@@ -26,7 +26,7 @@ struct PickupSpawnConfiguration: Equatable {
         .chainLightning,
         .flameTrail,
         .warpDash,
-        .decoyBeacon,
+        .powerWave,
         .novaBomb
     ]
 

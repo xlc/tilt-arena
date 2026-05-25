@@ -199,14 +199,14 @@ struct ArenaModeRules {
                 .seekerSwarm,
                 .flameTrail,
                 .warpDash,
-                .decoyBeacon,
+                .powerWave,
                 .freezeBurst,
                 .gravityWell,
                 .razorShield,
                 .chainLightning,
                 .flameTrail,
                 .warpDash,
-                .decoyBeacon,
+                .powerWave,
                 .shockwave
             ]
         )

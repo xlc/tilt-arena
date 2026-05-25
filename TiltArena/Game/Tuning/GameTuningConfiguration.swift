@@ -27,7 +27,6 @@ struct GameTuningConfiguration: Equatable {
     var startingWeapons = StartingWeaponConfiguration()
     var weaponEffectTiming = WeaponEffectTiming()
     var flameTrail = FlameTrailConfiguration()
-    var decoyBeacon = DecoyBeaconConfiguration()
     var feedback = GameFeedbackTuningConfiguration()
 
     init(
@@ -40,7 +39,6 @@ struct GameTuningConfiguration: Equatable {
         startingWeapons: StartingWeaponConfiguration = StartingWeaponConfiguration(),
         weaponEffectTiming: WeaponEffectTiming = WeaponEffectTiming(),
         flameTrail: FlameTrailConfiguration = FlameTrailConfiguration(),
-        decoyBeacon: DecoyBeaconConfiguration = DecoyBeaconConfiguration(),
         feedback: GameFeedbackTuningConfiguration = GameFeedbackTuningConfiguration()
     ) {
         self.playerMovement = playerMovement
@@ -52,7 +50,6 @@ struct GameTuningConfiguration: Equatable {
         self.startingWeapons = startingWeapons
         self.weaponEffectTiming = weaponEffectTiming
         self.flameTrail = flameTrail
-        self.decoyBeacon = decoyBeacon
         self.feedback = feedback
     }
 
@@ -271,7 +268,6 @@ enum GameTuningParameterCatalog {
         appendStartingWeaponParameters(to: &specs)
         appendWeaponEffectParameters(to: &specs)
         appendFlameTrailParameters(to: &specs)
-        appendDecoyBeaconParameters(to: &specs)
         appendFeedbackParameters(to: &specs)
 
         return specs
@@ -452,6 +448,10 @@ enum GameTuningParameterCatalog {
             nil,
             2
         ))
+        specs.append(double("startingWeapons.powerWaveChargeDuration", "Weapons", "power wave charge", \.startingWeapons.powerWaveChargeDuration, 0.05, 0, nil, 2))
+        specs.append(cgFloat("startingWeapons.powerWaveRange", "Weapons", "power wave range", \.startingWeapons.powerWaveRange, 4, 0, nil, 1))
+        specs.append(cgFloat("startingWeapons.powerWaveFanAngleDegrees", "Weapons", "power wave angle", \.startingWeapons.powerWaveFanAngleDegrees, 2, 0, 360, 1))
+        specs.append(double("startingWeapons.powerWaveExpansionDuration", "Weapons", "power wave expand", \.startingWeapons.powerWaveExpansionDuration, 0.02, 0, nil, 2))
         specs.append(int("startingWeapons.novaBombMaximumTargetCount", "Weapons", "nova max targets", \.startingWeapons.novaBombMaximumTargetCount, 1, 0, nil))
         specs.append(double("startingWeapons.novaBombTargetFraction", "Weapons", "nova target fraction", \.startingWeapons.novaBombTargetFraction, 0.05, 0, 1, 2))
     }
@@ -480,12 +480,6 @@ enum GameTuningParameterCatalog {
         specs.append(cgFloat("flameTrail.segmentSpacing", "Flame Trail", "segment spacing", \.flameTrail.segmentSpacing, 1, 0, nil, 1))
         specs.append(int("flameTrail.maxSegments", "Flame Trail", "max segments", \.flameTrail.maxSegments, 1, 0, nil))
         specs.append(double("flameTrail.frozenMeltDelay", "Flame Trail", "frozen melt delay", \.flameTrail.frozenMeltDelay, 0.05, 0, nil, 2))
-    }
-
-    private static func appendDecoyBeaconParameters(to specs: inout [GameTuningParameterSpec]) {
-        specs.append(double("decoyBeacon.duration", "Decoy", "duration", \.decoyBeacon.duration, 0.25, 0, nil, 2))
-        specs.append(cgFloat("decoyBeacon.attractionRadius", "Decoy", "attraction radius", \.decoyBeacon.attractionRadius, 4, 0, nil, 1))
-        specs.append(cgFloat("decoyBeacon.explosionRadius", "Decoy", "explosion radius", \.decoyBeacon.explosionRadius, 2, 0, nil, 1))
     }
 
     private static func appendFeedbackParameters(to specs: inout [GameTuningParameterSpec]) {

@@ -268,13 +268,13 @@ final class PickupSpawnPlannerTests: XCTestCase {
         )
 
         XCTAssertEqual(kinds, PickupSpawnConfiguration.defaultWeaponKindCycle)
-        XCTAssertEqual(Array(kinds.suffix(2)), [.decoyBeacon, .novaBomb])
+        XCTAssertEqual(Array(kinds.suffix(2)), [.powerWave, .novaBomb])
         XCTAssertEqual(kinds.filter { $0 == .freezeBurst }.count, 3)
         XCTAssertEqual(kinds.filter { $0 == .gravityWell }.count, 2)
         XCTAssertEqual(kinds.filter { $0 == .chainLightning }.count, 2)
         XCTAssertEqual(kinds.filter { $0 == .flameTrail }.count, 2)
         XCTAssertEqual(kinds.filter { $0 == .warpDash }.count, 2)
-        XCTAssertEqual(kinds.filter { $0 == .decoyBeacon }.count, 1)
+        XCTAssertEqual(kinds.filter { $0 == .powerWave }.count, 1)
         XCTAssertEqual(kinds.filter { $0 == .novaBomb }.count, 1)
         XCTAssertGreaterThan(kinds.filter { $0 == .shockwave }.count, kinds.filter { $0 == .freezeBurst }.count)
         XCTAssertGreaterThan(kinds.filter { $0 == .seekerSwarm }.count, kinds.filter { $0 == .freezeBurst }.count)
@@ -287,7 +287,7 @@ final class PickupSpawnPlannerTests: XCTestCase {
         XCTAssertGreaterThan(kinds.filter { $0 == .chainLightning }.count, kinds.filter { $0 == .novaBomb }.count)
         XCTAssertGreaterThan(kinds.filter { $0 == .flameTrail }.count, kinds.filter { $0 == .novaBomb }.count)
         XCTAssertGreaterThan(kinds.filter { $0 == .warpDash }.count, kinds.filter { $0 == .novaBomb }.count)
-        XCTAssertGreaterThan(kinds.filter { $0 == .warpDash }.count, kinds.filter { $0 == .decoyBeacon }.count)
+        XCTAssertGreaterThan(kinds.filter { $0 == .warpDash }.count, kinds.filter { $0 == .powerWave }.count)
     }
 
     func testEmptyKindCycleDoesNotSpawnPickup() {

@@ -37,7 +37,7 @@ final class ArenaModeRulesTests: XCTestCase {
             .chainLightning,
             .flameTrail,
             .warpDash,
-            .decoyBeacon
+            .powerWave
         ]
         let cycle = redline.pickupSpawnConfiguration.weaponKindCycle
         let panicCount = cycle.filter { panicWeapons.contains($0) }.count

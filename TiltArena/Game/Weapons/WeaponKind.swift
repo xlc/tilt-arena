@@ -7,8 +7,32 @@ enum WeaponKind: String, CaseIterable, Codable, Equatable {
     case chainLightning
     case flameTrail
     case warpDash
-    case decoyBeacon
+    case powerWave
     case novaBomb
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+
+        if rawValue == "decoyBeacon" {
+            self = .powerWave
+            return
+        }
+
+        guard let value = WeaponKind(rawValue: rawValue) else {
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Unknown weapon kind: \(rawValue)"
+            )
+        }
+
+        self = value
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 
     var displayName: String {
         switch self {
@@ -28,8 +52,8 @@ enum WeaponKind: String, CaseIterable, Codable, Equatable {
             return "Flame Trail"
         case .warpDash:
             return "Warp Dash"
-        case .decoyBeacon:
-            return "Decoy Beacon"
+        case .powerWave:
+            return "Power Wave"
         case .novaBomb:
             return "Nova Bomb"
         }

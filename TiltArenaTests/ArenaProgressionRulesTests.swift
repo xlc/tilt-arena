@@ -81,7 +81,7 @@ final class ArenaProgressionRulesTests: XCTestCase {
             .seekerSwarm,
             .razorShield,
             .flameTrail,
-            .decoyBeacon
+            .powerWave
         ])
         XCTAssertFalse(redline.pickupSpawnConfiguration.weaponKindCycle.contains(.warpDash))
         XCTAssertFalse(redline.pickupSpawnConfiguration.weaponKindCycle.contains(.novaBomb))

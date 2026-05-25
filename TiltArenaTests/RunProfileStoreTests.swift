@@ -77,6 +77,37 @@ final class RunProfileStoreTests: XCTestCase {
         XCTAssertEqual(profile.dailyParticipationSeeds, [])
     }
 
+    func testLegacyDecoyBeaconWeaponDecodesAsPowerWave() throws {
+        let data = Data("""
+        {
+          "bestScore": 0,
+          "highestCombo": 0,
+          "longestSurvivalTime": 0,
+          "totalRuns": 1,
+          "totalEnemiesDestroyed": 0,
+          "recentRuns": [
+            {
+              "score": 100,
+              "survivalTime": 5,
+              "maxCombo": 2,
+              "enemiesDestroyed": 1,
+              "bestWeapon": "decoyBeacon",
+              "timestamp": 1,
+              "mode": "classic"
+            }
+          ],
+          "unlockedWeapons": ["decoyBeacon"],
+          "earnedAwardIDs": [],
+          "dailyParticipationSeeds": []
+        }
+        """.utf8)
+
+        let profile = try JSONDecoder().decode(RunProfile.self, from: data)
+
+        XCTAssertEqual(profile.recentRuns.first?.bestWeapon, .powerWave)
+        XCTAssertTrue(profile.unlockedWeapons.contains(.powerWave))
+    }
+
     func testDailyParticipationAndAwardsPersist() throws {
         let store = RunProfileStore(defaults: defaults)
         let timestamp = try XCTUnwrap(Calendar.current.date(from: DateComponents(year: 2026, month: 5, day: 21)))

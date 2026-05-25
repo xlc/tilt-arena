@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 
 struct StartingWeaponConfiguration: Equatable {
-    var shockwaveRadius: CGFloat = 120
+    var shockwaveRadius: CGFloat = 104
     var shockwaveExpansionDuration: TimeInterval = 0.3
     var shockwaveHoldDuration: TimeInterval = 0.1
     var seekerTargetLimit: Int = 4
@@ -22,7 +22,11 @@ struct StartingWeaponConfiguration: Equatable {
     var chainLightningJumpRange: CGFloat = 96
     var chainLightningTargetLimit: Int = 6
     var warpDashDistanceFractionOfShortSide: CGFloat = 0.33
-    var warpDashInvulnerabilityDuration: TimeInterval = 0.35
+    var warpDashInvulnerabilityDuration: TimeInterval = 0.50
+    var powerWaveChargeDuration: TimeInterval = 0.35
+    var powerWaveRange: CGFloat = 180
+    var powerWaveFanAngleDegrees: CGFloat = 70
+    var powerWaveExpansionDuration: TimeInterval = 0.24
     var novaBombMaximumTargetCount: Int = 15
     var novaBombTargetFraction: Double = 0.8
 }
@@ -110,7 +114,7 @@ struct StartingWeaponResolver {
                 destroyedEnemyIDs: Set(targetIDs),
                 chainLightningEnemyIDs: targetIDs
             )
-        case .flameTrail, .warpDash, .decoyBeacon:
+        case .flameTrail, .warpDash, .powerWave:
             return WeaponResolution()
         case .novaBomb:
             return WeaponResolution()

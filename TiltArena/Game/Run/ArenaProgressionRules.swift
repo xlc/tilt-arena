@@ -98,7 +98,7 @@ struct ArenaProgressionRules {
         WeaponUnlockMilestone(weapon: .flameTrail, requirement: .bestScore(1_500)),
         WeaponUnlockMilestone(weapon: .chainLightning, requirement: .totalEnemiesDestroyed(175)),
         WeaponUnlockMilestone(weapon: .warpDash, requirement: .highestCombo(20)),
-        WeaponUnlockMilestone(weapon: .decoyBeacon, requirement: .bestScore(3_000)),
+        WeaponUnlockMilestone(weapon: .powerWave, requirement: .bestScore(3_000)),
         WeaponUnlockMilestone(weapon: .novaBomb, requirement: .totalEnemiesDestroyed(300))
     ]
 

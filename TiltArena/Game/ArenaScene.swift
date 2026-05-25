@@ -86,8 +86,8 @@ final class ArenaScene: SKScene {
     var gravityWellEffectNode: SKNode?
     private var warpDashState = WarpDashState()
     private var warpDashInvulnerabilityTimeRemaining: TimeInterval = 0
-    private var decoyBeaconState = DecoyBeaconState()
-    var decoyBeaconEffectNode: SKNode?
+    private var powerWaveState = PowerWaveState()
+    var powerWaveChargeNode: SKNode?
     private let timerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
     private let bestMarkerLabel = SKLabelNode(fontNamed: "Menlo")
     private let comboLabel = SKLabelNode(fontNamed: "Menlo-Bold")
@@ -657,6 +657,8 @@ final class ArenaScene: SKScene {
         clearWeaponEffectNodes(paused: true)
         shockwaveWaveStates.removeAll()
         freezeBurstWaveStates.removeAll()
+        powerWaveState.reset()
+        powerWaveChargeNode = nil
         audioController.stopMusic()
         lastDeathCollisionSnapshot = collision
         let isNewBest = (runController.finalizedSummary?.score ?? runController.score) > previousBestScore
@@ -729,8 +731,8 @@ final class ArenaScene: SKScene {
         deactivateGravityWell()
         warpDashState.reset()
         warpDashInvulnerabilityTimeRemaining = 0
-        decoyBeaconState.reset()
-        deactivateDecoyBeaconEffect()
+        powerWaveState.reset()
+        deactivatePowerWaveChargeEffect()
     }
 
     private func applyGameTuning(rebuildPlayerVisuals: Bool = false) {
@@ -743,7 +745,6 @@ final class ArenaScene: SKScene {
         weaponResolver.configuration = gameTuning.startingWeapons
         weaponEffectTiming = gameTuning.weaponEffectTiming
         flameTrailState.configuration = gameTuning.flameTrail
-        decoyBeaconState.configuration = gameTuning.decoyBeacon
         deathReplayTrace.duration = gameTuning.feedback.deathReplayDuration
         _ = applySelectedModeRunSettings()
 
@@ -847,8 +848,12 @@ final class ArenaScene: SKScene {
             playGravityWellEffect(at: gravityWellState.center, duration: gravityWellState.totalTimeRemaining)
         }
 
-        if decoyBeaconState.isActive, let center = decoyBeaconState.center {
-            playDecoyBeaconEffect(at: center, duration: decoyBeaconState.timeRemaining)
+        if powerWaveState.isCharging {
+            playPowerWaveChargeEffect(
+                at: movementController.state.position,
+                direction: warpDashState.resolvedDirection(),
+                duration: powerWaveState.chargeTimeRemaining
+            )
         }
     }
 
@@ -861,10 +866,10 @@ final class ArenaScene: SKScene {
         spawnPickupIfNeeded(deltaTime: deltaTime, playerPosition: playerPosition)
         playerPosition = collectPickups(playerPosition: playerPosition)
         advanceEnemies(deltaTime: deltaTime, playerPosition: playerPosition)
-        updateDecoyBeacon(deltaTime: deltaTime)
         updateGravityWell(deltaTime: deltaTime)
         updateShockwaveWaves(deltaTime: deltaTime)
         updateFreezeBurstWaves(deltaTime: deltaTime)
+        updatePowerWave(deltaTime: deltaTime, playerPosition: playerPosition)
         removeExpiredEnemies()
         cullExitedLinearPatternEnemies()
         updateRazorShield(deltaTime: deltaTime, playerPosition: playerPosition)
@@ -964,11 +969,7 @@ final class ArenaScene: SKScene {
                 continue
             }
 
-            let targetPosition = decoyBeaconState.targetPosition(
-                for: enemies[index],
-                fallback: playerPosition
-            )
-            enemies[index].advance(toward: targetPosition, deltaTime: deltaTime)
+            enemies[index].advance(toward: playerPosition, deltaTime: deltaTime)
             enemyNodes[enemies[index].id]?.apply(enemies[index])
         }
     }
@@ -1095,8 +1096,8 @@ final class ArenaScene: SKScene {
             flameTrailEffectNode.apply(segments: flameTrailState.segments)
         case .warpDash:
             loggedDestroyedCount = performWarpDash(from: playerPosition)
-        case .decoyBeacon:
-            activateDecoyBeacon(at: playerPosition)
+        case .powerWave:
+            activatePowerWave(at: playerPosition)
         case .novaBomb:
             var rng = SystemRandomNumberGenerator()
             let targetIDs = NovaBombTargetSelector(configuration: weaponResolver.configuration).selectedEnemyIDs(
@@ -3361,35 +3362,47 @@ private extension ArenaScene {
         freezeBurstWaveStates = activeStates
     }
 
-    func activateDecoyBeacon(at position: CGPoint) {
-        decoyBeaconState.activate(at: position)
-        guard decoyBeaconState.isActive else {
-            deactivateDecoyBeaconEffect()
-            return
-        }
-
-        playDecoyBeaconEffect(
+    func activatePowerWave(at position: CGPoint) {
+        powerWaveState.activate(configuration: weaponResolver.configuration)
+        playPowerWaveChargeEffect(
             at: position,
-            duration: decoyBeaconState.configuration.duration
+            direction: warpDashState.resolvedDirection(),
+            duration: weaponResolver.configuration.powerWaveChargeDuration
         )
     }
 
-    func updateDecoyBeacon(deltaTime: TimeInterval) {
-        let frame = decoyBeaconState.update(deltaTime: deltaTime, enemies: weaponTargetableEnemies())
-
-        guard let explosionCenter = frame.explosionCenter else {
+    func updatePowerWave(deltaTime: TimeInterval, playerPosition: CGPoint) {
+        guard powerWaveState.isActive else {
             return
         }
 
-        let targets = impactTargets(forEnemyIDs: frame.destroyedEnemyIDs)
-        markPendingWeaponImpacts(targets)
-        playDecoyBeaconExplosionEffect(
-            at: explosionCenter,
-            radius: decoyBeaconState.configuration.explosionRadius,
-            targets: targets
-        ) { [weak self] enemyIDs in
-            self?.destroyEnemies(ids: enemyIDs, weaponKind: .decoyBeacon)
+        let frame = powerWaveState.update(
+            deltaTime: deltaTime,
+            playerPosition: playerPosition,
+            direction: warpDashState.resolvedDirection(),
+            enemies: weaponTargetableEnemies(),
+            configuration: weaponResolver.configuration
+        )
+
+        if frame.isCharging {
+            updatePowerWaveChargeEffect(
+                at: playerPosition,
+                direction: warpDashState.resolvedDirection()
+            )
         }
+
+        if let release = frame.release {
+            deactivatePowerWaveChargeEffect()
+            playPowerWaveReleaseEffect(
+                at: release.center,
+                direction: release.direction,
+                range: weaponResolver.configuration.powerWaveRange,
+                fanAngleDegrees: weaponResolver.configuration.powerWaveFanAngleDegrees,
+                duration: weaponResolver.configuration.powerWaveExpansionDuration
+            )
+        }
+
+        destroyEnemies(ids: frame.destroyedEnemyIDs, weaponKind: .powerWave)
     }
 
     func activateGravityWell(at center: CGPoint, enemyIDs: Set<Int>) {

@@ -83,8 +83,8 @@ final class WeaponPickupNode: SKNode {
             return theme.pickupAmber
         case .warpDash:
             return theme.pickupViolet
-        case .decoyBeacon:
-            return theme.pickupViolet
+        case .powerWave:
+            return theme.pickupAmber
         case .novaBomb:
             return theme.pickupAmber
         }
@@ -108,8 +108,8 @@ final class WeaponPickupNode: SKNode {
             return flamePath(radius: radius)
         case .warpDash:
             return trianglePath(radius: radius)
-        case .decoyBeacon:
-            return squarePath(radius: radius)
+        case .powerWave:
+            return powerWavePath(radius: radius)
         case .novaBomb:
             return starPath(radius: radius)
         }
@@ -133,8 +133,8 @@ final class WeaponPickupNode: SKNode {
             return flameMarkPath(radius: radius)
         case .warpDash:
             return dashMarkPath(radius: radius)
-        case .decoyBeacon:
-            return beaconMarkPath(radius: radius)
+        case .powerWave:
+            return powerWaveMarkPath(radius: radius)
         case .novaBomb:
             return burstMarkPath(radius: radius)
         }
@@ -182,14 +182,6 @@ final class WeaponPickupNode: SKNode {
         polygonPath(points: 6, radius: radius, rotation: .pi / 6)
     }
 
-    private static func squarePath(radius: CGFloat) -> CGPath {
-        let side = radius * 1.45
-        return CGPath(
-            rect: CGRect(x: -side / 2, y: -side / 2, width: side, height: side),
-            transform: nil
-        )
-    }
-
     private static func boltPath(radius: CGFloat) -> CGPath {
         let path = CGMutablePath()
         path.move(to: CGPoint(x: -radius * 0.08, y: radius))
@@ -198,6 +190,16 @@ final class WeaponPickupNode: SKNode {
         path.addLine(to: CGPoint(x: radius * 0.06, y: -radius))
         path.addLine(to: CGPoint(x: radius * 0.72, y: radius * 0.18))
         path.addLine(to: CGPoint(x: radius * 0.12, y: radius * 0.18))
+        path.closeSubpath()
+        return path
+    }
+
+    private static func powerWavePath(radius: CGFloat) -> CGPath {
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: radius * 0.95, y: 0))
+        path.addLine(to: CGPoint(x: -radius * 0.56, y: radius * 0.76))
+        path.addLine(to: CGPoint(x: -radius * 0.2, y: 0))
+        path.addLine(to: CGPoint(x: -radius * 0.56, y: -radius * 0.76))
         path.closeSubpath()
         return path
     }
@@ -337,12 +339,13 @@ final class WeaponPickupNode: SKNode {
         return path
     }
 
-    private static func beaconMarkPath(radius: CGFloat) -> CGPath {
+    private static func powerWaveMarkPath(radius: CGFloat) -> CGPath {
         let path = CGMutablePath()
-        path.move(to: CGPoint(x: -radius * 0.5, y: 0))
-        path.addLine(to: CGPoint(x: radius * 0.5, y: 0))
-        path.move(to: CGPoint(x: 0, y: -radius * 0.5))
-        path.addLine(to: CGPoint(x: 0, y: radius * 0.5))
+        for offset in [0, radius * 0.24, radius * 0.46] {
+            path.move(to: CGPoint(x: -radius * 0.46 + offset, y: -radius * 0.42))
+            path.addLine(to: CGPoint(x: radius * 0.04 + offset, y: 0))
+            path.addLine(to: CGPoint(x: -radius * 0.46 + offset, y: radius * 0.42))
+        }
         return path
     }
 

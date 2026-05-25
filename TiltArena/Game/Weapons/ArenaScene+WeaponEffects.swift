@@ -358,92 +358,82 @@ extension ArenaScene {
         }
     }
 
-    func playDecoyBeaconEffect(at position: CGPoint, duration: TimeInterval) {
-        decoyBeaconEffectNode?.removeFromParent()
+    func playPowerWaveChargeEffect(at position: CGPoint, direction: CGVector, duration: TimeInterval) {
+        powerWaveChargeNode?.removeFromParent()
 
         let container = SKNode()
         container.position = position
-        container.zPosition = 18
+        container.zRotation = Self.rotation(for: direction)
+        container.zPosition = 19
         addWeaponEffectNode(container)
-        decoyBeaconEffectNode = container
+        powerWaveChargeNode = container
 
-        let body = SKShapeNode(path: Self.makeDecoyBeaconPath(radius: 13))
-        body.fillColor = theme.pickupViolet.withAlphaComponent(0.82)
-        body.strokeColor = theme.playerColor.withAlphaComponent(0.8)
-        body.lineWidth = 1.2
-        body.glowWidth = 3
-        container.addChild(body)
+        let radius = movementController.configuration.visualRadius * 2.5
+        let wedge = SKShapeNode(path: Self.powerWaveFanPath(range: radius, fanAngleRadians: .pi / 2))
+        wedge.fillColor = theme.pickupAmber.withAlphaComponent(0.1)
+        wedge.strokeColor = theme.playerAccentColor.withAlphaComponent(0.82)
+        wedge.lineWidth = 1.2
+        wedge.glowWidth = 3
+        container.addChild(wedge)
 
-        for index in 0..<3 {
-            let ring = SKShapeNode(circleOfRadius: 24 + CGFloat(index) * 9)
-            ring.strokeColor = theme.pickupViolet.withAlphaComponent(0.55 - CGFloat(index) * 0.12)
-            ring.fillColor = .clear
-            ring.lineWidth = 1.2
-            ring.glowWidth = 3
-            container.addChild(ring)
-            ring.run(.repeatForever(.sequence([
-                .scale(to: 1.24, duration: 0.42 + TimeInterval(index) * 0.08),
-                .scale(to: 0.86, duration: 0.42 + TimeInterval(index) * 0.08)
-            ])))
-        }
+        let core = SKShapeNode(circleOfRadius: movementController.configuration.visualRadius * 0.7)
+        core.fillColor = theme.pickupAmber.withAlphaComponent(0.22)
+        core.strokeColor = theme.playerColor.withAlphaComponent(0.86)
+        core.lineWidth = 1
+        core.glowWidth = 3
+        container.addChild(core)
 
-        let pulseDuration = max(0.24, min(0.5, duration / 4))
-        let pulse = SKAction.sequence([
+        let pulseDuration = max(0.08, min(0.18, max(0.01, duration) / 2))
+        container.run(.repeatForever(.sequence([
             .group([
-                .scale(to: 1.18, duration: pulseDuration),
-                .fadeAlpha(to: 0.62, duration: pulseDuration)
+                .scale(to: 1.16, duration: pulseDuration),
+                .fadeAlpha(to: 0.58, duration: pulseDuration)
             ]),
             .group([
                 .scale(to: 0.92, duration: pulseDuration),
                 .fadeAlpha(to: 1, duration: pulseDuration)
             ])
-        ])
-        container.run(.repeatForever(pulse))
+        ])))
     }
 
-    func playDecoyBeaconExplosionEffect(
+    func updatePowerWaveChargeEffect(at position: CGPoint, direction: CGVector) {
+        powerWaveChargeNode?.position = position
+        powerWaveChargeNode?.zRotation = Self.rotation(for: direction)
+    }
+
+    func playPowerWaveReleaseEffect(
         at position: CGPoint,
-        radius: CGFloat,
-        targets: [WeaponImpactTarget],
-        onImpact: @escaping (Set<Int>) -> Void
+        direction: CGVector,
+        range: CGFloat,
+        fanAngleDegrees: CGFloat,
+        duration: TimeInterval
     ) {
-        decoyBeaconEffectNode?.removeFromParent()
-        decoyBeaconEffectNode = nil
+        let fanAngleRadians = min(360, max(0, fanAngleDegrees)) * .pi / 180
+        let wave = SKShapeNode(path: Self.powerWaveFanPath(range: max(0, range), fanAngleRadians: fanAngleRadians))
+        wave.position = position
+        wave.zRotation = Self.rotation(for: direction)
+        wave.zPosition = 18
+        wave.fillColor = theme.pickupAmber.withAlphaComponent(0.18)
+        wave.strokeColor = theme.playerAccentColor.withAlphaComponent(0.92)
+        wave.lineWidth = 2
+        wave.glowWidth = 7
+        wave.setScale(0.04)
+        addWeaponEffectNode(wave)
 
-        let ring = makeEffectRing(
-            radius: max(0, radius),
-            strokeColor: theme.pickupViolet.withAlphaComponent(0.9),
-            fillColor: theme.pickupViolet.withAlphaComponent(0.08),
-            lineWidth: 2,
-            glowWidth: 6
-        )
-        ring.position = position
-        ring.setScale(0.24)
-        addWeaponEffectNode(ring)
-
-        let burst = SKAction.group([
-            .scale(to: 1, duration: 0.18),
-            .fadeOut(withDuration: 0.18)
-        ])
-        ring.run(.sequence([burst, .removeFromParent()]))
-
-        for target in targets {
-            let duration = max(0.08, weaponEffectTiming.projectileDuration(from: position, to: target.position) * 0.6)
-            playTravelingBolt(
-                from: position,
-                to: target,
-                duration: duration,
-                color: theme.pickupViolet,
-                coreColor: theme.playerColor,
-                impactRadius: 13,
-                onImpact: onImpact
-            )
-        }
+        let expansionDuration = max(0.01, duration)
+        wave.run(.sequence([
+            .group([
+                .scale(to: 1, duration: expansionDuration),
+                .fadeAlpha(to: 0.72, duration: expansionDuration * 0.55)
+            ]),
+            .fadeOut(withDuration: 0.12),
+            .removeFromParent()
+        ]))
     }
 
-    func deactivateDecoyBeaconEffect() {
-        decoyBeaconEffectNode?.removeFromParent()
-        decoyBeaconEffectNode = nil
+    func deactivatePowerWaveChargeEffect() {
+        powerWaveChargeNode?.removeFromParent()
+        powerWaveChargeNode = nil
     }
 
     private func playTravelingBolt(
@@ -606,6 +596,22 @@ extension ArenaScene {
         return path
     }
 
+    private static func rotation(for direction: CGVector) -> CGFloat {
+        let resolvedDirection = direction.length > 0 ? direction.normalized : CGVector(dx: 0, dy: 1)
+        return atan2(resolvedDirection.dy, resolvedDirection.dx)
+    }
+
+    private static func powerWaveFanPath(range: CGFloat, fanAngleRadians: CGFloat) -> CGPath {
+        let radius = max(0, range)
+        let halfAngle = min(.pi, max(0, fanAngleRadians / 2))
+        let path = CGMutablePath()
+        path.move(to: .zero)
+        path.addLine(to: CGPoint(x: cos(-halfAngle) * radius, y: sin(-halfAngle) * radius))
+        path.addArc(center: .zero, radius: radius, startAngle: -halfAngle, endAngle: halfAngle, clockwise: false)
+        path.closeSubpath()
+        return path
+    }
+
     private static func crossPath(radius: CGFloat) -> CGPath {
         let path = CGMutablePath()
         path.move(to: CGPoint(x: -radius, y: 0))
@@ -621,17 +627,6 @@ extension ArenaScene {
         path.addLine(to: CGPoint(x: -radius * 0.58, y: radius * 0.52))
         path.addLine(to: CGPoint(x: -radius * 0.28, y: 0))
         path.addLine(to: CGPoint(x: -radius * 0.58, y: -radius * 0.52))
-        path.closeSubpath()
-        return path
-    }
-
-    private static func makeDecoyBeaconPath(radius: CGFloat) -> CGPath {
-        let path = CGMutablePath()
-        path.move(to: CGPoint(x: 0, y: radius))
-        path.addLine(to: CGPoint(x: radius * 0.86, y: radius * 0.28))
-        path.addLine(to: CGPoint(x: radius * 0.54, y: -radius * 0.82))
-        path.addLine(to: CGPoint(x: -radius * 0.54, y: -radius * 0.82))
-        path.addLine(to: CGPoint(x: -radius * 0.86, y: radius * 0.28))
         path.closeSubpath()
         return path
     }

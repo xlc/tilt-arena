@@ -3,7 +3,17 @@ import XCTest
 
 final class StartingWeaponResolverTests: XCTestCase {
     func testDefaultShockwaveRadiusUsesBuffedRadius() {
-        XCTAssertEqual(StartingWeaponConfiguration().shockwaveRadius, 120)
+        XCTAssertEqual(StartingWeaponConfiguration().shockwaveRadius, 104)
+    }
+
+    func testDefaultPowerWaveAndWarpDashTuningUseUpdatedBalance() {
+        let configuration = StartingWeaponConfiguration()
+
+        XCTAssertEqual(configuration.warpDashInvulnerabilityDuration, 0.50)
+        XCTAssertEqual(configuration.powerWaveChargeDuration, 0.35)
+        XCTAssertEqual(configuration.powerWaveRange, 180)
+        XCTAssertEqual(configuration.powerWaveFanAngleDegrees, 70)
+        XCTAssertEqual(configuration.powerWaveExpansionDuration, 0.24)
     }
 
     func testShockwaveClearsEnemiesInsideRadius() {
@@ -302,14 +312,14 @@ final class StartingWeaponResolverTests: XCTestCase {
         XCTAssertEqual(resolution.chainLightningEnemyIDs, [])
     }
 
-    func testDecoyBeaconDoesNotInstantlyResolveTargets() {
+    func testPowerWaveDoesNotInstantlyResolveTargets() {
         let resolver = StartingWeaponResolver()
         let enemies = [
             enemy(id: 1, position: CGPoint(x: 10, y: 0))
         ]
 
         let resolution = resolver.resolve(
-            kind: .decoyBeacon,
+            kind: .powerWave,
             playerPosition: .zero,
             enemies: enemies
         )

@@ -118,7 +118,7 @@ final class ArenaVisualRoleSnapshotTests: XCTestCase {
             .chainLightning,
             .flameTrail,
             .warpDash,
-            .decoyBeacon,
+            .powerWave,
             .novaBomb
         ]
         for (index, kind) in pickupKinds.enumerated() {
@@ -156,8 +156,8 @@ final class ArenaVisualRoleSnapshotTests: XCTestCase {
             return "FLAME"
         case .warpDash:
             return "WARP"
-        case .decoyBeacon:
-            return "DECOY"
+        case .powerWave:
+            return "WAVE"
         case .novaBomb:
             return "NOVA"
         }
