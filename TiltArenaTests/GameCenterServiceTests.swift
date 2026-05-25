@@ -3,15 +3,14 @@ import UIKit
 import XCTest
 @testable import TiltArena
 
-@MainActor
 final class GameCenterServiceTests: XCTestCase {
     private var defaults: UserDefaults!
     private var suiteName: String!
     private var scoreSubmissionStore: GameCenterScoreSubmissionStore!
     private var achievementProgressStore: GameCenterAchievementProgressStore!
 
-    override func setUp() async throws {
-        try await super.setUp()
+    override func setUp() {
+        super.setUp()
         suiteName = "GameCenterServiceTests.\(UUID().uuidString)"
         defaults = UserDefaults(suiteName: suiteName)
         defaults.removePersistentDomain(forName: suiteName)
@@ -19,15 +18,17 @@ final class GameCenterServiceTests: XCTestCase {
         achievementProgressStore = GameCenterAchievementProgressStore(defaults: defaults)
     }
 
-    override func tearDown() async throws {
+    override func tearDown() {
         defaults.removePersistentDomain(forName: suiteName)
         scoreSubmissionStore = nil
         achievementProgressStore = nil
         defaults = nil
         suiteName = nil
-        try await super.tearDown()
+        super.tearDown()
     }
+}
 
+@MainActor extension GameCenterServiceTests {
     func testUnsupportedClientDoesNotInstallAuthenticationHandler() {
         let client = FakeGameCenterLocalPlayerClient(isAvailable: false)
         let service = makeService(localPlayer: client)
@@ -521,7 +522,6 @@ private struct SubmittedGameCenterScore: Equatable {
     let context: Int
     let leaderboardIDs: [String]
 }
-
 private struct SubmittedGameCenterAchievement: Equatable {
     let achievementID: String
     let percentComplete: Double
