@@ -8,6 +8,7 @@ final class GameCenterServiceTests: XCTestCase {
     private var defaults: UserDefaults!
     private var suiteName: String!
     private var scoreSubmissionStore: GameCenterScoreSubmissionStore!
+    private var achievementProgressStore: GameCenterAchievementProgressStore!
 
     override func setUp() {
         super.setUp()
@@ -15,11 +16,13 @@ final class GameCenterServiceTests: XCTestCase {
         defaults = UserDefaults(suiteName: suiteName)
         defaults.removePersistentDomain(forName: suiteName)
         scoreSubmissionStore = GameCenterScoreSubmissionStore(defaults: defaults)
+        achievementProgressStore = GameCenterAchievementProgressStore(defaults: defaults)
     }
 
     override func tearDown() {
         defaults.removePersistentDomain(forName: suiteName)
         scoreSubmissionStore = nil
+        achievementProgressStore = nil
         defaults = nil
         suiteName = nil
         super.tearDown()
@@ -319,6 +322,143 @@ final class GameCenterServiceTests: XCTestCase {
         XCTAssertNil(presenter.presentedViewController)
     }
 
+    func testRunFinishedAchievementEventSubmitsMilestoneProgress() {
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
+        let service = makeService(localPlayer: client)
+        let summary = makeRunSummary(
+            score: 50_000,
+            survivalTime: 30,
+            maxCombo: 25,
+            enemiesDestroyed: 4
+        )
+
+        service.reportAchievementEvent(.runFinished(summary))
+
+        XCTAssertEqual(client.submittedAchievementBatches.count, 1)
+        let progress = client.submittedAchievementBatches[0].progressByAchievementID
+        XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.firstRun.rawValue], 100)
+        XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.firstEnemyClear.rawValue], 100)
+        XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.combo10.rawValue], 100)
+        XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.combo50.rawValue], 50)
+        XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.survive60.rawValue], 50)
+        XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.score100000.rawValue], 50)
+    }
+
+    func testEnemyClearAchievementEventSubmitsFirstClearChainAndComboProgress() {
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
+        let service = makeService(localPlayer: client)
+
+        service.reportAchievementEvent(.enemyClear(count: 2, weaponKind: .chainLightning, maxCombo: 12))
+
+        XCTAssertEqual(client.submittedAchievementBatches.count, 1)
+        let progress = client.submittedAchievementBatches[0].progressByAchievementID
+        XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.firstEnemyClear.rawValue], 100)
+        XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.firstChainReaction.rawValue], 100)
+        XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.combo10.rawValue], 100)
+        XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.combo50.rawValue], 24)
+        XCTAssertNil(progress[GameCenterIdentifiers.Achievement.firstRun.rawValue])
+    }
+
+    func testWeaponOrbAchievementEventSubmitsFirstOrbProgress() {
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
+        let service = makeService(localPlayer: client)
+
+        service.reportAchievementEvent(.weaponOrbCollected)
+
+        XCTAssertEqual(
+            client.submittedAchievementBatches.flatMap { $0 }.map(\.achievementID),
+            [GameCenterIdentifiers.Achievement.firstWeaponOrb.rawValue]
+        )
+    }
+
+    func testDuplicateAchievementProgressIsNotResubmittedAfterSuccess() {
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
+        let service = makeService(localPlayer: client)
+
+        service.reportAchievementEvent(.weaponOrbCollected)
+        service.reportAchievementEvent(.weaponOrbCollected)
+
+        XCTAssertEqual(client.submittedAchievementBatches.count, 1)
+        XCTAssertTrue(achievementProgressStore.pendingProgress.isEmpty)
+    }
+
+    func testDuplicateAchievementProgressIsNotResubmittedWhileInFlight() {
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
+        client.defersAchievementReports = true
+        let service = makeService(localPlayer: client)
+
+        service.reportAchievementEvent(.weaponOrbCollected)
+        service.reportAchievementEvent(.weaponOrbCollected)
+
+        XCTAssertEqual(client.submittedAchievementBatches.count, 1)
+        XCTAssertEqual(achievementProgressStore.pendingProgress.count, 1)
+
+        client.completeNextAchievementReport()
+
+        XCTAssertTrue(achievementProgressStore.pendingProgress.isEmpty)
+    }
+
+    func testUnauthenticatedAchievementProgressIsQueuedOnceAndDoesNotRegress() {
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: false)
+        let service = makeService(localPlayer: client)
+
+        service.reportAchievementEvent(.runFinished(makeRunSummary(score: 50_000, maxCombo: 25)))
+        service.reportAchievementEvent(.runFinished(makeRunSummary(score: 10_000, maxCombo: 10)))
+
+        let progress = achievementProgressStore.pendingProgress.progressByAchievementID
+        XCTAssertTrue(client.submittedAchievementBatches.isEmpty)
+        XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.score100000.rawValue], 50)
+        XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.combo50.rawValue], 50)
+    }
+
+    func testRetryQueuedAchievementsRemovesSuccessfulProgress() {
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: false)
+        let service = makeService(localPlayer: client)
+
+        service.reportAchievementEvent(.weaponOrbCollected)
+        client.isAuthenticated = true
+        service.retryQueuedAchievements()
+
+        XCTAssertEqual(client.submittedAchievementBatches.count, 1)
+        XCTAssertTrue(achievementProgressStore.pendingProgress.isEmpty)
+    }
+
+    func testRecoverableAchievementSubmissionFailureQueuesProgress() {
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
+        client.reportAchievementsError = NSError(domain: GKErrorDomain, code: GKError.Code.communicationsFailure.rawValue)
+        let service = makeService(localPlayer: client)
+
+        service.reportAchievementEvent(.weaponOrbCollected)
+
+        XCTAssertEqual(client.submittedAchievementBatches.count, 1)
+        XCTAssertEqual(
+            achievementProgressStore.pendingProgress.map(\.achievementID),
+            [GameCenterIdentifiers.Achievement.firstWeaponOrb.rawValue]
+        )
+    }
+
+    func testUnsupportedAchievementProgressDoesNotQueue() {
+        let client = FakeGameCenterLocalPlayerClient(isAvailable: false)
+        let service = makeService(localPlayer: client)
+
+        service.reportAchievementEvent(.weaponOrbCollected)
+
+        XCTAssertTrue(client.submittedAchievementBatches.isEmpty)
+        XCTAssertTrue(achievementProgressStore.pendingProgress.isEmpty)
+    }
+
+    func testFailedAuthenticationDoesNotQueueAchievementProgress() {
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: false)
+        let service = makeService(localPlayer: client)
+
+        service.authenticate(presenter: nil)
+        client.completeAuthentication(viewController: nil, error: NSError(domain: NSCocoaErrorDomain, code: 4099))
+        service.reportAchievementEvent(.weaponOrbCollected)
+
+        XCTAssertTrue(client.submittedAchievementBatches.isEmpty)
+        XCTAssertTrue(achievementProgressStore.pendingProgress.isEmpty)
+    }
+
     private func makeService(
         localPlayer: FakeGameCenterLocalPlayerClient,
         leaderboardFactory: GameCenterLeaderboardFactory = FakeLeaderboardFactory()
@@ -326,20 +466,24 @@ final class GameCenterServiceTests: XCTestCase {
         GameCenterService(
             localPlayer: localPlayer,
             scoreSubmissionStore: scoreSubmissionStore,
+            achievementProgressStore: achievementProgressStore,
             leaderboardFactory: leaderboardFactory
         )
     }
 
     private func makeRunSummary(
         score: Int,
+        survivalTime: TimeInterval = 12,
+        maxCombo: Int = 3,
+        enemiesDestroyed: Int = 4,
         timestamp: TimeInterval = 1,
         mode: ArenaModeKind = .classic
     ) -> RunSummary {
         RunSummary(
             score: score,
-            survivalTime: 12,
-            maxCombo: 3,
-            enemiesDestroyed: 4,
+            survivalTime: survivalTime,
+            maxCombo: maxCombo,
+            enemiesDestroyed: enemiesDestroyed,
             bestWeapon: .shockwave,
             timestamp: Date(timeIntervalSince1970: timestamp),
             mode: mode
@@ -351,6 +495,23 @@ private struct SubmittedGameCenterScore: Equatable {
     let score: Int
     let context: Int
     let leaderboardIDs: [String]
+}
+
+private struct SubmittedGameCenterAchievement: Equatable {
+    let achievementID: String
+    let percentComplete: Double
+}
+
+private extension Array where Element == SubmittedGameCenterAchievement {
+    var progressByAchievementID: [String: Double] {
+        Dictionary(uniqueKeysWithValues: map { ($0.achievementID, $0.percentComplete) })
+    }
+}
+
+private extension Array where Element == GameCenterAchievementProgress {
+    var progressByAchievementID: [String: Double] {
+        Dictionary(uniqueKeysWithValues: map { ($0.achievementID, $0.percentComplete) })
+    }
 }
 
 @MainActor
@@ -371,10 +532,14 @@ private final class FakeGameCenterLocalPlayerClient: GameCenterLocalPlayerClient
     var isAvailable: Bool
     var isAuthenticated: Bool
     var submitScoreError: Error?
+    var reportAchievementsError: Error?
     var defersScoreSubmissions = false
+    var defersAchievementReports = false
     private(set) var authenticateHandlerInstallCount = 0
     private(set) var submittedScores: [SubmittedGameCenterScore] = []
+    private(set) var submittedAchievementBatches: [[SubmittedGameCenterAchievement]] = []
     private var pendingScoreCompletions: [@MainActor (Error?) -> Void] = []
+    private var pendingAchievementCompletions: [@MainActor (Error?) -> Void] = []
 
     var didInstallAuthenticateHandler: Bool {
         authenticateHandlerInstallCount > 0
@@ -420,6 +585,28 @@ private final class FakeGameCenterLocalPlayerClient: GameCenterLocalPlayerClient
     func completeNextScoreSubmission(error: Error? = nil) {
         let completion = pendingScoreCompletions.removeFirst()
         completion(error ?? submitScoreError)
+    }
+
+    func reportAchievements(
+        _ progress: [GameCenterAchievementProgress],
+        completion: @escaping @MainActor (Error?) -> Void
+    ) {
+        submittedAchievementBatches.append(progress.map {
+            SubmittedGameCenterAchievement(
+                achievementID: $0.achievementID,
+                percentComplete: $0.percentComplete
+            )
+        })
+        if defersAchievementReports {
+            pendingAchievementCompletions.append(completion)
+        } else {
+            completion(reportAchievementsError)
+        }
+    }
+
+    func completeNextAchievementReport(error: Error? = nil) {
+        let completion = pendingAchievementCompletions.removeFirst()
+        completion(error ?? reportAchievementsError)
     }
 }
 

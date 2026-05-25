@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import Foundation
 #if canImport(GameKit)
 import GameKit
@@ -33,6 +34,11 @@ protocol GameCenterLocalPlayerClient: AnyObject {
         _ score: Int,
         context: Int,
         leaderboardIDs: [String],
+        completion: @escaping @MainActor (Error?) -> Void
+    )
+
+    func reportAchievements(
+        _ progress: [GameCenterAchievementProgress],
         completion: @escaping @MainActor (Error?) -> Void
     )
 }
@@ -110,6 +116,7 @@ final class GameCenterService {
 
     private let localPlayer: GameCenterLocalPlayerClient
     private let scoreSubmissionStore: GameCenterScoreSubmissionStore
+    private let achievementProgressStore: GameCenterAchievementProgressStore
     private let leaderboardFactory: GameCenterLeaderboardFactory
     private let logger: Logger
     private var hasInstalledAuthenticationHandler = false
@@ -117,17 +124,20 @@ final class GameCenterService {
     private weak var authenticationPresenter: GameCenterAuthenticationPresenting?
     private var canPresentAuthenticationPrompt = false
     private var isRetryingQueuedScores = false
+    private var isRetryingQueuedAchievements = false
 
     private(set) var authenticationState: GameCenterAuthenticationState = .notStarted
 
     init(
         localPlayer: GameCenterLocalPlayerClient = GameKitLocalPlayerClient(),
         scoreSubmissionStore: GameCenterScoreSubmissionStore = GameCenterScoreSubmissionStore(),
+        achievementProgressStore: GameCenterAchievementProgressStore = GameCenterAchievementProgressStore(),
         leaderboardFactory: GameCenterLeaderboardFactory = GameKitLeaderboardFactory(),
         logger: Logger = AppDiagnostics.logger(.gameCenter)
     ) {
         self.localPlayer = localPlayer
         self.scoreSubmissionStore = scoreSubmissionStore
+        self.achievementProgressStore = achievementProgressStore
         self.leaderboardFactory = leaderboardFactory
         self.logger = logger
     }
@@ -145,7 +155,7 @@ final class GameCenterService {
         if localPlayer.isAuthenticated {
             updateState(.authenticated)
             logger.notice("game_center.authenticated")
-            retryQueuedScores()
+            retryQueuedSubmissions()
             return
         }
 
@@ -214,6 +224,36 @@ final class GameCenterService {
         submitScore(submission, queueRecoverableFailure: true)
     }
 
+    func reportAchievementEvent(_ event: GameCenterAchievementEvent) {
+        let progress = achievementProgressStore.reportableProgress(
+            from: GameCenterAchievementProgressMapper.progress(for: event)
+        )
+        guard !progress.isEmpty else {
+            return
+        }
+
+        guard localPlayer.isAvailable else {
+            logger.info("game_center.achievement_unavailable", metadata: [
+                "reason": "unsupported"
+            ])
+            return
+        }
+
+        guard localPlayer.isAuthenticated else {
+            guard shouldQueueUnauthenticatedAchievements else {
+                logger.info("game_center.achievement_unavailable", metadata: [
+                    "reason": "authenticationFailed"
+                ])
+                return
+            }
+
+            enqueueAchievementProgress(progress, reason: "unauthenticated")
+            return
+        }
+
+        submitAchievements(progress, queueRecoverableFailure: true)
+    }
+
     func retryQueuedScores() {
         guard localPlayer.isAvailable, localPlayer.isAuthenticated else {
             return
@@ -234,6 +274,54 @@ final class GameCenterService {
             "pendingCount": "\(submissions.count)"
         ])
         retryQueuedScores(submissions, startingAt: 0, completedQueueKeys: [])
+    }
+
+    func retryQueuedAchievements() {
+        guard localPlayer.isAvailable, localPlayer.isAuthenticated else {
+            return
+        }
+
+        guard !isRetryingQueuedAchievements else {
+            logger.debug("game_center.achievement_retry_skipped_in_flight")
+            return
+        }
+
+        let progress = achievementProgressStore.pendingProgress
+        guard !progress.isEmpty else {
+            return
+        }
+
+        isRetryingQueuedAchievements = true
+        logger.info("game_center.achievement_retry_started", metadata: [
+            "pendingCount": "\(progress.count)"
+        ])
+        localPlayer.reportAchievements(progress) { [weak self] error in
+            guard let self else {
+                return
+            }
+
+            defer {
+                self.isRetryingQueuedAchievements = false
+            }
+
+            if let error {
+                if !self.shouldQueueRecoverableFailure(error) {
+                    self.achievementProgressStore.removeProgress(withAchievementIDs: Set(progress.map(\.achievementID)))
+                }
+                self.logger.warning(
+                    "game_center.achievement_retry_failed",
+                    error: error,
+                    metadata: self.achievementProgressMetadata(progress)
+                )
+                return
+            }
+
+            self.achievementProgressStore.markSubmitted(progress)
+            self.logger.notice("game_center.achievement_retry_submitted", metadata: [
+                "submittedCount": "\(progress.count)",
+                "remainingCount": "\(self.achievementProgressStore.pendingProgress.count)"
+            ])
+        }
     }
 
     private func installAuthenticationHandlerIfNeeded() {
@@ -283,7 +371,7 @@ final class GameCenterService {
         if localPlayer.isAuthenticated {
             updateState(.authenticated)
             logger.notice("game_center.authenticated")
-            retryQueuedScores()
+            retryQueuedSubmissions()
         } else {
             updateState(.needsUserAuthentication)
             logger.info("game_center.auth_incomplete")
@@ -314,6 +402,11 @@ final class GameCenterService {
 
     private func updateState(_ state: GameCenterAuthenticationState) {
         authenticationState = state
+    }
+
+    private func retryQueuedSubmissions() {
+        retryQueuedScores()
+        retryQueuedAchievements()
     }
 
     private func submitScore(
@@ -359,7 +452,7 @@ final class GameCenterService {
             ]
         )
 
-        guard queueRecoverableFailure, shouldQueueScoreSubmissionFailure(error) else {
+        guard queueRecoverableFailure, shouldQueueRecoverableFailure(error) else {
             logger.warning("game_center.score_submit_failed", error: error, metadata: metadata)
             return
         }
@@ -377,6 +470,78 @@ final class GameCenterService {
                 "alreadyPending": "\(!didEnqueue)"
             ]
         ))
+    }
+
+    private var shouldQueueUnauthenticatedAchievements: Bool {
+        switch authenticationState {
+        case .unsupported, .declined, .failed:
+            return false
+        case .notStarted, .authenticating, .needsUserAuthentication, .authenticated:
+            return true
+        }
+    }
+
+    private func submitAchievements(
+        _ progress: [GameCenterAchievementProgress],
+        queueRecoverableFailure: Bool
+    ) {
+        achievementProgressStore.enqueue(progress)
+        localPlayer.reportAchievements(progress) { [weak self] error in
+            guard let self else {
+                return
+            }
+
+            if let error {
+                self.handleAchievementSubmissionFailure(
+                    progress,
+                    error: error,
+                    queueRecoverableFailure: queueRecoverableFailure
+                )
+                return
+            }
+
+            self.achievementProgressStore.markSubmitted(progress)
+            self.logger.notice("game_center.achievement_submitted", metadata: self.achievementProgressMetadata(progress))
+        }
+    }
+
+    private func handleAchievementSubmissionFailure(
+        _ progress: [GameCenterAchievementProgress],
+        error: Error,
+        queueRecoverableFailure: Bool
+    ) {
+        var metadata = achievementProgressMetadata(progress)
+        let nsError = error as NSError
+        metadata.merge([
+            "domain": "\(nsError.domain)",
+            "code": "\(nsError.code)"
+        ]) { _, new in new }
+
+        guard queueRecoverableFailure, shouldQueueRecoverableFailure(error) else {
+            achievementProgressStore.removeProgress(withAchievementIDs: Set(progress.map(\.achievementID)))
+            logger.warning("game_center.achievement_submit_failed", error: error, metadata: metadata)
+            return
+        }
+
+        enqueueAchievementProgress(progress, reason: "recoverableFailure")
+        logger.warning("game_center.achievement_queued_after_failure", error: error, metadata: metadata)
+    }
+
+    private func enqueueAchievementProgress(_ progress: [GameCenterAchievementProgress], reason: String) {
+        let enqueuedProgress = achievementProgressStore.enqueue(progress)
+        guard !enqueuedProgress.isEmpty else {
+            logger.debug("game_center.achievement_queue_skipped", metadata: [
+                "reason": "\(reason)",
+                "alreadyPending": "true"
+            ])
+            return
+        }
+
+        logger.info("game_center.achievement_queued", metadata: [
+            "reason": "\(reason)",
+            "pendingCount": "\(achievementProgressStore.pendingProgress.count)",
+            "updatedCount": "\(enqueuedProgress.count)"
+        ])
     }
 
     private func retryQueuedScores(
@@ -424,7 +589,7 @@ final class GameCenterService {
         }
     }
 
-    private func shouldQueueScoreSubmissionFailure(_ error: Error) -> Bool {
+    private func shouldQueueRecoverableFailure(_ error: Error) -> Bool {
         let nsError = error as NSError
         if nsError.domain == NSURLErrorDomain {
             return true
@@ -444,6 +609,13 @@ final class GameCenterService {
         #else
         return false
         #endif
+    }
+
+    private func achievementProgressMetadata(_ progress: [GameCenterAchievementProgress]) -> Logger.Metadata {
+        [
+            "achievementCount": "\(progress.count)",
+            "maxPercentComplete": "\(progress.map(\.percentComplete).max() ?? 0)"
+        ]
     }
 
     private func scoreSubmissionMetadata(
@@ -508,6 +680,24 @@ final class GameKitLocalPlayerClient: GameCenterLocalPlayerClient {
             }
         }
     }
+
+    func reportAchievements(
+        _ progress: [GameCenterAchievementProgress],
+        completion: @escaping @MainActor (Error?) -> Void
+    ) {
+        let achievements = progress.map { item in
+            let achievement = GKAchievement(identifier: item.achievementID)
+            achievement.percentComplete = item.percentComplete
+            achievement.showsCompletionBanner = item.percentComplete >= 100
+            return achievement
+        }
+
+        GKAchievement.report(achievements) { error in
+            Task { @MainActor in
+                completion(error)
+            }
+        }
+    }
 }
 #else
 @MainActor
@@ -535,6 +725,13 @@ final class GameKitLocalPlayerClient: GameCenterLocalPlayerClient {
         _ score: Int,
         context: Int,
         leaderboardIDs: [String],
+        completion: @escaping @MainActor (Error?) -> Void
+    ) {
+        completion(NSError(domain: "GameCenterUnavailable", code: 1))
+    }
+
+    func reportAchievements(
+        _ progress: [GameCenterAchievementProgress],
         completion: @escaping @MainActor (Error?) -> Void
     ) {
         completion(NSError(domain: "GameCenterUnavailable", code: 1))

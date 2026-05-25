@@ -1033,7 +1033,10 @@ final class ArenaScene: SKScene {
         }
 
         for pickup in collectedPickups {
-            _ = runController.recordItemPickup(pickupID: pickup.id)
+            let didCreditPickup = runController.recordItemPickup(pickupID: pickup.id)
+            if didCreditPickup {
+                reportGameCenterAchievementEvent(.weaponOrbCollected)
+            }
             playAudio(.pickup)
             playHaptic(.pickup)
             AppDiagnostics.logger(.weapon).notice("pickup.collected", metadata: [
@@ -1181,6 +1184,11 @@ final class ArenaScene: SKScene {
         pendingWeaponImpactEnemyIDs.subtract(enemyIDs)
         let previousComboMultiplier = runController.comboMultiplier
         runController.recordEnemyKills(count: enemyIDs.count, weaponKind: weaponKind)
+        reportGameCenterAchievementEvent(.enemyClear(
+            count: enemyIDs.count,
+            weaponKind: weaponKind,
+            maxCombo: runController.maxCombo
+        ))
         playEnemyClearHaptics(killCount: enemyIDs.count, previousComboMultiplier: previousComboMultiplier)
         playEnemyClearAudio(killCount: enemyIDs.count, previousComboMultiplier: previousComboMultiplier)
         if enemyIDs.count >= gameTuning.feedback.multiKillShakeThreshold {
@@ -1190,6 +1198,14 @@ final class ArenaScene: SKScene {
             )
         }
         removeEnemies(ids: enemyIDs)
+    }
+
+    private func reportGameCenterAchievementEvent(_ event: GameCenterAchievementEvent) {
+        guard !Self.isRunningUnitTests else {
+            return
+        }
+
+        GameCenterService.shared.reportAchievementEvent(event)
     }
 
     private func removeEnemies(ids enemyIDs: Set<Int>) {
@@ -1570,7 +1586,9 @@ final class ArenaScene: SKScene {
         lastProgressionResult = result
         hasPersistedFinalRun = true
         if !Self.isRunningUnitTests {
-            GameCenterService.shared.submitRunScore(summary)
+            let gameCenterService = GameCenterService.shared
+            gameCenterService.submitRunScore(summary)
+            gameCenterService.reportAchievementEvent(.runFinished(summary))
         }
     }
 
