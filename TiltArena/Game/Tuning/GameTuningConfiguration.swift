@@ -421,15 +421,19 @@ enum GameTuningParameterCatalog {
 
     private static func appendStartingWeaponParameters(to specs: inout [GameTuningParameterSpec]) {
         specs.append(cgFloat("startingWeapons.shockwaveRadius", "Weapons", "shockwave radius", \.startingWeapons.shockwaveRadius, 4, 0, nil, 1))
+        specs.append(double("startingWeapons.shockwaveExpansionDuration", "Weapons", "shockwave expand", \.startingWeapons.shockwaveExpansionDuration, 0.05, 0, nil, 2))
+        specs.append(double("startingWeapons.shockwaveHoldDuration", "Weapons", "shockwave hold", \.startingWeapons.shockwaveHoldDuration, 0.05, 0, nil, 2))
         specs.append(int("startingWeapons.seekerTargetLimit", "Weapons", "seeker target limit", \.startingWeapons.seekerTargetLimit, 1, 0, nil))
         specs.append(cgFloat("startingWeapons.razorShieldRadius", "Weapons", "shield radius", \.startingWeapons.razorShieldRadius, 2, 0, nil, 1))
         specs.append(double("startingWeapons.razorShieldDuration", "Weapons", "shield duration", \.startingWeapons.razorShieldDuration, 0.25, 0, nil, 2))
+        specs.append(cgFloat("startingWeapons.razorShieldExplosionRadius", "Weapons", "shield explosion", \.startingWeapons.razorShieldExplosionRadius, 2, 0, nil, 1))
         specs.append(cgFloat("startingWeapons.freezeBurstRadius", "Weapons", "freeze radius", \.startingWeapons.freezeBurstRadius, 4, 0, nil, 1))
         specs.append(double("startingWeapons.freezeExpansionDuration", "Weapons", "freeze expansion", \.startingWeapons.freezeExpansionDuration, 0.05, 0, nil, 2))
         specs.append(double("startingWeapons.freezeDuration", "Weapons", "freeze duration", \.startingWeapons.freezeDuration, 0.25, 0, nil, 2))
         specs.append(double("startingWeapons.freezeThawGraceDuration", "Weapons", "freeze thaw grace", \.startingWeapons.freezeThawGraceDuration, 0.05, 0, nil, 2))
         specs.append(double("startingWeapons.frozenCrasherDuration", "Weapons", "frozen crasher", \.startingWeapons.frozenCrasherDuration, 0.1, 0, nil, 2))
         specs.append(cgFloat("startingWeapons.gravityWellRadius", "Weapons", "gravity radius", \.startingWeapons.gravityWellRadius, 4, 0, nil, 1))
+        specs.append(double("startingWeapons.gravityWellActivationDelay", "Weapons", "gravity delay", \.startingWeapons.gravityWellActivationDelay, 0.05, 0, nil, 2))
         specs.append(double("startingWeapons.gravityWellPullDuration", "Weapons", "gravity pull duration", \.startingWeapons.gravityWellPullDuration, 0.05, 0.05, nil, 2))
         specs.append(cgFloat("startingWeapons.gravityWellClearRadius", "Weapons", "gravity clear radius", \.startingWeapons.gravityWellClearRadius, 2, 0, nil, 1))
         specs.append(cgFloat("startingWeapons.chainLightningInitialRange", "Weapons", "chain initial range", \.startingWeapons.chainLightningInitialRange, 4, 0, nil, 1))
@@ -455,6 +459,8 @@ enum GameTuningParameterCatalog {
             nil,
             2
         ))
+        specs.append(int("startingWeapons.novaBombMaximumTargetCount", "Weapons", "nova max targets", \.startingWeapons.novaBombMaximumTargetCount, 1, 0, nil))
+        specs.append(double("startingWeapons.novaBombTargetFraction", "Weapons", "nova target fraction", \.startingWeapons.novaBombTargetFraction, 0.05, 0, 1, 2))
     }
 
     private static func appendWeaponEffectParameters(to specs: inout [GameTuningParameterSpec]) {

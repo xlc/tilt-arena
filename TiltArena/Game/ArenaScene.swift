@@ -78,6 +78,7 @@ final class ArenaScene: SKScene {
     private var hasPlayedRazorShieldWarning = false
     private var razorShieldNode: SKShapeNode?
     private var frozenCrasherTimeRemaining: TimeInterval = 0
+    private var shockwaveWaveStates: [ShockwaveWaveState] = []
     private var freezeBurstWaveStates: [FreezeBurstWaveState] = []
     private var flameTrailState = FlameTrailState()
     private lazy var flameTrailEffectNode = FlameTrailEffectNode(theme: theme)
@@ -654,6 +655,7 @@ final class ArenaScene: SKScene {
         previousBestScore = runProfile.bestScore
         runController.endRun(mode: selectedMode)
         clearWeaponEffectNodes(paused: true)
+        shockwaveWaveStates.removeAll()
         freezeBurstWaveStates.removeAll()
         audioController.stopMusic()
         lastDeathCollisionSnapshot = collision
@@ -720,6 +722,7 @@ final class ArenaScene: SKScene {
         deactivateRazorShield()
         hasPlayedRazorShieldWarning = false
         frozenCrasherTimeRemaining = 0
+        shockwaveWaveStates.removeAll()
         freezeBurstWaveStates.removeAll()
         flameTrailState.reset()
         flameTrailEffectNode.reset()
@@ -839,7 +842,7 @@ final class ArenaScene: SKScene {
         }
 
         if let gravityWellState {
-            playGravityWellEffect(at: gravityWellState.center, duration: gravityWellState.timeRemaining)
+            playGravityWellEffect(at: gravityWellState.center, duration: gravityWellState.totalTimeRemaining)
         }
 
         if decoyBeaconState.isActive, let center = decoyBeaconState.center {
@@ -852,13 +855,13 @@ final class ArenaScene: SKScene {
 
         runController.update(deltaTime: deltaTime)
         deathReplayTrace.record(time: runController.survivalTime, position: playerPosition)
-        updateWarpDashInvulnerability(deltaTime: deltaTime)
         spawnEnemiesIfNeeded(deltaTime: deltaTime, playerPosition: playerPosition)
         spawnPickupIfNeeded(deltaTime: deltaTime, playerPosition: playerPosition)
         playerPosition = collectPickups(playerPosition: playerPosition)
         advanceEnemies(deltaTime: deltaTime, playerPosition: playerPosition)
         updateDecoyBeacon(deltaTime: deltaTime)
         updateGravityWell(deltaTime: deltaTime)
+        updateShockwaveWaves(deltaTime: deltaTime)
         updateFreezeBurstWaves(deltaTime: deltaTime)
         removeExpiredEnemies()
         cullExitedLinearPatternEnemies()
@@ -866,8 +869,10 @@ final class ArenaScene: SKScene {
         shatterFrozenContactEnemies(playerPosition: playerPosition)
         updateFrozenCrasher(deltaTime: deltaTime)
         updateFlameTrail(deltaTime: deltaTime, playerPosition: playerPosition)
+        resolveWarpDashContactKills(playerPosition: playerPosition)
         recordNearMisses(playerPosition: playerPosition)
         detectPlayerCollision(playerPosition: playerPosition)
+        updateWarpDashInvulnerability(deltaTime: deltaTime)
         updateRunDisplay()
     }
 
@@ -1052,14 +1057,14 @@ final class ArenaScene: SKScene {
             playerPosition: playerPosition,
             enemies: weaponTargetableEnemies()
         )
+        var loggedDestroyedCount = resolution.destroyedEnemyIDs.count
+        let loggedFrozenCount = resolution.frozenEnemyIDs.count
+        let loggedGravityTargetCount = resolution.gravityWellEnemyIDs.count
 
         switch kind {
         case .shockwave:
-            let targets = impactTargets(forEnemyIDs: resolution.destroyedEnemyIDs)
-            markPendingWeaponImpacts(targets)
-            playShockwaveEffect(at: playerPosition, targets: targets) { [weak self] enemyIDs in
-                self?.destroyEnemies(ids: enemyIDs, weaponKind: .shockwave)
-            }
+            loggedDestroyedCount = 0
+            activateShockwaveWave(at: playerPosition)
         case .seekerSwarm:
             let targets = impactTargets(forEnemyIDs: resolution.destroyedEnemyIDs)
                 .sorted { lhs, rhs in
@@ -1094,11 +1099,17 @@ final class ArenaScene: SKScene {
             flameTrailState.activate(at: playerPosition)
             flameTrailEffectNode.apply(segments: flameTrailState.segments)
         case .warpDash:
-            performWarpDash(from: playerPosition)
+            loggedDestroyedCount = performWarpDash(from: playerPosition)
         case .decoyBeacon:
             activateDecoyBeacon(at: playerPosition)
         case .novaBomb:
-            let targets = impactTargets(forEnemyIDs: resolution.destroyedEnemyIDs)
+            var rng = SystemRandomNumberGenerator()
+            let targetIDs = NovaBombTargetSelector(configuration: weaponResolver.configuration).selectedEnemyIDs(
+                from: weaponTargetableEnemies(),
+                using: &rng
+            )
+            loggedDestroyedCount = targetIDs.count
+            let targets = impactTargets(forEnemyIDs: targetIDs)
             markPendingWeaponImpacts(targets)
             playNovaBombEffect(targets: targets) { [weak self] enemyIDs in
                 self?.destroyEnemies(ids: enemyIDs, weaponKind: .novaBomb)
@@ -1107,9 +1118,9 @@ final class ArenaScene: SKScene {
 
         AppDiagnostics.logger(.weapon).notice("weapon.resolved", metadata: [
             "kind": "\(kind.rawValue)",
-            "destroyed": "\(resolution.destroyedEnemyIDs.count)",
-            "frozen": "\(resolution.frozenEnemyIDs.count)",
-            "gravityTargets": "\(resolution.gravityWellEnemyIDs.count)"
+            "destroyed": "\(loggedDestroyedCount)",
+            "frozen": "\(loggedFrozenCount)",
+            "gravityTargets": "\(loggedGravityTargetCount)"
         ])
     }
 
@@ -1288,7 +1299,25 @@ final class ArenaScene: SKScene {
         playRazorShieldWarningIfNeeded()
 
         if razorShieldTimeRemaining == 0 {
+            triggerRazorShieldExpiryExplosion(at: playerPosition)
             deactivateRazorShield(emitHaptic: true)
+        }
+    }
+
+    private func triggerRazorShieldExpiryExplosion(at playerPosition: CGPoint) {
+        let targetIDs = weaponResolver.shieldExplosionTargets(
+            playerPosition: playerPosition,
+            enemies: weaponTargetableEnemies()
+        ).subtracting(pendingWeaponImpactEnemyIDs)
+        let targets = impactTargets(forEnemyIDs: targetIDs)
+        markPendingWeaponImpacts(targets)
+        playRazorShieldExplosionEffect(
+            at: playerPosition,
+            startRadius: weaponResolver.configuration.razorShieldRadius,
+            explosionRadius: weaponResolver.configuration.razorShieldExplosionRadius,
+            targets: targets
+        ) { [weak self] enemyIDs in
+            self?.destroyEnemies(ids: enemyIDs, weaponKind: .razorShield)
         }
     }
 
@@ -1331,7 +1360,7 @@ final class ArenaScene: SKScene {
         flameTrailEffectNode.apply(segments: frame.segments)
     }
 
-    private func performWarpDash(from startPosition: CGPoint) {
+    private func performWarpDash(from startPosition: CGPoint) -> Int {
         let state = movementController.dash(
             direction: warpDashState.resolvedDirection(),
             distance: warpDashDistance(),
@@ -1344,6 +1373,15 @@ final class ArenaScene: SKScene {
             weaponResolver.configuration.warpDashInvulnerabilityDuration
         )
         playWarpDashEffect(from: startPosition, to: state.position)
+
+        let targetIDs = WarpDashCollision.sweptTargets(
+            from: startPosition,
+            to: state.position,
+            playerRadius: runController.configuration.playerHitRadius,
+            enemies: weaponTargetableEnemies()
+        )
+        destroyEnemies(ids: targetIDs, weaponKind: .warpDash)
+        return targetIDs.count
     }
 
     private func warpDashDistance() -> CGFloat {
@@ -1360,6 +1398,19 @@ final class ArenaScene: SKScene {
             0,
             warpDashInvulnerabilityTimeRemaining - max(0, deltaTime)
         )
+    }
+
+    private func resolveWarpDashContactKills(playerPosition: CGPoint) {
+        guard warpDashInvulnerabilityTimeRemaining > 0 else {
+            return
+        }
+
+        let targetIDs = WarpDashCollision.contactTargets(
+            playerPosition: playerPosition,
+            playerRadius: runController.configuration.playerHitRadius,
+            enemies: weaponTargetableEnemies()
+        )
+        destroyEnemies(ids: targetIDs, weaponKind: .warpDash)
     }
 
     private func detectPlayerCollision(playerPosition: CGPoint) {
@@ -3255,6 +3306,38 @@ extension ArenaScene {
 #endif
 
 private extension ArenaScene {
+    func activateShockwaveWave(at center: CGPoint) {
+        shockwaveWaveStates.append(
+            ShockwaveWaveState(
+                center: center,
+                maximumRadius: weaponResolver.configuration.shockwaveRadius,
+                expansionDuration: weaponResolver.configuration.shockwaveExpansionDuration,
+                holdDuration: weaponResolver.configuration.shockwaveHoldDuration
+            )
+        )
+        playShockwaveEffect(
+            at: center,
+            duration: weaponResolver.configuration.shockwaveExpansionDuration,
+            holdDuration: weaponResolver.configuration.shockwaveHoldDuration
+        )
+    }
+
+    func updateShockwaveWaves(deltaTime: TimeInterval) {
+        guard !shockwaveWaveStates.isEmpty else {
+            return
+        }
+
+        var activeStates: [ShockwaveWaveState] = []
+        for var state in shockwaveWaveStates {
+            let frame = state.update(deltaTime: deltaTime, enemies: weaponTargetableEnemies())
+            destroyEnemies(ids: frame.destroyedEnemyIDs, weaponKind: .shockwave)
+            if !frame.isComplete {
+                activeStates.append(state)
+            }
+        }
+        shockwaveWaveStates = activeStates
+    }
+
     func activateFreezeBurstWave(at center: CGPoint) {
         freezeBurstWaveStates.append(
             FreezeBurstWaveState(
@@ -3324,9 +3407,14 @@ private extension ArenaScene {
         gravityWellState = GravityWellState(
             center: center,
             enemyIDs: enemyIDs,
-            timeRemaining: weaponResolver.configuration.gravityWellPullDuration
+            timeRemaining: weaponResolver.configuration.gravityWellPullDuration,
+            activationDelayRemaining: weaponResolver.configuration.gravityWellActivationDelay
         )
-        playGravityWellEffect(at: center)
+        playGravityWellEffect(
+            at: center,
+            duration: weaponResolver.configuration.gravityWellActivationDelay
+                + weaponResolver.configuration.gravityWellPullDuration
+        )
     }
 
     func updateGravityWell(deltaTime: TimeInterval) {
@@ -3334,23 +3422,22 @@ private extension ArenaScene {
             return
         }
 
-        let clampedDelta = max(0, deltaTime)
+        let pullDelta = state.consumePullDelta(deltaTime: deltaTime)
         let pullDuration = max(weaponResolver.configuration.gravityWellPullDuration, 0.001)
-        let pullDistance = weaponResolver.configuration.gravityWellRadius / CGFloat(pullDuration) * CGFloat(clampedDelta)
+        let pullDistance = weaponResolver.configuration.gravityWellRadius / CGFloat(pullDuration) * CGFloat(pullDelta)
 
-        for index in enemies.indices where state.enemyIDs.contains(enemies[index].id) {
-            enemies[index].pullToward(state.center, distance: pullDistance)
-            enemyNodes[enemies[index].id]?.apply(enemies[index])
+        if pullDistance > 0 {
+            for index in enemies.indices where state.enemyIDs.contains(enemies[index].id) {
+                enemies[index].pullToward(state.center, distance: pullDistance)
+                enemyNodes[enemies[index].id]?.apply(enemies[index])
+            }
         }
 
-        state.timeRemaining = max(0, state.timeRemaining - clampedDelta)
-
-        guard state.timeRemaining == 0 else {
+        if state.isComplete {
+            completeGravityWell(state)
+        } else {
             gravityWellState = state
-            return
         }
-
-        completeGravityWell(state)
     }
 
     func completeGravityWell(_ state: GravityWellState) {

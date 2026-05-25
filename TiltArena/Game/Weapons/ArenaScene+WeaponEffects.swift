@@ -8,11 +8,13 @@ struct WeaponImpactTarget: Equatable {
 extension ArenaScene {
     func playShockwaveEffect(
         at position: CGPoint,
-        targets: [WeaponImpactTarget],
-        onImpact: @escaping (Set<Int>) -> Void
+        duration: TimeInterval,
+        holdDuration: TimeInterval
     ) {
         let radius = weaponResolver.configuration.shockwaveRadius
-        let duration = weaponEffectTiming.waveDuration(radius: radius)
+        let expansionDuration = max(0.01, duration)
+        let holdDuration = max(0, holdDuration)
+        let fadeDuration: TimeInterval = 0.12
         let ring = makeEffectRing(
             radius: radius,
             strokeColor: theme.playerAccentColor.withAlphaComponent(0.92),
@@ -35,33 +37,26 @@ extension ArenaScene {
             spoke.alpha = 0
             addWeaponEffectNode(spoke)
             spoke.run(.sequence([
-                .wait(forDuration: duration * 0.15),
+                .wait(forDuration: expansionDuration * 0.15),
                 .group([
-                    .fadeAlpha(to: 0.55, duration: duration * 0.3),
-                    .scale(to: 1.02, duration: duration * 0.3)
+                    .fadeAlpha(to: 0.55, duration: expansionDuration * 0.3),
+                    .scale(to: 1.02, duration: expansionDuration * 0.3)
                 ]),
-                .fadeOut(withDuration: duration * 0.45),
+                .wait(forDuration: holdDuration),
+                .fadeOut(withDuration: fadeDuration),
                 .removeFromParent()
             ]))
         }
 
         ring.run(.sequence([
             .group([
-                .scale(to: 1, duration: duration),
-                .fadeOut(withDuration: duration)
+                .scale(to: 1, duration: expansionDuration),
+                .fadeAlpha(to: 0.82, duration: expansionDuration)
             ]),
+            .wait(forDuration: holdDuration),
+            .fadeOut(withDuration: fadeDuration),
             .removeFromParent()
         ]))
-
-        for target in targets {
-            playImpactBurst(
-                at: target,
-                delay: weaponEffectTiming.waveDuration(from: position, to: target.position),
-                color: theme.playerAccentColor,
-                radius: 14,
-                onImpact: onImpact
-            )
-        }
     }
 
     func playNovaBombEffect(
@@ -303,6 +298,46 @@ extension ArenaScene {
                 color: theme.pickupBlue,
                 coreColor: theme.playerColor,
                 impactRadius: 11,
+                onImpact: onImpact
+            )
+        }
+    }
+
+    func playRazorShieldExplosionEffect(
+        at position: CGPoint,
+        startRadius: CGFloat,
+        explosionRadius: CGFloat,
+        targets: [WeaponImpactTarget],
+        onImpact: @escaping (Set<Int>) -> Void
+    ) {
+        let clampedExplosionRadius = max(0, explosionRadius)
+        let delay: TimeInterval = 0.1
+        let ring = makeEffectRing(
+            radius: clampedExplosionRadius,
+            strokeColor: theme.pickupBlue.withAlphaComponent(0.95),
+            fillColor: theme.pickupBlue.withAlphaComponent(0.12),
+            lineWidth: 2,
+            glowWidth: 7
+        )
+        ring.position = position
+        let scale = clampedExplosionRadius > 0 ? max(0.05, min(1, startRadius / clampedExplosionRadius)) : 1
+        ring.setScale(scale)
+        addWeaponEffectNode(ring)
+        ring.run(.sequence([
+            .group([
+                .scale(to: 1, duration: delay),
+                .fadeAlpha(to: 0.7, duration: delay)
+            ]),
+            .fadeOut(withDuration: 0.08),
+            .removeFromParent()
+        ]))
+
+        for target in targets {
+            playImpactBurst(
+                at: target,
+                delay: delay,
+                color: theme.pickupBlue,
+                radius: 12,
                 onImpact: onImpact
             )
         }

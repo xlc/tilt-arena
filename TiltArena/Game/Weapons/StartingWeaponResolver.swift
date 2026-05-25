@@ -2,16 +2,20 @@ import CoreGraphics
 import Foundation
 
 struct StartingWeaponConfiguration: Equatable {
-    var shockwaveRadius: CGFloat = 96
+    var shockwaveRadius: CGFloat = 120
+    var shockwaveExpansionDuration: TimeInterval = 0.3
+    var shockwaveHoldDuration: TimeInterval = 0.1
     var seekerTargetLimit: Int = 4
     var razorShieldRadius: CGFloat = 32
     var razorShieldDuration: TimeInterval = 4
+    var razorShieldExplosionRadius: CGFloat = 40
     var freezeBurstRadius: CGFloat = 140
     var freezeExpansionDuration: TimeInterval = 0.25
     var freezeDuration: TimeInterval = 4
     var freezeThawGraceDuration: TimeInterval = 0.35
     var frozenCrasherDuration: TimeInterval = 2.4
     var gravityWellRadius: CGFloat = 132
+    var gravityWellActivationDelay: TimeInterval = 0.5
     var gravityWellPullDuration: TimeInterval = 0.85
     var gravityWellClearRadius: CGFloat = 32
     var chainLightningInitialRange: CGFloat = 128
@@ -19,6 +23,8 @@ struct StartingWeaponConfiguration: Equatable {
     var chainLightningTargetLimit: Int = 6
     var warpDashDistanceFractionOfShortSide: CGFloat = 0.33
     var warpDashInvulnerabilityDuration: TimeInterval = 0.35
+    var novaBombMaximumTargetCount: Int = 15
+    var novaBombTargetFraction: Double = 0.8
 }
 
 struct WeaponResolution: Equatable {
@@ -107,13 +113,18 @@ struct StartingWeaponResolver {
         case .flameTrail, .warpDash, .decoyBeacon:
             return WeaponResolution()
         case .novaBomb:
-            return WeaponResolution(destroyedEnemyIDs: Set(enemies.map(\.id)))
+            return WeaponResolution()
         }
     }
 
     func shieldTargets(playerPosition: CGPoint, enemies: [ArenaEnemy]) -> Set<Int> {
         let shieldCircle = CollisionCircle(center: playerPosition, radius: configuration.razorShieldRadius)
         return Set(enemies.filter { shieldCircle.intersects($0.collisionCircle) }.map(\.id))
+    }
+
+    func shieldExplosionTargets(playerPosition: CGPoint, enemies: [ArenaEnemy]) -> Set<Int> {
+        let explosionCircle = CollisionCircle(center: playerPosition, radius: configuration.razorShieldExplosionRadius)
+        return Set(enemies.filter { explosionCircle.intersects($0.collisionCircle) }.map(\.id))
     }
 
     private func shockwaveTargets(playerPosition: CGPoint, enemies: [ArenaEnemy]) -> Set<Int> {

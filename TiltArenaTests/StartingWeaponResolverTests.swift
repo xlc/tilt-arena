@@ -2,6 +2,10 @@ import XCTest
 @testable import TiltArena
 
 final class StartingWeaponResolverTests: XCTestCase {
+    func testDefaultShockwaveRadiusUsesBuffedRadius() {
+        XCTAssertEqual(StartingWeaponConfiguration().shockwaveRadius, 120)
+    }
+
     func testShockwaveClearsEnemiesInsideRadius() {
         let resolver = StartingWeaponResolver(
             configuration: StartingWeaponConfiguration(shockwaveRadius: 50)
@@ -56,6 +60,23 @@ final class StartingWeaponResolverTests: XCTestCase {
 
         XCTAssertEqual(resolution.destroyedEnemyIDs, [])
         XCTAssertEqual(resolver.shieldTargets(playerPosition: .zero, enemies: enemies), [1])
+    }
+
+    func testRazorShieldExplosionUsesExpandedExpiryRadius() {
+        let resolver = StartingWeaponResolver(
+            configuration: StartingWeaponConfiguration(
+                razorShieldRadius: 24,
+                razorShieldExplosionRadius: 40
+            )
+        )
+        let enemies = [
+            enemy(id: 1, position: CGPoint(x: 28, y: 0)),
+            enemy(id: 2, position: CGPoint(x: 46, y: 0)),
+            enemy(id: 3, position: CGPoint(x: 80, y: 0))
+        ]
+
+        XCTAssertEqual(resolver.shieldTargets(playerPosition: .zero, enemies: enemies), [1])
+        XCTAssertEqual(resolver.shieldExplosionTargets(playerPosition: .zero, enemies: enemies), [1, 2])
     }
 
     func testFreezeBurstFreezesEnemiesInsideRadiusWithoutDestroyingThem() {
@@ -230,7 +251,7 @@ final class StartingWeaponResolverTests: XCTestCase {
         XCTAssertEqual(resolution.destroyedEnemyIDs, [])
     }
 
-    func testNovaBombClearsAllEnemies() {
+    func testNovaBombSelectionIsHandledOutsideResolver() {
         let resolver = StartingWeaponResolver()
         let enemies = [
             enemy(id: 1, position: CGPoint(x: 200, y: 0)),
@@ -244,7 +265,7 @@ final class StartingWeaponResolverTests: XCTestCase {
             enemies: enemies
         )
 
-        XCTAssertEqual(resolution.destroyedEnemyIDs, [1, 2, 3])
+        XCTAssertEqual(resolution.destroyedEnemyIDs, [])
     }
 
     func testFlameTrailDoesNotInstantlyResolveTargets() {
