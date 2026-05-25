@@ -150,6 +150,49 @@ final class GameViewControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testHomeScreenRendersClassicLeaderboardEntryPoint() {
+        let scene = ArenaScene(size: CGSize(width: 852, height: 393))
+
+        scene.prepareForVisualSnapshot(state: .home)
+
+        XCTAssertEqual(scene.classicLeaderboardButtonCountForTesting, 1)
+    }
+
+    @MainActor
+    func testPostRunScreenRendersClassicLeaderboardEntryPoint() {
+        let scene = ArenaScene(size: CGSize(width: 852, height: 393))
+
+        scene.prepareForVisualSnapshot(state: .postRun)
+
+        XCTAssertEqual(scene.classicLeaderboardButtonCountForTesting, 1)
+    }
+
+    @MainActor
+    func testClassicLeaderboardActionRoutesToDelegate() {
+        let scene = ArenaScene(size: CGSize(width: 852, height: 393))
+        let delegate = FakeArenaSceneGameCenterDelegate(result: .presented)
+        scene.gameCenterDelegate = delegate
+        scene.prepareForVisualSnapshot(state: .home)
+
+        scene.requestClassicLeaderboardForTesting()
+
+        XCTAssertTrue(delegate.requestedScene === scene)
+        XCTAssertNil(scene.gameCenterStatusMessageForTesting)
+    }
+
+    @MainActor
+    func testClassicLeaderboardActionShowsSignedOutStatusWhenAuthenticationIsRequired() {
+        let scene = ArenaScene(size: CGSize(width: 852, height: 393))
+        let delegate = FakeArenaSceneGameCenterDelegate(result: .unavailable(.authenticationRequired))
+        scene.gameCenterDelegate = delegate
+        scene.prepareForVisualSnapshot(state: .home)
+
+        scene.requestClassicLeaderboardForTesting()
+
+        XCTAssertEqual(scene.gameCenterStatusMessageForTesting, "SIGN IN TO VIEW RANKS")
+    }
+
+    @MainActor
     func testPlayerVisualRadiusTuningKeepsHitRadiusInSync() {
         let scene = ArenaScene(size: CGSize(width: 852, height: 393))
         scene.prepareActiveRunForTesting()
@@ -171,5 +214,20 @@ private final class SafeAreaTestSKView: SKView {
 
     override var safeAreaInsets: UIEdgeInsets {
         testSafeAreaInsets
+    }
+}
+
+@MainActor
+private final class FakeArenaSceneGameCenterDelegate: ArenaSceneGameCenterDelegate {
+    private let result: GameCenterLeaderboardPresentationResult
+    private(set) weak var requestedScene: ArenaScene?
+
+    init(result: GameCenterLeaderboardPresentationResult) {
+        self.result = result
+    }
+
+    func arenaSceneRequestsClassicLeaderboard(_ scene: ArenaScene) -> GameCenterLeaderboardPresentationResult {
+        requestedScene = scene
+        return result
     }
 }

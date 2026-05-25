@@ -11,6 +11,16 @@ protocol GameCenterAuthenticationPresenting: AnyObject {
 }
 
 @MainActor
+protocol GameCenterLeaderboardPresenting: AnyObject {
+    func presentGameCenterLeaderboard(_ viewController: UIViewController)
+}
+
+@MainActor
+protocol GameCenterLeaderboardFactory {
+    func makeClassicSurvivalLeaderboardViewController() -> UIViewController?
+}
+
+@MainActor
 protocol GameCenterLocalPlayerClient: AnyObject {
     var isAvailable: Bool { get }
     var isAuthenticated: Bool { get }
@@ -46,6 +56,16 @@ enum GameCenterAuthenticationFailureReason: String, Equatable {
     case denied
     case unavailable
     case failed
+}
+
+enum GameCenterLeaderboardUnavailableReason: Equatable {
+    case unsupported
+    case authenticationRequired
+}
+
+enum GameCenterLeaderboardPresentationResult: Equatable {
+    case presented
+    case unavailable(GameCenterLeaderboardUnavailableReason)
 }
 
 struct GameCenterAuthenticationFailure: Equatable {
@@ -90,6 +110,7 @@ final class GameCenterService {
 
     private let localPlayer: GameCenterLocalPlayerClient
     private let scoreSubmissionStore: GameCenterScoreSubmissionStore
+    private let leaderboardFactory: GameCenterLeaderboardFactory
     private let logger: Logger
     private var hasInstalledAuthenticationHandler = false
     private var shouldSuppressAutomaticPrompt = false
@@ -102,10 +123,12 @@ final class GameCenterService {
     init(
         localPlayer: GameCenterLocalPlayerClient = GameKitLocalPlayerClient(),
         scoreSubmissionStore: GameCenterScoreSubmissionStore = GameCenterScoreSubmissionStore(),
+        leaderboardFactory: GameCenterLeaderboardFactory = GameKitLeaderboardFactory(),
         logger: Logger = AppDiagnostics.logger(.gameCenter)
     ) {
         self.localPlayer = localPlayer
         self.scoreSubmissionStore = scoreSubmissionStore
+        self.leaderboardFactory = leaderboardFactory
         self.logger = logger
     }
 
@@ -139,6 +162,37 @@ final class GameCenterService {
         shouldSuppressAutomaticPrompt = false
         hasInstalledAuthenticationHandler = false
         authenticate(presenter: presenter, allowsPrompt: true)
+    }
+
+    func presentClassicSurvivalLeaderboard(
+        presenter: GameCenterLeaderboardPresenting
+    ) -> GameCenterLeaderboardPresentationResult {
+        guard localPlayer.isAvailable else {
+            logger.info("game_center.leaderboard_unavailable", metadata: [
+                "reason": "unsupported"
+            ])
+            return .unavailable(.unsupported)
+        }
+
+        guard localPlayer.isAuthenticated else {
+            logger.info("game_center.leaderboard_unavailable", metadata: [
+                "reason": "authenticationRequired"
+            ])
+            return .unavailable(.authenticationRequired)
+        }
+
+        guard let viewController = leaderboardFactory.makeClassicSurvivalLeaderboardViewController() else {
+            logger.warning("game_center.leaderboard_unavailable", metadata: [
+                "reason": "unsupported"
+            ])
+            return .unavailable(.unsupported)
+        }
+
+        presenter.presentGameCenterLeaderboard(viewController)
+        logger.notice("game_center.leaderboard_presented", metadata: [
+            "leaderboardID": "\(GameCenterIdentifiers.Leaderboard.classicSurvivalHighScore)"
+        ])
+        return .presented
     }
 
     func submitRunScore(_ summary: RunSummary) {
@@ -407,6 +461,17 @@ final class GameCenterService {
 
 #if canImport(GameKit)
 @MainActor
+struct GameKitLeaderboardFactory: GameCenterLeaderboardFactory {
+    func makeClassicSurvivalLeaderboardViewController() -> UIViewController? {
+        GKGameCenterViewController(
+            leaderboardID: GameCenterIdentifiers.Leaderboard.classicSurvivalHighScore,
+            playerScope: .global,
+            timeScope: .allTime
+        )
+    }
+}
+
+@MainActor
 final class GameKitLocalPlayerClient: GameCenterLocalPlayerClient {
     var isAvailable: Bool {
         true
@@ -445,6 +510,13 @@ final class GameKitLocalPlayerClient: GameCenterLocalPlayerClient {
     }
 }
 #else
+@MainActor
+struct GameKitLeaderboardFactory: GameCenterLeaderboardFactory {
+    func makeClassicSurvivalLeaderboardViewController() -> UIViewController? {
+        nil
+    }
+}
+
 @MainActor
 final class GameKitLocalPlayerClient: GameCenterLocalPlayerClient {
     var isAvailable: Bool {

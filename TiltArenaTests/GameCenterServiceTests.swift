@@ -280,8 +280,54 @@ final class GameCenterServiceTests: XCTestCase {
         XCTAssertEqual(reloadedStore.pendingSubmissions.map(\.score), [200, 300])
     }
 
-    private func makeService(localPlayer: FakeGameCenterLocalPlayerClient) -> GameCenterService {
-        GameCenterService(localPlayer: localPlayer, scoreSubmissionStore: scoreSubmissionStore)
+    func testAuthenticatedLeaderboardPresentationPresentsClassicLeaderboard() {
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
+        let viewController = UIViewController()
+        let presenter = FakeGameCenterLeaderboardPresenter()
+        let service = makeService(
+            localPlayer: client,
+            leaderboardFactory: FakeLeaderboardFactory(
+                viewController: viewController
+            )
+        )
+
+        let result = service.presentClassicSurvivalLeaderboard(presenter: presenter)
+
+        XCTAssertEqual(result, .presented)
+        XCTAssertTrue(presenter.presentedViewController === viewController)
+    }
+
+    func testUnauthenticatedLeaderboardPresentationRequestsAuthentication() {
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: false)
+        let presenter = FakeGameCenterLeaderboardPresenter()
+        let service = makeService(localPlayer: client)
+
+        let result = service.presentClassicSurvivalLeaderboard(presenter: presenter)
+
+        XCTAssertEqual(result, .unavailable(.authenticationRequired))
+        XCTAssertNil(presenter.presentedViewController)
+    }
+
+    func testUnsupportedLeaderboardPresentationDoesNotPresent() {
+        let client = FakeGameCenterLocalPlayerClient(isAvailable: false)
+        let presenter = FakeGameCenterLeaderboardPresenter()
+        let service = makeService(localPlayer: client)
+
+        let result = service.presentClassicSurvivalLeaderboard(presenter: presenter)
+
+        XCTAssertEqual(result, .unavailable(.unsupported))
+        XCTAssertNil(presenter.presentedViewController)
+    }
+
+    private func makeService(
+        localPlayer: FakeGameCenterLocalPlayerClient,
+        leaderboardFactory: GameCenterLeaderboardFactory = FakeLeaderboardFactory()
+    ) -> GameCenterService {
+        GameCenterService(
+            localPlayer: localPlayer,
+            scoreSubmissionStore: scoreSubmissionStore,
+            leaderboardFactory: leaderboardFactory
+        )
     }
 
     private func makeRunSummary(
@@ -305,6 +351,19 @@ private struct SubmittedGameCenterScore: Equatable {
     let score: Int
     let context: Int
     let leaderboardIDs: [String]
+}
+
+@MainActor
+private struct FakeLeaderboardFactory: GameCenterLeaderboardFactory {
+    var viewController: UIViewController?
+
+    init(viewController: UIViewController? = nil) {
+        self.viewController = viewController
+    }
+
+    func makeClassicSurvivalLeaderboardViewController() -> UIViewController? {
+        viewController
+    }
 }
 
 @MainActor
@@ -369,6 +428,15 @@ private final class FakeGameCenterAuthenticationPresenter: GameCenterAuthenticat
     private(set) var presentedViewController: UIViewController?
 
     func presentGameCenterAuthentication(_ viewController: UIViewController) {
+        presentedViewController = viewController
+    }
+}
+
+@MainActor
+private final class FakeGameCenterLeaderboardPresenter: GameCenterLeaderboardPresenting {
+    private(set) var presentedViewController: UIViewController?
+
+    func presentGameCenterLeaderboard(_ viewController: UIViewController) {
         presentedViewController = viewController
     }
 }

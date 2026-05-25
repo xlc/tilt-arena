@@ -20,10 +20,16 @@ protocol ArenaSceneDiagnosticsDelegate: AnyObject {
     )
 }
 
+@MainActor
+protocol ArenaSceneGameCenterDelegate: AnyObject {
+    func arenaSceneRequestsClassicLeaderboard(_ scene: ArenaScene) -> GameCenterLeaderboardPresentationResult
+}
+
 // swiftlint:disable:next type_body_length
 final class ArenaScene: SKScene {
     weak var orientationDelegate: ArenaSceneOrientationDelegate?
     weak var diagnosticsDelegate: ArenaSceneDiagnosticsDelegate?
+    weak var gameCenterDelegate: ArenaSceneGameCenterDelegate?
     var theme: ArenaTheme {
         localOptions.themeKind.theme
     }
@@ -46,6 +52,7 @@ final class ArenaScene: SKScene {
     private var optionsReturnState: ArenaUISceneState = .home
     private var calibrationReturnState: ArenaUISceneState = .home
     private var developerReturnState: ArenaUISceneState = .home
+    private var gameCenterStatusMessage: String?
     private var selectedMode: ArenaModeKind = .classic
     private var previousBestScore = 0
     private var lastProgressionResult: ArenaProgressionResult?
@@ -1562,7 +1569,9 @@ final class ArenaScene: SKScene {
         runProfile = result.profile
         lastProgressionResult = result
         hasPersistedFinalRun = true
-        GameCenterService.shared.submitRunScore(summary)
+        if !Self.isRunningUnitTests {
+            GameCenterService.shared.submitRunScore(summary)
+        }
     }
 
 }
@@ -1571,6 +1580,9 @@ private extension ArenaScene {
     func show(_ state: ArenaUISceneState) {
         if state != .options {
             resetDataArmed = false
+        }
+        if state != .home && state != .postRun {
+            gameCenterStatusMessage = nil
         }
 
         uiState = state
@@ -1594,6 +1606,10 @@ private extension ArenaScene {
             runTiltScreenOrientation = nil
             orientationDelegate?.arenaSceneRequestsOrientationUnlock(self)
         }
+    }
+
+    static var isRunningUnitTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 
     var shouldLockCurrentOrientation: Bool {
@@ -1688,7 +1704,7 @@ private extension ArenaScene {
 
     func renderHome() {
         let layout = currentLandscapeLayout()
-        let bottomButtonSize = CGSize(width: 108, height: 38)
+        let bottomButtonSize = CGSize(width: 96, height: 38)
         addTitle("TILT ARENA", at: layout.titlePosition)
         addSmallLabel(
             "CLASSIC SURVIVAL",
@@ -1702,6 +1718,10 @@ private extension ArenaScene {
             color: theme.playerAccentColor,
             alignment: .left
         )
+        renderGameCenterStatusMessage(
+            at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 78),
+            alignment: .left
+        )
         addPreviewThreats(in: layout.gameplayRect)
         addButton(
             "PLAY",
@@ -1709,25 +1729,7 @@ private extension ArenaScene {
             action: .play,
             style: .primary
         )
-
-        addButton(
-            "MODES",
-            frame: layout.bottomButtonFrame(index: 0, count: 3, buttonSize: bottomButtonSize),
-            action: .openModes,
-            style: .secondary
-        )
-        addButton(
-            "AWARDS",
-            frame: layout.bottomButtonFrame(index: 1, count: 3, buttonSize: bottomButtonSize),
-            action: .openAwards,
-            style: .secondary
-        )
-        addButton(
-            "OPTIONS",
-            frame: layout.bottomButtonFrame(index: 2, count: 3, buttonSize: bottomButtonSize),
-            action: .openOptions,
-            style: .secondary
-        )
+        renderHomeNavigationButtons(layout: layout, buttonSize: bottomButtonSize)
         #if DEBUG
         addButton(
             "DEV",
@@ -1736,6 +1738,33 @@ private extension ArenaScene {
             style: .secondary
         )
         #endif
+    }
+
+    func renderHomeNavigationButtons(layout: ArenaLandscapeUILayout, buttonSize: CGSize) {
+        addButton(
+            "MODES",
+            frame: layout.bottomButtonFrame(index: 0, count: 4, buttonSize: buttonSize),
+            action: .openModes,
+            style: .secondary
+        )
+        addButton(
+            "AWARDS",
+            frame: layout.bottomButtonFrame(index: 1, count: 4, buttonSize: buttonSize),
+            action: .openAwards,
+            style: .secondary
+        )
+        addButton(
+            "RANKS",
+            frame: layout.bottomButtonFrame(index: 2, count: 4, buttonSize: buttonSize),
+            action: .openClassicLeaderboard,
+            style: .secondary
+        )
+        addButton(
+            "OPTIONS",
+            frame: layout.bottomButtonFrame(index: 3, count: 4, buttonSize: buttonSize),
+            action: .openOptions,
+            style: .secondary
+        )
     }
 
     func renderModeSelect() {
@@ -2380,6 +2409,10 @@ private extension ArenaScene {
             color: theme.playerAccentColor,
             alignment: .left
         )
+        renderGameCenterStatusMessage(
+            at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 136),
+            alignment: .left
+        )
     }
 
     func renderPostRunHighlights(summary: RunSummary?, in frame: CGRect) {
@@ -2407,18 +2440,40 @@ private extension ArenaScene {
             action: .playAgain,
             style: .primary
         )
-        let buttonSize = CGSize(width: 112, height: 36)
+        let buttonSize = CGSize(width: 104, height: 36)
         addButton(
             "MODES",
-            frame: layout.bottomButtonFrame(index: 0, count: 2, buttonSize: buttonSize),
+            frame: layout.bottomButtonFrame(index: 0, count: 3, buttonSize: buttonSize),
             action: .openModes,
             style: .secondary
         )
         addButton(
+            "RANKS",
+            frame: layout.bottomButtonFrame(index: 1, count: 3, buttonSize: buttonSize),
+            action: .openClassicLeaderboard,
+            style: .secondary
+        )
+        addButton(
             "HOME",
-            frame: layout.bottomButtonFrame(index: 1, count: 2, buttonSize: buttonSize),
+            frame: layout.bottomButtonFrame(index: 2, count: 3, buttonSize: buttonSize),
             action: .home,
             style: .secondary
+        )
+    }
+
+    func renderGameCenterStatusMessage(
+        at position: CGPoint,
+        alignment: SKLabelHorizontalAlignmentMode
+    ) {
+        guard let gameCenterStatusMessage else {
+            return
+        }
+
+        addSmallLabel(
+            gameCenterStatusMessage,
+            at: position,
+            color: theme.playerAccentColor,
+            alignment: alignment
         )
     }
 
@@ -2438,6 +2493,8 @@ private extension ArenaScene {
             performRunControlAction(action)
         case .exportDiagnostics:
             exportDiagnostics()
+        case .openClassicLeaderboard:
+            requestClassicLeaderboard()
         case .sensitivityDown, .sensitivityUp, .preset, .toggleAudio, .toggleHaptics, .selectTheme, .resetData:
             performOptionsAction(action)
         case .developerTuningPreviousPage,
@@ -2445,6 +2502,18 @@ private extension ArenaScene {
                 .adjustTuningParameter,
                 .copyTuningParameters:
             performDeveloperTuningAction(action)
+        }
+    }
+
+    func requestClassicLeaderboard() {
+        let result = gameCenterDelegate?.arenaSceneRequestsClassicLeaderboard(self)
+            ?? .unavailable(.unsupported)
+        switch result {
+        case .presented:
+            gameCenterStatusMessage = nil
+        case let .unavailable(reason):
+            gameCenterStatusMessage = reason.gameplayStatusMessage
+            rebuildUI()
         }
     }
 
@@ -3208,6 +3277,7 @@ extension ArenaScene {
         developerReturnState = .home
         developerTuningPageIndex = 0
         developerTuningCopyConfirmation = nil
+        gameCenterStatusMessage = nil
         lastProgressionResult = nil
         lastDeathCollisionSnapshot = nil
         hasPersistedFinalRun = false
@@ -3284,6 +3354,18 @@ extension ArenaScene {
 
     func openDeveloperTuningForTesting() {
         performNavigationAction(.openDeveloperTuning)
+    }
+
+    var classicLeaderboardButtonCountForTesting: Int {
+        uiHitTargets.filter { $0.action == .openClassicLeaderboard }.count
+    }
+
+    var gameCenterStatusMessageForTesting: String? {
+        gameCenterStatusMessage
+    }
+
+    func requestClassicLeaderboardForTesting() {
+        perform(.openClassicLeaderboard)
     }
 
     func advanceDeveloperTuningPageForTesting() {
@@ -3550,6 +3632,7 @@ private enum ArenaControlAction: Equatable {
     case selectTheme(ArenaThemeKind)
     case resetData
     case exportDiagnostics
+    case openClassicLeaderboard
     case developerTuningPreviousPage
     case developerTuningNextPage
     case adjustTuningParameter(String, GameTuningAdjustmentDirection)
@@ -3571,6 +3654,17 @@ private enum ArenaUIZPosition {
     static let control: CGFloat = 24
     static let controlFill: CGFloat = 25
     static let label: CGFloat = 32
+}
+
+private extension GameCenterLeaderboardUnavailableReason {
+    var gameplayStatusMessage: String {
+        switch self {
+        case .unsupported:
+            return "GAME CENTER UNAVAILABLE"
+        case .authenticationRequired:
+            return "SIGN IN TO VIEW RANKS"
+        }
+    }
 }
 
 private extension ArenaUISceneState {

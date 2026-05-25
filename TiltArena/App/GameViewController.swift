@@ -1,5 +1,8 @@
 import SpriteKit
 import UIKit
+#if canImport(GameKit)
+import GameKit
+#endif
 
 final class GameViewController: UIViewController {
     private static let loadingScreenAssetName = "LoadingScreen"
@@ -82,6 +85,7 @@ final class GameViewController: UIViewController {
         let scene = ArenaScene(size: spriteView.bounds.size)
         scene.orientationDelegate = self
         scene.diagnosticsDelegate = self
+        scene.gameCenterDelegate = self
         scene.scaleMode = .resizeFill
         spriteView.presentScene(scene)
         scene.refreshSafeAreaLayout()
@@ -349,3 +353,33 @@ extension GameViewController: GameCenterAuthenticationPresenting {
         present(viewController, animated: true)
     }
 }
+
+extension GameViewController: GameCenterLeaderboardPresenting {
+    func presentGameCenterLeaderboard(_ viewController: UIViewController) {
+        #if canImport(GameKit)
+        if let gameCenterViewController = viewController as? GKGameCenterViewController {
+            gameCenterViewController.gameCenterDelegate = self
+        }
+        #endif
+
+        present(viewController, animated: true)
+    }
+}
+
+extension GameViewController: ArenaSceneGameCenterDelegate {
+    func arenaSceneRequestsClassicLeaderboard(_ scene: ArenaScene) -> GameCenterLeaderboardPresentationResult {
+        let result = GameCenterService.shared.presentClassicSurvivalLeaderboard(presenter: self)
+        if result == .unavailable(.authenticationRequired) {
+            GameCenterService.shared.retryAuthentication(presenter: self)
+        }
+        return result
+    }
+}
+
+#if canImport(GameKit)
+extension GameViewController: @MainActor GKGameCenterControllerDelegate {
+    func gameCenterViewControllerDidFinish(_ gameCenterViewController: GKGameCenterViewController) {
+        dismiss(animated: true)
+    }
+}
+#endif
