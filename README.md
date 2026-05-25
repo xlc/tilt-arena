@@ -22,3 +22,7 @@ xcodebuild -project TiltArena.xcodeproj \
   CODE_SIGNING_ALLOWED=NO \
   build
 ```
+
+## Release QA
+
+- [Game Center App Store Connect setup and QA](docs/game-center-release-qa.md)
