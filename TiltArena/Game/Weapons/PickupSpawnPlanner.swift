@@ -52,10 +52,17 @@ struct PickupSpawnPlanner {
         (0.68, 0.68),
         (0.50, 0.58)
     ]
+    private static let fallbackGridColumns = 11
+    private static let fallbackGridRows = 9
+    private static let fallbackCandidateStep = 37
+    private static var fallbackCandidateCount: Int {
+        fallbackGridColumns * fallbackGridRows
+    }
 
     private(set) var nextPickupID = 1
     private var nextKindIndex = 0
     private var nextCandidateIndex = 0
+    private var nextFallbackCandidateIndex = 0
     private var timeUntilNextSpawn: TimeInterval = 0
 
     init(
@@ -72,6 +79,7 @@ struct PickupSpawnPlanner {
         nextPickupID = 1
         nextKindIndex = 0
         nextCandidateIndex = 0
+        nextFallbackCandidateIndex = 0
         timeUntilNextSpawn = 0
         applySequenceSeed(sequenceSeed, configuration: configuration)
     }
@@ -145,6 +153,31 @@ struct PickupSpawnPlanner {
             return nil
         }
 
+        guard let position = nextSafePickupPosition(
+            in: spawnRect,
+            avoiding: playerPosition,
+            enemyCircles: enemyCircles,
+            configuration: configuration
+        ) else {
+            return nil
+        }
+
+        let pickup = WeaponPickup(
+            id: nextPickupID,
+            kind: nextKind(configuration: configuration),
+            position: position,
+            radius: configuration.pickupRadius
+        )
+        nextPickupID += 1
+        return pickup
+    }
+
+    private mutating func nextSafePickupPosition(
+        in spawnRect: CGRect,
+        avoiding playerPosition: CGPoint,
+        enemyCircles: [CollisionCircle],
+        configuration: PickupSpawnConfiguration
+    ) -> CGPoint? {
         for _ in 0..<Self.candidatePositions.count {
             let position = candidatePosition(in: spawnRect, index: nextCandidateIndex)
             nextCandidateIndex += 1
@@ -158,14 +191,23 @@ struct PickupSpawnPlanner {
                 continue
             }
 
-            let pickup = WeaponPickup(
-                id: nextPickupID,
-                kind: nextKind(configuration: configuration),
-                position: position,
-                radius: configuration.pickupRadius
-            )
-            nextPickupID += 1
-            return pickup
+            return position
+        }
+
+        for _ in 0..<Self.fallbackCandidateCount {
+            let position = fallbackCandidatePosition(in: spawnRect, index: nextFallbackCandidateIndex)
+            nextFallbackCandidateIndex += 1
+
+            guard isSafePickupPosition(
+                position,
+                avoiding: playerPosition,
+                enemyCircles: enemyCircles,
+                configuration: configuration
+            ) else {
+                continue
+            }
+
+            return position
         }
 
         return nil
@@ -202,6 +244,20 @@ struct PickupSpawnPlanner {
         )
     }
 
+    private func fallbackCandidatePosition(in rect: CGRect, index: Int) -> CGPoint {
+        let candidateIndex = positiveModulo(
+            index * Self.fallbackCandidateStep,
+            Self.fallbackCandidateCount
+        )
+        let column = candidateIndex % Self.fallbackGridColumns
+        let row = candidateIndex / Self.fallbackGridColumns
+
+        return CGPoint(
+            x: rect.minX + rect.width * ((CGFloat(column) + 0.5) / CGFloat(Self.fallbackGridColumns)),
+            y: rect.minY + rect.height * ((CGFloat(row) + 0.5) / CGFloat(Self.fallbackGridRows))
+        )
+    }
+
     private mutating func applySequenceSeed(_ seed: Int?, configuration: PickupSpawnConfiguration) {
         guard let seed else {
             return
@@ -209,6 +265,7 @@ struct PickupSpawnPlanner {
 
         nextKindIndex = positiveModulo(seed, max(1, configuration.weaponKindCycle.count))
         nextCandidateIndex = positiveModulo(seed / 3, Self.candidatePositions.count)
+        nextFallbackCandidateIndex = positiveModulo(seed, Self.fallbackCandidateCount)
     }
 
     private func positiveModulo(_ value: Int, _ divisor: Int) -> Int {
