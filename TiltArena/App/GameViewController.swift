@@ -399,7 +399,7 @@ extension GameViewController: ArenaSceneGameCenterDelegate {
 }
 
 #if canImport(GameKit)
-extension GameViewController: @MainActor GKGameCenterControllerDelegate {
+extension GameViewController: @preconcurrency GKGameCenterControllerDelegate {
     func gameCenterViewControllerDidFinish(_ gameCenterViewController: GKGameCenterViewController) {
         dismiss(animated: true)
     }
