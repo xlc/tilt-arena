@@ -1,0 +1,100 @@
+{
+  "assetRequirements": {
+    "format": "png",
+    "pixelWidth": 1024,
+    "pixelHeight": 1024,
+    "minimumDpi": 72,
+    "colorSpace": "RGB",
+    "hasAlpha": false
+  },
+  "achievements": [
+    {
+      "referenceName": "First Run",
+      "achievementID": "com.xlc.tiltarena.achievement.first_run",
+      "displayName": "First Vector",
+      "preEarnedDescription": "Finish one Classic run.",
+      "earnedDescription": "You finished your first Classic run.",
+      "points": 25,
+      "hidden": false,
+      "repeatable": false,
+      "image": "final/first-run.png"
+    },
+    {
+      "referenceName": "First Weapon Orb",
+      "achievementID": "com.xlc.tiltarena.achievement.first_weapon_orb",
+      "displayName": "Orb Contact",
+      "preEarnedDescription": "Collect one weapon orb.",
+      "earnedDescription": "You collected your first weapon orb.",
+      "points": 25,
+      "hidden": false,
+      "repeatable": false,
+      "image": "final/first-weapon-orb.png"
+    },
+    {
+      "referenceName": "First Enemy Clear",
+      "achievementID": "com.xlc.tiltarena.achievement.first_enemy_clear",
+      "displayName": "First Clear",
+      "preEarnedDescription": "Destroy one enemy.",
+      "earnedDescription": "You destroyed your first enemy.",
+      "points": 25,
+      "hidden": false,
+      "repeatable": false,
+      "image": "final/first-enemy-clear.png"
+    },
+    {
+      "referenceName": "First Chain Reaction",
+      "achievementID": "com.xlc.tiltarena.achievement.first_chain_reaction",
+      "displayName": "Chain Ignition",
+      "preEarnedDescription": "Destroy two enemies with one weapon clear.",
+      "earnedDescription": "You triggered your first chain reaction.",
+      "points": 50,
+      "hidden": false,
+      "repeatable": false,
+      "image": "final/first-chain-reaction.png"
+    },
+    {
+      "referenceName": "Combo 10",
+      "achievementID": "com.xlc.tiltarena.achievement.combo_10",
+      "displayName": "Combo 10",
+      "preEarnedDescription": "Reach a 10 combo.",
+      "earnedDescription": "You reached a 10 combo.",
+      "points": 100,
+      "hidden": false,
+      "repeatable": false,
+      "image": "final/combo-10.png"
+    },
+    {
+      "referenceName": "Combo 50",
+      "achievementID": "com.xlc.tiltarena.achievement.combo_50",
+      "displayName": "Combo 50",
+      "preEarnedDescription": "Reach a 50 combo.",
+      "earnedDescription": "You reached a 50 combo.",
+      "points": 100,
+      "hidden": false,
+      "repeatable": false,
+      "image": "final/combo-50.png"
+    },
+    {
+      "referenceName": "Survive 60",
+      "achievementID": "com.xlc.tiltarena.achievement.survive_60",
+      "displayName": "One-Minute Line",
+      "preEarnedDescription": "Survive 60 seconds in Classic.",
+      "earnedDescription": "You survived 60 seconds in Classic.",
+      "points": 100,
+      "hidden": false,
+      "repeatable": false,
+      "image": "final/survive-60.png"
+    },
+    {
+      "referenceName": "Score 100000",
+      "achievementID": "com.xlc.tiltarena.achievement.score_100000",
+      "displayName": "Six-Figure Signal",
+      "preEarnedDescription": "Score 100,000 in Classic.",
+      "earnedDescription": "You scored 100,000 in Classic.",
+      "points": 100,
+      "hidden": false,
+      "repeatable": false,
+      "image": "final/score-100000.png"
+    }
+  ]
+}

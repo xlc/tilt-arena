@@ -11,6 +11,8 @@ Apple references:
   https://developer.apple.com/help/app-store-connect/configure-game-center/manage-leaderboards/
 - Managing achievements:
   https://developer.apple.com/help/app-store-connect/configure-game-center/manage-achievements/
+- Achievement field and image requirements:
+  https://developer.apple.com/help/app-store-connect/reference/game-center/achievements/
 - Testing Game Center:
   https://developer.apple.com/help/app-store-connect/configure-game-center/overview-of-testing-game-center/
 - Submitting Game Center components:
@@ -33,31 +35,33 @@ Create one classic leaderboard:
 | --- | --- | --- | --- | --- |
 | Classic Survival High Score | `com.xlc.tiltarena.leaderboard.classic_survival_high_score` | Classic | Higher score is better | `GameCenterScoreSubmission.classicSurvival(from:)` |
 
-Create these achievements with matching IDs:
+Create these achievements with matching IDs and upload the matching artwork from
+`Assets/GameCenterAchievements/final/`. The generated artwork and structured
+metadata also live in `Assets/GameCenterAchievements/manifest.json`.
 
-| Reference name | Achievement ID | Trigger | Suggested points | Hidden | Repeatable |
-| --- | --- | --- | --- | --- | --- |
-| First Run | `com.xlc.tiltarena.achievement.first_run` | Finish one Classic run | 25 | No | No |
-| First Weapon Orb | `com.xlc.tiltarena.achievement.first_weapon_orb` | Collect one weapon orb | 25 | No | No |
-| First Enemy Clear | `com.xlc.tiltarena.achievement.first_enemy_clear` | Destroy at least one enemy | 25 | No | No |
-| First Chain Reaction | `com.xlc.tiltarena.achievement.first_chain_reaction` | Destroy at least two enemies with a weapon clear | 50 | No | No |
-| Combo 10 | `com.xlc.tiltarena.achievement.combo_10` | Reach max combo 10 | 100 | No | No |
-| Combo 50 | `com.xlc.tiltarena.achievement.combo_50` | Reach max combo 50 | 100 | No | No |
-| Survive 60 | `com.xlc.tiltarena.achievement.survive_60` | Survive 60 seconds in Classic | 100 | No | No |
-| Score 100000 | `com.xlc.tiltarena.achievement.score_100000` | Score 100000 in Classic | 100 | No | No |
+| Reference name | Achievement ID | Display name | Pre-earned description | Earned description | Points | Hidden | Repeatable | Asset |
+| --- | --- | --- | --- | --- | ---: | --- | --- | --- |
+| First Run | `com.xlc.tiltarena.achievement.first_run` | First Vector | Finish one Classic run. | You finished your first Classic run. | 25 | No | No | `first-run.png` |
+| First Weapon Orb | `com.xlc.tiltarena.achievement.first_weapon_orb` | Orb Contact | Collect one weapon orb. | You collected your first weapon orb. | 25 | No | No | `first-weapon-orb.png` |
+| First Enemy Clear | `com.xlc.tiltarena.achievement.first_enemy_clear` | First Clear | Destroy one enemy. | You destroyed your first enemy. | 25 | No | No | `first-enemy-clear.png` |
+| First Chain Reaction | `com.xlc.tiltarena.achievement.first_chain_reaction` | Chain Ignition | Destroy two enemies with one weapon clear. | You triggered your first chain reaction. | 50 | No | No | `first-chain-reaction.png` |
+| Combo 10 | `com.xlc.tiltarena.achievement.combo_10` | Combo 10 | Reach a 10 combo. | You reached a 10 combo. | 100 | No | No | `combo-10.png` |
+| Combo 50 | `com.xlc.tiltarena.achievement.combo_50` | Combo 50 | Reach a 50 combo. | You reached a 50 combo. | 100 | No | No | `combo-50.png` |
+| Survive 60 | `com.xlc.tiltarena.achievement.survive_60` | One-Minute Line | Survive 60 seconds in Classic. | You survived 60 seconds in Classic. | 100 | No | No | `survive-60.png` |
+| Score 100000 | `com.xlc.tiltarena.achievement.score_100000` | Six-Figure Signal | Score 100,000 in Classic. | You scored 100,000 in Classic. | 100 | No | No | `score-100000.png` |
 
 For each leaderboard and achievement:
 
 1. Add English localization at minimum.
-2. Use stable player-facing names and descriptions that match the trigger.
-3. Add achievement artwork before release submission; production artwork is
-   tracked separately in #114.
-4. Add the Game Center component to the app version submission. If these are
+2. Use the player-facing names, descriptions, points, hidden flags, repeatable
+   flags, and artwork listed above unless a later product review intentionally
+   changes the launch set.
+3. Add the Game Center component to the app version submission. If these are
    the first Game Center components for the app, submit them with the app
    version.
-5. Confirm every component reaches a review-ready or live status before release
+4. Confirm every component reaches a review-ready or live status before release
    QA signs off.
-6. After prerelease leaderboard testing is finished, remove leaderboard test
+5. After prerelease leaderboard testing is finished, remove leaderboard test
    data in App Store Connect if the launch board should start clean.
 
 ## Manual QA Matrix
@@ -88,4 +92,3 @@ offline retry, and foreground retry validation.
 ## Follow-Up Issues
 
 - #113: Add additional Game Center leaderboards.
-- #114: Add production Game Center achievement artwork.

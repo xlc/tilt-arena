@@ -1,0 +1,59 @@
+#!/bin/sh
+set -eu
+
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+ASSET_DIR="$ROOT/Assets/GameCenterAchievements/final"
+FAILED=0
+
+for name in \
+    first-run \
+    first-weapon-orb \
+    first-enemy-clear \
+    first-chain-reaction \
+    combo-10 \
+    combo-50 \
+    survive-60 \
+    score-100000
+do
+    file="$ASSET_DIR/$name.png"
+
+    if [ ! -f "$file" ]; then
+        printf 'missing: %s\n' "$file"
+        FAILED=1
+        continue
+    fi
+
+    props=$(sips \
+        -g format \
+        -g pixelWidth \
+        -g pixelHeight \
+        -g dpiWidth \
+        -g dpiHeight \
+        -g space \
+        -g hasAlpha \
+        "$file" 2>/dev/null)
+
+    format=$(printf '%s\n' "$props" | awk '$1 == "format:" { print $2; exit }')
+    width=$(printf '%s\n' "$props" | awk '$1 == "pixelWidth:" { print $2; exit }')
+    height=$(printf '%s\n' "$props" | awk '$1 == "pixelHeight:" { print $2; exit }')
+    dpi_width=$(printf '%s\n' "$props" | awk '$1 == "dpiWidth:" { print $2; exit }')
+    dpi_height=$(printf '%s\n' "$props" | awk '$1 == "dpiHeight:" { print $2; exit }')
+    space=$(printf '%s\n' "$props" | awk '$1 == "space:" { print $2; exit }')
+    has_alpha=$(printf '%s\n' "$props" | awk '$1 == "hasAlpha:" { print $2; exit }')
+
+    if [ "$format" != "png" ] ||
+        [ "$width" != "1024" ] ||
+        [ "$height" != "1024" ] ||
+        [ "$dpi_width" != "72.000" ] ||
+        [ "$dpi_height" != "72.000" ] ||
+        [ "$space" != "RGB" ] ||
+        [ "$has_alpha" != "no" ]; then
+        printf 'invalid: %s format=%s size=%sx%s dpi=%sx%s space=%s alpha=%s\n' \
+            "$file" "$format" "$width" "$height" "$dpi_width" "$dpi_height" "$space" "$has_alpha"
+        FAILED=1
+    else
+        printf 'ok: %s\n' "$file"
+    fi
+done
+
+exit "$FAILED"
