@@ -14,6 +14,7 @@ extension ArenaScene {
         ring.position = position
         ring.setScale(0.08)
         addWeaponEffectNode(ring)
+        playWeaponEffectSprite(.freezeBurst, at: position, size: radius * 1.85, alpha: 0.44)
 
         let innerRing = makeEffectRing(
             radius: radius * 0.46,

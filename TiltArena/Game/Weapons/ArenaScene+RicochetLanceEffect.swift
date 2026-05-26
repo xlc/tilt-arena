@@ -149,6 +149,7 @@ extension ArenaScene {
         flash.alpha = 0
         flash.setScale(0.4)
         addWeaponEffectNode(flash)
+        playWeaponEffectSprite(.ricochetLance, at: position, size: 38, delay: delay, alpha: 0.6)
         flash.run(.sequence([
             .wait(forDuration: max(0, delay)),
             .group([.fadeAlpha(to: 1, duration: 0.02), .scale(to: 1.2, duration: 0.1)]),

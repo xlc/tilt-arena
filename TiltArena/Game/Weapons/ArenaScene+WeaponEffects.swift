@@ -25,6 +25,7 @@ extension ArenaScene {
         ring.position = position
         ring.setScale(0.08)
         addWeaponEffectNode(ring)
+        playWeaponEffectSprite(.shockwave, at: position, size: radius * 2.05, alpha: 0.42)
         playShockwaveEcho(at: position, radius: radius, duration: expansionDuration)
 
         for index in 0..<12 {
@@ -98,6 +99,7 @@ extension ArenaScene {
         ring.position = center
         ring.setScale(0.04)
         addWeaponEffectNode(ring)
+        playWeaponEffectSprite(.novaBomb, at: center, size: min(radius * 0.76, 310), alpha: 0.5)
 
         for index in 0..<16 {
             let angle = CGFloat(index) * .pi / 8
@@ -156,6 +158,11 @@ extension ArenaScene {
             glowWidth: 1.7
         )
         container.addChild(ring)
+
+        let sprite = makeWeaponEffectSprite(kind: .gravityWell, size: radius * 1.42, zPosition: -1)
+        sprite.alpha = 0.44
+        sprite.setScale(0.92)
+        container.addChild(sprite)
 
         let core = SKShapeNode(circleOfRadius: 12)
         core.fillColor = theme.pickupViolet.withAlphaComponent(0.74)
@@ -266,6 +273,12 @@ extension ArenaScene {
         endpoint.zPosition = 18
         endpoint.setScale(0.35)
         addWeaponEffectNode(endpoint)
+        playWeaponEffectSprite(
+            .warpDash,
+            at: endPosition,
+            size: movementController.configuration.visualRadius * 4.6,
+            alpha: 0.58
+        )
 
         let fade = SKAction.group([
             .fadeOut(withDuration: 0.18),
@@ -318,6 +331,7 @@ extension ArenaScene {
         let scale = clampedExplosionRadius > 0 ? max(0.05, min(1, startRadius / clampedExplosionRadius)) : 1
         ring.setScale(scale)
         addWeaponEffectNode(ring)
+        playWeaponEffectSprite(.razorShield, at: position, size: clampedExplosionRadius * 2.25, alpha: 0.5)
         ring.run(.sequence([
             .group([
                 .scale(to: 1, duration: delay),
@@ -416,6 +430,13 @@ extension ArenaScene {
         wave.alpha = 0
         addWeaponEffectNode(wave)
 
+        let sprite = makeWeaponEffectSprite(kind: .powerWave, size: max(44, range * 1.15), zPosition: 19)
+        sprite.position = position
+        sprite.zRotation = wave.zRotation
+        sprite.alpha = 0
+        sprite.setScale(0.9)
+        addWeaponEffectNode(sprite)
+
         let clampedRange = max(0, range)
         let travelSpeed = clampedRange / CGFloat(max(0.001, duration))
         let travelDuration = TimeInterval(max(0, travelDistance) / max(1, travelSpeed))
@@ -429,6 +450,17 @@ extension ArenaScene {
                 .move(to: endPosition, duration: travelDuration),
                 .sequence([
                     .fadeAlpha(to: 0.54, duration: min(0.08, travelDuration * 0.35)),
+                    .wait(forDuration: max(0, travelDuration - 0.16)),
+                    .fadeOut(withDuration: 0.08)
+                ])
+            ]),
+            .removeFromParent()
+        ]))
+        sprite.run(.sequence([
+            .group([
+                .move(to: endPosition, duration: travelDuration),
+                .sequence([
+                    .fadeAlpha(to: 0.62, duration: min(0.08, travelDuration * 0.35)),
                     .wait(forDuration: max(0, travelDuration - 0.16)),
                     .fadeOut(withDuration: 0.08)
                 ])
@@ -587,6 +619,43 @@ extension ArenaScene {
         ring.glowWidth = glowWidth
         ring.zPosition = 18
         return ring
+    }
+
+    func makeWeaponEffectSprite(kind: WeaponKind, size: CGFloat, zPosition: CGFloat = 17) -> SKSpriteNode {
+        let sprite = SKSpriteNode(texture: WeaponSpriteSheet.texture(for: kind, role: .effect))
+        let clampedSize = max(1, size)
+        sprite.size = CGSize(width: clampedSize, height: clampedSize)
+        sprite.colorBlendFactor = 0
+        sprite.blendMode = .alpha
+        sprite.zPosition = zPosition
+        return sprite
+    }
+
+    func playWeaponEffectSprite(
+        _ kind: WeaponKind,
+        at position: CGPoint,
+        size: CGFloat,
+        delay: TimeInterval = 0,
+        alpha: CGFloat = 0.62
+    ) {
+        let sprite = makeWeaponEffectSprite(kind: kind, size: size)
+        sprite.position = position
+        sprite.alpha = 0
+        sprite.setScale(0.62)
+        addWeaponEffectNode(sprite)
+        sprite.run(.sequence([
+            .wait(forDuration: max(0, delay)),
+            .group([
+                .fadeAlpha(to: min(1, max(0, alpha)), duration: 0.04),
+                .scale(to: 1.05, duration: 0.12)
+            ]),
+            .wait(forDuration: 0.06),
+            .group([
+                .fadeOut(withDuration: 0.16),
+                .scale(to: 1.18, duration: 0.16)
+            ]),
+            .removeFromParent()
+        ]))
     }
 
     private static func linePath(from start: CGPoint, to end: CGPoint) -> CGPath {

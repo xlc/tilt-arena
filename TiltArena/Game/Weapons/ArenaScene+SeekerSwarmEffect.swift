@@ -82,6 +82,7 @@ extension ArenaScene {
         ring.alpha = 0
         ring.setScale(0.3)
         addWeaponEffectNode(ring)
+        playWeaponEffectSprite(.seekerSwarm, at: target.position, size: radius * 2.2, delay: delay, alpha: 0.58)
 
         ring.run(.sequence([
             .wait(forDuration: max(0, delay)),

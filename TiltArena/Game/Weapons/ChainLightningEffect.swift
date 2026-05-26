@@ -108,6 +108,7 @@ extension ArenaScene {
         ring.alpha = 0
         ring.setScale(0.35)
         addWeaponEffectNode(ring)
+        playWeaponEffectSprite(.chainLightning, at: target.position, size: 34, delay: delay, alpha: 0.64)
 
         let core = SKShapeNode(path: Self.chainSparkPath(radius: 10))
         core.position = target.position

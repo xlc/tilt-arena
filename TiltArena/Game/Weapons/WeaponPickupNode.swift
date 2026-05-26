@@ -107,10 +107,7 @@ final class WeaponPickupNode: SKNode {
     }
 
     private static func iconTexture(for kind: WeaponKind) -> SKTexture {
-        SKTexture(
-            rect: WeaponSpriteSheet.textureRect(for: kind, role: .icon),
-            in: SKTexture(imageNamed: WeaponSpriteSheet.assetName)
-        )
+        WeaponSpriteSheet.texture(for: kind, role: .icon)
     }
 
     private static func color(for kind: WeaponKind, theme: ArenaTheme) -> SKColor {
