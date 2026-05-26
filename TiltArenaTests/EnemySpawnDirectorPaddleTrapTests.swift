@@ -36,16 +36,16 @@ final class EnemySpawnDirectorPaddleTrapTests: XCTestCase {
         let chaos = configuration.tuning(at: 90)
         let survivalHell = configuration.tuning(at: 180)
 
-        XCTAssertEqual(chaos.paddleTrapSpawnInterval, 24)
+        XCTAssertEqual(chaos.paddleTrapSpawnInterval, 20)
         XCTAssertEqual(chaos.maxActivePaddleTraps, 1)
         XCTAssertEqual(chaos.paddleTrapLifetime, 7, accuracy: 0.0001)
         XCTAssertEqual(chaos.paddleTrapBarEnemyCount, 4)
-        XCTAssertEqual(chaos.paddleTrapDotSpeed, 145, accuracy: 0.0001)
-        XCTAssertEqual(survivalHell.paddleTrapSpawnInterval, 18)
+        XCTAssertEqual(chaos.paddleTrapDotSpeed, 158, accuracy: 0.0001)
+        XCTAssertEqual(survivalHell.paddleTrapSpawnInterval, 15)
         XCTAssertEqual(survivalHell.maxActivePaddleTraps, 2)
         XCTAssertEqual(survivalHell.paddleTrapLifetime, 8, accuracy: 0.0001)
         XCTAssertEqual(survivalHell.paddleTrapBarEnemyCount, 5)
-        XCTAssertEqual(survivalHell.paddleTrapDotSpeed, 170, accuracy: 0.0001)
+        XCTAssertEqual(survivalHell.paddleTrapDotSpeed, 190, accuracy: 0.0001)
     }
 
     func testPaddleTrapTelegraphsBeforeSpawningAndBuildsTrapComponents() throws {

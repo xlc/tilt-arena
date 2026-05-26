@@ -85,10 +85,9 @@ extension EnemySpawnDirector {
                 continue
             }
 
-            enemies.append(ArenaEnemy(
+            enemies.append(movingEnemy(
                 id: nextID,
                 position: position,
-                radius: configuration.enemyRadius,
                 speed: tuning.arrowRushSpeed,
                 behavior: .arrowRush(velocity: velocity)
             ))

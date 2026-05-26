@@ -73,10 +73,9 @@ extension EnemySpawnDirector {
                 continue
             }
 
-            let enemy = ArenaEnemy(
+            let enemy = movingEnemy(
                 id: nextEnemyID,
                 position: position,
-                radius: configuration.enemyRadius,
                 speed: tuning.hunterDotSpeed,
                 behavior: .hunterDot(predictionLead: tuning.hunterDotPredictionLead, previousTarget: nil)
             )

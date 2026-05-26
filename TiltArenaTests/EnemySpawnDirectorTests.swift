@@ -26,7 +26,22 @@ final class EnemySpawnDirectorTests: XCTestCase {
     func testDefaultEnemyRadiusKeepsDotCompact() {
         let configuration = EnemySpawnConfiguration()
 
-        XCTAssertEqual(configuration.enemyRadius, 5)
+        XCTAssertEqual(configuration.enemyRadius, 4.5)
+        XCTAssertEqual(configuration.enemySpeedRampPerSecond, 0.015, accuracy: 0.0001)
+        XCTAssertEqual(configuration.maximumEnemySpeedMultiplier, 1.65, accuracy: 0.0001)
+    }
+
+    func testSpawnedChasersUseTimeScaledInitialSpeedAndMovementRamp() throws {
+        let configuration = EnemySpawnConfiguration()
+        let earlyFrame = firstChaserFrame(configuration: configuration, sequenceSeed: 1, survivalTime: 0)
+        let lateFrame = firstChaserFrame(configuration: configuration, sequenceSeed: 1, survivalTime: 180)
+
+        let earlyEnemy = try XCTUnwrap(earlyFrame.newEnemies.first)
+        let lateEnemy = try XCTUnwrap(lateFrame.newEnemies.first)
+
+        XCTAssertGreaterThan(lateEnemy.speed, earlyEnemy.speed)
+        XCTAssertEqual(earlyEnemy.speedRampPerSecond, configuration.enemySpeedRampPerSecond, accuracy: 0.0001)
+        XCTAssertEqual(lateEnemy.maximumSpeedMultiplier, configuration.maximumEnemySpeedMultiplier, accuracy: 0.0001)
     }
 
     func testChaserSpawningRespectsCapPlayerSafetyAndPickupAvoidance() {
@@ -233,11 +248,11 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let chaos = configuration.tuning(at: 90)
         let survivalHell = configuration.tuning(at: 180)
 
-        XCTAssertEqual(chaos.arrowRushSpawnInterval, 10)
-        XCTAssertEqual(chaos.arrowRushSpeed, 150, accuracy: 0.0001)
+        XCTAssertEqual(chaos.arrowRushSpawnInterval, 8.5)
+        XCTAssertEqual(chaos.arrowRushSpeed, 165, accuracy: 0.0001)
         XCTAssertEqual(chaos.arrowRushEnemyCount, 3)
-        XCTAssertEqual(survivalHell.arrowRushSpawnInterval, 7)
-        XCTAssertEqual(survivalHell.arrowRushSpeed, 175, accuracy: 0.0001)
+        XCTAssertEqual(survivalHell.arrowRushSpawnInterval, 5.8)
+        XCTAssertEqual(survivalHell.arrowRushSpeed, 195, accuracy: 0.0001)
         XCTAssertEqual(survivalHell.arrowRushEnemyCount, 5)
     }
 
@@ -539,11 +554,15 @@ final class EnemySpawnDirectorTests: XCTestCase {
 
 }
 
-private func firstChaserFrame(configuration: EnemySpawnConfiguration, sequenceSeed: Int) -> EnemySpawnFrame {
+private func firstChaserFrame(
+    configuration: EnemySpawnConfiguration,
+    sequenceSeed: Int,
+    survivalTime: TimeInterval = 0
+) -> EnemySpawnFrame {
     var director = EnemySpawnDirector(configuration: configuration, sequenceSeed: sequenceSeed)
     return director.update(
         deltaTime: 0.1,
-        survivalTime: 0,
+        survivalTime: survivalTime,
         activeEnemies: [],
         playableRect: CGRect(x: 0, y: 0, width: 320, height: 600),
         playerPosition: CGPoint(x: 160, y: 300),

@@ -153,10 +153,9 @@ extension EnemySpawnDirector {
             )
         }
 
-        enemies.append(ArenaEnemy(
+        enemies.append(movingEnemy(
             id: nextID,
             position: layout.dotPosition,
-            radius: configuration.enemyRadius,
             speed: tuning.paddleTrapDotSpeed,
             behavior: .paddleTrapDot(
                 trapID: trapID,

@@ -2,6 +2,12 @@ import XCTest
 @testable import TiltArena
 
 final class PickupSpawnPlannerTests: XCTestCase {
+    func testDefaultPickupRadiusKeepsWeaponOrbsCompact() {
+        let configuration = PickupSpawnConfiguration()
+
+        XCTAssertEqual(configuration.pickupRadius, 10)
+    }
+
     func testPickupScheduleRespectsActiveCap() {
         let configuration = PickupSpawnConfiguration(maxActivePickups: 1)
         var planner = PickupSpawnPlanner(configuration: configuration)

@@ -16,6 +16,9 @@ struct ArenaEnemy: Equatable, Identifiable {
     var position: CGPoint
     var radius: CGFloat
     var speed: CGFloat
+    var speedRampPerSecond: CGFloat = 0
+    var maximumSpeedMultiplier: CGFloat = 1
+    private(set) var movementTime: TimeInterval = 0
     var behavior: EnemyBehavior = .chaser
     var frozenTimeRemaining: TimeInterval = 0
     var thawGraceTimeRemaining: TimeInterval = 0
@@ -139,15 +142,25 @@ struct ArenaEnemy: Equatable, Identifiable {
 
         switch behavior {
         case .chaser:
-            advanceChaser(toward: target, deltaTime: clampedDelta)
+            advanceChaser(toward: target, deltaTime: clampedDelta, speedMultiplier: movementSpeedMultiplier)
+            recordMovementTime(clampedTime)
         case let .arrowRush(velocity):
-            advanceLinearly(velocity: velocity, deltaTime: clampedDelta)
+            advanceLinearly(velocity: velocity, deltaTime: clampedDelta, speedMultiplier: movementSpeedMultiplier)
+            recordMovementTime(clampedTime)
         case let .formationLine(velocity, _):
-            advanceLinearly(velocity: velocity, deltaTime: clampedDelta)
+            advanceLinearly(velocity: velocity, deltaTime: clampedDelta, speedMultiplier: movementSpeedMultiplier)
+            recordMovementTime(clampedTime)
         case .mineDot:
             return
         case let .hunterDot(predictionLead, previousTarget):
-            advanceHunter(toward: target, predictionLead: predictionLead, previousTarget: previousTarget, deltaTime: clampedDelta)
+            advanceHunter(
+                toward: target,
+                predictionLead: predictionLead,
+                previousTarget: previousTarget,
+                deltaTime: clampedDelta,
+                speedMultiplier: movementSpeedMultiplier
+            )
+            recordMovementTime(clampedTime)
         case let .paddleTrapBar(trapID, remainingLifetime):
             behavior = .paddleTrapBar(trapID: trapID, remainingLifetime: remainingLifetime - clampedTime)
         case let .paddleTrapDot(trapID, velocity, bounds, remainingLifetime):
@@ -156,19 +169,31 @@ struct ArenaEnemy: Equatable, Identifiable {
                 velocity: velocity,
                 bounds: bounds,
                 remainingLifetime: remainingLifetime,
-                deltaTime: clampedDelta
+                deltaTime: clampedDelta,
+                speedMultiplier: movementSpeedMultiplier
             )
+            recordMovementTime(clampedTime)
         }
     }
 
-    private mutating func advanceLinearly(velocity: CGVector, deltaTime: CGFloat) {
+    private var movementSpeedMultiplier: CGFloat {
+        let ramp = max(0, speedRampPerSecond)
+        let maximum = max(1, maximumSpeedMultiplier)
+        return min(maximum, 1 + CGFloat(movementTime) * ramp)
+    }
+
+    private mutating func recordMovementTime(_ deltaTime: TimeInterval) {
+        movementTime += max(0, deltaTime)
+    }
+
+    private mutating func advanceLinearly(velocity: CGVector, deltaTime: CGFloat, speedMultiplier: CGFloat) {
         position = CGPoint(
-            x: position.x + velocity.dx * deltaTime,
-            y: position.y + velocity.dy * deltaTime
+            x: position.x + velocity.dx * speedMultiplier * deltaTime,
+            y: position.y + velocity.dy * speedMultiplier * deltaTime
         )
     }
 
-    private mutating func advanceChaser(toward target: CGPoint, deltaTime: CGFloat) {
+    private mutating func advanceChaser(toward target: CGPoint, deltaTime: CGFloat, speedMultiplier: CGFloat) {
         let dx = target.x - position.x
         let dy = target.y - position.y
         let distance = hypot(dx, dy)
@@ -177,7 +202,7 @@ struct ArenaEnemy: Equatable, Identifiable {
             return
         }
 
-        let movementDistance = max(0, speed) * deltaTime
+        let movementDistance = max(0, speed) * speedMultiplier * deltaTime
         guard movementDistance > 0 else {
             return
         }
@@ -193,7 +218,8 @@ struct ArenaEnemy: Equatable, Identifiable {
         toward target: CGPoint,
         predictionLead: CGFloat,
         previousTarget: CGPoint?,
-        deltaTime: CGFloat
+        deltaTime: CGFloat,
+        speedMultiplier: CGFloat
     ) {
         let predictedTarget: CGPoint
 
@@ -206,7 +232,7 @@ struct ArenaEnemy: Equatable, Identifiable {
             predictedTarget = target
         }
 
-        advanceChaser(toward: predictedTarget, deltaTime: deltaTime)
+        advanceChaser(toward: predictedTarget, deltaTime: deltaTime, speedMultiplier: speedMultiplier)
         behavior = .hunterDot(predictionLead: predictionLead, previousTarget: target)
     }
 
@@ -215,12 +241,13 @@ struct ArenaEnemy: Equatable, Identifiable {
         velocity: CGVector,
         bounds: CGRect,
         remainingLifetime: TimeInterval,
-        deltaTime: CGFloat
+        deltaTime: CGFloat,
+        speedMultiplier: CGFloat
     ) {
         var nextVelocity = velocity
         var nextPosition = CGPoint(
-            x: position.x + velocity.dx * deltaTime,
-            y: position.y + velocity.dy * deltaTime
+            x: position.x + velocity.dx * speedMultiplier * deltaTime,
+            y: position.y + velocity.dy * speedMultiplier * deltaTime
         )
 
         if nextPosition.x < bounds.minX {

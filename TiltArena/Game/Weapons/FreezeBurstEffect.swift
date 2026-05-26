@@ -6,10 +6,10 @@ extension ArenaScene {
         let duration = max(0.05, duration ?? weaponEffectTiming.waveDuration(radius: radius))
         let ring = makeEffectRing(
             radius: radius,
-            strokeColor: theme.pickupBlue.withAlphaComponent(0.9),
-            fillColor: theme.pickupBlue.withAlphaComponent(0.1),
-            lineWidth: 2,
-            glowWidth: 6
+            strokeColor: theme.pickupBlue.withAlphaComponent(0.66),
+            fillColor: theme.pickupBlue.withAlphaComponent(0.06),
+            lineWidth: 1.6,
+            glowWidth: 2.2
         )
         ring.position = position
         ring.setScale(0.08)
@@ -17,10 +17,10 @@ extension ArenaScene {
 
         let innerRing = makeEffectRing(
             radius: radius * 0.46,
-            strokeColor: theme.playerColor.withAlphaComponent(0.7),
+            strokeColor: theme.playerColor.withAlphaComponent(0.48),
             fillColor: .clear,
-            lineWidth: 1.2,
-            glowWidth: 3
+            lineWidth: 1,
+            glowWidth: 1.1
         )
         innerRing.position = position
         innerRing.setScale(0.1)
@@ -48,10 +48,10 @@ extension ArenaScene {
     func playFreezeAppliedEffect(at position: CGPoint, radius: CGFloat) {
         let ring = makeEffectRing(
             radius: max(8, radius * 2.1),
-            strokeColor: theme.pickupBlue.withAlphaComponent(0.82),
-            fillColor: theme.pickupBlue.withAlphaComponent(0.12),
-            lineWidth: 1.4,
-            glowWidth: 5
+            strokeColor: theme.pickupBlue.withAlphaComponent(0.58),
+            fillColor: theme.pickupBlue.withAlphaComponent(0.07),
+            lineWidth: 1.1,
+            glowWidth: 1.8
         )
         ring.position = position
         ring.setScale(0.35)
@@ -73,17 +73,17 @@ extension ArenaScene {
                 angle: CGFloat(index) * .pi / 3
             ))
             shard.position = position
-            shard.strokeColor = theme.playerColor.withAlphaComponent(0.72)
-            shard.lineWidth = 1.1
+            shard.strokeColor = theme.playerColor.withAlphaComponent(0.5)
+            shard.lineWidth = 0.9
             shard.lineCap = .round
-            shard.glowWidth = 3
+            shard.glowWidth = 1.1
             shard.zPosition = 18
             shard.alpha = 0
             shard.setScale(0.08)
             addWeaponEffectNode(shard)
             shard.run(.sequence([
                 .wait(forDuration: duration * 0.08),
-                .group([.fadeAlpha(to: 0.82, duration: duration * 0.22), .scale(to: 1, duration: duration * 0.55)]),
+                .group([.fadeAlpha(to: 0.62, duration: duration * 0.22), .scale(to: 1, duration: duration * 0.55)]),
                 .fadeOut(withDuration: duration * 0.25),
                 .removeFromParent()
             ]))

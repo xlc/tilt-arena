@@ -5,10 +5,10 @@ extension ArenaScene {
         let color = weaponEffectColor(for: pickup.kind)
         let ring = makeEffectRing(
             radius: pickup.radius * 1.45,
-            strokeColor: color.withAlphaComponent(0.95),
-            fillColor: color.withAlphaComponent(0.16),
-            lineWidth: 1.8,
-            glowWidth: 6
+            strokeColor: color.withAlphaComponent(0.72),
+            fillColor: color.withAlphaComponent(0.1),
+            lineWidth: 1.4,
+            glowWidth: 2.2
         )
         ring.position = pickup.position
         ring.setScale(0.58)
@@ -73,10 +73,10 @@ extension ArenaScene {
                 angle: angle
             ))
             shard.position = position
-            shard.strokeColor = color.withAlphaComponent(0.66)
-            shard.lineWidth = 1
+            shard.strokeColor = color.withAlphaComponent(0.46)
+            shard.lineWidth = 0.85
             shard.lineCap = .round
-            shard.glowWidth = 2.5
+            shard.glowWidth = 0.9
             shard.zPosition = 20
             shard.alpha = 0
             addWeaponEffectNode(shard)
@@ -89,11 +89,11 @@ private extension ArenaScene {
     func pickupPopCoreNode(for pickup: WeaponPickup, color: SKColor) -> SKShapeNode {
         let core = SKShapeNode(path: Self.pickupPopStarPath(radius: pickup.radius * 0.86))
         core.position = pickup.position
-        core.strokeColor = theme.playerColor.withAlphaComponent(0.96)
-        core.fillColor = color.withAlphaComponent(0.32)
+        core.strokeColor = theme.playerColor.withAlphaComponent(0.72)
+        core.fillColor = color.withAlphaComponent(0.2)
         core.lineWidth = 1.2
         core.lineJoin = .round
-        core.glowWidth = 4
+        core.glowWidth = 1.4
         core.zPosition = 20
         return core
     }
@@ -107,10 +107,10 @@ private extension ArenaScene {
     ) {
         let flash = makeEffectRing(
             radius: radius,
-            strokeColor: coreColor.withAlphaComponent(0.88),
-            fillColor: color.withAlphaComponent(0.14),
+            strokeColor: coreColor.withAlphaComponent(0.66),
+            fillColor: color.withAlphaComponent(0.09),
             lineWidth: 1.2,
-            glowWidth: 4
+            glowWidth: 1.4
         )
         flash.position = position
         flash.alpha = 0
@@ -127,10 +127,10 @@ private extension ArenaScene {
     func enemyClearDot(at position: CGPoint, color: SKColor, coreColor: SKColor, radius: CGFloat) -> SKShapeNode {
         let dot = SKShapeNode(circleOfRadius: max(2.2, radius * 0.22))
         dot.position = position
-        dot.fillColor = coreColor.withAlphaComponent(0.92)
-        dot.strokeColor = color.withAlphaComponent(0.88)
+        dot.fillColor = coreColor.withAlphaComponent(0.72)
+        dot.strokeColor = color.withAlphaComponent(0.64)
         dot.lineWidth = 0.8
-        dot.glowWidth = 3
+        dot.glowWidth = 1.1
         dot.zPosition = 20
         dot.alpha = 0
         return dot
@@ -145,10 +145,10 @@ private extension ArenaScene {
     ) {
         let splash = makeEffectRing(
             radius: radius * 1.42,
-            strokeColor: coreColor.withAlphaComponent(0.5),
-            fillColor: color.withAlphaComponent(0.08),
+            strokeColor: coreColor.withAlphaComponent(0.34),
+            fillColor: color.withAlphaComponent(0.05),
             lineWidth: 0.9,
-            glowWidth: 3
+            glowWidth: 1.1
         )
         splash.position = position
         splash.alpha = 0

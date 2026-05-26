@@ -330,6 +330,8 @@ enum GameTuningParameterCatalog {
     ) {
         let group = "\(modeTitle) Enemies"
         specs.append(cgFloat("\(sourcePrefix).enemyRadius", group, "enemy radius", keyPath.appending(path: \.enemyRadius), 1, 1, nil, 1))
+        specs.append(cgFloat("\(sourcePrefix).enemySpeedRampPerSecond", group, "enemy speed ramp", keyPath.appending(path: \.enemySpeedRampPerSecond), 0.001, 0, nil, 3))
+        specs.append(cgFloat("\(sourcePrefix).maximumEnemySpeedMultiplier", group, "enemy max speed multiplier", keyPath.appending(path: \.maximumEnemySpeedMultiplier), 0.05, 1, nil, 2))
         specs.append(cgFloat("\(sourcePrefix).playerSafetyRadius", group, "player safety radius", keyPath.appending(path: \.playerSafetyRadius), 4, 0, nil, 1))
         specs.append(cgFloat("\(sourcePrefix).pickupClearance", group, "pickup clearance", keyPath.appending(path: \.pickupClearance), 1, 0, nil, 1))
         specs.append(double("\(sourcePrefix).formationTelegraphDuration", group, "formation telegraph", keyPath.appending(path: \.formationTelegraphDuration), 0.05, 0, nil, 2))

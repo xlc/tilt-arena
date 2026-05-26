@@ -30,36 +30,36 @@ final class PlayerCraftNode: SKNode {
     }
 
     func applyTheme(_ theme: ArenaTheme) {
-        glowNode.fillColor = theme.playerAccentColor.withAlphaComponent(0.18)
-        glowNode.strokeColor = theme.playerAccentColor.withAlphaComponent(0.44)
+        glowNode.fillColor = theme.playerAccentColor.withAlphaComponent(0.1)
+        glowNode.strokeColor = theme.playerAccentColor.withAlphaComponent(0.28)
         glowNode.lineWidth = 1
         glowNode.lineJoin = .round
-        glowNode.glowWidth = 5
+        glowNode.glowWidth = 2
 
         bodyNode.fillColor = theme.playerColor
         bodyNode.strokeColor = theme.playerAccentColor
         bodyNode.lineWidth = 1.8
         bodyNode.lineJoin = .round
-        bodyNode.glowWidth = 2.2
+        bodyNode.glowWidth = 1
 
         coreNode.fillColor = theme.playerAccentColor
         coreNode.strokeColor = theme.playerColor.withAlphaComponent(0.86)
         coreNode.lineWidth = 0.8
         coreNode.position = CGPoint(x: 0, y: -visualRadius * 0.03)
-        coreNode.glowWidth = 4
+        coreNode.glowWidth = 1.6
 
-        engineNode.fillColor = theme.playerAccentColor.withAlphaComponent(0.78)
+        engineNode.fillColor = theme.playerAccentColor.withAlphaComponent(0.58)
         engineNode.strokeColor = .clear
         engineNode.position = CGPoint(x: 0, y: -visualRadius * 0.54)
-        engineNode.glowWidth = 3
+        engineNode.glowWidth = 1.2
     }
 
     func apply(state: PlayerMovementState, speedFraction rawSpeedFraction: CGFloat) {
         position = state.position
         let speedFraction = min(1, max(0, rawSpeedFraction))
-        engineNode.alpha = 0.42 + speedFraction * 0.48
+        engineNode.alpha = 0.36 + speedFraction * 0.4
         engineNode.setScale(0.82 + speedFraction * 0.42)
-        glowNode.alpha = 0.72 + speedFraction * 0.28
+        glowNode.alpha = 0.5 + speedFraction * 0.22
 
         guard state.velocity.length > 2 else {
             return

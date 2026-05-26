@@ -50,35 +50,35 @@ final class WeaponPickupNode: SKNode {
     private func applyAppearance(for kind: WeaponKind, radius: CGFloat) {
         let color = Self.color(for: kind, theme: theme)
 
-        haloNode.path = Self.circlePath(radius: radius * 1.58)
-        haloNode.strokeColor = color.withAlphaComponent(0.26)
-        haloNode.lineWidth = 4
+        haloNode.path = Self.circlePath(radius: radius * 1.42)
+        haloNode.strokeColor = color.withAlphaComponent(0.14)
+        haloNode.lineWidth = 2.5
         haloNode.fillColor = .clear
-        haloNode.glowWidth = 5
+        haloNode.glowWidth = 2
 
-        ringNode.strokeColor = color.withAlphaComponent(0.82)
-        ringNode.lineWidth = 2
+        ringNode.strokeColor = color.withAlphaComponent(0.68)
+        ringNode.lineWidth = 1.5
         ringNode.fillColor = .clear
-        ringNode.glowWidth = 2.5
-        ringNode.path = Self.circlePath(radius: radius * 1.38)
+        ringNode.glowWidth = 1
+        ringNode.path = Self.circlePath(radius: radius * 1.24)
 
-        badgeNode.path = Self.circlePath(radius: radius * 1.02)
-        badgeNode.fillColor = color.withAlphaComponent(0.18)
-        badgeNode.strokeColor = theme.playerColor.withAlphaComponent(0.7)
+        badgeNode.path = Self.circlePath(radius: radius * 0.98)
+        badgeNode.fillColor = color.withAlphaComponent(0.12)
+        badgeNode.strokeColor = theme.playerColor.withAlphaComponent(0.56)
         badgeNode.lineWidth = 1.1
-        badgeNode.glowWidth = 1.5
+        badgeNode.glowWidth = 0.6
 
         bodyNode.path = Self.bodyPath(for: kind, radius: radius)
-        bodyNode.fillColor = color.withAlphaComponent(0.96)
-        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.9)
-        bodyNode.lineWidth = 1.4
-        bodyNode.glowWidth = 3
+        bodyNode.fillColor = color.withAlphaComponent(0.86)
+        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.72)
+        bodyNode.lineWidth = 1.2
+        bodyNode.glowWidth = 1.2
 
         highlightNode.path = Self.circlePath(radius: radius * 0.18)
         highlightNode.position = CGPoint(x: -radius * 0.26, y: radius * 0.34)
-        highlightNode.fillColor = theme.playerColor.withAlphaComponent(0.35)
+        highlightNode.fillColor = theme.playerColor.withAlphaComponent(0.24)
         highlightNode.strokeColor = .clear
-        highlightNode.glowWidth = 1.4
+        highlightNode.glowWidth = 0.5
 
         if let markPath = Self.markPath(for: kind, radius: radius) {
             markNode.path = markPath
@@ -88,11 +88,11 @@ final class WeaponPickupNode: SKNode {
             markNode.isHidden = true
         }
         markNode.fillColor = .clear
-        markNode.strokeColor = theme.playerColor.withAlphaComponent(0.98)
-        markNode.lineWidth = 1.7
+        markNode.strokeColor = theme.playerColor.withAlphaComponent(0.82)
+        markNode.lineWidth = 1.4
         markNode.lineCap = .round
         markNode.lineJoin = .round
-        markNode.glowWidth = 1.5
+        markNode.glowWidth = 0.6
     }
 
     private func startIdleAnimation() {
@@ -108,10 +108,10 @@ final class WeaponPickupNode: SKNode {
         bodyNode.setScale(1)
         highlightNode.alpha = 1
 
-        haloNode.run(Self.breatheAction(scale: 1.1, lowAlpha: 0.48, duration: 0.72), withKey: "pickup.idle.halo")
-        ringNode.run(Self.breatheAction(scale: 1.06, lowAlpha: 0.74, duration: 0.56), withKey: "pickup.idle.ring")
-        bodyNode.run(Self.scalePulseAction(scale: 1.04, duration: 0.62), withKey: "pickup.idle.body")
-        highlightNode.run(Self.fadePulseAction(lowAlpha: 0.36, duration: 0.48), withKey: "pickup.idle.highlight")
+        haloNode.run(Self.breatheAction(scale: 1.05, lowAlpha: 0.32, duration: 0.72), withKey: "pickup.idle.halo")
+        ringNode.run(Self.breatheAction(scale: 1.03, lowAlpha: 0.62, duration: 0.56), withKey: "pickup.idle.ring")
+        bodyNode.run(Self.scalePulseAction(scale: 1.02, duration: 0.62), withKey: "pickup.idle.body")
+        highlightNode.run(Self.fadePulseAction(lowAlpha: 0.28, duration: 0.48), withKey: "pickup.idle.highlight")
     }
 
     private static func breatheAction(scale: CGFloat, lowAlpha: CGFloat, duration: TimeInterval) -> SKAction {

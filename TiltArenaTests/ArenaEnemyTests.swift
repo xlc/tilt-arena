@@ -23,6 +23,23 @@ final class ArenaEnemyTests: XCTestCase {
         XCTAssertEqual(enemy.position.x, 10, accuracy: 0.0001)
     }
 
+    func testEnemyMovementSpeedIncreasesWithMovementTime() {
+        var enemy = ArenaEnemy(
+            id: 1,
+            position: CGPoint(x: 0, y: 0),
+            radius: 8,
+            speed: 100,
+            speedRampPerSecond: 0.5,
+            maximumSpeedMultiplier: 1.4
+        )
+
+        enemy.advance(toward: CGPoint(x: 1_000, y: 0), deltaTime: 1)
+        XCTAssertEqual(enemy.position.x, 100, accuracy: 0.0001)
+
+        enemy.advance(toward: CGPoint(x: 1_000, y: 0), deltaTime: 1)
+        XCTAssertEqual(enemy.position.x, 240, accuracy: 0.0001)
+    }
+
     func testFormationLineMovesAlongVelocity() {
         var enemy = ArenaEnemy(
             id: 1,

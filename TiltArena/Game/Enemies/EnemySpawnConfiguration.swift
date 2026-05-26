@@ -59,7 +59,9 @@ struct EnemyPhaseTuning: Equatable {
 }
 
 struct EnemySpawnConfiguration: Equatable {
-    var enemyRadius: CGFloat = 5
+    var enemyRadius: CGFloat = 4.5
+    var enemySpeedRampPerSecond: CGFloat = 0.015
+    var maximumEnemySpeedMultiplier: CGFloat = 1.65
     var playerSafetyRadius: CGFloat = 120
     var pickupClearance: CGFloat = 8
     var formationTelegraphDuration: TimeInterval = 1.1
@@ -85,64 +87,64 @@ struct EnemySpawnConfiguration: Equatable {
     var maxPendingEnemyTelegraphs = 2
     var cullingOutset: CGFloat = 72
     var warmup = EnemyPhaseTuning(
-        chaserSpawnInterval: 1.4,
-        chaserSpeed: 55,
+        chaserSpawnInterval: 1.1,
+        chaserSpeed: 60,
         maxActiveEnemies: 40,
         formationSpawnInterval: nil,
         formationSpeed: 86,
         formationLaneCount: 5
     )
     var pressure = EnemyPhaseTuning(
-        chaserSpawnInterval: 1.05,
-        chaserSpeed: 70,
+        chaserSpawnInterval: 0.82,
+        chaserSpeed: 80,
         maxActiveEnemies: 70,
-        formationSpawnInterval: 12,
+        formationSpawnInterval: 10,
         formationSpeed: 98,
         formationLaneCount: 5
     )
     var chaos = EnemyPhaseTuning(
-        chaserSpawnInterval: 0.75,
-        chaserSpeed: 88,
+        chaserSpawnInterval: 0.58,
+        chaserSpeed: 100,
         maxActiveEnemies: 120,
-        formationSpawnInterval: 8,
+        formationSpawnInterval: 6.5,
         formationSpeed: 116,
         formationLaneCount: 7,
-        arrowRushSpawnInterval: 10,
-        arrowRushSpeed: 150,
+        arrowRushSpawnInterval: 8.5,
+        arrowRushSpeed: 165,
         arrowRushEnemyCount: 3,
-        mineDotSpawnInterval: 14,
+        mineDotSpawnInterval: 12,
         maxActiveMineDots: 4,
-        hunterDotSpawnInterval: 18,
-        hunterDotSpeed: 108,
+        hunterDotSpawnInterval: 15,
+        hunterDotSpeed: 120,
         hunterDotPredictionLead: 0.6,
         maxActiveHunterDots: 2,
-        paddleTrapSpawnInterval: 24,
+        paddleTrapSpawnInterval: 20,
         maxActivePaddleTraps: 1,
         paddleTrapLifetime: 7,
         paddleTrapBarEnemyCount: 4,
-        paddleTrapDotSpeed: 145
+        paddleTrapDotSpeed: 158
     )
     var survivalHell = EnemyPhaseTuning(
-        chaserSpawnInterval: 0.5,
-        chaserSpeed: 108,
+        chaserSpawnInterval: 0.38,
+        chaserSpeed: 122,
         maxActiveEnemies: 180,
-        formationSpawnInterval: 5.5,
+        formationSpawnInterval: 4.5,
         formationSpeed: 136,
         formationLaneCount: 9,
-        arrowRushSpawnInterval: 7,
-        arrowRushSpeed: 175,
+        arrowRushSpawnInterval: 5.8,
+        arrowRushSpeed: 195,
         arrowRushEnemyCount: 5,
-        mineDotSpawnInterval: 10,
+        mineDotSpawnInterval: 8,
         maxActiveMineDots: 7,
-        hunterDotSpawnInterval: 13,
-        hunterDotSpeed: 132,
+        hunterDotSpawnInterval: 10,
+        hunterDotSpeed: 150,
         hunterDotPredictionLead: 0.9,
         maxActiveHunterDots: 3,
-        paddleTrapSpawnInterval: 18,
+        paddleTrapSpawnInterval: 15,
         maxActivePaddleTraps: 2,
         paddleTrapLifetime: 8,
         paddleTrapBarEnemyCount: 5,
-        paddleTrapDotSpeed: 170
+        paddleTrapDotSpeed: 190
     )
 
     func tuning(at survivalTime: TimeInterval) -> EnemyPhaseTuning {

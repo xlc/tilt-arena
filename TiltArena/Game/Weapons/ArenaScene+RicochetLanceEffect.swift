@@ -33,16 +33,16 @@ extension ArenaScene {
     ) {
         let beam = ricochetBeamNode(
             segment,
-            color: theme.pickupBlue.withAlphaComponent(0.95),
-            lineWidth: max(2.6, weaponResolver.configuration.ricochetLanceBeamWidth * 0.48),
-            glowWidth: 9,
+            color: theme.pickupBlue.withAlphaComponent(0.7),
+            lineWidth: max(2.2, weaponResolver.configuration.ricochetLanceBeamWidth * 0.4),
+            glowWidth: 3.2,
             zPosition: 18
         )
         let core = ricochetBeamNode(
             segment,
-            color: theme.playerColor.withAlphaComponent(0.95),
-            lineWidth: 1.3,
-            glowWidth: 3,
+            color: theme.playerColor.withAlphaComponent(0.72),
+            lineWidth: 1.1,
+            glowWidth: 1.1,
             zPosition: 19
         )
 
@@ -72,10 +72,10 @@ extension ArenaScene {
     private func playRicochetBouncePulse(at position: CGPoint, delay: TimeInterval) {
         let pulse = makeEffectRing(
             radius: 11,
-            strokeColor: theme.pickupBlue.withAlphaComponent(0.9),
-            fillColor: theme.pickupBlue.withAlphaComponent(0.16),
-            lineWidth: 1.5,
-            glowWidth: 5
+            strokeColor: theme.pickupBlue.withAlphaComponent(0.64),
+            fillColor: theme.pickupBlue.withAlphaComponent(0.1),
+            lineWidth: 1.2,
+            glowWidth: 1.8
         )
         pulse.position = position
         pulse.alpha = 0
@@ -140,10 +140,10 @@ extension ArenaScene {
     private func playRicochetImpactFlash(at position: CGPoint, delay: TimeInterval) {
         let flash = makeEffectRing(
             radius: 13,
-            strokeColor: theme.playerColor.withAlphaComponent(0.95),
-            fillColor: theme.pickupBlue.withAlphaComponent(0.14),
-            lineWidth: 1.4,
-            glowWidth: 5
+            strokeColor: theme.playerColor.withAlphaComponent(0.7),
+            fillColor: theme.pickupBlue.withAlphaComponent(0.09),
+            lineWidth: 1.1,
+            glowWidth: 1.8
         )
         flash.position = position
         flash.alpha = 0

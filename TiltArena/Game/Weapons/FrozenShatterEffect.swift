@@ -5,10 +5,10 @@ extension ArenaScene {
         for position in positions {
             let ring = SKShapeNode(circleOfRadius: 16)
             ring.position = position
-            ring.strokeColor = color.withAlphaComponent(0.9)
+            ring.strokeColor = color.withAlphaComponent(0.66)
             ring.fillColor = .clear
-            ring.lineWidth = 1.5
-            ring.glowWidth = 4
+            ring.lineWidth = 1.2
+            ring.glowWidth = 1.4
             ring.zPosition = 18
             ring.setScale(0.35)
             addWeaponEffectNode(ring)
@@ -21,10 +21,10 @@ extension ArenaScene {
             for index in 0..<4 {
                 let shard = SKShapeNode(path: Self.shatterShardPath(radius: 14, angle: CGFloat(index) * .pi / 4))
                 shard.position = position
-                shard.strokeColor = color.withAlphaComponent(0.88)
-                shard.lineWidth = 1.1
+                shard.strokeColor = color.withAlphaComponent(0.64)
+                shard.lineWidth = 0.9
                 shard.lineCap = .round
-                shard.glowWidth = 3
+                shard.glowWidth = 1.1
                 shard.zPosition = 19
                 shard.setScale(0.4)
                 addWeaponEffectNode(shard)

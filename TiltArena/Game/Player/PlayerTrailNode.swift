@@ -91,17 +91,17 @@ private final class PlayerTrailSegmentNode: SKNode {
     }
 
     func applyTheme(_ theme: ArenaTheme) {
-        glowNode.strokeColor = theme.playerAccentColor.withAlphaComponent(0.25)
+        glowNode.strokeColor = theme.playerAccentColor.withAlphaComponent(0.14)
         glowNode.fillColor = .clear
         glowNode.lineCap = .round
         glowNode.lineJoin = .round
-        glowNode.glowWidth = 5
+        glowNode.glowWidth = 1.8
 
-        coreNode.strokeColor = theme.playerAccentColor.withAlphaComponent(0.78)
+        coreNode.strokeColor = theme.playerAccentColor.withAlphaComponent(0.58)
         coreNode.fillColor = .clear
         coreNode.lineCap = .round
         coreNode.lineJoin = .round
-        coreNode.glowWidth = 2
+        coreNode.glowWidth = 0.8
     }
 
     func apply(from start: CGPoint, to end: CGPoint, ageFraction: CGFloat, speedFraction: CGFloat) {
@@ -113,11 +113,11 @@ private final class PlayerTrailSegmentNode: SKNode {
 
         let widthFraction = 0.38 + clampedAge * 0.62
         glowNode.path = path
-        glowNode.lineWidth = (5 + clampedSpeed * 4) * widthFraction
-        glowNode.alpha = 0.16 + clampedAge * 0.58
+        glowNode.lineWidth = (3.6 + clampedSpeed * 2.4) * widthFraction
+        glowNode.alpha = 0.08 + clampedAge * 0.34
 
         coreNode.path = path
-        coreNode.lineWidth = (2 + clampedSpeed * 2.5) * widthFraction
-        coreNode.alpha = 0.12 + clampedAge * 0.72
+        coreNode.lineWidth = (1.5 + clampedSpeed * 1.6) * widthFraction
+        coreNode.alpha = 0.1 + clampedAge * 0.52
     }
 }

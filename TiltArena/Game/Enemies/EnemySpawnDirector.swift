@@ -275,10 +275,9 @@ struct EnemySpawnDirector {
                 continue
             }
 
-            let enemy = ArenaEnemy(
+            let enemy = movingEnemy(
                 id: nextEnemyID,
                 position: position,
-                radius: configuration.enemyRadius,
                 speed: tuning.chaserSpeed
             )
             nextEnemyID += 1
@@ -441,10 +440,9 @@ struct EnemySpawnDirector {
         velocity: CGVector,
         speed: CGFloat
     ) -> ArenaEnemy {
-        ArenaEnemy(
+        movingEnemy(
             id: id,
             position: position,
-            radius: configuration.enemyRadius,
             speed: speed,
             behavior: .formationLine(velocity: velocity, formationID: formationID)
         )
@@ -619,4 +617,23 @@ struct EnemySpawnDirector {
         max(1, configuration.minimumFormationEnemyCount)
     }
 
+}
+
+extension EnemySpawnDirector {
+    func movingEnemy(
+        id: Int,
+        position: CGPoint,
+        speed: CGFloat,
+        behavior: EnemyBehavior = .chaser
+    ) -> ArenaEnemy {
+        ArenaEnemy(
+            id: id,
+            position: position,
+            radius: configuration.enemyRadius,
+            speed: speed,
+            speedRampPerSecond: configuration.enemySpeedRampPerSecond,
+            maximumSpeedMultiplier: configuration.maximumEnemySpeedMultiplier,
+            behavior: behavior
+        )
+    }
 }

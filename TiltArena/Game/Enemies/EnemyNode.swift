@@ -118,76 +118,80 @@ private extension EnemyNode {
             applyThawingStyle()
             startThawAnimation()
         }
+
+        let isNormalChaser = !enemy.isMineDot && !enemy.isHunterDot && !enemy.isPaddleTrap && !enemy.isShatterableFrozen
+        dangerHaloNode.isHidden = isNormalChaser
+        ringNode.isHidden = isNormalChaser
     }
 
     func applyBaseStyle() {
-        dangerHaloNode.strokeColor = theme.playerColor.withAlphaComponent(0.82)
-        dangerHaloNode.lineWidth = 2.6
-        dangerHaloNode.glowWidth = 2.4
-        markerNode.strokeColor = theme.playerColor.withAlphaComponent(0.94)
+        dangerHaloNode.strokeColor = theme.playerColor.withAlphaComponent(0.58)
+        dangerHaloNode.lineWidth = 2
+        dangerHaloNode.glowWidth = 1.1
+        markerNode.strokeColor = theme.playerColor.withAlphaComponent(0.82)
         markerNode.lineWidth = 1.8
         markerNode.lineCap = .round
         markerNode.lineJoin = .round
-        markerNode.glowWidth = 1.6
-        ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.55)
-        ringNode.lineWidth = 1.4
-        ringNode.glowWidth = 1.6
+        markerNode.glowWidth = 0.8
+        ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.42)
+        ringNode.lineWidth = 1.1
+        ringNode.glowWidth = 0.8
         bodyNode.fillColor = theme.enemyColor
-        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.95)
-        bodyNode.lineWidth = 1.9
-        bodyNode.glowWidth = 3.2
-        highlightNode.fillColor = theme.playerColor.withAlphaComponent(0.34)
+        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.82)
+        bodyNode.lineWidth = 1.5
+        bodyNode.glowWidth = 1.3
+        highlightNode.fillColor = theme.playerColor.withAlphaComponent(0.24)
         highlightNode.alpha = 1
     }
 
     func applyRoleStyle(_ enemy: ArenaEnemy) {
         if enemy.isMineDot {
-            ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.95)
-            ringNode.lineWidth = 2.2
-            ringNode.glowWidth = 2.2
+            ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.78)
+            ringNode.lineWidth = 1.8
+            ringNode.glowWidth = 1
             bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.48)
-            bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.95)
-            bodyNode.glowWidth = 2
+            bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.82)
+            bodyNode.glowWidth = 0.9
         } else if enemy.isHunterDot {
-            ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.9)
-            ringNode.lineWidth = 2
-            ringNode.glowWidth = 2.4
-            bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.96)
+            ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.76)
+            ringNode.lineWidth = 1.7
+            ringNode.glowWidth = 1
+            bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.84)
             bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.88)
         } else if enemy.isPaddleTrap {
-            ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.76)
-            ringNode.lineWidth = 1.8
+            ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.62)
+            ringNode.lineWidth = 1.5
             bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.82)
-            bodyNode.glowWidth = 2.4
+            bodyNode.glowWidth = 1
         }
     }
 
     func applyFrozenStyle() {
-        dangerHaloNode.strokeColor = theme.playerColor.withAlphaComponent(0.82)
-        dangerHaloNode.lineWidth = 2.4
-        ringNode.strokeColor = theme.pickupBlue.withAlphaComponent(0.9)
-        ringNode.lineWidth = 2.2
-        ringNode.glowWidth = 3.4
+        dangerHaloNode.strokeColor = theme.playerColor.withAlphaComponent(0.62)
+        dangerHaloNode.lineWidth = 1.9
+        ringNode.strokeColor = theme.pickupBlue.withAlphaComponent(0.72)
+        ringNode.lineWidth = 1.8
+        ringNode.glowWidth = 1.6
         bodyNode.fillColor = theme.pickupBlue.withAlphaComponent(0.55)
-        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.95)
-        bodyNode.lineWidth = 2
-        bodyNode.glowWidth = 4
-        markerNode.strokeColor = theme.playerColor.withAlphaComponent(0.95)
-        highlightNode.fillColor = theme.playerColor.withAlphaComponent(0.5)
+        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.82)
+        bodyNode.lineWidth = 1.7
+        bodyNode.glowWidth = 1.8
+        markerNode.strokeColor = theme.playerColor.withAlphaComponent(0.82)
+        highlightNode.fillColor = theme.playerColor.withAlphaComponent(0.36)
     }
 
     func applyThawingStyle() {
-        dangerHaloNode.strokeColor = theme.playerColor.withAlphaComponent(0.58)
-        dangerHaloNode.lineWidth = 2.2
-        ringNode.strokeColor = theme.pickupBlue.withAlphaComponent(0.58)
-        ringNode.lineWidth = 1.7
-        ringNode.glowWidth = 2.5
+        dangerHaloNode.strokeColor = theme.playerColor.withAlphaComponent(0.42)
+        dangerHaloNode.lineWidth = 1.7
+        ringNode.strokeColor = theme.pickupBlue.withAlphaComponent(0.44)
+        ringNode.lineWidth = 1.4
+        ringNode.glowWidth = 1.1
         bodyNode.fillColor = theme.pickupBlue.withAlphaComponent(0.28)
-        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.72)
-        bodyNode.lineWidth = 1.8
-        bodyNode.glowWidth = 3
-        markerNode.strokeColor = theme.playerColor.withAlphaComponent(0.75)
-        highlightNode.fillColor = theme.playerColor.withAlphaComponent(0.28)
+        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.58)
+        bodyNode.lineWidth = 1.5
+        bodyNode.glowWidth = 1.2
+        markerNode.strokeColor = theme.playerColor.withAlphaComponent(0.62)
+        highlightNode.fillColor = theme.playerColor.withAlphaComponent(0.2)
     }
 
     func resetThawAnimation() {
