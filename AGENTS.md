@@ -75,3 +75,10 @@ Core loop:
   `scripts/tilt-logs`.
 - Logging and export failures must not affect gameplay. If logging persistence
   fails, drop that diagnostic write rather than changing game behavior.
+
+## Visual Assets
+
+- Gameplay sprites and pickup icons must stay readable at their smallest
+  in-game size. Prefer simple silhouettes, strong shape language, broad color
+  blocks, and limited internal detail over dense ornamentation that collapses
+  when scaled down.
