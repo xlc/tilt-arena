@@ -54,9 +54,9 @@ final class PlayerCraftNode: SKNode {
         engineNode.glowWidth = 3
     }
 
-    func apply(state: PlayerMovementState) {
+    func apply(state: PlayerMovementState, speedFraction rawSpeedFraction: CGFloat) {
         position = state.position
-        let speedFraction = min(1, max(0, state.velocity.length / 220))
+        let speedFraction = min(1, max(0, rawSpeedFraction))
         engineNode.alpha = 0.42 + speedFraction * 0.48
         engineNode.setScale(0.82 + speedFraction * 0.42)
         glowNode.alpha = 0.72 + speedFraction * 0.28

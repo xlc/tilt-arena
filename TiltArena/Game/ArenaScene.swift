@@ -350,12 +350,11 @@ final class ArenaScene: SKScene {
     }
 
     private func applyPlayerState(_ state: PlayerMovementState, resetTrail: Bool) {
-        playerNode?.apply(state: state)
-
         let speedFraction = state.velocity.length / max(
             1,
             movementController.configuration.maximumSpeed(in: currentGameplayBounds)
         )
+        playerNode?.apply(state: state, speedFraction: speedFraction)
 
         if resetTrail {
             playerTrailNode?.reset(to: state.position)
@@ -590,12 +589,11 @@ final class ArenaScene: SKScene {
     }
 
     private func applyCalibrationPreviewState(_ state: PlayerMovementState, resetTrail: Bool) {
-        calibrationPreviewPlayerNode?.apply(state: state)
-
         let speedFraction = state.velocity.length / max(
             1,
             calibrationPreviewMovementController.configuration.maximumSpeed(in: currentGameplayBounds)
         )
+        calibrationPreviewPlayerNode?.apply(state: state, speedFraction: speedFraction)
 
         if resetTrail {
             calibrationPreviewTrailNode?.reset(to: state.position)
@@ -1288,6 +1286,8 @@ final class ArenaScene: SKScene {
         node.removeAllChildren()
         node.removeAction(forKey: "razor.spin")
         node.removeAction(forKey: "razor.warning")
+        node.alpha = 1
+        node.setScale(1)
 
         for index in 0..<3 {
             let angle = CGFloat(index) * (2 * .pi / 3)
