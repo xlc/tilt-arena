@@ -4,7 +4,7 @@ import Foundation
 struct FlameTrailConfiguration: Equatable {
     var duration: TimeInterval = 4.0
     var segmentLifetime: TimeInterval = 1.2
-    var segmentRadius: CGFloat = 18
+    var segmentRadius: CGFloat = 16
     var segmentSpacing: CGFloat = 14
     var maxSegments: Int = 24
     var frozenMeltDelay: TimeInterval = 0.3

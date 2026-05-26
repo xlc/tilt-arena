@@ -139,27 +139,6 @@ extension ArenaScene {
         }
     }
 
-    func playSeekerSwarmEffect(
-        from origin: CGPoint,
-        to targets: [WeaponImpactTarget],
-        onImpact: @escaping (Set<Int>) -> Void
-    ) {
-        for (index, target) in targets.enumerated() {
-            let duration = weaponEffectTiming.projectileDuration(from: origin, to: target.position)
-            let launchDelay = TimeInterval(index) * 0.035
-            playTravelingBolt(
-                from: origin,
-                to: target,
-                delay: launchDelay,
-                duration: duration,
-                color: theme.pickupViolet,
-                coreColor: theme.playerColor,
-                impactRadius: 12,
-                onImpact: onImpact
-            )
-        }
-    }
-
     func playGravityWellEffect(at position: CGPoint, duration: TimeInterval? = nil) {
         gravityWellEffectNode?.removeFromParent()
         let container = SKNode()
@@ -422,6 +401,7 @@ extension ArenaScene {
         direction: CGVector,
         range: CGFloat,
         fanAngleDegrees: CGFloat,
+        travelDistance: CGFloat,
         duration: TimeInterval
     ) {
         let fanAngleRadians = min(360, max(0, fanAngleDegrees)) * .pi / 180
@@ -433,16 +413,26 @@ extension ArenaScene {
         wave.strokeColor = theme.playerAccentColor.withAlphaComponent(0.68)
         wave.lineWidth = 2
         wave.glowWidth = 1.8
-        wave.setScale(0.04)
+        wave.alpha = 0
         addWeaponEffectNode(wave)
 
-        let expansionDuration = max(0.01, duration)
+        let clampedRange = max(0, range)
+        let travelSpeed = clampedRange / CGFloat(max(0.001, duration))
+        let travelDuration = TimeInterval(max(0, travelDistance) / max(1, travelSpeed))
+        let resolvedDirection = direction.length > 0 ? direction.normalized : CGVector(dx: 0, dy: 1)
+        let endPosition = CGPoint(
+            x: position.x + resolvedDirection.dx * max(0, travelDistance),
+            y: position.y + resolvedDirection.dy * max(0, travelDistance)
+        )
         wave.run(.sequence([
             .group([
-                .scale(to: 1, duration: expansionDuration),
-                .fadeAlpha(to: 0.54, duration: expansionDuration * 0.55)
+                .move(to: endPosition, duration: travelDuration),
+                .sequence([
+                    .fadeAlpha(to: 0.54, duration: min(0.08, travelDuration * 0.35)),
+                    .wait(forDuration: max(0, travelDuration - 0.16)),
+                    .fadeOut(withDuration: 0.08)
+                ])
             ]),
-            .fadeOut(withDuration: 0.12),
             .removeFromParent()
         ]))
     }

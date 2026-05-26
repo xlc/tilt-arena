@@ -85,7 +85,6 @@ final class ArenaScene: SKScene {
     private var razorShieldTimeRemaining: TimeInterval = 0
     private var hasPlayedRazorShieldWarning = false
     private var razorShieldNode: SKShapeNode?
-    private var frozenCrasherTimeRemaining: TimeInterval = 0
     private var shockwaveWaveStates: [ShockwaveWaveState] = []
     private var freezeBurstWaveStates: [FreezeBurstWaveState] = []
     private var flameTrailState = FlameTrailState()
@@ -737,7 +736,6 @@ final class ArenaScene: SKScene {
         clearWeaponEffectNodes(paused: false)
         deactivateRazorShield()
         hasPlayedRazorShieldWarning = false
-        frozenCrasherTimeRemaining = 0
         shockwaveWaveStates.removeAll()
         freezeBurstWaveStates.removeAll()
         flameTrailState.reset()
@@ -888,7 +886,6 @@ final class ArenaScene: SKScene {
         cullExitedLinearPatternEnemies()
         updateRazorShield(deltaTime: deltaTime, playerPosition: playerPosition)
         shatterFrozenContactEnemies(playerPosition: playerPosition)
-        updateFrozenCrasher(deltaTime: deltaTime)
         updateFlameTrail(deltaTime: deltaTime, playerPosition: playerPosition)
         resolveWarpDashContactKills(playerPosition: playerPosition)
         detectPlayerCollision(playerPosition: playerPosition)
@@ -1125,9 +1122,20 @@ final class ArenaScene: SKScene {
                     < ArenaGeometry.squaredDistance(from: rhs.position, to: playerPosition)
             }
         markPendingWeaponImpacts(targets)
-        playSeekerSwarmEffect(from: playerPosition, to: targets) { [weak self] enemyIDs in
-            self?.destroyEnemies(ids: enemyIDs, weaponKind: .seekerSwarm)
+        playSeekerSwarmEffect(from: playerPosition, to: targets) { [weak self] target in
+            self?.resolveSeekerExplosion(at: target)
         }
+    }
+
+    private func resolveSeekerExplosion(at target: WeaponImpactTarget) {
+        guard enemies.contains(where: { $0.id == target.id }) else {
+            return
+        }
+
+        destroyEnemies(
+            ids: weaponResolver.seekerExplosionTargets(center: target.position, enemies: enemies),
+            weaponKind: .seekerSwarm
+        )
     }
 
     private func playChainLightning(enemyIDs: [Int], from playerPosition: CGPoint) {
@@ -3584,6 +3592,7 @@ private extension ArenaScene {
             deltaTime: deltaTime,
             playerPosition: playerPosition,
             direction: warpDashState.resolvedDirection(),
+            playableRect: currentPlayableRect,
             enemies: weaponTargetableEnemies(),
             configuration: weaponResolver.configuration
         )
@@ -3602,6 +3611,7 @@ private extension ArenaScene {
                 direction: release.direction,
                 range: weaponResolver.configuration.powerWaveRange,
                 fanAngleDegrees: weaponResolver.configuration.powerWaveFanAngleDegrees,
+                travelDistance: release.travelDistance,
                 duration: weaponResolver.configuration.powerWaveExpansionDuration
             )
         }
@@ -3677,18 +3687,6 @@ private extension ArenaScene {
             enemyNodes[enemies[index].id]?.apply(enemies[index])
             playFreezeAppliedEffect(at: enemies[index].position, radius: enemies[index].radius)
         }
-        frozenCrasherTimeRemaining = max(
-            frozenCrasherTimeRemaining,
-            weaponResolver.configuration.frozenCrasherDuration
-        )
-    }
-
-    func updateFrozenCrasher(deltaTime: TimeInterval) {
-        guard frozenCrasherTimeRemaining > 0 else {
-            return
-        }
-
-        frozenCrasherTimeRemaining = max(0, frozenCrasherTimeRemaining - max(0, deltaTime))
     }
 
     func shatterFrozenContactEnemies(playerPosition: CGPoint) {
@@ -3722,7 +3720,7 @@ private extension ArenaScene {
     }
 
     func canShatterOnContact(_ enemy: ArenaEnemy) -> Bool {
-        enemy.isThawing || (frozenCrasherTimeRemaining > 0 && enemy.isFrozen)
+        enemy.isThawing
     }
 }
 

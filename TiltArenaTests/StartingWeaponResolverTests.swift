@@ -3,7 +3,11 @@ import XCTest
 
 final class StartingWeaponResolverTests: XCTestCase {
     func testDefaultShockwaveRadiusUsesBuffedRadius() {
-        XCTAssertEqual(StartingWeaponConfiguration().shockwaveRadius, 104)
+        let configuration = StartingWeaponConfiguration()
+
+        XCTAssertEqual(configuration.shockwaveRadius, 96)
+        XCTAssertEqual(configuration.shockwaveExpansionDuration, 0.5)
+        XCTAssertEqual(configuration.shockwaveHoldDuration, 0.5)
     }
 
     func testWeaponSpriteSheetMapsWeaponsToIconAndEffectRows() {
@@ -30,14 +34,25 @@ final class StartingWeaponResolverTests: XCTestCase {
     func testDefaultPowerWaveAndWarpDashTuningUseUpdatedBalance() {
         let configuration = StartingWeaponConfiguration()
 
-        XCTAssertEqual(configuration.warpDashInvulnerabilityDuration, 0.50)
-        XCTAssertEqual(configuration.powerWaveChargeDuration, 0.35)
+        XCTAssertEqual(configuration.seekerExplosionRadius, 48)
+        XCTAssertEqual(configuration.seekerExplosionHoldDuration, 0.3)
+        XCTAssertEqual(configuration.razorShieldRadius, 28)
+        XCTAssertEqual(configuration.razorShieldExplosionRadius, 48)
+        XCTAssertEqual(configuration.freezeExpansionDuration, 0.5)
+        XCTAssertEqual(configuration.freezeThawGraceDuration, 0.5)
+        XCTAssertEqual(configuration.gravityWellRadius, 148)
+        XCTAssertEqual(configuration.gravityWellPullDuration, 1)
+        XCTAssertEqual(configuration.chainLightningInitialRange, 140)
+        XCTAssertEqual(FlameTrailConfiguration().segmentRadius, 16)
+        XCTAssertEqual(configuration.warpDashInvulnerabilityDuration, 1)
+        XCTAssertEqual(configuration.powerWaveChargeDuration, 0.5)
         XCTAssertEqual(configuration.powerWaveRange, 180)
-        XCTAssertEqual(configuration.powerWaveFanAngleDegrees, 70)
+        XCTAssertEqual(configuration.powerWaveFanAngleDegrees, 60)
         XCTAssertEqual(configuration.powerWaveExpansionDuration, 0.24)
         XCTAssertEqual(configuration.ricochetLanceRange, 560)
         XCTAssertEqual(configuration.ricochetLanceBeamWidth, 18)
         XCTAssertEqual(configuration.ricochetLanceMaximumBounces, 3)
+        XCTAssertEqual(configuration.novaBombMinimumTargetCount, 15)
     }
 
     func testShockwaveClearsEnemiesInsideRadius() {
@@ -75,6 +90,22 @@ final class StartingWeaponResolverTests: XCTestCase {
         )
 
         XCTAssertEqual(resolution.destroyedEnemyIDs, [2, 3])
+    }
+
+    func testSeekerExplosionTargetsEnemiesInsideExplosionRadius() {
+        let resolver = StartingWeaponResolver(
+            configuration: StartingWeaponConfiguration(seekerExplosionRadius: 48)
+        )
+        let enemies = [
+            enemy(id: 1, position: CGPoint(x: 40, y: 0)),
+            enemy(id: 2, position: CGPoint(x: 56, y: 0)),
+            enemy(id: 3, position: CGPoint(x: 80, y: 0))
+        ]
+
+        XCTAssertEqual(
+            resolver.seekerExplosionTargets(center: .zero, enemies: enemies),
+            [1, 2]
+        )
     }
 
     func testRazorShieldClearsContactEnemies() {
@@ -259,7 +290,7 @@ final class StartingWeaponResolverTests: XCTestCase {
     func testChainLightningRequiresFirstTargetInsideInitialRange() {
         let resolver = StartingWeaponResolver()
         let enemies = [
-            enemy(id: 1, position: CGPoint(x: 129, y: 0))
+            enemy(id: 1, position: CGPoint(x: 141, y: 0))
         ]
 
         let resolution = resolver.resolve(

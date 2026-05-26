@@ -2,35 +2,36 @@ import CoreGraphics
 import Foundation
 
 struct StartingWeaponConfiguration: Equatable {
-    var shockwaveRadius: CGFloat = 104
-    var shockwaveExpansionDuration: TimeInterval = 0.3
-    var shockwaveHoldDuration: TimeInterval = 0.1
+    var shockwaveRadius: CGFloat = 96
+    var shockwaveExpansionDuration: TimeInterval = 0.5
+    var shockwaveHoldDuration: TimeInterval = 0.5
     var seekerTargetLimit: Int = 4
-    var razorShieldRadius: CGFloat = 32
+    var seekerExplosionRadius: CGFloat = 48
+    var seekerExplosionHoldDuration: TimeInterval = 0.3
+    var razorShieldRadius: CGFloat = 28
     var razorShieldDuration: TimeInterval = 4
-    var razorShieldExplosionRadius: CGFloat = 40
+    var razorShieldExplosionRadius: CGFloat = 48
     var freezeBurstRadius: CGFloat = 140
-    var freezeExpansionDuration: TimeInterval = 0.25
+    var freezeExpansionDuration: TimeInterval = 0.5
     var freezeDuration: TimeInterval = 4
-    var freezeThawGraceDuration: TimeInterval = 0.35
-    var frozenCrasherDuration: TimeInterval = 2.4
-    var gravityWellRadius: CGFloat = 132
+    var freezeThawGraceDuration: TimeInterval = 0.5
+    var gravityWellRadius: CGFloat = 148
     var gravityWellActivationDelay: TimeInterval = 0.5
-    var gravityWellPullDuration: TimeInterval = 0.85
+    var gravityWellPullDuration: TimeInterval = 1
     var gravityWellClearRadius: CGFloat = 32
-    var chainLightningInitialRange: CGFloat = 128
+    var chainLightningInitialRange: CGFloat = 140
     var chainLightningJumpRange: CGFloat = 96
     var chainLightningTargetLimit: Int = 6
     var warpDashDistanceFractionOfShortSide: CGFloat = 0.33
-    var warpDashInvulnerabilityDuration: TimeInterval = 0.50
-    var powerWaveChargeDuration: TimeInterval = 0.35
+    var warpDashInvulnerabilityDuration: TimeInterval = 1
+    var powerWaveChargeDuration: TimeInterval = 0.5
     var powerWaveRange: CGFloat = 180
-    var powerWaveFanAngleDegrees: CGFloat = 70
+    var powerWaveFanAngleDegrees: CGFloat = 60
     var powerWaveExpansionDuration: TimeInterval = 0.24
     var ricochetLanceRange: CGFloat = 560
     var ricochetLanceBeamWidth: CGFloat = 18
     var ricochetLanceMaximumBounces: Int = 3
-    var novaBombMaximumTargetCount: Int = 15
+    var novaBombMinimumTargetCount: Int = 15
     var novaBombTargetFraction: Double = 0.8
 }
 
@@ -131,6 +132,11 @@ struct StartingWeaponResolver {
 
     func shieldExplosionTargets(playerPosition: CGPoint, enemies: [ArenaEnemy]) -> Set<Int> {
         let explosionCircle = CollisionCircle(center: playerPosition, radius: configuration.razorShieldExplosionRadius)
+        return Set(enemies.filter { explosionCircle.intersects($0.collisionCircle) }.map(\.id))
+    }
+
+    func seekerExplosionTargets(center: CGPoint, enemies: [ArenaEnemy]) -> Set<Int> {
+        let explosionCircle = CollisionCircle(center: center, radius: configuration.seekerExplosionRadius)
         return Set(enemies.filter { explosionCircle.intersects($0.collisionCircle) }.map(\.id))
     }
 

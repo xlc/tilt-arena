@@ -2,19 +2,19 @@ import XCTest
 @testable import TiltArena
 
 final class NovaBombTargetSelectorTests: XCTestCase {
-    func testTargetCountRoundsFractionAndCapsAtMaximum() {
+    func testTargetCountUsesMinimumAndUncappedFraction() {
         let selector = NovaBombTargetSelector(
             configuration: StartingWeaponConfiguration(
-                novaBombMaximumTargetCount: 15,
+                novaBombMinimumTargetCount: 15,
                 novaBombTargetFraction: 0.8
             )
         )
 
         XCTAssertEqual(selector.targetCount(enemyCount: 0), 0)
         XCTAssertEqual(selector.targetCount(enemyCount: 1), 1)
-        XCTAssertEqual(selector.targetCount(enemyCount: 3), 2)
-        XCTAssertEqual(selector.targetCount(enemyCount: 4), 3)
-        XCTAssertEqual(selector.targetCount(enemyCount: 20), 15)
+        XCTAssertEqual(selector.targetCount(enemyCount: 3), 3)
+        XCTAssertEqual(selector.targetCount(enemyCount: 20), 16)
+        XCTAssertEqual(selector.targetCount(enemyCount: 100), 80)
     }
 
     func testSelectionIsDeterministicWithInjectedGenerator() {
@@ -27,7 +27,7 @@ final class NovaBombTargetSelectorTests: XCTestCase {
         let secondSelection = selector.selectedEnemyIDs(from: enemies, using: &secondGenerator)
 
         XCTAssertEqual(firstSelection, secondSelection)
-        XCTAssertEqual(firstSelection.count, 10)
+        XCTAssertEqual(firstSelection.count, 12)
     }
 
     func testSelectionReturnsNoDuplicatesAndNeverExceedsEnemyCount() {
@@ -37,7 +37,7 @@ final class NovaBombTargetSelectorTests: XCTestCase {
 
         let selection = selector.selectedEnemyIDs(from: enemies, using: &generator)
 
-        XCTAssertEqual(selection.count, 3)
+        XCTAssertEqual(selection.count, 4)
         XCTAssertTrue(selection.isSubset(of: Set(enemies.map(\.id))))
     }
 }

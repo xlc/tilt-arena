@@ -4,6 +4,7 @@ import Foundation
 struct PowerWaveRelease: Equatable {
     let center: CGPoint
     let direction: CGVector
+    let travelDistance: CGFloat
 }
 
 struct PowerWaveFrame: Equatable {
@@ -39,6 +40,7 @@ struct PowerWaveState: Equatable {
         deltaTime: TimeInterval,
         playerPosition: CGPoint,
         direction: CGVector,
+        playableRect: CGRect,
         enemies: [ArenaEnemy],
         configuration: StartingWeaponConfiguration
     ) -> PowerWaveFrame {
@@ -60,10 +62,15 @@ struct PowerWaveState: Equatable {
                 direction: direction,
                 maximumRange: configuration.powerWaveRange,
                 fanAngleDegrees: configuration.powerWaveFanAngleDegrees,
-                expansionDuration: configuration.powerWaveExpansionDuration
+                expansionDuration: configuration.powerWaveExpansionDuration,
+                playableRect: playableRect
             )
             waveState = wave
-            release = PowerWaveRelease(center: wave.center, direction: wave.direction)
+            release = PowerWaveRelease(
+                center: wave.center,
+                direction: wave.direction,
+                travelDistance: wave.travelDistance
+            )
         }
 
         guard var activeWaveState = waveState else {
@@ -94,7 +101,8 @@ struct PowerWaveWaveState: Equatable {
     let direction: CGVector
     let maximumRange: CGFloat
     let fanAngleRadians: CGFloat
-    let expansionDuration: TimeInterval
+    let travelSpeed: CGFloat
+    let travelDistance: CGFloat
     private(set) var elapsedTime: TimeInterval = 0
     private var destroyedEnemyIDs: Set<Int> = []
 
@@ -103,18 +111,25 @@ struct PowerWaveWaveState: Equatable {
         direction: CGVector,
         maximumRange: CGFloat,
         fanAngleDegrees: CGFloat,
-        expansionDuration: TimeInterval
+        expansionDuration: TimeInterval,
+        playableRect: CGRect
     ) {
         self.center = center
         self.direction = direction.length > 0 ? direction.normalized : CGVector(dx: 0, dy: 1)
-        self.maximumRange = maximumRange
+        self.maximumRange = max(0, maximumRange)
         self.fanAngleRadians = min(360, max(0, fanAngleDegrees)) * .pi / 180
-        self.expansionDuration = expansionDuration
+        let clampedDuration = max(0.001, expansionDuration)
+        travelSpeed = max(0, maximumRange) / CGFloat(clampedDuration)
+        travelDistance = Self.resolvedTravelDistance(
+            from: center,
+            direction: self.direction,
+            playableRect: playableRect,
+            waveDepth: max(0, maximumRange)
+        )
     }
 
     var isComplete: Bool {
-        let clampedDuration = max(0, expansionDuration)
-        return clampedDuration == 0 ? elapsedTime > 0 : elapsedTime >= clampedDuration
+        currentRadius >= travelDistance && elapsedTime > 0
     }
 
     mutating func update(deltaTime: TimeInterval, enemies: [ArenaEnemy]) -> PowerWaveWaveFrame {
@@ -126,12 +141,7 @@ struct PowerWaveWaveState: Equatable {
             )
         }
 
-        let clampedDuration = max(0, expansionDuration)
-        if clampedDuration == 0 {
-            elapsedTime = 1
-        } else {
-            elapsedTime = min(clampedDuration, elapsedTime + max(0, deltaTime))
-        }
+        elapsedTime += max(0, deltaTime)
 
         let radius = currentRadius
         let newlyDestroyedEnemyIDs = Set(
@@ -149,15 +159,11 @@ struct PowerWaveWaveState: Equatable {
     }
 
     private var currentRadius: CGFloat {
-        let clampedMaximumRange = max(0, maximumRange)
-        let clampedDuration = max(0, expansionDuration)
-
-        guard clampedDuration > 0 else {
-            return clampedMaximumRange
+        guard travelSpeed > 0 else {
+            return travelDistance
         }
 
-        let progress = min(1, max(0, elapsedTime / clampedDuration))
-        return clampedMaximumRange * CGFloat(progress)
+        return min(travelDistance, travelSpeed * CGFloat(max(0, elapsedTime)))
     }
 
     private func intersectsFan(_ enemy: ArenaEnemy, radius: CGFloat) -> Bool {
@@ -171,13 +177,15 @@ struct PowerWaveWaveState: Equatable {
         )
         let distanceToCenter = toEnemy.length
         let enemyRadius = max(0, enemy.radius)
+        let projection = toEnemy.dx * direction.dx + toEnemy.dy * direction.dy
+        let trailingDistance = max(0, radius - maximumRange)
+
+        guard projection + enemyRadius >= trailingDistance, projection - enemyRadius <= radius else {
+            return false
+        }
 
         guard distanceToCenter > enemyRadius else {
             return true
-        }
-
-        guard distanceToCenter - enemyRadius <= radius else {
-            return false
         }
 
         let normalizedTarget = toEnemy.normalized
@@ -189,5 +197,31 @@ struct PowerWaveWaveState: Equatable {
         let radiusAngleAllowance = asin(min(1, enemyRadius / max(distanceToCenter, enemyRadius)))
 
         return angleToCenter <= fanAngleRadians / 2 + radiusAngleAllowance
+    }
+
+    private static func resolvedTravelDistance(
+        from center: CGPoint,
+        direction: CGVector,
+        playableRect: CGRect,
+        waveDepth: CGFloat
+    ) -> CGFloat {
+        guard playableRect.width > 0, playableRect.height > 0 else {
+            return max(0, waveDepth)
+        }
+
+        let corners = [
+            CGPoint(x: playableRect.minX, y: playableRect.minY),
+            CGPoint(x: playableRect.minX, y: playableRect.maxY),
+            CGPoint(x: playableRect.maxX, y: playableRect.minY),
+            CGPoint(x: playableRect.maxX, y: playableRect.maxY)
+        ]
+        let farthestProjection = corners
+            .map { point in
+                let offset = CGVector(dx: point.x - center.x, dy: point.y - center.y)
+                return offset.dx * direction.dx + offset.dy * direction.dy
+            }
+            .max() ?? 0
+
+        return max(0, farthestProjection) + max(0, waveDepth)
     }
 }
