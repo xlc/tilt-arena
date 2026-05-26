@@ -45,15 +45,12 @@ final class EnemyTelegraphNode: SKNode {
         lineNode.alpha = 1
         glowNode.setScale(1)
 
+        // The dashed telegraph path is in scene coordinates, so keep the glow
+        // pulse opacity-only. Scaling it would drift the warning away from the
+        // actual hazard lane for paths far from the scene origin.
         glowNode.run(.repeatForever(.sequence([
-            .group([
-                .fadeAlpha(to: 0.55, duration: 0.16),
-                .scale(to: 1.035, duration: 0.16)
-            ]),
-            .group([
-                .fadeAlpha(to: 1, duration: 0.14),
-                .scale(to: 1, duration: 0.14)
-            ])
+            .fadeAlpha(to: 0.55, duration: 0.16),
+            .fadeAlpha(to: 1, duration: 0.14)
         ])), withKey: "telegraph.warning.glow")
 
         lineNode.run(.repeatForever(.sequence([
