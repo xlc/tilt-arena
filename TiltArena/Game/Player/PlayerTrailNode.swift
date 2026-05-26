@@ -1,14 +1,18 @@
 import SpriteKit
 
 @MainActor
-final class PlayerTrailNode: SKShapeNode {
+final class PlayerTrailNode: SKNode {
+    private let glowNode = SKShapeNode()
+    private let coreNode = SKShapeNode()
     private var points: [CGPoint] = []
-    private let maximumPoints = 18
+    private let maximumPoints = 22
 
     init(theme: ArenaTheme) {
         super.init()
 
         zPosition = 8
+        addChild(glowNode)
+        addChild(coreNode)
         applyTheme(theme)
     }
 
@@ -17,17 +21,25 @@ final class PlayerTrailNode: SKShapeNode {
     }
 
     func applyTheme(_ theme: ArenaTheme) {
-        strokeColor = theme.playerAccentColor.withAlphaComponent(0.65)
-        fillColor = .clear
-        lineCap = .round
-        lineJoin = .round
-        lineWidth = 3
-        glowWidth = 2
+        glowNode.strokeColor = theme.playerAccentColor.withAlphaComponent(0.25)
+        glowNode.fillColor = .clear
+        glowNode.lineCap = .round
+        glowNode.lineJoin = .round
+        glowNode.lineWidth = 7
+        glowNode.glowWidth = 5
+
+        coreNode.strokeColor = theme.playerAccentColor.withAlphaComponent(0.78)
+        coreNode.fillColor = .clear
+        coreNode.lineCap = .round
+        coreNode.lineJoin = .round
+        coreNode.lineWidth = 3
+        coreNode.glowWidth = 2
     }
 
     func reset(to position: CGPoint) {
         points = [position]
-        path = nil
+        glowNode.path = nil
+        coreNode.path = nil
     }
 
     func record(position: CGPoint, speedFraction: CGFloat) {
@@ -41,8 +53,12 @@ final class PlayerTrailNode: SKShapeNode {
             points.removeFirst(points.count - maximumPoints)
         }
 
-        lineWidth = 2 + min(1, max(0, speedFraction)) * 2
-        path = makePath()
+        let clampedSpeed = min(1, max(0, speedFraction))
+        glowNode.lineWidth = 5 + clampedSpeed * 4
+        coreNode.lineWidth = 2 + clampedSpeed * 2.5
+        let trailPath = makePath()
+        glowNode.path = trailPath
+        coreNode.path = trailPath
     }
 
     private func makePath() -> CGPath? {

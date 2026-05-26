@@ -17,22 +17,23 @@ extension ArenaScene {
         let fadeDuration: TimeInterval = 0.12
         let ring = makeEffectRing(
             radius: radius,
-            strokeColor: theme.playerAccentColor.withAlphaComponent(0.92),
-            fillColor: theme.playerAccentColor.withAlphaComponent(0.08),
-            lineWidth: 2,
-            glowWidth: 6
+            strokeColor: theme.pickupAmber.withAlphaComponent(0.95),
+            fillColor: theme.pickupAmber.withAlphaComponent(0.1),
+            lineWidth: 2.6,
+            glowWidth: 8
         )
         ring.position = position
         ring.setScale(0.08)
         addWeaponEffectNode(ring)
+        playShockwaveEcho(at: position, radius: radius, duration: expansionDuration)
 
         for index in 0..<12 {
             let angle = CGFloat(index) * .pi / 6
             let spoke = SKShapeNode(path: Self.radialLinePath(innerRadius: 10, outerRadius: radius, angle: angle))
             spoke.position = position
-            spoke.strokeColor = theme.playerColor.withAlphaComponent(0.48)
-            spoke.lineWidth = 0.8
-            spoke.glowWidth = 2
+            spoke.strokeColor = theme.pickupAmber.withAlphaComponent(0.54)
+            spoke.lineWidth = 1
+            spoke.glowWidth = 3
             spoke.zPosition = 18
             spoke.alpha = 0
             addWeaponEffectNode(spoke)
@@ -59,6 +60,21 @@ extension ArenaScene {
         ]))
     }
 
+    private func playShockwaveEcho(at position: CGPoint, radius: CGFloat, duration: TimeInterval) {
+        let echoDuration = max(0.01, duration * 0.78)
+        let echo = makeEffectRing(
+            radius: radius * 0.72, strokeColor: theme.playerColor.withAlphaComponent(0.62),
+            fillColor: theme.pickupAmber.withAlphaComponent(0.05), lineWidth: 1.4, glowWidth: 5
+        )
+        echo.position = position
+        echo.setScale(0.12)
+        addWeaponEffectNode(echo)
+        echo.run(.sequence([
+            .group([.scale(to: 1.18, duration: echoDuration), .fadeOut(withDuration: echoDuration)]),
+            .removeFromParent()
+        ]))
+    }
+
     func playNovaBombEffect(
         targets: [WeaponImpactTarget],
         onImpact: @escaping (Set<Int>) -> Void
@@ -75,9 +91,9 @@ extension ArenaScene {
         let ring = makeEffectRing(
             radius: radius,
             strokeColor: theme.pickupAmber.withAlphaComponent(0.92),
-            fillColor: theme.pickupAmber.withAlphaComponent(0.08),
-            lineWidth: 2.2,
-            glowWidth: 7
+            fillColor: theme.pickupAmber.withAlphaComponent(0.12),
+            lineWidth: 2.8,
+            glowWidth: 9
         )
         ring.position = center
         ring.setScale(0.04)
@@ -87,15 +103,15 @@ extension ArenaScene {
             let angle = CGFloat(index) * .pi / 8
             let spoke = SKShapeNode(path: Self.radialLinePath(innerRadius: 18, outerRadius: radius, angle: angle))
             spoke.position = center
-            spoke.strokeColor = theme.pickupAmber.withAlphaComponent(0.35)
-            spoke.lineWidth = 1
-            spoke.glowWidth = 3
+            spoke.strokeColor = theme.playerColor.withAlphaComponent(0.48)
+            spoke.lineWidth = 1.35
+            spoke.glowWidth = 4
             spoke.zPosition = 18
             spoke.alpha = 0
             addWeaponEffectNode(spoke)
             spoke.run(.sequence([
                 .wait(forDuration: duration * 0.08),
-                .fadeAlpha(to: 0.75, duration: duration * 0.18),
+                .fadeAlpha(to: 0.86, duration: duration * 0.18),
                 .fadeOut(withDuration: duration * 0.54),
                 .removeFromParent()
             ]))
@@ -117,7 +133,7 @@ extension ArenaScene {
                 duration: travelDuration,
                 color: theme.pickupAmber,
                 coreColor: theme.playerColor,
-                impactRadius: 16,
+                impactRadius: 18,
                 onImpact: onImpact
             )
         }
@@ -155,27 +171,27 @@ extension ArenaScene {
         let radius = weaponResolver.configuration.gravityWellRadius
         let ring = makeEffectRing(
             radius: radius,
-            strokeColor: theme.pickupViolet.withAlphaComponent(0.72),
-            fillColor: theme.pickupBlue.withAlphaComponent(0.08),
-            lineWidth: 1.8,
-            glowWidth: 6
+            strokeColor: theme.pickupViolet.withAlphaComponent(0.84),
+            fillColor: theme.pickupViolet.withAlphaComponent(0.12),
+            lineWidth: 2.2,
+            glowWidth: 8
         )
         container.addChild(ring)
 
-        let core = SKShapeNode(circleOfRadius: 10)
+        let core = SKShapeNode(circleOfRadius: 12)
         core.fillColor = theme.pickupViolet.withAlphaComponent(0.9)
         core.strokeColor = theme.playerColor.withAlphaComponent(0.85)
-        core.lineWidth = 1.2
-        core.glowWidth = 5
+        core.lineWidth = 1.4
+        core.glowWidth = 7
         core.zPosition = 1
         container.addChild(core)
 
         for index in 0..<6 {
             let angle = CGFloat(index) * .pi / 3
             let arm = SKShapeNode(path: Self.radialLinePath(innerRadius: 16, outerRadius: radius * 0.86, angle: angle))
-            arm.strokeColor = theme.pickupViolet.withAlphaComponent(0.32)
-            arm.lineWidth = 1.1
-            arm.glowWidth = 3
+            arm.strokeColor = theme.playerColor.withAlphaComponent(0.38)
+            arm.lineWidth = 1.35
+            arm.glowWidth = 4
             container.addChild(arm)
         }
 
@@ -235,8 +251,8 @@ extension ArenaScene {
 
         let streak = SKShapeNode(path: path)
         streak.strokeColor = theme.playerAccentColor.withAlphaComponent(0.9)
-        streak.lineWidth = 2.2
-        streak.glowWidth = 6
+        streak.lineWidth = 3.1
+        streak.glowWidth = 9
         streak.zPosition = 18
         addWeaponEffectNode(streak)
 
@@ -248,9 +264,9 @@ extension ArenaScene {
                 y: startPosition.y + (endPosition.y - startPosition.y) * progress
             )
             ghost.strokeColor = theme.playerAccentColor.withAlphaComponent(0.55)
-            ghost.fillColor = theme.playerAccentColor.withAlphaComponent(0.1)
-            ghost.lineWidth = 1
-            ghost.glowWidth = 3
+            ghost.fillColor = theme.playerAccentColor.withAlphaComponent(0.16)
+            ghost.lineWidth = 1.25
+            ghost.glowWidth = 4
             ghost.zPosition = 18
             ghost.alpha = 0
             addWeaponEffectNode(ghost)
@@ -265,9 +281,9 @@ extension ArenaScene {
         let endpoint = SKShapeNode(circleOfRadius: movementController.configuration.visualRadius * 1.4)
         endpoint.position = endPosition
         endpoint.strokeColor = theme.pickupViolet.withAlphaComponent(0.85)
-        endpoint.fillColor = .clear
-        endpoint.lineWidth = 1.4
-        endpoint.glowWidth = 4
+        endpoint.fillColor = theme.pickupViolet.withAlphaComponent(0.12)
+        endpoint.lineWidth = 1.7
+        endpoint.glowWidth = 5
         endpoint.zPosition = 18
         endpoint.setScale(0.35)
         addWeaponEffectNode(endpoint)
@@ -297,7 +313,7 @@ extension ArenaScene {
                 duration: max(0.08, weaponEffectTiming.projectileDuration(from: origin, to: target.position) * 0.55),
                 color: theme.pickupBlue,
                 coreColor: theme.playerColor,
-                impactRadius: 11,
+                impactRadius: 13,
                 onImpact: onImpact
             )
         }
@@ -315,9 +331,9 @@ extension ArenaScene {
         let ring = makeEffectRing(
             radius: clampedExplosionRadius,
             strokeColor: theme.pickupBlue.withAlphaComponent(0.95),
-            fillColor: theme.pickupBlue.withAlphaComponent(0.12),
-            lineWidth: 2,
-            glowWidth: 7
+            fillColor: theme.pickupBlue.withAlphaComponent(0.18),
+            lineWidth: 2.4,
+            glowWidth: 8
         )
         ring.position = position
         let scale = clampedExplosionRadius > 0 ? max(0.05, min(1, startRadius / clampedExplosionRadius)) : 1
@@ -370,17 +386,17 @@ extension ArenaScene {
 
         let radius = movementController.configuration.visualRadius * 2.5
         let wedge = SKShapeNode(path: Self.powerWaveFanPath(range: radius, fanAngleRadians: .pi / 2))
-        wedge.fillColor = theme.pickupAmber.withAlphaComponent(0.1)
-        wedge.strokeColor = theme.playerAccentColor.withAlphaComponent(0.82)
-        wedge.lineWidth = 1.2
-        wedge.glowWidth = 3
+        wedge.fillColor = theme.pickupAmber.withAlphaComponent(0.16)
+        wedge.strokeColor = theme.playerAccentColor.withAlphaComponent(0.92)
+        wedge.lineWidth = 1.5
+        wedge.glowWidth = 5
         container.addChild(wedge)
 
         let core = SKShapeNode(circleOfRadius: movementController.configuration.visualRadius * 0.7)
-        core.fillColor = theme.pickupAmber.withAlphaComponent(0.22)
+        core.fillColor = theme.pickupAmber.withAlphaComponent(0.28)
         core.strokeColor = theme.playerColor.withAlphaComponent(0.86)
-        core.lineWidth = 1
-        core.glowWidth = 3
+        core.lineWidth = 1.2
+        core.glowWidth = 4
         container.addChild(core)
 
         let pulseDuration = max(0.08, min(0.18, max(0.01, duration) / 2))
@@ -413,10 +429,10 @@ extension ArenaScene {
         wave.position = position
         wave.zRotation = Self.rotation(for: direction)
         wave.zPosition = 18
-        wave.fillColor = theme.pickupAmber.withAlphaComponent(0.18)
+        wave.fillColor = theme.pickupAmber.withAlphaComponent(0.22)
         wave.strokeColor = theme.playerAccentColor.withAlphaComponent(0.92)
-        wave.lineWidth = 2
-        wave.glowWidth = 7
+        wave.lineWidth = 2.5
+        wave.glowWidth = 9
         wave.setScale(0.04)
         addWeaponEffectNode(wave)
 

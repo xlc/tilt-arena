@@ -14,14 +14,15 @@ extension ArenaScene {
 
         let targetPositions = targets.map(\.position)
         let impactDelays = weaponEffectTiming.chainImpactDelays(origin: origin, targets: targetPositions)
-        let charge = SKShapeNode(circleOfRadius: 4.5)
+        let charge = SKShapeNode(circleOfRadius: 5.5)
         charge.position = origin
         charge.fillColor = accentColor.withAlphaComponent(0.95)
         charge.strokeColor = coreColor.withAlphaComponent(0.95)
-        charge.lineWidth = 0.8
-        charge.glowWidth = 5
+        charge.lineWidth = 1
+        charge.glowWidth = 6
         charge.zPosition = 20
         addWeaponEffectNode(charge)
+        playChainChargeRing(at: origin, accentColor: accentColor)
 
         var previousPoint = origin
         var previousDelay: TimeInterval = 0
@@ -31,17 +32,17 @@ extension ArenaScene {
             let impactDelay = impactDelays[index]
             let travelDuration = max(0.04, impactDelay - previousDelay)
             let segment = SKShapeNode(path: Self.chainSegmentPath(from: previousPoint, to: target.position))
-            segment.strokeColor = accentColor.withAlphaComponent(0.82)
-            segment.lineWidth = 2
-            segment.glowWidth = 5
+            segment.strokeColor = accentColor.withAlphaComponent(0.58)
+            segment.lineWidth = 5
+            segment.glowWidth = 7
             segment.zPosition = 18
             segment.alpha = 0
             addWeaponEffectNode(segment)
 
             let core = SKShapeNode(path: Self.chainSegmentPath(from: previousPoint, to: target.position))
-            core.strokeColor = coreColor.withAlphaComponent(0.9)
-            core.lineWidth = 0.8
-            core.glowWidth = 1
+            core.strokeColor = coreColor.withAlphaComponent(0.95)
+            core.lineWidth = 1.35
+            core.glowWidth = 2
             segment.addChild(core)
 
             segment.run(.sequence([
@@ -71,6 +72,25 @@ extension ArenaScene {
         charge.run(.sequence(travelActions))
     }
 
+    private func playChainChargeRing(at position: CGPoint, accentColor: SKColor) {
+        let ring = SKShapeNode(circleOfRadius: 13)
+        ring.position = position
+        ring.strokeColor = accentColor.withAlphaComponent(0.75)
+        ring.fillColor = accentColor.withAlphaComponent(0.08)
+        ring.lineWidth = 1.3
+        ring.glowWidth = 5
+        ring.zPosition = 19
+        ring.setScale(0.35)
+        addWeaponEffectNode(ring)
+        ring.run(.sequence([
+            .group([
+                .scale(to: 1.3, duration: 0.16),
+                .fadeOut(withDuration: 0.16)
+            ]),
+            .removeFromParent()
+        ]))
+    }
+
     private func playChainImpact(
         target: WeaponImpactTarget,
         delay: TimeInterval,
@@ -78,22 +98,22 @@ extension ArenaScene {
         coreColor: SKColor,
         onImpact: @escaping (Set<Int>) -> Void
     ) {
-        let ring = SKShapeNode(circleOfRadius: 14)
+        let ring = SKShapeNode(circleOfRadius: 16)
         ring.position = target.position
         ring.strokeColor = accentColor.withAlphaComponent(0.95)
-        ring.fillColor = accentColor.withAlphaComponent(0.1)
-        ring.lineWidth = 1.5
-        ring.glowWidth = 5
+        ring.fillColor = accentColor.withAlphaComponent(0.14)
+        ring.lineWidth = 1.8
+        ring.glowWidth = 6
         ring.zPosition = 19
         ring.alpha = 0
         ring.setScale(0.35)
         addWeaponEffectNode(ring)
 
-        let core = SKShapeNode(path: Self.chainSparkPath(radius: 9))
+        let core = SKShapeNode(path: Self.chainSparkPath(radius: 10))
         core.position = target.position
         core.strokeColor = coreColor.withAlphaComponent(0.95)
-        core.lineWidth = 1.1
-        core.glowWidth = 3
+        core.lineWidth = 1.35
+        core.glowWidth = 3.5
         core.zPosition = 20
         core.alpha = 0
         addWeaponEffectNode(core)

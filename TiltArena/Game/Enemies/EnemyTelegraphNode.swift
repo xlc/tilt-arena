@@ -2,6 +2,7 @@ import SpriteKit
 
 @MainActor
 final class EnemyTelegraphNode: SKNode {
+    private let glowNode: SKShapeNode
     private let lineNode: SKShapeNode
 
     init(telegraph: EnemyTelegraph, theme: ArenaTheme) {
@@ -9,12 +10,14 @@ final class EnemyTelegraphNode: SKNode {
         for segment in telegraph.segments {
             Self.appendDashes(from: segment.start, to: segment.end, to: path)
         }
+        glowNode = SKShapeNode(path: path)
         lineNode = SKShapeNode(path: path)
 
         super.init()
 
         zPosition = 14
         applyTheme(theme)
+        addChild(glowNode)
         addChild(lineNode)
     }
 
@@ -23,9 +26,15 @@ final class EnemyTelegraphNode: SKNode {
     }
 
     func applyTheme(_ theme: ArenaTheme) {
-        lineNode.strokeColor = theme.enemyColor.withAlphaComponent(0.58)
-        lineNode.lineWidth = 2
-        lineNode.glowWidth = 2
+        glowNode.strokeColor = theme.enemyColor.withAlphaComponent(0.3)
+        glowNode.lineWidth = 7
+        glowNode.glowWidth = 5
+        glowNode.lineCap = .round
+
+        lineNode.strokeColor = theme.enemyColor.withAlphaComponent(0.84)
+        lineNode.lineWidth = 2.8
+        lineNode.glowWidth = 2.8
+        lineNode.lineCap = .round
     }
 
     private static func appendDashes(from start: CGPoint, to end: CGPoint, to path: CGMutablePath) {

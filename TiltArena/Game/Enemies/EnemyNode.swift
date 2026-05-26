@@ -2,25 +2,33 @@ import SpriteKit
 
 @MainActor
 final class EnemyNode: SKNode {
+    private let dangerHaloNode: SKShapeNode
     private let bodyNode: SKShapeNode
     private let ringNode: SKShapeNode
     private let markerNode: SKShapeNode
+    private let highlightNode: SKShapeNode
     private var theme: ArenaTheme
     private var visualSignature: VisualSignature?
 
     init(enemy: ArenaEnemy, theme: ArenaTheme) {
+        dangerHaloNode = SKShapeNode()
         bodyNode = SKShapeNode()
         ringNode = SKShapeNode()
         markerNode = SKShapeNode()
+        highlightNode = SKShapeNode()
         self.theme = theme
         super.init()
 
         zPosition = 15
 
+        dangerHaloNode.fillColor = .clear
+        addChild(dangerHaloNode)
+
         ringNode.fillColor = .clear
         addChild(ringNode)
 
         addChild(bodyNode)
+        addChild(highlightNode)
         addChild(markerNode)
 
         apply(enemy)
@@ -85,8 +93,11 @@ private extension EnemyNode {
 
 private extension EnemyNode {
     func applyAppearance(_ enemy: ArenaEnemy) {
+        dangerHaloNode.path = Self.circlePath(radius: enemy.radius * 1.24)
         bodyNode.path = Self.bodyPath(for: enemy, radius: enemy.radius)
         ringNode.path = Self.circlePath(radius: enemy.radius * 1.45)
+        highlightNode.path = Self.circlePath(radius: enemy.radius * 0.22)
+        highlightNode.position = CGPoint(x: -enemy.radius * 0.24, y: enemy.radius * 0.28)
 
         if let markerPath = Self.markerPath(for: enemy, radius: enemy.radius) {
             markerNode.path = markerPath
@@ -96,6 +107,7 @@ private extension EnemyNode {
             markerNode.isHidden = true
         }
         markerNode.fillColor = .clear
+        highlightNode.strokeColor = .clear
         resetThawAnimation()
         applyBaseStyle()
         applyRoleStyle(enemy)
@@ -109,68 +121,87 @@ private extension EnemyNode {
     }
 
     func applyBaseStyle() {
-        markerNode.strokeColor = theme.playerColor.withAlphaComponent(0.9)
-        markerNode.lineWidth = 1.5
+        dangerHaloNode.strokeColor = theme.playerColor.withAlphaComponent(0.82)
+        dangerHaloNode.lineWidth = 2.6
+        dangerHaloNode.glowWidth = 2.4
+        markerNode.strokeColor = theme.playerColor.withAlphaComponent(0.94)
+        markerNode.lineWidth = 1.8
         markerNode.lineCap = .round
         markerNode.lineJoin = .round
-        markerNode.glowWidth = 1
+        markerNode.glowWidth = 1.6
         ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.55)
-        ringNode.lineWidth = 1.1
-        ringNode.glowWidth = 1
+        ringNode.lineWidth = 1.4
+        ringNode.glowWidth = 1.6
         bodyNode.fillColor = theme.enemyColor
-        bodyNode.strokeColor = theme.enemyColor.withAlphaComponent(0.9)
-        bodyNode.lineWidth = 1
-        bodyNode.glowWidth = 3
+        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.95)
+        bodyNode.lineWidth = 1.9
+        bodyNode.glowWidth = 3.2
+        highlightNode.fillColor = theme.playerColor.withAlphaComponent(0.34)
+        highlightNode.alpha = 1
     }
 
     func applyRoleStyle(_ enemy: ArenaEnemy) {
         if enemy.isMineDot {
             ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.95)
-            ringNode.lineWidth = 2
-            bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.34)
-            bodyNode.strokeColor = theme.enemyColor
-            bodyNode.glowWidth = 1.5
+            ringNode.lineWidth = 2.2
+            ringNode.glowWidth = 2.2
+            bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.48)
+            bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.95)
+            bodyNode.glowWidth = 2
         } else if enemy.isHunterDot {
             ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.9)
-            ringNode.lineWidth = 1.8
-            ringNode.glowWidth = 2
-            bodyNode.strokeColor = theme.enemyColor
+            ringNode.lineWidth = 2
+            ringNode.glowWidth = 2.4
+            bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.96)
             bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.88)
         } else if enemy.isPaddleTrap {
-            ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.7)
-            ringNode.lineWidth = 1.5
-            bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.78)
-            bodyNode.glowWidth = 2
+            ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.76)
+            ringNode.lineWidth = 1.8
+            bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.82)
+            bodyNode.glowWidth = 2.4
         }
     }
 
     func applyFrozenStyle() {
+        dangerHaloNode.strokeColor = theme.playerColor.withAlphaComponent(0.82)
+        dangerHaloNode.lineWidth = 2.4
         ringNode.strokeColor = theme.pickupBlue.withAlphaComponent(0.9)
-        ringNode.lineWidth = 2
-        ringNode.glowWidth = 3
+        ringNode.lineWidth = 2.2
+        ringNode.glowWidth = 3.4
         bodyNode.fillColor = theme.pickupBlue.withAlphaComponent(0.55)
         bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.95)
+        bodyNode.lineWidth = 2
         bodyNode.glowWidth = 4
         markerNode.strokeColor = theme.playerColor.withAlphaComponent(0.95)
+        highlightNode.fillColor = theme.playerColor.withAlphaComponent(0.5)
     }
 
     func applyThawingStyle() {
+        dangerHaloNode.strokeColor = theme.playerColor.withAlphaComponent(0.58)
+        dangerHaloNode.lineWidth = 2.2
         ringNode.strokeColor = theme.pickupBlue.withAlphaComponent(0.58)
         ringNode.lineWidth = 1.7
         ringNode.glowWidth = 2.5
         bodyNode.fillColor = theme.pickupBlue.withAlphaComponent(0.28)
         bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.72)
+        bodyNode.lineWidth = 1.8
         bodyNode.glowWidth = 3
         markerNode.strokeColor = theme.playerColor.withAlphaComponent(0.75)
+        highlightNode.fillColor = theme.playerColor.withAlphaComponent(0.28)
     }
 
     func resetThawAnimation() {
+        dangerHaloNode.removeAction(forKey: "enemy.thaw.halo")
         bodyNode.removeAction(forKey: "enemy.thaw.body")
         ringNode.removeAction(forKey: "enemy.thaw.ring")
         markerNode.removeAction(forKey: "enemy.thaw.marker")
+        highlightNode.removeAction(forKey: "enemy.thaw.highlight")
+        dangerHaloNode.alpha = 1
         bodyNode.alpha = 1
         ringNode.alpha = 1
         markerNode.alpha = 1
+        highlightNode.alpha = 1
+        dangerHaloNode.setScale(1)
         ringNode.setScale(1)
     }
 
@@ -193,10 +224,26 @@ private extension EnemyNode {
             .fadeAlpha(to: 0.35, duration: 0.08),
             .fadeAlpha(to: 0.85, duration: 0.08)
         ]))
+        let haloPulse = SKAction.repeatForever(.sequence([
+            .group([
+                .scale(to: 1.12, duration: 0.11),
+                .fadeAlpha(to: 0.42, duration: 0.11)
+            ]),
+            .group([
+                .scale(to: 1, duration: 0.11),
+                .fadeAlpha(to: 0.86, duration: 0.11)
+            ])
+        ]))
+        let highlightPulse = SKAction.repeatForever(.sequence([
+            .fadeAlpha(to: 0.2, duration: 0.08),
+            .fadeAlpha(to: 0.58, duration: 0.08)
+        ]))
 
+        dangerHaloNode.run(haloPulse, withKey: "enemy.thaw.halo")
         bodyNode.run(bodyPulse, withKey: "enemy.thaw.body")
         ringNode.run(ringPulse, withKey: "enemy.thaw.ring")
         markerNode.run(markerPulse, withKey: "enemy.thaw.marker")
+        highlightNode.run(highlightPulse, withKey: "enemy.thaw.highlight")
     }
 
     static func bodyPath(for enemy: ArenaEnemy, radius: CGFloat) -> CGPath {

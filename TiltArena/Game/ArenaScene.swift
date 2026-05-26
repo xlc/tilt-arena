@@ -1281,21 +1281,22 @@ final class ArenaScene: SKScene {
     }
 
     private func styleRazorShieldNode(_ node: SKShapeNode) {
-        node.strokeColor = theme.pickupBlue.withAlphaComponent(0.9)
-        node.fillColor = .clear
-        node.lineWidth = 2
-        node.glowWidth = 4
+        node.strokeColor = theme.pickupBlue.withAlphaComponent(0.95)
+        node.fillColor = theme.pickupBlue.withAlphaComponent(0.08)
+        node.lineWidth = 2.4
+        node.glowWidth = 6
         node.removeAllChildren()
         node.removeAction(forKey: "razor.spin")
+        node.removeAction(forKey: "razor.warning")
 
         for index in 0..<3 {
             let angle = CGFloat(index) * (2 * .pi / 3)
             let blade = SKShapeNode(path: razorShieldBladePath(radius: weaponResolver.configuration.razorShieldRadius))
             blade.zRotation = angle
-            blade.strokeColor = theme.playerColor.withAlphaComponent(0.86)
-            blade.lineWidth = 1.4
+            blade.strokeColor = theme.playerColor.withAlphaComponent(0.92)
+            blade.lineWidth = 1.7
             blade.lineCap = .round
-            blade.glowWidth = 3
+            blade.glowWidth = 4
             node.addChild(blade)
         }
 
@@ -1384,6 +1385,11 @@ final class ArenaScene: SKScene {
         hasPlayedRazorShieldWarning = true
         playAudio(.shieldWarning)
         playHaptic(.shieldWarning)
+        let pulse = SKAction.sequence([
+            .group([.fadeAlpha(to: 0.48, duration: 0.06), .scale(to: 1.12, duration: 0.06)]),
+            .group([.fadeAlpha(to: 1, duration: 0.08), .scale(to: 1, duration: 0.08)])
+        ])
+        razorShieldNode?.run(.repeat(pulse, count: 3), withKey: "razor.warning")
     }
 
     private func updateFlameTrail(deltaTime: TimeInterval, playerPosition: CGPoint) {

@@ -33,16 +33,16 @@ extension ArenaScene {
     ) {
         let beam = ricochetBeamNode(
             segment,
-            color: theme.pickupBlue.withAlphaComponent(0.9),
-            lineWidth: max(2, weaponResolver.configuration.ricochetLanceBeamWidth * 0.38),
-            glowWidth: 7,
+            color: theme.pickupBlue.withAlphaComponent(0.95),
+            lineWidth: max(2.6, weaponResolver.configuration.ricochetLanceBeamWidth * 0.48),
+            glowWidth: 9,
             zPosition: 18
         )
         let core = ricochetBeamNode(
             segment,
             color: theme.playerColor.withAlphaComponent(0.95),
-            lineWidth: 1,
-            glowWidth: 2,
+            lineWidth: 1.3,
+            glowWidth: 3,
             zPosition: 19
         )
 
@@ -71,11 +71,11 @@ extension ArenaScene {
 
     private func playRicochetBouncePulse(at position: CGPoint, delay: TimeInterval) {
         let pulse = makeEffectRing(
-            radius: 8,
+            radius: 11,
             strokeColor: theme.pickupBlue.withAlphaComponent(0.9),
-            fillColor: theme.pickupBlue.withAlphaComponent(0.1),
-            lineWidth: 1.2,
-            glowWidth: 4
+            fillColor: theme.pickupBlue.withAlphaComponent(0.16),
+            lineWidth: 1.5,
+            glowWidth: 5
         )
         pulse.position = position
         pulse.alpha = 0
@@ -86,7 +86,7 @@ extension ArenaScene {
             .wait(forDuration: max(0, delay)),
             .group([
                 .fadeAlpha(to: 1, duration: 0.02),
-                .scale(to: 1.25, duration: 0.09)
+                .scale(to: 1.45, duration: 0.09)
             ]),
             .fadeOut(withDuration: 0.08),
             .removeFromParent()
@@ -120,6 +120,10 @@ extension ArenaScene {
             return
         }
 
+        for target in targets {
+            playRicochetImpactFlash(at: target.position, delay: delay)
+        }
+
         let node = SKNode()
         node.zPosition = 18
         addWeaponEffectNode(node)
@@ -129,6 +133,26 @@ extension ArenaScene {
             .run {
                 onImpact(targetIDs)
             },
+            .removeFromParent()
+        ]))
+    }
+
+    private func playRicochetImpactFlash(at position: CGPoint, delay: TimeInterval) {
+        let flash = makeEffectRing(
+            radius: 13,
+            strokeColor: theme.playerColor.withAlphaComponent(0.95),
+            fillColor: theme.pickupBlue.withAlphaComponent(0.14),
+            lineWidth: 1.4,
+            glowWidth: 5
+        )
+        flash.position = position
+        flash.alpha = 0
+        flash.setScale(0.4)
+        addWeaponEffectNode(flash)
+        flash.run(.sequence([
+            .wait(forDuration: max(0, delay)),
+            .group([.fadeAlpha(to: 1, duration: 0.02), .scale(to: 1.2, duration: 0.1)]),
+            .fadeOut(withDuration: 0.08),
             .removeFromParent()
         ]))
     }

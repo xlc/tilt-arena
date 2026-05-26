@@ -26,6 +26,8 @@ extension ArenaScene {
         innerRing.setScale(0.1)
         addWeaponEffectNode(innerRing)
 
+        playFreezeShardSpokes(at: position, radius: radius, duration: duration)
+
         ring.run(.sequence([
             .group([
                 .scale(to: 1, duration: duration),
@@ -61,5 +63,37 @@ extension ArenaScene {
             ]),
             .removeFromParent()
         ]))
+    }
+
+    private func playFreezeShardSpokes(at position: CGPoint, radius: CGFloat, duration: TimeInterval) {
+        for index in 0..<6 {
+            let shard = SKShapeNode(path: Self.freezeShardPath(
+                innerRadius: radius * 0.16,
+                outerRadius: radius * 0.88,
+                angle: CGFloat(index) * .pi / 3
+            ))
+            shard.position = position
+            shard.strokeColor = theme.playerColor.withAlphaComponent(0.72)
+            shard.lineWidth = 1.1
+            shard.lineCap = .round
+            shard.glowWidth = 3
+            shard.zPosition = 18
+            shard.alpha = 0
+            shard.setScale(0.08)
+            addWeaponEffectNode(shard)
+            shard.run(.sequence([
+                .wait(forDuration: duration * 0.08),
+                .group([.fadeAlpha(to: 0.82, duration: duration * 0.22), .scale(to: 1, duration: duration * 0.55)]),
+                .fadeOut(withDuration: duration * 0.25),
+                .removeFromParent()
+            ]))
+        }
+    }
+
+    private static func freezeShardPath(innerRadius: CGFloat, outerRadius: CGFloat, angle: CGFloat) -> CGPath {
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: cos(angle) * innerRadius, y: sin(angle) * innerRadius))
+        path.addLine(to: CGPoint(x: cos(angle) * outerRadius, y: sin(angle) * outerRadius))
+        return path
     }
 }

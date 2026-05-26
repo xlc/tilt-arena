@@ -17,7 +17,28 @@ extension ArenaScene {
                 .scale(to: 1.2, duration: 0.1),
                 .fadeOut(withDuration: 0.1)
             ])
+
+            for index in 0..<4 {
+                let shard = SKShapeNode(path: Self.shatterShardPath(radius: 14, angle: CGFloat(index) * .pi / 4))
+                shard.position = position
+                shard.strokeColor = color.withAlphaComponent(0.88)
+                shard.lineWidth = 1.1
+                shard.lineCap = .round
+                shard.glowWidth = 3
+                shard.zPosition = 19
+                shard.setScale(0.4)
+                addWeaponEffectNode(shard)
+                shard.run(.sequence([burst, .removeFromParent()]))
+            }
+
             ring.run(.sequence([burst, .removeFromParent()]))
         }
+    }
+
+    private static func shatterShardPath(radius: CGFloat, angle: CGFloat) -> CGPath {
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: -cos(angle) * radius * 0.45, y: -sin(angle) * radius * 0.45))
+        path.addLine(to: CGPoint(x: cos(angle) * radius, y: sin(angle) * radius))
+        return path
     }
 }

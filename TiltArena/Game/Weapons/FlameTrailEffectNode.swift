@@ -3,7 +3,7 @@ import SpriteKit
 @MainActor
 final class FlameTrailEffectNode: SKNode {
     private var theme: ArenaTheme
-    private var segmentNodes: [Int: SKShapeNode] = [:]
+    private var segmentNodes: [Int: FlameTrailSegmentNode] = [:]
 
     init(theme: ArenaTheme) {
         self.theme = theme
@@ -31,8 +31,7 @@ final class FlameTrailEffectNode: SKNode {
             }
 
             node.position = segment.position
-            node.alpha = 0.2 + 0.55 * segment.remainingFraction
-            node.setScale(0.75 + 0.25 * segment.remainingFraction)
+            node.apply(remainingFraction: segment.remainingFraction)
         }
     }
 
@@ -44,20 +43,63 @@ final class FlameTrailEffectNode: SKNode {
     func applyTheme(_ theme: ArenaTheme) {
         self.theme = theme
         for node in segmentNodes.values {
-            applyAppearance(to: node)
+            node.applyTheme(theme)
         }
     }
 
-    private func makeSegmentNode(radius: CGFloat) -> SKShapeNode {
-        let node = SKShapeNode(circleOfRadius: radius)
-        applyAppearance(to: node)
-        return node
+    private func makeSegmentNode(radius: CGFloat) -> FlameTrailSegmentNode {
+        FlameTrailSegmentNode(radius: radius, theme: theme)
+    }
+}
+
+@MainActor
+private final class FlameTrailSegmentNode: SKNode {
+    private let radius: CGFloat
+    private let glowNode: SKShapeNode
+    private let coreNode: SKShapeNode
+    private let emberNode: SKShapeNode
+
+    init(radius: CGFloat, theme: ArenaTheme) {
+        self.radius = radius
+        glowNode = SKShapeNode(circleOfRadius: radius * 1.12)
+        coreNode = SKShapeNode(circleOfRadius: radius)
+        emberNode = SKShapeNode(circleOfRadius: radius * 0.18)
+        super.init()
+
+        addChild(glowNode)
+        addChild(coreNode)
+        addChild(emberNode)
+        emberNode.position = CGPoint(x: -radius * 0.28, y: radius * 0.26)
+        applyTheme(theme)
     }
 
-    private func applyAppearance(to node: SKShapeNode) {
-        node.fillColor = theme.flameTrailFillColor
-        node.strokeColor = theme.pickupAmber.withAlphaComponent(0.9)
-        node.lineWidth = 1.4
-        node.glowWidth = 2
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("FlameTrailSegmentNode does not support storyboard initialization.")
+    }
+
+    func applyTheme(_ theme: ArenaTheme) {
+        glowNode.fillColor = theme.pickupAmber.withAlphaComponent(0.12)
+        glowNode.strokeColor = theme.pickupAmber.withAlphaComponent(0.38)
+        glowNode.lineWidth = 2.2
+        glowNode.glowWidth = 5
+
+        coreNode.fillColor = theme.flameTrailFillColor
+        coreNode.strokeColor = theme.pickupAmber.withAlphaComponent(0.96)
+        coreNode.lineWidth = 1.8
+        coreNode.glowWidth = 3
+
+        emberNode.fillColor = theme.playerColor.withAlphaComponent(0.42)
+        emberNode.strokeColor = .clear
+        emberNode.glowWidth = 2
+    }
+
+    func apply(remainingFraction: CGFloat) {
+        let fraction = min(1, max(0, remainingFraction))
+        alpha = 0.18 + 0.68 * fraction
+        setScale(0.72 + 0.34 * fraction)
+        glowNode.alpha = 0.38 + 0.42 * fraction
+        coreNode.alpha = 0.52 + 0.42 * fraction
+        emberNode.alpha = 0.18 + 0.62 * fraction
+        emberNode.position = CGPoint(x: -radius * (0.12 + 0.2 * fraction), y: radius * 0.28)
     }
 }
