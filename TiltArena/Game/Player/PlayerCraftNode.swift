@@ -34,24 +34,24 @@ final class PlayerCraftNode: SKNode {
         glowNode.strokeColor = theme.playerAccentColor.withAlphaComponent(0.28)
         glowNode.lineWidth = 1
         glowNode.lineJoin = .round
-        glowNode.glowWidth = 2
+        glowNode.glowWidth = 1.15
 
         bodyNode.fillColor = theme.playerColor
         bodyNode.strokeColor = theme.playerAccentColor
         bodyNode.lineWidth = 1.8
         bodyNode.lineJoin = .round
-        bodyNode.glowWidth = 1
+        bodyNode.glowWidth = 0.55
 
         coreNode.fillColor = theme.playerAccentColor
         coreNode.strokeColor = theme.playerColor.withAlphaComponent(0.86)
         coreNode.lineWidth = 0.8
         coreNode.position = CGPoint(x: 0, y: -visualRadius * 0.03)
-        coreNode.glowWidth = 1.6
+        coreNode.glowWidth = 0.95
 
         engineNode.fillColor = theme.playerAccentColor.withAlphaComponent(0.58)
         engineNode.strokeColor = .clear
         engineNode.position = CGPoint(x: 0, y: -visualRadius * 0.54)
-        engineNode.glowWidth = 1.2
+        engineNode.glowWidth = 0.7
     }
 
     func apply(state: PlayerMovementState, speedFraction rawSpeedFraction: CGFloat) {

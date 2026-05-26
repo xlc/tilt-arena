@@ -35,14 +35,14 @@ extension ArenaScene {
             segment,
             color: theme.pickupBlue.withAlphaComponent(0.7),
             lineWidth: max(2.2, weaponResolver.configuration.ricochetLanceBeamWidth * 0.4),
-            glowWidth: 3.2,
+            glowWidth: 1.8,
             zPosition: 18
         )
         let core = ricochetBeamNode(
             segment,
             color: theme.playerColor.withAlphaComponent(0.72),
             lineWidth: 1.1,
-            glowWidth: 1.1,
+            glowWidth: 0.65,
             zPosition: 19
         )
 
@@ -75,7 +75,7 @@ extension ArenaScene {
             strokeColor: theme.pickupBlue.withAlphaComponent(0.64),
             fillColor: theme.pickupBlue.withAlphaComponent(0.1),
             lineWidth: 1.2,
-            glowWidth: 1.8
+            glowWidth: 1
         )
         pulse.position = position
         pulse.alpha = 0
@@ -143,7 +143,7 @@ extension ArenaScene {
             strokeColor: theme.playerColor.withAlphaComponent(0.7),
             fillColor: theme.pickupBlue.withAlphaComponent(0.09),
             lineWidth: 1.1,
-            glowWidth: 1.8
+            glowWidth: 1
         )
         flash.position = position
         flash.alpha = 0

@@ -6,6 +6,27 @@ final class StartingWeaponResolverTests: XCTestCase {
         XCTAssertEqual(StartingWeaponConfiguration().shockwaveRadius, 104)
     }
 
+    func testWeaponSpriteSheetMapsWeaponsToIconAndEffectRows() {
+        XCTAssertEqual(WeaponSpriteSheet.assetName, "WeaponSprites")
+        XCTAssertEqual(WeaponSpriteSheet.rowCount, 2)
+        XCTAssertEqual(WeaponSpriteSheet.columnCount, WeaponKind.allCases.count)
+
+        let cellWidth = 1 / CGFloat(WeaponKind.allCases.count)
+        for (column, kind) in WeaponKind.allCases.enumerated() {
+            let x = CGFloat(column) * cellWidth
+
+            XCTAssertEqual(WeaponSpriteSheet.column(for: kind), column)
+            XCTAssertEqual(
+                WeaponSpriteSheet.textureRect(for: kind, role: .icon),
+                CGRect(x: x, y: 0.5, width: cellWidth, height: 0.5)
+            )
+            XCTAssertEqual(
+                WeaponSpriteSheet.textureRect(for: kind, role: .effect),
+                CGRect(x: x, y: 0, width: cellWidth, height: 0.5)
+            )
+        }
+    }
+
     func testDefaultPowerWaveAndWarpDashTuningUseUpdatedBalance() {
         let configuration = StartingWeaponConfiguration()
 

@@ -20,7 +20,7 @@ extension ArenaScene {
             strokeColor: theme.pickupAmber.withAlphaComponent(0.95),
             fillColor: theme.pickupAmber.withAlphaComponent(0.1),
             lineWidth: 2.6,
-            glowWidth: 3.2
+            glowWidth: 1.8
         )
         ring.position = position
         ring.setScale(0.08)
@@ -33,7 +33,7 @@ extension ArenaScene {
             spoke.position = position
             spoke.strokeColor = theme.pickupAmber.withAlphaComponent(0.38)
             spoke.lineWidth = 1
-            spoke.glowWidth = 1.2
+            spoke.glowWidth = 0.7
             spoke.zPosition = 18
             spoke.alpha = 0
             addWeaponEffectNode(spoke)
@@ -64,7 +64,7 @@ extension ArenaScene {
         let echoDuration = max(0.01, duration * 0.78)
         let echo = makeEffectRing(
             radius: radius * 0.72, strokeColor: theme.playerColor.withAlphaComponent(0.42),
-            fillColor: theme.pickupAmber.withAlphaComponent(0.03), lineWidth: 1.2, glowWidth: 2
+            fillColor: theme.pickupAmber.withAlphaComponent(0.03), lineWidth: 1.2, glowWidth: 1.15
         )
         echo.position = position
         echo.setScale(0.12)
@@ -93,7 +93,7 @@ extension ArenaScene {
             strokeColor: theme.pickupAmber.withAlphaComponent(0.92),
             fillColor: theme.pickupAmber.withAlphaComponent(0.12),
             lineWidth: 2.8,
-            glowWidth: 3.4
+            glowWidth: 1.95
         )
         ring.position = center
         ring.setScale(0.04)
@@ -105,7 +105,7 @@ extension ArenaScene {
             spoke.position = center
             spoke.strokeColor = theme.playerColor.withAlphaComponent(0.32)
             spoke.lineWidth = 1.15
-            spoke.glowWidth = 1.5
+            spoke.glowWidth = 0.85
             spoke.zPosition = 18
             spoke.alpha = 0
             addWeaponEffectNode(spoke)
@@ -174,7 +174,7 @@ extension ArenaScene {
             strokeColor: theme.pickupViolet.withAlphaComponent(0.84),
             fillColor: theme.pickupViolet.withAlphaComponent(0.12),
             lineWidth: 2.2,
-            glowWidth: 3
+            glowWidth: 1.7
         )
         container.addChild(ring)
 
@@ -182,7 +182,7 @@ extension ArenaScene {
         core.fillColor = theme.pickupViolet.withAlphaComponent(0.74)
         core.strokeColor = theme.playerColor.withAlphaComponent(0.68)
         core.lineWidth = 1.2
-        core.glowWidth = 2.6
+        core.glowWidth = 1.5
         core.zPosition = 1
         container.addChild(core)
 
@@ -191,7 +191,7 @@ extension ArenaScene {
             let arm = SKShapeNode(path: Self.radialLinePath(innerRadius: 16, outerRadius: radius * 0.86, angle: angle))
             arm.strokeColor = theme.playerColor.withAlphaComponent(0.26)
             arm.lineWidth = 1.1
-            arm.glowWidth = 1.4
+            arm.glowWidth = 0.8
             container.addChild(arm)
         }
 
@@ -215,7 +215,7 @@ extension ArenaScene {
             strokeColor: theme.pickupViolet.withAlphaComponent(0.95),
             fillColor: theme.pickupViolet.withAlphaComponent(0.12),
             lineWidth: 2,
-            glowWidth: 2.8
+            glowWidth: 1.6
         )
         ring.position = position
         ring.setScale(1.25)
@@ -232,7 +232,7 @@ extension ArenaScene {
             let tether = SKShapeNode(path: Self.linePath(from: target.position, to: position))
             tether.strokeColor = theme.pickupViolet.withAlphaComponent(0.42)
             tether.lineWidth = 1.2
-            tether.glowWidth = 1.4
+            tether.glowWidth = 0.8
             tether.zPosition = 18
             addWeaponEffectNode(tether)
             tether.run(.sequence([
@@ -252,7 +252,7 @@ extension ArenaScene {
         let streak = SKShapeNode(path: path)
         streak.strokeColor = theme.playerAccentColor.withAlphaComponent(0.68)
         streak.lineWidth = 2.4
-        streak.glowWidth = 3.2
+        streak.glowWidth = 1.8
         streak.zPosition = 18
         addWeaponEffectNode(streak)
 
@@ -266,7 +266,7 @@ extension ArenaScene {
             ghost.strokeColor = theme.playerAccentColor.withAlphaComponent(0.38)
             ghost.fillColor = theme.playerAccentColor.withAlphaComponent(0.09)
             ghost.lineWidth = 1
-            ghost.glowWidth = 1.4
+            ghost.glowWidth = 0.8
             ghost.zPosition = 18
             ghost.alpha = 0
             addWeaponEffectNode(ghost)
@@ -283,7 +283,7 @@ extension ArenaScene {
         endpoint.strokeColor = theme.pickupViolet.withAlphaComponent(0.62)
         endpoint.fillColor = theme.pickupViolet.withAlphaComponent(0.08)
         endpoint.lineWidth = 1.3
-        endpoint.glowWidth = 1.8
+        endpoint.glowWidth = 1
         endpoint.zPosition = 18
         endpoint.setScale(0.35)
         addWeaponEffectNode(endpoint)
@@ -333,7 +333,7 @@ extension ArenaScene {
             strokeColor: theme.pickupBlue.withAlphaComponent(0.95),
             fillColor: theme.pickupBlue.withAlphaComponent(0.18),
             lineWidth: 2.4,
-            glowWidth: 3
+            glowWidth: 1.7
         )
         ring.position = position
         let scale = clampedExplosionRadius > 0 ? max(0.05, min(1, startRadius / clampedExplosionRadius)) : 1
@@ -389,14 +389,14 @@ extension ArenaScene {
         wedge.fillColor = theme.pickupAmber.withAlphaComponent(0.1)
         wedge.strokeColor = theme.playerAccentColor.withAlphaComponent(0.68)
         wedge.lineWidth = 1.2
-        wedge.glowWidth = 1.8
+        wedge.glowWidth = 1
         container.addChild(wedge)
 
         let core = SKShapeNode(circleOfRadius: movementController.configuration.visualRadius * 0.7)
         core.fillColor = theme.pickupAmber.withAlphaComponent(0.18)
         core.strokeColor = theme.playerColor.withAlphaComponent(0.64)
         core.lineWidth = 1.2
-        core.glowWidth = 1.4
+        core.glowWidth = 0.8
         container.addChild(core)
 
         let pulseDuration = max(0.08, min(0.18, max(0.01, duration) / 2))
@@ -432,7 +432,7 @@ extension ArenaScene {
         wave.fillColor = theme.pickupAmber.withAlphaComponent(0.14)
         wave.strokeColor = theme.playerAccentColor.withAlphaComponent(0.68)
         wave.lineWidth = 2
-        wave.glowWidth = 3.2
+        wave.glowWidth = 1.8
         wave.setScale(0.04)
         addWeaponEffectNode(wave)
 
@@ -465,7 +465,7 @@ extension ArenaScene {
         let trail = SKShapeNode(path: Self.linePath(from: origin, to: target.position))
         trail.strokeColor = color.withAlphaComponent(0.22)
         trail.lineWidth = 0.9
-        trail.glowWidth = 1.1
+        trail.glowWidth = 0.65
         trail.zPosition = 18
         trail.alpha = 0
         addWeaponEffectNode(trail)
@@ -475,7 +475,7 @@ extension ArenaScene {
         projectile.fillColor = color.withAlphaComponent(0.78)
         projectile.strokeColor = coreColor.withAlphaComponent(0.72)
         projectile.lineWidth = 0.8
-        projectile.glowWidth = 1.4
+        projectile.glowWidth = 0.8
         projectile.zPosition = 19
         projectile.alpha = 0
         addWeaponEffectNode(projectile)
@@ -519,7 +519,7 @@ extension ArenaScene {
             strokeColor: color.withAlphaComponent(0.95),
             fillColor: color.withAlphaComponent(0.12),
             lineWidth: 1.4,
-            glowWidth: 1.8
+            glowWidth: 1
         )
         ring.position = target.position
         ring.alpha = 0
@@ -530,7 +530,7 @@ extension ArenaScene {
         spark.position = target.position
         spark.strokeColor = color.withAlphaComponent(0.7)
         spark.lineWidth = 1
-        spark.glowWidth = 1.4
+        spark.glowWidth = 0.8
         spark.zPosition = 20
         spark.alpha = 0
         addWeaponEffectNode(spark)

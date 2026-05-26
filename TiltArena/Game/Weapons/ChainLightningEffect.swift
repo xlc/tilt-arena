@@ -19,7 +19,7 @@ extension ArenaScene {
         charge.fillColor = accentColor.withAlphaComponent(0.72)
         charge.strokeColor = coreColor.withAlphaComponent(0.72)
         charge.lineWidth = 1
-        charge.glowWidth = 2.2
+        charge.glowWidth = 1.25
         charge.zPosition = 20
         addWeaponEffectNode(charge)
         playChainChargeRing(at: origin, accentColor: accentColor)
@@ -34,7 +34,7 @@ extension ArenaScene {
             let segment = SKShapeNode(path: Self.chainSegmentPath(from: previousPoint, to: target.position))
             segment.strokeColor = accentColor.withAlphaComponent(0.38)
             segment.lineWidth = 3.4
-            segment.glowWidth = 2.4
+            segment.glowWidth = 1.35
             segment.zPosition = 18
             segment.alpha = 0
             addWeaponEffectNode(segment)
@@ -42,7 +42,7 @@ extension ArenaScene {
             let core = SKShapeNode(path: Self.chainSegmentPath(from: previousPoint, to: target.position))
             core.strokeColor = coreColor.withAlphaComponent(0.72)
             core.lineWidth = 1.1
-            core.glowWidth = 0.8
+            core.glowWidth = 0.45
             segment.addChild(core)
 
             segment.run(.sequence([
@@ -78,7 +78,7 @@ extension ArenaScene {
         ring.strokeColor = accentColor.withAlphaComponent(0.52)
         ring.fillColor = accentColor.withAlphaComponent(0.05)
         ring.lineWidth = 1.1
-        ring.glowWidth = 1.8
+        ring.glowWidth = 1
         ring.zPosition = 19
         ring.setScale(0.35)
         addWeaponEffectNode(ring)
@@ -103,7 +103,7 @@ extension ArenaScene {
         ring.strokeColor = accentColor.withAlphaComponent(0.7)
         ring.fillColor = accentColor.withAlphaComponent(0.09)
         ring.lineWidth = 1.4
-        ring.glowWidth = 2.2
+        ring.glowWidth = 1.25
         ring.zPosition = 19
         ring.alpha = 0
         ring.setScale(0.35)
@@ -113,7 +113,7 @@ extension ArenaScene {
         core.position = target.position
         core.strokeColor = coreColor.withAlphaComponent(0.72)
         core.lineWidth = 1.1
-        core.glowWidth = 1.2
+        core.glowWidth = 0.7
         core.zPosition = 20
         core.alpha = 0
         addWeaponEffectNode(core)

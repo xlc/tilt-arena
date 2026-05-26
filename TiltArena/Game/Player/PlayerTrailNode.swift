@@ -95,13 +95,13 @@ private final class PlayerTrailSegmentNode: SKNode {
         glowNode.fillColor = .clear
         glowNode.lineCap = .round
         glowNode.lineJoin = .round
-        glowNode.glowWidth = 1.8
+        glowNode.glowWidth = 1.05
 
         coreNode.strokeColor = theme.playerAccentColor.withAlphaComponent(0.58)
         coreNode.fillColor = .clear
         coreNode.lineCap = .round
         coreNode.lineJoin = .round
-        coreNode.glowWidth = 0.8
+        coreNode.glowWidth = 0.45
     }
 
     func apply(from start: CGPoint, to end: CGPoint, ageFraction: CGFloat, speedFraction: CGFloat) {

@@ -59,9 +59,9 @@ struct EnemyPhaseTuning: Equatable {
 }
 
 struct EnemySpawnConfiguration: Equatable {
-    var enemyRadius: CGFloat = 4.5
-    var enemySpeedRampPerSecond: CGFloat = 0.015
-    var maximumEnemySpeedMultiplier: CGFloat = 1.65
+    var enemyRadius: CGFloat = 4
+    var enemySpeedRampPerSecond: CGFloat = 0.024
+    var maximumEnemySpeedMultiplier: CGFloat = 1.9
     var playerSafetyRadius: CGFloat = 120
     var pickupClearance: CGFloat = 8
     var formationTelegraphDuration: TimeInterval = 1.1
@@ -87,64 +87,64 @@ struct EnemySpawnConfiguration: Equatable {
     var maxPendingEnemyTelegraphs = 2
     var cullingOutset: CGFloat = 72
     var warmup = EnemyPhaseTuning(
-        chaserSpawnInterval: 1.1,
-        chaserSpeed: 60,
-        maxActiveEnemies: 40,
+        chaserSpawnInterval: 0.92,
+        chaserSpeed: 66,
+        maxActiveEnemies: 48,
         formationSpawnInterval: nil,
-        formationSpeed: 86,
+        formationSpeed: 94,
         formationLaneCount: 5
     )
     var pressure = EnemyPhaseTuning(
-        chaserSpawnInterval: 0.82,
-        chaserSpeed: 80,
-        maxActiveEnemies: 70,
-        formationSpawnInterval: 10,
-        formationSpeed: 98,
+        chaserSpawnInterval: 0.66,
+        chaserSpeed: 88,
+        maxActiveEnemies: 82,
+        formationSpawnInterval: 8.5,
+        formationSpeed: 108,
         formationLaneCount: 5
     )
     var chaos = EnemyPhaseTuning(
-        chaserSpawnInterval: 0.58,
-        chaserSpeed: 100,
-        maxActiveEnemies: 120,
-        formationSpawnInterval: 6.5,
-        formationSpeed: 116,
+        chaserSpawnInterval: 0.46,
+        chaserSpeed: 112,
+        maxActiveEnemies: 140,
+        formationSpawnInterval: 5.2,
+        formationSpeed: 128,
         formationLaneCount: 7,
-        arrowRushSpawnInterval: 8.5,
-        arrowRushSpeed: 165,
+        arrowRushSpawnInterval: 7.2,
+        arrowRushSpeed: 185,
         arrowRushEnemyCount: 3,
-        mineDotSpawnInterval: 12,
+        mineDotSpawnInterval: 9.5,
         maxActiveMineDots: 4,
-        hunterDotSpawnInterval: 15,
-        hunterDotSpeed: 120,
+        hunterDotSpawnInterval: 12.5,
+        hunterDotSpeed: 134,
         hunterDotPredictionLead: 0.6,
         maxActiveHunterDots: 2,
-        paddleTrapSpawnInterval: 20,
+        paddleTrapSpawnInterval: 16.5,
         maxActivePaddleTraps: 1,
         paddleTrapLifetime: 7,
         paddleTrapBarEnemyCount: 4,
-        paddleTrapDotSpeed: 158
+        paddleTrapDotSpeed: 172
     )
     var survivalHell = EnemyPhaseTuning(
-        chaserSpawnInterval: 0.38,
-        chaserSpeed: 122,
-        maxActiveEnemies: 180,
-        formationSpawnInterval: 4.5,
-        formationSpeed: 136,
+        chaserSpawnInterval: 0.30,
+        chaserSpeed: 140,
+        maxActiveEnemies: 210,
+        formationSpawnInterval: 3.7,
+        formationSpeed: 154,
         formationLaneCount: 9,
-        arrowRushSpawnInterval: 5.8,
-        arrowRushSpeed: 195,
+        arrowRushSpawnInterval: 4.8,
+        arrowRushSpeed: 220,
         arrowRushEnemyCount: 5,
-        mineDotSpawnInterval: 8,
+        mineDotSpawnInterval: 6.2,
         maxActiveMineDots: 7,
-        hunterDotSpawnInterval: 10,
-        hunterDotSpeed: 150,
+        hunterDotSpawnInterval: 7.8,
+        hunterDotSpeed: 168,
         hunterDotPredictionLead: 0.9,
         maxActiveHunterDots: 3,
-        paddleTrapSpawnInterval: 15,
+        paddleTrapSpawnInterval: 12,
         maxActivePaddleTraps: 2,
         paddleTrapLifetime: 8,
         paddleTrapBarEnemyCount: 5,
-        paddleTrapDotSpeed: 190
+        paddleTrapDotSpeed: 214
     )
 
     func tuning(at survivalTime: TimeInterval) -> EnemyPhaseTuning {
@@ -159,15 +159,31 @@ struct EnemySpawnConfiguration: Equatable {
             chaserSpawnInterval: interpolate(current.tuning.chaserSpawnInterval, next?.tuning.chaserSpawnInterval, progress),
             chaserSpeed: interpolate(current.tuning.chaserSpeed, next?.tuning.chaserSpeed, progress),
             maxActiveEnemies: interpolateCount(current.tuning.maxActiveEnemies, next?.tuning.maxActiveEnemies, progress),
-            formationSpawnInterval: current.tuning.formationSpawnInterval,
+            formationSpawnInterval: interpolateOptional(
+                current.tuning.formationSpawnInterval,
+                next?.tuning.formationSpawnInterval,
+                progress
+            ),
             formationSpeed: interpolate(current.tuning.formationSpeed, next?.tuning.formationSpeed, progress),
             formationLaneCount: max(3, current.tuning.formationLaneCount),
-            arrowRushSpawnInterval: current.tuning.arrowRushSpawnInterval,
+            arrowRushSpawnInterval: interpolateOptional(
+                current.tuning.arrowRushSpawnInterval,
+                next?.tuning.arrowRushSpawnInterval,
+                progress
+            ),
             arrowRushSpeed: interpolate(current.tuning.arrowRushSpeed, next?.tuning.arrowRushSpeed, progress),
             arrowRushEnemyCount: interpolateCount(current.tuning.arrowRushEnemyCount, next?.tuning.arrowRushEnemyCount, progress),
-            mineDotSpawnInterval: current.tuning.mineDotSpawnInterval,
+            mineDotSpawnInterval: interpolateOptional(
+                current.tuning.mineDotSpawnInterval,
+                next?.tuning.mineDotSpawnInterval,
+                progress
+            ),
             maxActiveMineDots: interpolateCount(current.tuning.maxActiveMineDots, next?.tuning.maxActiveMineDots, progress),
-            hunterDotSpawnInterval: current.tuning.hunterDotSpawnInterval,
+            hunterDotSpawnInterval: interpolateOptional(
+                current.tuning.hunterDotSpawnInterval,
+                next?.tuning.hunterDotSpawnInterval,
+                progress
+            ),
             hunterDotSpeed: interpolate(current.tuning.hunterDotSpeed, next?.tuning.hunterDotSpeed, progress),
             hunterDotPredictionLead: interpolate(
                 current.tuning.hunterDotPredictionLead,
@@ -179,7 +195,11 @@ struct EnemySpawnConfiguration: Equatable {
                 next?.tuning.maxActiveHunterDots,
                 progress
             ),
-            paddleTrapSpawnInterval: current.tuning.paddleTrapSpawnInterval,
+            paddleTrapSpawnInterval: interpolateOptional(
+                current.tuning.paddleTrapSpawnInterval,
+                next?.tuning.paddleTrapSpawnInterval,
+                progress
+            ),
             maxActivePaddleTraps: interpolateCount(
                 current.tuning.maxActivePaddleTraps,
                 next?.tuning.maxActivePaddleTraps,
@@ -228,6 +248,14 @@ struct EnemySpawnConfiguration: Equatable {
 
     private func interpolate(_ start: CGFloat, _ end: CGFloat?, _ progress: CGFloat) -> CGFloat {
         start + ((end ?? start) - start) * progress
+    }
+
+    private func interpolateOptional(_ start: TimeInterval?, _ end: TimeInterval?, _ progress: CGFloat) -> TimeInterval? {
+        guard let start else {
+            return nil
+        }
+
+        return interpolate(start, end, progress)
     }
 
     private func interpolateCount(_ start: Int, _ end: Int?, _ progress: CGFloat) -> Int {

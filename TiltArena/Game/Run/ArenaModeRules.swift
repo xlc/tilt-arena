@@ -110,81 +110,81 @@ struct ArenaModeRules {
 
     private static func redlineEnemySpawnConfiguration() -> EnemySpawnConfiguration {
         var configuration = EnemySpawnConfiguration()
-        configuration.enemySpeedRampPerSecond = 0.02
-        configuration.maximumEnemySpeedMultiplier = 1.8
+        configuration.enemySpeedRampPerSecond = 0.03
+        configuration.maximumEnemySpeedMultiplier = 2.05
         configuration.warmup = EnemyPhaseTuning(
-            chaserSpawnInterval: 0.72,
-            chaserSpeed: 86,
-            maxActiveEnemies: 64,
-            formationSpawnInterval: 8,
-            formationSpeed: 118,
+            chaserSpawnInterval: 0.62,
+            chaserSpeed: 96,
+            maxActiveEnemies: 76,
+            formationSpawnInterval: 6.8,
+            formationSpeed: 130,
             formationLaneCount: 5
         )
         configuration.pressure = EnemyPhaseTuning(
-            chaserSpawnInterval: 0.52,
-            chaserSpeed: 104,
-            maxActiveEnemies: 96,
-            formationSpawnInterval: 5.2,
-            formationSpeed: 134,
+            chaserSpawnInterval: 0.43,
+            chaserSpeed: 118,
+            maxActiveEnemies: 118,
+            formationSpawnInterval: 4.2,
+            formationSpeed: 150,
             formationLaneCount: 7,
-            arrowRushSpawnInterval: 9,
-            arrowRushSpeed: 178,
+            arrowRushSpawnInterval: 7.2,
+            arrowRushSpeed: 198,
             arrowRushEnemyCount: 3,
-            mineDotSpawnInterval: 13,
+            mineDotSpawnInterval: 10.5,
             maxActiveMineDots: 4,
-            hunterDotSpawnInterval: 15,
-            hunterDotSpeed: 126,
+            hunterDotSpawnInterval: 12,
+            hunterDotSpeed: 146,
             hunterDotPredictionLead: 0.65,
             maxActiveHunterDots: 2,
-            paddleTrapSpawnInterval: 20,
+            paddleTrapSpawnInterval: 16,
             maxActivePaddleTraps: 1,
             paddleTrapLifetime: 7,
             paddleTrapBarEnemyCount: 4,
-            paddleTrapDotSpeed: 165
+            paddleTrapDotSpeed: 184
         )
         configuration.chaos = EnemyPhaseTuning(
-            chaserSpawnInterval: 0.38,
-            chaserSpeed: 126,
-            maxActiveEnemies: 140,
-            formationSpawnInterval: 3.8,
-            formationSpeed: 158,
+            chaserSpawnInterval: 0.31,
+            chaserSpeed: 146,
+            maxActiveEnemies: 166,
+            formationSpawnInterval: 3.1,
+            formationSpeed: 178,
             formationLaneCount: 9,
-            arrowRushSpawnInterval: 6,
-            arrowRushSpeed: 210,
+            arrowRushSpawnInterval: 4.8,
+            arrowRushSpeed: 238,
             arrowRushEnemyCount: 5,
-            mineDotSpawnInterval: 8,
+            mineDotSpawnInterval: 6.2,
             maxActiveMineDots: 7,
-            hunterDotSpawnInterval: 10,
-            hunterDotSpeed: 158,
+            hunterDotSpawnInterval: 7.8,
+            hunterDotSpeed: 184,
             hunterDotPredictionLead: 0.9,
             maxActiveHunterDots: 3,
-            paddleTrapSpawnInterval: 14,
+            paddleTrapSpawnInterval: 10.8,
             maxActivePaddleTraps: 2,
             paddleTrapLifetime: 8,
             paddleTrapBarEnemyCount: 5,
-            paddleTrapDotSpeed: 198
+            paddleTrapDotSpeed: 228
         )
         configuration.survivalHell = EnemyPhaseTuning(
-            chaserSpawnInterval: 0.28,
-            chaserSpeed: 150,
-            maxActiveEnemies: 210,
-            formationSpawnInterval: 3,
-            formationSpeed: 186,
+            chaserSpawnInterval: 0.23,
+            chaserSpeed: 174,
+            maxActiveEnemies: 240,
+            formationSpawnInterval: 2.5,
+            formationSpeed: 210,
             formationLaneCount: 9,
-            arrowRushSpawnInterval: 4.5,
-            arrowRushSpeed: 240,
+            arrowRushSpawnInterval: 3.7,
+            arrowRushSpeed: 274,
             arrowRushEnemyCount: 6,
-            mineDotSpawnInterval: 6.5,
+            mineDotSpawnInterval: 5.1,
             maxActiveMineDots: 9,
-            hunterDotSpawnInterval: 8,
-            hunterDotSpeed: 184,
+            hunterDotSpawnInterval: 6.2,
+            hunterDotSpeed: 214,
             hunterDotPredictionLead: 1.1,
             maxActiveHunterDots: 4,
-            paddleTrapSpawnInterval: 11,
+            paddleTrapSpawnInterval: 8.6,
             maxActivePaddleTraps: 2,
             paddleTrapLifetime: 8,
             paddleTrapBarEnemyCount: 5,
-            paddleTrapDotSpeed: 220
+            paddleTrapDotSpeed: 258
         )
         return configuration
     }

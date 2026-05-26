@@ -23,12 +23,30 @@ final class EnemySpawnDirectorTests: XCTestCase {
         XCTAssertEqual(pressureStart.formationSpawnInterval, configuration.pressure.formationSpawnInterval)
     }
 
+    func testSpecialSpawnPressureScalesWithinActivePhases() throws {
+        let configuration = EnemySpawnConfiguration()
+
+        XCTAssertNil(configuration.tuning(at: 15).formationSpawnInterval)
+        XCTAssertGreaterThan(
+            try XCTUnwrap(configuration.tuning(at: 30).formationSpawnInterval),
+            try XCTUnwrap(configuration.tuning(at: 60).formationSpawnInterval)
+        )
+        XCTAssertGreaterThan(
+            try XCTUnwrap(configuration.tuning(at: 90).arrowRushSpawnInterval),
+            try XCTUnwrap(configuration.tuning(at: 135).arrowRushSpawnInterval)
+        )
+        XCTAssertGreaterThan(
+            try XCTUnwrap(configuration.tuning(at: 90).mineDotSpawnInterval),
+            try XCTUnwrap(configuration.tuning(at: 135).mineDotSpawnInterval)
+        )
+    }
+
     func testDefaultEnemyRadiusKeepsDotCompact() {
         let configuration = EnemySpawnConfiguration()
 
-        XCTAssertEqual(configuration.enemyRadius, 4.5)
-        XCTAssertEqual(configuration.enemySpeedRampPerSecond, 0.015, accuracy: 0.0001)
-        XCTAssertEqual(configuration.maximumEnemySpeedMultiplier, 1.65, accuracy: 0.0001)
+        XCTAssertEqual(configuration.enemyRadius, 4)
+        XCTAssertEqual(configuration.enemySpeedRampPerSecond, 0.024, accuracy: 0.0001)
+        XCTAssertEqual(configuration.maximumEnemySpeedMultiplier, 1.9, accuracy: 0.0001)
     }
 
     func testSpawnedChasersUseTimeScaledInitialSpeedAndMovementRamp() throws {
@@ -248,11 +266,11 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let chaos = configuration.tuning(at: 90)
         let survivalHell = configuration.tuning(at: 180)
 
-        XCTAssertEqual(chaos.arrowRushSpawnInterval, 8.5)
-        XCTAssertEqual(chaos.arrowRushSpeed, 165, accuracy: 0.0001)
+        XCTAssertEqual(chaos.arrowRushSpawnInterval, 7.2)
+        XCTAssertEqual(chaos.arrowRushSpeed, 185, accuracy: 0.0001)
         XCTAssertEqual(chaos.arrowRushEnemyCount, 3)
-        XCTAssertEqual(survivalHell.arrowRushSpawnInterval, 5.8)
-        XCTAssertEqual(survivalHell.arrowRushSpeed, 195, accuracy: 0.0001)
+        XCTAssertEqual(survivalHell.arrowRushSpawnInterval, 4.8)
+        XCTAssertEqual(survivalHell.arrowRushSpeed, 220, accuracy: 0.0001)
         XCTAssertEqual(survivalHell.arrowRushEnemyCount, 5)
     }
 

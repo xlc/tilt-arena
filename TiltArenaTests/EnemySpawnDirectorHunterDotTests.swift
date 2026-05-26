@@ -36,12 +36,12 @@ final class EnemySpawnDirectorHunterDotTests: XCTestCase {
         let chaos = configuration.tuning(at: 90)
         let survivalHell = configuration.tuning(at: 180)
 
-        XCTAssertEqual(chaos.hunterDotSpawnInterval, 15)
-        XCTAssertEqual(chaos.hunterDotSpeed, 120, accuracy: 0.0001)
+        XCTAssertEqual(chaos.hunterDotSpawnInterval, 12.5)
+        XCTAssertEqual(chaos.hunterDotSpeed, 134, accuracy: 0.0001)
         XCTAssertEqual(chaos.hunterDotPredictionLead, 0.6, accuracy: 0.0001)
         XCTAssertEqual(chaos.maxActiveHunterDots, 2)
-        XCTAssertEqual(survivalHell.hunterDotSpawnInterval, 10)
-        XCTAssertEqual(survivalHell.hunterDotSpeed, 150, accuracy: 0.0001)
+        XCTAssertEqual(survivalHell.hunterDotSpawnInterval, 7.8)
+        XCTAssertEqual(survivalHell.hunterDotSpeed, 168, accuracy: 0.0001)
         XCTAssertEqual(survivalHell.hunterDotPredictionLead, 0.9, accuracy: 0.0001)
         XCTAssertEqual(survivalHell.maxActiveHunterDots, 3)
     }

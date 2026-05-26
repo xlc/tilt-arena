@@ -5,7 +5,7 @@ final class PickupSpawnPlannerTests: XCTestCase {
     func testDefaultPickupRadiusKeepsWeaponOrbsCompact() {
         let configuration = PickupSpawnConfiguration()
 
-        XCTAssertEqual(configuration.pickupRadius, 10)
+        XCTAssertEqual(configuration.pickupRadius, 8.5)
     }
 
     func testPickupScheduleRespectsActiveCap() {

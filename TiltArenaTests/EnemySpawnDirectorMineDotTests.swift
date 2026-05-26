@@ -35,9 +35,9 @@ final class EnemySpawnDirectorMineDotTests: XCTestCase {
         let chaos = configuration.tuning(at: 90)
         let survivalHell = configuration.tuning(at: 180)
 
-        XCTAssertEqual(chaos.mineDotSpawnInterval, 12)
+        XCTAssertEqual(chaos.mineDotSpawnInterval, 9.5)
         XCTAssertEqual(chaos.maxActiveMineDots, 4)
-        XCTAssertEqual(survivalHell.mineDotSpawnInterval, 8)
+        XCTAssertEqual(survivalHell.mineDotSpawnInterval, 6.2)
         XCTAssertEqual(survivalHell.maxActiveMineDots, 7)
     }
 

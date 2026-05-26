@@ -1,3 +1,5 @@
+import CoreGraphics
+
 enum WeaponKind: String, CaseIterable, Codable, Equatable {
     case shockwave
     case seekerSwarm
@@ -60,5 +62,43 @@ enum WeaponKind: String, CaseIterable, Codable, Equatable {
         case .novaBomb:
             return "Nova Bomb"
         }
+    }
+}
+
+struct WeaponSpriteSheet {
+    enum Role {
+        case icon
+        case effect
+    }
+
+    static let assetName = "WeaponSprites"
+    static let rowCount = 2
+    static var columnCount: Int { WeaponKind.allCases.count }
+
+    static func column(for kind: WeaponKind) -> Int {
+        guard let column = WeaponKind.allCases.firstIndex(of: kind) else {
+            preconditionFailure("Missing sprite sheet column for \(kind.rawValue).")
+        }
+        return column
+    }
+
+    static func textureRect(for kind: WeaponKind, role: Role) -> CGRect {
+        let cellWidth = 1 / CGFloat(columnCount)
+        let cellHeight = 1 / CGFloat(rowCount)
+        let rowFromTop: Int
+
+        switch role {
+        case .icon:
+            rowFromTop = 0
+        case .effect:
+            rowFromTop = 1
+        }
+
+        return CGRect(
+            x: CGFloat(column(for: kind)) * cellWidth,
+            y: CGFloat(rowCount - rowFromTop - 1) * cellHeight,
+            width: cellWidth,
+            height: cellHeight
+        )
     }
 }

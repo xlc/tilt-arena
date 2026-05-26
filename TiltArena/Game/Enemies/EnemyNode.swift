@@ -122,25 +122,33 @@ private extension EnemyNode {
         let isNormalChaser = !enemy.isMineDot && !enemy.isHunterDot && !enemy.isPaddleTrap && !enemy.isShatterableFrozen
         dangerHaloNode.isHidden = isNormalChaser
         ringNode.isHidden = isNormalChaser
+        highlightNode.isHidden = isNormalChaser
+
+        if isNormalChaser {
+            bodyNode.strokeColor = theme.enemyColor.withAlphaComponent(0.52)
+            bodyNode.lineWidth = 0.8
+            bodyNode.glowWidth = 0
+        }
     }
 
     func applyBaseStyle() {
         dangerHaloNode.strokeColor = theme.playerColor.withAlphaComponent(0.58)
         dangerHaloNode.lineWidth = 2
-        dangerHaloNode.glowWidth = 1.1
+        dangerHaloNode.glowWidth = 0.6
         markerNode.strokeColor = theme.playerColor.withAlphaComponent(0.82)
         markerNode.lineWidth = 1.8
         markerNode.lineCap = .round
         markerNode.lineJoin = .round
-        markerNode.glowWidth = 0.8
+        markerNode.glowWidth = 0.45
         ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.42)
         ringNode.lineWidth = 1.1
-        ringNode.glowWidth = 0.8
+        ringNode.glowWidth = 0.45
         bodyNode.fillColor = theme.enemyColor
         bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.82)
         bodyNode.lineWidth = 1.5
-        bodyNode.glowWidth = 1.3
+        bodyNode.glowWidth = 0.7
         highlightNode.fillColor = theme.playerColor.withAlphaComponent(0.24)
+        highlightNode.isHidden = false
         highlightNode.alpha = 1
     }
 
@@ -148,21 +156,21 @@ private extension EnemyNode {
         if enemy.isMineDot {
             ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.78)
             ringNode.lineWidth = 1.8
-            ringNode.glowWidth = 1
+            ringNode.glowWidth = 0.55
             bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.48)
             bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.82)
-            bodyNode.glowWidth = 0.9
+            bodyNode.glowWidth = 0.5
         } else if enemy.isHunterDot {
             ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.76)
             ringNode.lineWidth = 1.7
-            ringNode.glowWidth = 1
+            ringNode.glowWidth = 0.55
             bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.84)
             bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.88)
         } else if enemy.isPaddleTrap {
             ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.62)
             ringNode.lineWidth = 1.5
             bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.82)
-            bodyNode.glowWidth = 1
+            bodyNode.glowWidth = 0.55
         }
     }
 
@@ -171,11 +179,11 @@ private extension EnemyNode {
         dangerHaloNode.lineWidth = 1.9
         ringNode.strokeColor = theme.pickupBlue.withAlphaComponent(0.72)
         ringNode.lineWidth = 1.8
-        ringNode.glowWidth = 1.6
+        ringNode.glowWidth = 0.9
         bodyNode.fillColor = theme.pickupBlue.withAlphaComponent(0.55)
         bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.82)
         bodyNode.lineWidth = 1.7
-        bodyNode.glowWidth = 1.8
+        bodyNode.glowWidth = 1
         markerNode.strokeColor = theme.playerColor.withAlphaComponent(0.82)
         highlightNode.fillColor = theme.playerColor.withAlphaComponent(0.36)
     }
@@ -185,11 +193,11 @@ private extension EnemyNode {
         dangerHaloNode.lineWidth = 1.7
         ringNode.strokeColor = theme.pickupBlue.withAlphaComponent(0.44)
         ringNode.lineWidth = 1.4
-        ringNode.glowWidth = 1.1
+        ringNode.glowWidth = 0.65
         bodyNode.fillColor = theme.pickupBlue.withAlphaComponent(0.28)
         bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.58)
         bodyNode.lineWidth = 1.5
-        bodyNode.glowWidth = 1.2
+        bodyNode.glowWidth = 0.7
         markerNode.strokeColor = theme.playerColor.withAlphaComponent(0.62)
         highlightNode.fillColor = theme.playerColor.withAlphaComponent(0.2)
     }

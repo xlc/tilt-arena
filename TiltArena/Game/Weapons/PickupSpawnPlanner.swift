@@ -33,7 +33,7 @@ struct PickupSpawnConfiguration: Equatable {
 
     var refillDelay: TimeInterval = 0.5
     var maxActivePickups: Int = 3
-    var pickupRadius: CGFloat = 10
+    var pickupRadius: CGFloat = 8.5
     var edgeInset: CGFloat = 44
     var playerClearance: CGFloat = 84
     var enemyClearance: CGFloat = 8

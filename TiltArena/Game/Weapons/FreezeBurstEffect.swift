@@ -9,7 +9,7 @@ extension ArenaScene {
             strokeColor: theme.pickupBlue.withAlphaComponent(0.66),
             fillColor: theme.pickupBlue.withAlphaComponent(0.06),
             lineWidth: 1.6,
-            glowWidth: 2.2
+            glowWidth: 1.25
         )
         ring.position = position
         ring.setScale(0.08)
@@ -20,7 +20,7 @@ extension ArenaScene {
             strokeColor: theme.playerColor.withAlphaComponent(0.48),
             fillColor: .clear,
             lineWidth: 1,
-            glowWidth: 1.1
+            glowWidth: 0.65
         )
         innerRing.position = position
         innerRing.setScale(0.1)
@@ -51,7 +51,7 @@ extension ArenaScene {
             strokeColor: theme.pickupBlue.withAlphaComponent(0.58),
             fillColor: theme.pickupBlue.withAlphaComponent(0.07),
             lineWidth: 1.1,
-            glowWidth: 1.8
+            glowWidth: 1
         )
         ring.position = position
         ring.setScale(0.35)
@@ -76,7 +76,7 @@ extension ArenaScene {
             shard.strokeColor = theme.playerColor.withAlphaComponent(0.5)
             shard.lineWidth = 0.9
             shard.lineCap = .round
-            shard.glowWidth = 1.1
+            shard.glowWidth = 0.65
             shard.zPosition = 18
             shard.alpha = 0
             shard.setScale(0.08)

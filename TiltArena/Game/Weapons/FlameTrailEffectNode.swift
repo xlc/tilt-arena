@@ -81,16 +81,16 @@ private final class FlameTrailSegmentNode: SKNode {
         glowNode.fillColor = theme.pickupAmber.withAlphaComponent(0.07)
         glowNode.strokeColor = theme.pickupAmber.withAlphaComponent(0.24)
         glowNode.lineWidth = 1.6
-        glowNode.glowWidth = 1.8
+        glowNode.glowWidth = 1
 
         coreNode.fillColor = theme.flameTrailFillColor
         coreNode.strokeColor = theme.pickupAmber.withAlphaComponent(0.74)
         coreNode.lineWidth = 1.4
-        coreNode.glowWidth = 1.1
+        coreNode.glowWidth = 0.65
 
         emberNode.fillColor = theme.playerColor.withAlphaComponent(0.28)
         emberNode.strokeColor = .clear
-        emberNode.glowWidth = 0.7
+        emberNode.glowWidth = 0.4
     }
 
     func apply(remainingFraction: CGFloat) {

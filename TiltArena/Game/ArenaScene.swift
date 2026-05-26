@@ -1288,7 +1288,7 @@ final class ArenaScene: SKScene {
         node.strokeColor = theme.pickupBlue.withAlphaComponent(0.72)
         node.fillColor = theme.pickupBlue.withAlphaComponent(0.05)
         node.lineWidth = 2
-        node.glowWidth = 2.2
+        node.glowWidth = 1.25
         node.removeAllChildren()
         node.removeAction(forKey: "razor.spin")
         node.removeAction(forKey: "razor.warning")
@@ -1302,7 +1302,7 @@ final class ArenaScene: SKScene {
             blade.strokeColor = theme.playerColor.withAlphaComponent(0.68)
             blade.lineWidth = 1.4
             blade.lineCap = .round
-            blade.glowWidth = 1.4
+            blade.glowWidth = 0.8
             node.addChild(blade)
         }
 
@@ -2868,7 +2868,7 @@ private extension ArenaScene {
         circle.strokeColor = theme.playerAccentColor.withAlphaComponent(0.68)
         circle.fillColor = theme.playerAccentColor.withAlphaComponent(0.04)
         circle.lineWidth = 2
-        circle.glowWidth = 1.8
+        circle.glowWidth = 1
         uiRoot.addChild(circle)
 
         let progress = SKShapeNode(circleOfRadius: radius + 8)
@@ -2877,7 +2877,7 @@ private extension ArenaScene {
         progress.strokeColor = theme.playerColor.withAlphaComponent(0.66)
         progress.fillColor = .clear
         progress.lineWidth = 2
-        progress.glowWidth = 1.1
+        progress.glowWidth = 0.65
         uiRoot.addChild(progress)
         readyProgressRing = progress
 
@@ -2961,7 +2961,7 @@ private extension ArenaScene {
         line.zPosition = ArenaUIZPosition.content
         line.strokeColor = theme.playerAccentColor.withAlphaComponent(0.3)
         line.lineWidth = 2
-        line.glowWidth = theme.kind == .darkTacticalRadar ? 0.8 : 0
+        line.glowWidth = theme.kind == .darkTacticalRadar ? 0.45 : 0
         uiRoot.addChild(line)
     }
 
@@ -2973,7 +2973,7 @@ private extension ArenaScene {
         ring.strokeColor = theme.enemyColor.withAlphaComponent(0.68)
         ring.fillColor = .clear
         ring.lineWidth = 2
-        ring.glowWidth = 1.5
+        ring.glowWidth = 0.85
         uiRoot.addChild(ring)
 
         let crossPath = CGMutablePath()
@@ -2997,7 +2997,7 @@ private extension ArenaScene {
         enemy.strokeColor = theme.enemyColor.withAlphaComponent(0.68)
         enemy.fillColor = theme.enemyColor.withAlphaComponent(0.09)
         enemy.lineWidth = 1.5
-        enemy.glowWidth = theme.kind == .darkTacticalRadar ? 1.1 : 0
+        enemy.glowWidth = theme.kind == .darkTacticalRadar ? 0.65 : 0
         uiRoot.addChild(enemy)
 
         let impactPath = CGMutablePath()

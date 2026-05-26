@@ -8,7 +8,7 @@ extension ArenaScene {
             ring.strokeColor = color.withAlphaComponent(0.66)
             ring.fillColor = .clear
             ring.lineWidth = 1.2
-            ring.glowWidth = 1.4
+            ring.glowWidth = 0.8
             ring.zPosition = 18
             ring.setScale(0.35)
             addWeaponEffectNode(ring)
@@ -24,7 +24,7 @@ extension ArenaScene {
                 shard.strokeColor = color.withAlphaComponent(0.64)
                 shard.lineWidth = 0.9
                 shard.lineCap = .round
-                shard.glowWidth = 1.1
+                shard.glowWidth = 0.65
                 shard.zPosition = 19
                 shard.setScale(0.4)
                 addWeaponEffectNode(shard)

@@ -11,11 +11,11 @@ final class PlayerCraftNodeTests: XCTestCase {
 
         node.apply(state: fastState, speedFraction: 0)
         let engineNode = try XCTUnwrap(node.children.min { $0.position.y < $1.position.y })
-        XCTAssertEqual(engineNode.alpha, 0.42, accuracy: 0.0001)
+        XCTAssertEqual(engineNode.alpha, 0.36, accuracy: 0.0001)
         XCTAssertEqual(engineNode.xScale, 0.82, accuracy: 0.0001)
 
         node.apply(state: fastState, speedFraction: 1)
-        XCTAssertEqual(engineNode.alpha, 0.90, accuracy: 0.0001)
+        XCTAssertEqual(engineNode.alpha, 0.76, accuracy: 0.0001)
         XCTAssertEqual(engineNode.xScale, 1.24, accuracy: 0.0001)
     }
 }

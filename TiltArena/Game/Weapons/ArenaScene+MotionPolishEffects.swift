@@ -8,7 +8,7 @@ extension ArenaScene {
             strokeColor: color.withAlphaComponent(0.72),
             fillColor: color.withAlphaComponent(0.1),
             lineWidth: 1.4,
-            glowWidth: 2.2
+            glowWidth: 1.25
         )
         ring.position = pickup.position
         ring.setScale(0.58)
@@ -76,7 +76,7 @@ extension ArenaScene {
             shard.strokeColor = color.withAlphaComponent(0.46)
             shard.lineWidth = 0.85
             shard.lineCap = .round
-            shard.glowWidth = 0.9
+            shard.glowWidth = 0.5
             shard.zPosition = 20
             shard.alpha = 0
             addWeaponEffectNode(shard)
@@ -93,7 +93,7 @@ private extension ArenaScene {
         core.fillColor = color.withAlphaComponent(0.2)
         core.lineWidth = 1.2
         core.lineJoin = .round
-        core.glowWidth = 1.4
+        core.glowWidth = 0.8
         core.zPosition = 20
         return core
     }
@@ -110,7 +110,7 @@ private extension ArenaScene {
             strokeColor: coreColor.withAlphaComponent(0.66),
             fillColor: color.withAlphaComponent(0.09),
             lineWidth: 1.2,
-            glowWidth: 1.4
+            glowWidth: 0.8
         )
         flash.position = position
         flash.alpha = 0
@@ -130,7 +130,7 @@ private extension ArenaScene {
         dot.fillColor = coreColor.withAlphaComponent(0.72)
         dot.strokeColor = color.withAlphaComponent(0.64)
         dot.lineWidth = 0.8
-        dot.glowWidth = 1.1
+        dot.glowWidth = 0.55
         dot.zPosition = 20
         dot.alpha = 0
         return dot
@@ -148,7 +148,7 @@ private extension ArenaScene {
             strokeColor: coreColor.withAlphaComponent(0.34),
             fillColor: color.withAlphaComponent(0.05),
             lineWidth: 0.9,
-            glowWidth: 1.1
+            glowWidth: 0.65
         )
         splash.position = position
         splash.alpha = 0

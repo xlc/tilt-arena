@@ -29,12 +29,12 @@ final class EnemyTelegraphNode: SKNode {
     func applyTheme(_ theme: ArenaTheme) {
         glowNode.strokeColor = theme.enemyColor.withAlphaComponent(0.16)
         glowNode.lineWidth = 5.2
-        glowNode.glowWidth = 2
+        glowNode.glowWidth = 1.1
         glowNode.lineCap = .round
 
         lineNode.strokeColor = theme.enemyColor.withAlphaComponent(0.72)
         lineNode.lineWidth = 2.2
-        lineNode.glowWidth = 1.1
+        lineNode.glowWidth = 0.65
         lineNode.lineCap = .round
     }
 
