@@ -548,6 +548,7 @@ extension ArenaScene {
             .removeFromParent()
         ])
         ring.run(impact)
+        playImpactResidue(at: target.position, color: color, coreColor: theme.playerColor, radius: radius, delay: delay)
         spark.run(.sequence([
             .wait(forDuration: max(0, delay)),
             .fadeAlpha(to: 1, duration: 0.02),

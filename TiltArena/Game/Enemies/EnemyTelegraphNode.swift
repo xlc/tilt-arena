@@ -19,6 +19,7 @@ final class EnemyTelegraphNode: SKNode {
         applyTheme(theme)
         addChild(glowNode)
         addChild(lineNode)
+        startWarningPulse()
     }
 
     required init?(coder aDecoder: NSCoder) {
@@ -35,6 +36,31 @@ final class EnemyTelegraphNode: SKNode {
         lineNode.lineWidth = 2.8
         lineNode.glowWidth = 2.8
         lineNode.lineCap = .round
+    }
+
+    private func startWarningPulse() {
+        glowNode.removeAction(forKey: "telegraph.warning.glow")
+        lineNode.removeAction(forKey: "telegraph.warning.line")
+        glowNode.alpha = 1
+        lineNode.alpha = 1
+        glowNode.setScale(1)
+
+        glowNode.run(.repeatForever(.sequence([
+            .group([
+                .fadeAlpha(to: 0.55, duration: 0.16),
+                .scale(to: 1.035, duration: 0.16)
+            ]),
+            .group([
+                .fadeAlpha(to: 1, duration: 0.14),
+                .scale(to: 1, duration: 0.14)
+            ])
+        ])), withKey: "telegraph.warning.glow")
+
+        lineNode.run(.repeatForever(.sequence([
+            .fadeAlpha(to: 0.62, duration: 0.1),
+            .fadeAlpha(to: 1, duration: 0.1),
+            .wait(forDuration: 0.1)
+        ])), withKey: "telegraph.warning.line")
     }
 
     private static func appendDashes(from start: CGPoint, to end: CGPoint, to path: CGMutablePath) {

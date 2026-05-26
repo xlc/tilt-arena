@@ -130,6 +130,13 @@ extension ArenaScene {
             .fadeOut(withDuration: 0.08),
             .removeFromParent()
         ]))
+        playImpactResidue(
+            at: target.position,
+            color: accentColor,
+            coreColor: coreColor,
+            radius: 15,
+            delay: delay
+        )
         core.run(.sequence([
             .wait(forDuration: max(0, delay)),
             .fadeAlpha(to: 1, duration: 0.02),

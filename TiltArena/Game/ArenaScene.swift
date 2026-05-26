@@ -1051,6 +1051,7 @@ final class ArenaScene: SKScene {
                 "kind": "\(pickup.kind.rawValue)"
             ])
 
+            playPickupCollectionPop(for: pickup)
             removePickup(id: pickup.id)
             applyWeapon(pickup.kind, playerPosition: currentPlayerPosition)
             currentPlayerPosition = movementController.state.position
@@ -1211,6 +1212,11 @@ final class ArenaScene: SKScene {
         ))
         playEnemyClearHaptics(killCount: enemyIDs.count, previousComboMultiplier: previousComboMultiplier)
         playEnemyClearAudio(killCount: enemyIDs.count, previousComboMultiplier: previousComboMultiplier)
+        playEnemyClearBursts(
+            at: positions(forEnemyIDs: enemyIDs),
+            weaponKind: weaponKind,
+            comboMultiplier: runController.comboMultiplier
+        )
         if enemyIDs.count >= gameTuning.feedback.multiKillShakeThreshold {
             playScreenShake(
                 amplitude: gameTuning.feedback.multiKillShakeAmplitude,
@@ -3381,6 +3387,37 @@ extension ArenaScene {
         }
 
         show(state)
+    }
+
+    func prepareEffectSnapshotForTesting(themeKind: ArenaThemeKind) {
+        localOptions = ArenaLocalOptions(
+            audioEnabled: false,
+            hapticsEnabled: false,
+            themeKind: themeKind
+        )
+        backgroundColor = theme.backgroundColor
+        removeAllActions()
+        removeAllChildren()
+        arenaRoot = ArenaThemeRenderer(theme: theme).makeArenaBackground(
+            size: size,
+            arenaRect: currentGameplayBounds
+        )
+        addChild(arenaRoot)
+        clearWeaponEffectNodes()
+    }
+
+    func revealWeaponEffectsForSnapshotTesting() {
+        revealSnapshotEffectNode(weaponEffectsRoot)
+    }
+
+    private func revealSnapshotEffectNode(_ node: SKNode) {
+        for child in node.children {
+            child.removeAllActions()
+            if child.alpha == 0 {
+                child.alpha = 1
+            }
+            revealSnapshotEffectNode(child)
+        }
     }
 
     func prepareActiveRunForTesting() {
