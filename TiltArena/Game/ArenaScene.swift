@@ -2473,8 +2473,20 @@ private extension ArenaScene {
             snapshot: lastDeathCollisionSnapshot,
             fallbackPosition: movementController.state.position
         )
-        renderPostRunHighlights(summary: summary, in: layout.rightColumnFrame(width: 230))
+        renderPostRunHighlights(summary: summary, in: postRunHighlightsFrame(layout: layout))
         renderPostRunButtons(layout: layout)
+    }
+
+    func postRunHighlightsFrame(layout: ArenaLandscapeUILayout) -> CGRect {
+        let baseFrame = layout.rightColumnFrame(width: 230)
+        let topY = layout.safeRect.maxY - 32
+        let bottomY = layout.lowerRightButtonFrame.maxY + 12
+        return CGRect(
+            x: baseFrame.minX,
+            y: min(bottomY, topY),
+            width: baseFrame.width,
+            height: max(0, topY - bottomY)
+        )
     }
 
     func renderPostRunScore(summary: RunSummary?, layout: ArenaLandscapeUILayout) {
@@ -2512,10 +2524,19 @@ private extension ArenaScene {
             previousBestScore: previousBestScore,
             progressionResult: lastProgressionResult
         )
+        let compact = frame.height < 150
+        let topPadding: CGFloat = compact ? 22 : 28
+        let bottomPadding: CGFloat = compact ? 14 : 18
+        let availableHeight = max(0, frame.height - topPadding - bottomPadding)
+        let rowSpacing = highlights.count > 1
+            ? min(26, max(compact ? 14 : 18, availableHeight / CGFloat(highlights.count - 1)))
+            : 0
+
         for (index, text) in highlights.enumerated() {
-            addSmallLabel(
+            addLabel(
                 text,
-                at: CGPoint(x: frame.minX + 14, y: frame.maxY - 28 - CGFloat(index) * 26),
+                at: CGPoint(x: frame.minX + 14, y: frame.maxY - topPadding - CGFloat(index) * rowSpacing),
+                fontSize: compact ? 10 : 12,
                 color: index == 0 ? theme.playerAccentColor : theme.borderColor,
                 alignment: .left
             )
@@ -2523,28 +2544,43 @@ private extension ArenaScene {
     }
 
     func renderPostRunButtons(layout: ArenaLandscapeUILayout) {
+        let primaryFrame = layout.lowerRightButtonFrame
         addButton(
             "PLAY AGAIN",
-            frame: layout.lowerRightButtonFrame,
+            frame: primaryFrame,
             action: .playAgain,
             style: .primary
         )
-        let buttonSize = CGSize(width: 104, height: 36)
+        let navSpacing: CGFloat = 10
+        let navAvailableWidth = max(0, primaryFrame.minX - layout.controlRect.minX - 20)
+        let navButtonWidth = min(104, max(72, (navAvailableWidth - navSpacing * 2) / 3))
+        let buttonSize = CGSize(width: navButtonWidth, height: 36)
+        let navStartX = layout.controlRect.minX
         addButton(
             "MODES",
-            frame: layout.bottomButtonFrame(index: 0, count: 3, buttonSize: buttonSize),
+            frame: CGRect(x: navStartX, y: layout.controlRect.minY, width: buttonSize.width, height: buttonSize.height),
             action: .openModes,
             style: .secondary
         )
         addButton(
             "RANKS",
-            frame: layout.bottomButtonFrame(index: 1, count: 3, buttonSize: buttonSize),
+            frame: CGRect(
+                x: navStartX + buttonSize.width + navSpacing,
+                y: layout.controlRect.minY,
+                width: buttonSize.width,
+                height: buttonSize.height
+            ),
             action: .openClassicLeaderboard,
             style: .secondary
         )
         addButton(
             "HOME",
-            frame: layout.bottomButtonFrame(index: 2, count: 3, buttonSize: buttonSize),
+            frame: CGRect(
+                x: navStartX + (buttonSize.width + navSpacing) * 2,
+                y: layout.controlRect.minY,
+                width: buttonSize.width,
+                height: buttonSize.height
+            ),
             action: .home,
             style: .secondary
         )
@@ -3395,6 +3431,98 @@ extension ArenaScene {
         }
 
         show(state)
+    }
+
+    func prepareRunStateVisualSnapshot(
+        state: ArenaUISceneState,
+        profile: RunProfile = RunProfile(),
+        localOptions: ArenaLocalOptions = .defaults,
+        selectedMode: ArenaModeKind = .classic
+    ) {
+        prepareForVisualSnapshot(
+            state: .home,
+            profile: profile,
+            localOptions: localOptions,
+            selectedMode: selectedMode
+        )
+
+        switch state {
+        case .preRun:
+            preparePreRun()
+        case .activeGameplay:
+            prepareSeededRunVisualSnapshot(profile: profile, selectedMode: selectedMode)
+            show(.activeGameplay)
+        case .pause:
+            prepareSeededRunVisualSnapshot(profile: profile, selectedMode: selectedMode)
+            runController.pause()
+            setWeaponEffectPlaybackPaused(true)
+            show(.pause)
+        case .postRun:
+            prepareSeededRunVisualSnapshot(profile: profile, selectedMode: selectedMode)
+            finishSeededRunVisualSnapshot(profile: profile, selectedMode: selectedMode)
+            show(.postRun)
+        case .home, .modeSelect, .awards, .options, .developerTuning, .calibrationPreview:
+            show(state)
+        }
+    }
+
+    private func prepareSeededRunVisualSnapshot(profile: RunProfile, selectedMode: ArenaModeKind) {
+        self.runProfile = profile
+        self.selectedMode = selectedMode
+        previousBestScore = profile.bestScore
+        lastProgressionResult = nil
+        lastDeathCollisionSnapshot = nil
+        hasPersistedFinalRun = false
+        runController = ClassicRunController(configuration: runController.configuration)
+        runController.start()
+        runController.update(deltaTime: 38.4)
+        _ = runController.recordItemPickup(pickupID: 1)
+        runController.recordEnemyKills(count: 14, weaponKind: .chainLightning)
+        deathReplayTrace.reset()
+        seedDeathReplayTraceForSnapshot()
+        resetGameplayObjects()
+        placePlayer(resetPosition: true)
+        resetPlayerFeedback()
+    }
+
+    private func finishSeededRunVisualSnapshot(profile: RunProfile, selectedMode: ArenaModeKind) {
+        runController.endRun(
+            at: Date(timeIntervalSince1970: 1_800),
+            mode: selectedMode
+        )
+        guard let summary = runController.finalizedSummary else {
+            return
+        }
+
+        var updatedProfile = profile
+        let result = updatedProfile.record(summary)
+        runProfile = updatedProfile
+        lastProgressionResult = result
+        hasPersistedFinalRun = true
+
+        let playerPosition = movementController.state.position
+        lastDeathCollisionSnapshot = DeathCollisionSnapshot(
+            playerPosition: playerPosition,
+            enemyPosition: CGPoint(x: playerPosition.x + 24, y: playerPosition.y - 10),
+            enemyRadius: 12
+        )
+    }
+
+    private func seedDeathReplayTraceForSnapshot() {
+        let playerPosition = movementController.state.position
+        let samples = [
+            CGPoint(x: playerPosition.x - 82, y: playerPosition.y - 42),
+            CGPoint(x: playerPosition.x - 54, y: playerPosition.y - 24),
+            CGPoint(x: playerPosition.x - 18, y: playerPosition.y - 12),
+            playerPosition
+        ]
+
+        for (index, position) in samples.enumerated() {
+            deathReplayTrace.record(
+                time: runController.survivalTime - TimeInterval(samples.count - index) * 0.35,
+                position: position
+            )
+        }
     }
 
     func prepareEffectSnapshotForTesting(themeKind: ArenaThemeKind) {
