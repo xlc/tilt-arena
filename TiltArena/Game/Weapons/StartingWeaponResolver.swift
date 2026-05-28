@@ -6,7 +6,7 @@ struct StartingWeaponConfiguration: Equatable {
     var shockwaveExpansionDuration: TimeInterval = 0.5
     var shockwaveHoldDuration: TimeInterval = 0.5
     var seekerTargetLimit: Int = 4
-    var seekerExplosionRadius: CGFloat = 48
+    var seekerExplosionRadius: CGFloat = 30
     var seekerExplosionHoldDuration: TimeInterval = 0.3
     var razorShieldRadius: CGFloat = 28
     var razorShieldDuration: TimeInterval = 4

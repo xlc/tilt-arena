@@ -34,7 +34,7 @@ final class StartingWeaponResolverTests: XCTestCase {
     func testDefaultPowerWaveAndWarpDashTuningUseUpdatedBalance() {
         let configuration = StartingWeaponConfiguration()
 
-        XCTAssertEqual(configuration.seekerExplosionRadius, 48)
+        XCTAssertEqual(configuration.seekerExplosionRadius, 30)
         XCTAssertEqual(configuration.seekerExplosionHoldDuration, 0.3)
         XCTAssertEqual(configuration.razorShieldRadius, 28)
         XCTAssertEqual(configuration.razorShieldExplosionRadius, 48)
@@ -94,12 +94,12 @@ final class StartingWeaponResolverTests: XCTestCase {
 
     func testSeekerExplosionTargetsEnemiesInsideExplosionRadius() {
         let resolver = StartingWeaponResolver(
-            configuration: StartingWeaponConfiguration(seekerExplosionRadius: 48)
+            configuration: StartingWeaponConfiguration(seekerExplosionRadius: 30)
         )
         let enemies = [
-            enemy(id: 1, position: CGPoint(x: 40, y: 0)),
-            enemy(id: 2, position: CGPoint(x: 56, y: 0)),
-            enemy(id: 3, position: CGPoint(x: 80, y: 0))
+            enemy(id: 1, position: CGPoint(x: 22, y: 0)),
+            enemy(id: 2, position: CGPoint(x: 38, y: 0)),
+            enemy(id: 3, position: CGPoint(x: 64, y: 0))
         ]
 
         XCTAssertEqual(
