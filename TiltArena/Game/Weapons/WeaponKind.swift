@@ -8,6 +8,7 @@ enum WeaponKind: String, CaseIterable, Codable, Equatable {
     case gravityWell
     case chainLightning
     case flameTrail
+    // Raw value kept for existing saves; display name now presents Time Dilation.
     case warpDash
     case powerWave
     case ricochetLance

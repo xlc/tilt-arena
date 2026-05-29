@@ -16,7 +16,7 @@ struct WeaponApplication: Equatable {
         case chainLightning(enemyIDs: [Int])
         case flameTrail
         case timeDilationAura
-        case directional(WeaponKind)
+        case ricochetLance
         case powerWave
         case novaBomb(enemyIDs: Set<Int>)
     }
@@ -64,7 +64,7 @@ struct WeaponApplicationCoordinator {
         case .warpDash:
             return WeaponApplication(effect: .timeDilationAura, log: log)
         case .ricochetLance:
-            return WeaponApplication(effect: .directional(kind), log: log)
+            return WeaponApplication(effect: .ricochetLance, log: log)
         case .powerWave:
             return WeaponApplication(effect: .powerWave, log: log)
         case .novaBomb:

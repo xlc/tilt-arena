@@ -120,6 +120,22 @@ final class WeaponApplicationCoordinatorTests: XCTestCase {
         XCTAssertEqual(application.log.destroyedCount, 0)
     }
 
+    func testRicochetLanceDefersSceneSpecificResolution() {
+        let coordinator = WeaponApplicationCoordinator()
+        let enemies = [enemy(id: 1, position: CGPoint(x: 10, y: 0))]
+        var rng = SeededGenerator(seed: 1)
+
+        let application = coordinator.application(
+            kind: .ricochetLance,
+            playerPosition: .zero,
+            enemies: enemies,
+            using: &rng
+        )
+
+        XCTAssertEqual(application.effect, .ricochetLance)
+        XCTAssertEqual(application.log.destroyedCount, 0)
+    }
+
     private func enemy(id: Int, position: CGPoint) -> ArenaEnemy {
         ArenaEnemy(id: id, position: position, radius: 8, speed: 0)
     }

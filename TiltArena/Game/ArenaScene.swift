@@ -877,6 +877,15 @@ final class ArenaScene: SKScene {
                 duration: powerWaveState.chargeTimeRemaining
             )
         }
+
+        if timeDilationTimeRemaining > 0 {
+            timeDilationAuraNode?.removeFromParent()
+            timeDilationAuraNode = playTimeDilationAuraEffect(
+                at: movementController.state.position,
+                radius: weaponResolver.configuration.timeDilationRadius,
+                duration: timeDilationTimeRemaining
+            )
+        }
     }
 
     private func updateActiveRun(deltaTime: TimeInterval, playerPosition initialPlayerPosition: CGPoint) {
@@ -1122,8 +1131,8 @@ final class ArenaScene: SKScene {
             activateFlameTrail(at: playerPosition)
         case .timeDilationAura:
             return activateTimeDilationAura(at: playerPosition)
-        case .directional(let kind):
-            return performDirectionalWeapon(kind, from: playerPosition)
+        case .ricochetLance:
+            return fireRicochetLance(from: playerPosition)
         case .powerWave:
             activatePowerWave(at: playerPosition)
         case .novaBomb(let enemyIDs):
@@ -1514,6 +1523,7 @@ final class ArenaScene: SKScene {
         )
 
         if timeDilationTimeRemaining == 0 {
+            timeDilationAuraNode?.removeFromParent()
             timeDilationAuraNode = nil
         }
     }
@@ -1543,18 +1553,6 @@ final class ArenaScene: SKScene {
         let maximumSlowFactor = max(1, weaponResolver.configuration.timeDilationMaximumSlowFactor)
         let slowFactor = 1 + closeness * (maximumSlowFactor - 1)
         return 1 / slowFactor
-    }
-
-    private func performDirectionalWeapon(_ kind: WeaponKind, from playerPosition: CGPoint) -> Int {
-        switch kind {
-        case .warpDash:
-            return 0
-        case .ricochetLance:
-            return fireRicochetLance(from: playerPosition)
-        case .shockwave, .seekerSwarm, .razorShield, .freezeBurst, .gravityWell,
-             .chainLightning, .flameTrail, .powerWave, .novaBomb:
-            return 0
-        }
     }
 
     private func fireRicochetLance(from playerPosition: CGPoint) -> Int {
