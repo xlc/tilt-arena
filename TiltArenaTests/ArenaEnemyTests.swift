@@ -56,6 +56,40 @@ final class ArenaEnemyTests: XCTestCase {
         XCTAssertEqual(enemy.position.x, 75, accuracy: 0.0001)
     }
 
+    func testChaserMovementRespectsMaximumSpeedCap() {
+        var enemy = ArenaEnemy(id: 1, position: CGPoint(x: 0, y: 0), radius: 8, speed: 100)
+
+        enemy.advance(
+            toward: CGPoint(x: 1_000, y: 0),
+            deltaTime: 1,
+            externalSpeedMultiplier: 2,
+            maximumSpeed: 30
+        )
+
+        XCTAssertEqual(enemy.position.x, 30, accuracy: 0.0001)
+        XCTAssertEqual(enemy.position.y, 0, accuracy: 0.0001)
+    }
+
+    func testLinearMovementRespectsMaximumSpeedCap() {
+        var enemy = ArenaEnemy(
+            id: 1,
+            position: CGPoint(x: 0, y: 0),
+            radius: 8,
+            speed: 100,
+            behavior: .arrowRush(velocity: CGVector(dx: 80, dy: 60))
+        )
+
+        enemy.advance(
+            toward: .zero,
+            deltaTime: 1,
+            externalSpeedMultiplier: 2,
+            maximumSpeed: 25
+        )
+
+        XCTAssertEqual(enemy.position.x, 20, accuracy: 0.0001)
+        XCTAssertEqual(enemy.position.y, 15, accuracy: 0.0001)
+    }
+
     func testFormationLineMovesAlongVelocity() {
         var enemy = ArenaEnemy(
             id: 1,

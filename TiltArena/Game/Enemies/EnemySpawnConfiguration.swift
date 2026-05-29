@@ -63,6 +63,9 @@ struct EnemyPhaseTuning: Equatable {
 
 struct EnemySpawnConfiguration: Equatable {
     var enemyRadius: CGFloat = 4
+    var enemySurvivalSpeedStartMultiplier: CGFloat = 0.82
+    var enemySurvivalSpeedRampDuration: TimeInterval = 120
+    var maximumEnemySurvivalSpeedMultiplier: CGFloat = 1.35
     var enemySpeedRampPerSecond: CGFloat = 0.024
     var maximumEnemySpeedMultiplier: CGFloat = 1.9
     var playerSafetyRadius: CGFloat = 120
@@ -164,6 +167,14 @@ struct EnemySpawnConfiguration: Equatable {
         splitterSpeed: 104,
         maxActiveSplitters: 4
     )
+
+    func enemySurvivalSpeedMultiplier(at survivalTime: TimeInterval) -> CGFloat {
+        let startMultiplier = max(0, enemySurvivalSpeedStartMultiplier)
+        let maximumMultiplier = max(startMultiplier, maximumEnemySurvivalSpeedMultiplier)
+        let rampDuration = max(0.001, enemySurvivalSpeedRampDuration)
+        let progress = 1 - exp(-max(0, survivalTime) / rampDuration)
+        return startMultiplier + (maximumMultiplier - startMultiplier) * CGFloat(progress)
+    }
 
     func tuning(at survivalTime: TimeInterval) -> EnemyPhaseTuning {
         let phase = EnemyDifficultyPhase.phase(at: survivalTime)

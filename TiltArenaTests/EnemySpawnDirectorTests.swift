@@ -46,15 +46,43 @@ final class EnemySpawnDirectorTests: XCTestCase {
         )
     }
 
-    func testDefaultEnemyRadiusKeepsDotCompact() {
+    func testDefaultEnemyConfigurationKeepsDotCompactAndTracksSpeedTuning() {
         let configuration = EnemySpawnConfiguration()
 
         XCTAssertEqual(configuration.enemyRadius, 4)
+        XCTAssertEqual(configuration.enemySurvivalSpeedStartMultiplier, 0.82, accuracy: 0.0001)
+        XCTAssertEqual(configuration.enemySurvivalSpeedRampDuration, 120, accuracy: 0.0001)
+        XCTAssertEqual(configuration.maximumEnemySurvivalSpeedMultiplier, 1.35, accuracy: 0.0001)
         XCTAssertEqual(configuration.enemySpeedRampPerSecond, 0.024, accuracy: 0.0001)
         XCTAssertEqual(configuration.maximumEnemySpeedMultiplier, 1.9, accuracy: 0.0001)
     }
 
-    func testSpawnedChasersUseTimeScaledInitialSpeedAndMovementRamp() throws {
+    func testEnemySurvivalSpeedMultiplierStartsSlowAndGainsTaperOff() {
+        let configuration = EnemySpawnConfiguration()
+
+        XCTAssertEqual(configuration.enemySurvivalSpeedMultiplier(at: -10), 0.82, accuracy: 0.0001)
+        XCTAssertEqual(configuration.enemySurvivalSpeedMultiplier(at: 0), 0.82, accuracy: 0.0001)
+        XCTAssertLessThan(configuration.enemySurvivalSpeedMultiplier(at: 0), 1)
+        XCTAssertGreaterThan(
+            configuration.enemySurvivalSpeedMultiplier(at: 90),
+            configuration.enemySurvivalSpeedMultiplier(at: 30)
+        )
+        XCTAssertGreaterThan(
+            configuration.enemySurvivalSpeedMultiplier(at: 30) - configuration.enemySurvivalSpeedMultiplier(at: 0),
+            configuration.enemySurvivalSpeedMultiplier(at: 90) - configuration.enemySurvivalSpeedMultiplier(at: 60)
+        )
+        XCTAssertLessThanOrEqual(
+            configuration.enemySurvivalSpeedMultiplier(at: 1_000),
+            configuration.maximumEnemySurvivalSpeedMultiplier
+        )
+        XCTAssertEqual(
+            configuration.enemySurvivalSpeedMultiplier(at: 10_000),
+            configuration.maximumEnemySurvivalSpeedMultiplier,
+            accuracy: 0.0001
+        )
+    }
+
+    func testSpawnedChasersUsePhaseTunedSpeedAndMovementRamp() throws {
         let configuration = EnemySpawnConfiguration()
         let earlyFrame = firstChaserFrame(configuration: configuration, sequenceSeed: 1, survivalTime: 0)
         let lateFrame = firstChaserFrame(configuration: configuration, sequenceSeed: 1, survivalTime: 180)

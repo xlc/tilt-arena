@@ -164,24 +164,35 @@ struct ArenaEnemy: Equatable, Identifiable {
         )
     }
 
-    mutating func advance(toward target: CGPoint, deltaTime: TimeInterval, externalSpeedMultiplier: CGFloat = 1) {
+    mutating func advance(
+        toward target: CGPoint,
+        deltaTime: TimeInterval,
+        externalSpeedMultiplier: CGFloat = 1,
+        maximumSpeed: CGFloat? = nil
+    ) {
         let clampedTime = max(0, deltaTime)
         let clampedDelta = CGFloat(clampedTime)
-        let effectiveSpeedMultiplier = movementSpeedMultiplier * max(0, externalSpeedMultiplier)
 
         if consumeMovementPause(deltaTime: clampedTime) {
             return
         }
 
+        let effectiveSpeedMultiplier = movementSpeedMultiplier * max(0, externalSpeedMultiplier)
+        let movementMultiplier = cappedSpeedMultiplier(
+            for: behavior,
+            speedMultiplier: effectiveSpeedMultiplier,
+            maximumSpeed: maximumSpeed
+        )
+
         switch behavior {
         case .chaser, .splitter, .splitterChild:
-            advanceChaser(toward: target, deltaTime: clampedDelta, speedMultiplier: effectiveSpeedMultiplier)
+            advanceChaser(toward: target, deltaTime: clampedDelta, speedMultiplier: movementMultiplier)
             recordMovementTime(clampedTime)
         case let .arrowRush(velocity):
-            advanceLinearly(velocity: velocity, deltaTime: clampedDelta, speedMultiplier: effectiveSpeedMultiplier)
+            advanceLinearly(velocity: velocity, deltaTime: clampedDelta, speedMultiplier: movementMultiplier)
             recordMovementTime(clampedTime)
         case let .formationLine(velocity, _):
-            advanceLinearly(velocity: velocity, deltaTime: clampedDelta, speedMultiplier: effectiveSpeedMultiplier)
+            advanceLinearly(velocity: velocity, deltaTime: clampedDelta, speedMultiplier: movementMultiplier)
             recordMovementTime(clampedTime)
         case .mineDot:
             return
@@ -191,7 +202,7 @@ struct ArenaEnemy: Equatable, Identifiable {
                 predictionLead: predictionLead,
                 previousTarget: previousTarget,
                 deltaTime: clampedDelta,
-                speedMultiplier: effectiveSpeedMultiplier
+                speedMultiplier: movementMultiplier
             )
             recordMovementTime(clampedTime)
         case let .paddleTrapBar(trapID, remainingLifetime):
@@ -203,7 +214,7 @@ struct ArenaEnemy: Equatable, Identifiable {
                 bounds: bounds,
                 remainingLifetime: remainingLifetime,
                 deltaTime: clampedDelta,
-                speedMultiplier: effectiveSpeedMultiplier
+                speedMultiplier: movementMultiplier
             )
             recordMovementTime(clampedTime)
         }
@@ -239,6 +250,50 @@ struct ArenaEnemy: Equatable, Identifiable {
 
     private mutating func recordMovementTime(_ deltaTime: TimeInterval) {
         movementTime += max(0, deltaTime)
+    }
+
+    private func cappedSpeedMultiplier(
+        for behavior: EnemyBehavior,
+        speedMultiplier: CGFloat,
+        maximumSpeed: CGFloat?
+    ) -> CGFloat {
+        switch behavior {
+        case let .arrowRush(velocity),
+             let .formationLine(velocity, _),
+             let .paddleTrapDot(_, velocity, _, _):
+            return cappedSpeedMultiplier(
+                baseSpeed: velocity.length,
+                speedMultiplier: speedMultiplier,
+                maximumSpeed: maximumSpeed
+            )
+        case .chaser, .hunterDot, .splitter, .splitterChild:
+            return cappedSpeedMultiplier(
+                baseSpeed: speed,
+                speedMultiplier: speedMultiplier,
+                maximumSpeed: maximumSpeed
+            )
+        case .mineDot, .paddleTrapBar:
+            return max(0, speedMultiplier)
+        }
+    }
+
+    private func cappedSpeedMultiplier(
+        baseSpeed: CGFloat,
+        speedMultiplier: CGFloat,
+        maximumSpeed: CGFloat?
+    ) -> CGFloat {
+        let clampedMultiplier = max(0, speedMultiplier)
+
+        guard let maximumSpeed else {
+            return clampedMultiplier
+        }
+
+        let baseSpeed = max(0, baseSpeed)
+        guard baseSpeed > 0 else {
+            return clampedMultiplier
+        }
+
+        return min(clampedMultiplier, max(0, maximumSpeed) / baseSpeed)
     }
 
     private mutating func advanceLinearly(velocity: CGVector, deltaTime: CGFloat, speedMultiplier: CGFloat) {

@@ -994,6 +994,11 @@ final class ArenaScene: SKScene {
     }
 
     private func advanceEnemies(deltaTime: TimeInterval, playerPosition: CGPoint) {
+        let runSpeedMultiplier = spawnDirector.configuration.enemySurvivalSpeedMultiplier(
+            at: runController.survivalTime
+        )
+        let maximumEnemySpeed = movementController.configuration.maximumSpeed(in: currentGameplayBounds)
+
         for index in enemies.indices {
             guard !pendingWeaponImpactEnemyIDs.contains(enemies[index].id) else {
                 continue
@@ -1002,10 +1007,11 @@ final class ArenaScene: SKScene {
             enemies[index].advance(
                 toward: playerPosition,
                 deltaTime: deltaTime,
-                externalSpeedMultiplier: timeDilationEnemySpeedMultiplier(
+                externalSpeedMultiplier: runSpeedMultiplier * timeDilationEnemySpeedMultiplier(
                     for: enemies[index],
                     playerPosition: playerPosition
-                )
+                ),
+                maximumSpeed: maximumEnemySpeed
             )
             enemyNodes[enemies[index].id]?.apply(enemies[index])
         }
