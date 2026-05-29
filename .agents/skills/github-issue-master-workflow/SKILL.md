@@ -1,22 +1,26 @@
 ---
 name: github-issue-master-workflow
-description: Use when Codex needs to manage or execute repository work through GitHub issues while working directly on master, including creating TODOs as issues, decomposing large issues into sub-issues, committing completed work with issue-closing keywords, and verifying issue closure.
+description: Use when Codex needs to manage or execute repository work through existing or explicitly requested GitHub issues while working directly on master, including decomposing large issues when asked, committing completed issue-backed work with issue-closing keywords, and verifying issue closure.
 ---
 
 # GitHub Issue Master Workflow
 
-Use GitHub Issues as the task source of truth. Do not start implementation from
-an untracked TODO, chat note, or local plan when the work should be tracked.
+Use GitHub Issues as the task source of truth when work starts from an existing
+issue, when the user explicitly asks to create or track an issue, or when a task
+is already issue-backed. Do not create new GitHub issues, sub-issues, or
+TODO-tracking issues unless the user explicitly asks for them. Direct user
+requests can be implemented directly on `master` without opening an issue first.
 This is a solo-dev repo: work directly on `master` and do not create pull
 requests or issue branches unless the repository owner explicitly changes this
 rule.
 
 ## Start From An Issue
 
-1. Find or create the GitHub issue for the work.
-2. Confirm the issue has a clear goal, scope, acceptance criteria, and any
-   relevant constraints.
-3. If the issue is too large for one focused change, create sub-issues before
+1. Find the existing GitHub issue for the work, or create one only when the user
+   explicitly asks for issue tracking.
+2. Confirm any issue-backed work has a clear goal, scope, acceptance criteria,
+   and any relevant constraints.
+3. If the user explicitly asks to split a large issue, create sub-issues before
    implementation. Keep each sub-issue independently finishable.
 4. Ensure the current branch is `master`.
 5. Ensure `master` is up to date before editing when remote access is available
@@ -29,8 +33,8 @@ rule.
 - Keep each commit focused on one issue or one coherent sub-issue.
 - Update the issue if the scope changes, if blockers appear, or if the work is
   intentionally split further.
-- Create new GitHub issues for discovered TODOs instead of leaving TODOs only in
-  code, comments, or chat.
+- Do not create new GitHub issues for discovered TODOs unless the user
+  explicitly asks for them.
 - Avoid bundling unrelated cleanup into the issue commit unless it is required
   to complete that issue.
 

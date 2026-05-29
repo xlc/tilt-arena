@@ -32,14 +32,19 @@ Core loop:
 
 ## Workflow Rules
 
-- Use GitHub Issues as the source of truth for tasks.
-- Create a new GitHub issue for every actionable TODO before implementing it.
-- Close the corresponding issue as part of the commit/finalization step when
-  the work is completed.
-- If an issue is too large to implement in one focused change, create
-  sub-issues first and implement the smaller sub-issues independently.
-- Before starting work on a new GitHub issue, ensure the current branch is
-  `master` and up to date.
+- Use GitHub Issues as the source of truth when work starts from an existing
+  issue, when the user explicitly asks to create or track an issue, or when a
+  task is already issue-backed.
+- Do not create new GitHub issues, sub-issues, or TODO-tracking issues unless
+  the user explicitly asks for them.
+- Direct user requests can be implemented directly on `master` without opening
+  a GitHub issue first.
+- For issue-backed work, close the corresponding issue as part of the
+  commit/finalization step when the work is completed.
+- If the user explicitly asks to split a large issue, create sub-issues first
+  and implement the smaller sub-issues independently.
+- Before starting issue-backed work, ensure the current branch is `master` and
+  up to date.
 - Work directly on `master`. Do not create issue branches or pull requests for
   this solo-dev project.
 - If the working tree has dirty changes, inspect them before editing. Ask the
