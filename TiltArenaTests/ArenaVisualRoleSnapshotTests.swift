@@ -14,7 +14,7 @@ final class ArenaVisualRoleSnapshotTests: XCTestCase {
         .gravityWell: "GRAV",
         .chainLightning: "CHAIN",
         .flameTrail: "FLAME",
-        .warpDash: "WARP",
+        .warpDash: "TIME",
         .powerWave: "WAVE",
         .ricochetLance: "LANCE",
         .novaBomb: "NOVA"

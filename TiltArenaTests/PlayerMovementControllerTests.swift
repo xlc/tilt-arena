@@ -55,6 +55,22 @@ final class PlayerMovementControllerTests: XCTestCase {
         XCTAssertEqual(state.position.y, playableRect.maxY, accuracy: 0.0001)
     }
 
+    func testMovementCanApplyTemporarySpeedMultiplier() {
+        let arenaSize = CGSize(width: 390, height: 844)
+        var controller = PlayerMovementController()
+        let startState = controller.reset(in: arenaSize)
+        let state = controller.update(
+            input: CGVector(dx: 1, dy: 0),
+            deltaTime: 0.1,
+            arenaBounds: CGRect(origin: .zero, size: arenaSize),
+            speedMultiplier: 5
+        )
+        let expectedSpeed = controller.configuration.playableRect(in: arenaSize).width / 2.5 * 5
+
+        XCTAssertEqual(state.velocity.dx, expectedSpeed, accuracy: 0.0001)
+        XCTAssertEqual(state.position.x, startState.position.x + expectedSpeed * 0.1, accuracy: 0.0001)
+    }
+
     func testMovementClampsToSafeGameplayBounds() {
         let safeBounds = CGRect(x: 83, y: 45, width: 686, height: 324)
         var controller = PlayerMovementController()

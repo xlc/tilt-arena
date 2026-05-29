@@ -417,6 +417,7 @@ enum GameTuningParameterCatalog {
         specs.append(int("startingWeapons.seekerTargetLimit", "Weapons", "seeker target limit", \.startingWeapons.seekerTargetLimit, 1, 0, nil))
         specs.append(cgFloat("startingWeapons.seekerExplosionRadius", "Weapons", "seeker explosion", \.startingWeapons.seekerExplosionRadius, 2, 0, nil, 1))
         specs.append(double("startingWeapons.seekerExplosionHoldDuration", "Weapons", "seeker hold", \.startingWeapons.seekerExplosionHoldDuration, 0.05, 0, nil, 2))
+        specs.append(cgFloat("startingWeapons.seekerTravelSpeed", "Weapons", "seeker travel speed", \.startingWeapons.seekerTravelSpeed, 20, 1, nil, 1))
         specs.append(cgFloat("startingWeapons.razorShieldRadius", "Weapons", "shield radius", \.startingWeapons.razorShieldRadius, 2, 0, nil, 1))
         specs.append(double("startingWeapons.razorShieldDuration", "Weapons", "shield duration", \.startingWeapons.razorShieldDuration, 0.25, 0, nil, 2))
         specs.append(cgFloat("startingWeapons.razorShieldExplosionRadius", "Weapons", "shield explosion", \.startingWeapons.razorShieldExplosionRadius, 2, 0, nil, 1))
@@ -432,25 +433,28 @@ enum GameTuningParameterCatalog {
         specs.append(cgFloat("startingWeapons.chainLightningJumpRange", "Weapons", "chain jump range", \.startingWeapons.chainLightningJumpRange, 4, 0, nil, 1))
         specs.append(int("startingWeapons.chainLightningTargetLimit", "Weapons", "chain target limit", \.startingWeapons.chainLightningTargetLimit, 1, 0, nil))
         specs.append(cgFloat(
-            "startingWeapons.warpDashDistanceFractionOfShortSide",
+            "startingWeapons.timeDilationRadius",
             "Weapons",
-            "warp distance fraction",
-            \.startingWeapons.warpDashDistanceFractionOfShortSide,
-            0.05,
+            "time dilation radius",
+            \.startingWeapons.timeDilationRadius,
+            4,
             0,
-            1,
-            2
+            nil,
+            1
         ))
         specs.append(double(
-            "startingWeapons.warpDashInvulnerabilityDuration",
+            "startingWeapons.timeDilationDuration",
             "Weapons",
-            "warp invuln duration",
-            \.startingWeapons.warpDashInvulnerabilityDuration,
+            "time dilation duration",
+            \.startingWeapons.timeDilationDuration,
             0.05,
             0,
             nil,
             2
         ))
+        specs.append(cgFloat("startingWeapons.timeDilationMaximumSlowFactor", "Weapons", "time max slow", \.startingWeapons.timeDilationMaximumSlowFactor, 0.5, 1, nil, 1))
+        specs.append(cgFloat("startingWeapons.timeDilationPushRadius", "Weapons", "time push radius", \.startingWeapons.timeDilationPushRadius, 2, 0, nil, 1))
+        specs.append(cgFloat("startingWeapons.timeDilationMaximumPushDistance", "Weapons", "time push distance", \.startingWeapons.timeDilationMaximumPushDistance, 2, 0, nil, 1))
         specs.append(double("startingWeapons.powerWaveChargeDuration", "Weapons", "power wave charge", \.startingWeapons.powerWaveChargeDuration, 0.05, 0, nil, 2))
         specs.append(cgFloat("startingWeapons.powerWaveRange", "Weapons", "power wave range", \.startingWeapons.powerWaveRange, 4, 0, nil, 1))
         specs.append(cgFloat("startingWeapons.powerWaveFanAngleDegrees", "Weapons", "power wave angle", \.startingWeapons.powerWaveFanAngleDegrees, 2, 0, 360, 1))
@@ -458,6 +462,7 @@ enum GameTuningParameterCatalog {
         specs.append(cgFloat("startingWeapons.ricochetLanceRange", "Weapons", "ricochet range", \.startingWeapons.ricochetLanceRange, 20, 0, nil, 1))
         specs.append(cgFloat("startingWeapons.ricochetLanceBeamWidth", "Weapons", "ricochet width", \.startingWeapons.ricochetLanceBeamWidth, 1, 0, nil, 1))
         specs.append(int("startingWeapons.ricochetLanceMaximumBounces", "Weapons", "ricochet bounces", \.startingWeapons.ricochetLanceMaximumBounces, 1, 0, nil))
+        specs.append(double("startingWeapons.ricochetLanceHoldDuration", "Weapons", "ricochet hold", \.startingWeapons.ricochetLanceHoldDuration, 0.05, 0, nil, 2))
         specs.append(int("startingWeapons.novaBombMinimumTargetCount", "Weapons", "nova min targets", \.startingWeapons.novaBombMinimumTargetCount, 1, 0, nil))
         specs.append(double("startingWeapons.novaBombTargetFraction", "Weapons", "nova target fraction", \.startingWeapons.novaBombTargetFraction, 0.05, 0, 1, 2))
     }
@@ -480,12 +485,13 @@ enum GameTuningParameterCatalog {
     }
 
     private static func appendFlameTrailParameters(to specs: inout [GameTuningParameterSpec]) {
-        specs.append(double("flameTrail.duration", "Flame Trail", "duration", \.flameTrail.duration, 0.25, 0, nil, 2))
+        specs.append(double("flameTrail.duration", "Flame Trail", "generation duration", \.flameTrail.duration, 0.25, 0, nil, 2))
         specs.append(double("flameTrail.segmentLifetime", "Flame Trail", "segment lifetime", \.flameTrail.segmentLifetime, 0.1, 0, nil, 2))
         specs.append(cgFloat("flameTrail.segmentRadius", "Flame Trail", "segment radius", \.flameTrail.segmentRadius, 1, 0, nil, 1))
         specs.append(cgFloat("flameTrail.segmentSpacing", "Flame Trail", "segment spacing", \.flameTrail.segmentSpacing, 1, 0, nil, 1))
         specs.append(int("flameTrail.maxSegments", "Flame Trail", "max segments", \.flameTrail.maxSegments, 1, 0, nil))
         specs.append(double("flameTrail.frozenMeltDelay", "Flame Trail", "frozen melt delay", \.flameTrail.frozenMeltDelay, 0.05, 0, nil, 2))
+        specs.append(cgFloat("flameTrail.speedMultiplier", "Flame Trail", "speed multiplier", \.flameTrail.speedMultiplier, 0.5, 1, nil, 1))
     }
 
     private static func appendFeedbackParameters(to specs: inout [GameTuningParameterSpec]) {

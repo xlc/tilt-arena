@@ -123,9 +123,32 @@ struct ArenaEnemy: Equatable, Identifiable {
         )
     }
 
-    mutating func advance(toward target: CGPoint, deltaTime: TimeInterval) {
+    mutating func pushAway(from source: CGPoint, distance: CGFloat) {
+        var dx = position.x - source.x
+        var dy = position.y - source.y
+        var sourceDistance = hypot(dx, dy)
+
+        if sourceDistance == 0 {
+            dx = 1
+            dy = 0
+            sourceDistance = 1
+        }
+
+        let clampedDistance = max(0, distance)
+        guard clampedDistance > 0 else {
+            return
+        }
+
+        position = CGPoint(
+            x: position.x + dx / sourceDistance * clampedDistance,
+            y: position.y + dy / sourceDistance * clampedDistance
+        )
+    }
+
+    mutating func advance(toward target: CGPoint, deltaTime: TimeInterval, externalSpeedMultiplier: CGFloat = 1) {
         let clampedTime = max(0, deltaTime)
         let clampedDelta = CGFloat(clampedTime)
+        let effectiveSpeedMultiplier = movementSpeedMultiplier * max(0, externalSpeedMultiplier)
 
         if isFrozen {
             frozenTimeRemaining = max(0, frozenTimeRemaining - clampedTime)
@@ -142,13 +165,13 @@ struct ArenaEnemy: Equatable, Identifiable {
 
         switch behavior {
         case .chaser:
-            advanceChaser(toward: target, deltaTime: clampedDelta, speedMultiplier: movementSpeedMultiplier)
+            advanceChaser(toward: target, deltaTime: clampedDelta, speedMultiplier: effectiveSpeedMultiplier)
             recordMovementTime(clampedTime)
         case let .arrowRush(velocity):
-            advanceLinearly(velocity: velocity, deltaTime: clampedDelta, speedMultiplier: movementSpeedMultiplier)
+            advanceLinearly(velocity: velocity, deltaTime: clampedDelta, speedMultiplier: effectiveSpeedMultiplier)
             recordMovementTime(clampedTime)
         case let .formationLine(velocity, _):
-            advanceLinearly(velocity: velocity, deltaTime: clampedDelta, speedMultiplier: movementSpeedMultiplier)
+            advanceLinearly(velocity: velocity, deltaTime: clampedDelta, speedMultiplier: effectiveSpeedMultiplier)
             recordMovementTime(clampedTime)
         case .mineDot:
             return
@@ -158,7 +181,7 @@ struct ArenaEnemy: Equatable, Identifiable {
                 predictionLead: predictionLead,
                 previousTarget: previousTarget,
                 deltaTime: clampedDelta,
-                speedMultiplier: movementSpeedMultiplier
+                speedMultiplier: effectiveSpeedMultiplier
             )
             recordMovementTime(clampedTime)
         case let .paddleTrapBar(trapID, remainingLifetime):
@@ -170,7 +193,7 @@ struct ArenaEnemy: Equatable, Identifiable {
                 bounds: bounds,
                 remainingLifetime: remainingLifetime,
                 deltaTime: clampedDelta,
-                speedMultiplier: movementSpeedMultiplier
+                speedMultiplier: effectiveSpeedMultiplier
             )
             recordMovementTime(clampedTime)
         }

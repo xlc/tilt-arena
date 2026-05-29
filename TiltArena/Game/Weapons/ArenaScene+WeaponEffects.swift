@@ -14,7 +14,7 @@ extension ArenaScene {
         let radius = weaponResolver.configuration.shockwaveRadius
         let expansionDuration = max(0.01, duration)
         let holdDuration = max(0, holdDuration)
-        let fadeDuration: TimeInterval = 0.12
+        let fadeDuration = max(0.01, holdDuration)
         let ring = makeEffectRing(
             radius: radius,
             strokeColor: theme.pickupAmber.withAlphaComponent(0.95),
@@ -39,12 +39,12 @@ extension ArenaScene {
             spoke.alpha = 0
             addWeaponEffectNode(spoke)
             spoke.run(.sequence([
-                .wait(forDuration: expansionDuration * 0.15),
+                .wait(forDuration: expansionDuration * 0.1),
+                .fadeAlpha(to: 0.55, duration: expansionDuration * 0.15),
                 .group([
-                    .fadeAlpha(to: 0.55, duration: expansionDuration * 0.3),
-                    .scale(to: 1.02, duration: expansionDuration * 0.3)
+                    .fadeAlpha(to: 0.12, duration: expansionDuration * 0.75),
+                    .scale(to: 1.02, duration: expansionDuration * 0.75)
                 ]),
-                .wait(forDuration: holdDuration),
                 .fadeOut(withDuration: fadeDuration),
                 .removeFromParent()
             ]))
@@ -53,9 +53,8 @@ extension ArenaScene {
         ring.run(.sequence([
             .group([
                 .scale(to: 1, duration: expansionDuration),
-                .fadeAlpha(to: 0.82, duration: expansionDuration)
+                .fadeAlpha(to: 0.18, duration: expansionDuration)
             ]),
-            .wait(forDuration: holdDuration),
             .fadeOut(withDuration: fadeDuration),
             .removeFromParent()
         ]))
@@ -230,67 +229,94 @@ extension ArenaScene {
         runImpactBatch(targets, delay: delay, onImpact: onImpact)
     }
 
-    func playWarpDashEffect(from startPosition: CGPoint, to endPosition: CGPoint) {
-        let path = CGMutablePath()
-        path.move(to: startPosition)
-        path.addLine(to: endPosition)
+    func playTimeDilationAuraEffect(
+        at position: CGPoint,
+        radius: CGFloat,
+        duration: TimeInterval
+    ) -> SKNode {
+        let clampedRadius = max(0, radius)
+        let clampedDuration = max(0.05, duration)
+        let fadeInDuration = min(0.08, clampedDuration * 0.3)
+        let fadeOutDuration = min(0.18, max(0.05, clampedDuration * 0.25))
+        let holdDuration = max(0, clampedDuration - fadeInDuration - fadeOutDuration)
+        let container = SKNode()
+        container.position = position
+        container.zPosition = 18
+        container.alpha = 0
+        addWeaponEffectNode(container)
 
-        let streak = SKShapeNode(path: path)
-        streak.strokeColor = theme.playerAccentColor.withAlphaComponent(0.68)
-        streak.lineWidth = 2.4
-        streak.glowWidth = 1.8
-        streak.zPosition = 18
-        addWeaponEffectNode(streak)
+        let outerRing = makeEffectRing(
+            radius: clampedRadius,
+            strokeColor: theme.pickupViolet.withAlphaComponent(0.7),
+            fillColor: theme.pickupViolet.withAlphaComponent(0.07),
+            lineWidth: 2.2,
+            glowWidth: 1.8
+        )
+        outerRing.setScale(0.86)
+        container.addChild(outerRing)
 
-        for index in 1...5 {
-            let progress = CGFloat(index) / 6
-            let ghost = SKShapeNode(path: Self.dashGhostPath(radius: movementController.configuration.visualRadius * 0.75))
-            ghost.position = CGPoint(
-                x: startPosition.x + (endPosition.x - startPosition.x) * progress,
-                y: startPosition.y + (endPosition.y - startPosition.y) * progress
-            )
-            ghost.strokeColor = theme.playerAccentColor.withAlphaComponent(0.38)
-            ghost.fillColor = theme.playerAccentColor.withAlphaComponent(0.09)
-            ghost.lineWidth = 1
-            ghost.glowWidth = 0.8
-            ghost.zPosition = 18
-            ghost.alpha = 0
-            addWeaponEffectNode(ghost)
-            ghost.run(.sequence([
-                .wait(forDuration: TimeInterval(index) * 0.018),
-                .fadeAlpha(to: 0.8, duration: 0.035),
-                .fadeOut(withDuration: 0.12),
-                .removeFromParent()
-            ]))
+        let innerRing = makeEffectRing(
+            radius: clampedRadius * 0.46,
+            strokeColor: theme.playerAccentColor.withAlphaComponent(0.52),
+            fillColor: theme.playerAccentColor.withAlphaComponent(0.03),
+            lineWidth: 1.3,
+            glowWidth: 1
+        )
+        container.addChild(innerRing)
+
+        let core = SKShapeNode(circleOfRadius: min(14, max(7, clampedRadius * 0.08)))
+        core.fillColor = theme.pickupViolet.withAlphaComponent(0.34)
+        core.strokeColor = theme.playerColor.withAlphaComponent(0.72)
+        core.lineWidth = 1
+        core.glowWidth = 1.1
+        core.zPosition = 20
+        container.addChild(core)
+
+        for index in 0..<8 {
+            let angle = CGFloat(index) * .pi / 4
+            let tick = SKShapeNode(path: Self.radialLinePath(
+                innerRadius: clampedRadius * 0.72,
+                outerRadius: clampedRadius * 0.88,
+                angle: angle
+            ))
+            tick.strokeColor = theme.playerAccentColor.withAlphaComponent(0.24)
+            tick.lineWidth = 1
+            tick.glowWidth = 0.45
+            tick.lineCap = .round
+            tick.zPosition = 19
+            container.addChild(tick)
         }
 
-        let endpoint = SKShapeNode(circleOfRadius: movementController.configuration.visualRadius * 1.4)
-        endpoint.position = endPosition
-        endpoint.strokeColor = theme.pickupViolet.withAlphaComponent(0.62)
-        endpoint.fillColor = theme.pickupViolet.withAlphaComponent(0.08)
-        endpoint.lineWidth = 1.3
-        endpoint.glowWidth = 1
-        endpoint.zPosition = 18
-        endpoint.setScale(0.35)
-        addWeaponEffectNode(endpoint)
-        playWeaponEffectSprite(
-            .warpDash,
-            at: endPosition,
-            size: movementController.configuration.visualRadius * 4.6,
-            alpha: 0.58
+        let sprite = makeWeaponEffectSprite(
+            kind: .warpDash,
+            size: min(92, max(40, clampedRadius * 0.72)),
+            zPosition: 17
         )
+        sprite.alpha = 0.36
+        sprite.setScale(0.92)
+        container.addChild(sprite)
 
-        let fade = SKAction.group([
-            .fadeOut(withDuration: 0.18),
-            .scale(to: 0.96, duration: 0.18)
-        ])
-        streak.run(.sequence([fade, .removeFromParent()]))
+        outerRing.run(.repeatForever(.sequence([
+            .group([
+                .scale(to: 1.0, duration: 0.28),
+                .fadeAlpha(to: 0.62, duration: 0.28)
+            ]),
+            .group([
+                .scale(to: 0.9, duration: 0.28),
+                .fadeAlpha(to: 1, duration: 0.28)
+            ])
+        ])))
+        innerRing.run(.repeatForever(.rotate(byAngle: -.pi * 2, duration: 1.0)))
+        sprite.run(.repeatForever(.rotate(byAngle: .pi * 2, duration: 1.2)))
 
-        let pulse = SKAction.group([
-            .scale(to: 1.0, duration: 0.16),
-            .fadeOut(withDuration: 0.16)
-        ])
-        endpoint.run(.sequence([pulse, .removeFromParent()]))
+        container.run(.sequence([
+            .fadeAlpha(to: 1, duration: fadeInDuration),
+            .wait(forDuration: holdDuration),
+            .fadeOut(withDuration: fadeOutDuration),
+            .removeFromParent()
+        ]))
+
+        return container
     }
 
     func playRazorShieldImpactEffect(
@@ -697,13 +723,4 @@ extension ArenaScene {
         return path
     }
 
-    private static func dashGhostPath(radius: CGFloat) -> CGPath {
-        let path = CGMutablePath()
-        path.move(to: CGPoint(x: radius, y: 0))
-        path.addLine(to: CGPoint(x: -radius * 0.58, y: radius * 0.52))
-        path.addLine(to: CGPoint(x: -radius * 0.28, y: 0))
-        path.addLine(to: CGPoint(x: -radius * 0.58, y: -radius * 0.52))
-        path.closeSubpath()
-        return path
-    }
 }

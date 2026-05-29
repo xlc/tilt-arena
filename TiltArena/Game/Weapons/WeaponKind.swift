@@ -54,7 +54,7 @@ enum WeaponKind: String, CaseIterable, Codable, Equatable {
         case .flameTrail:
             return "Flame Trail"
         case .warpDash:
-            return "Warp Dash"
+            return "Time Dilation"
         case .powerWave:
             return "Power Wave"
         case .ricochetLance:

@@ -7,7 +7,7 @@ final class StartingWeaponResolverTests: XCTestCase {
 
         XCTAssertEqual(configuration.shockwaveRadius, 96)
         XCTAssertEqual(configuration.shockwaveExpansionDuration, 0.5)
-        XCTAssertEqual(configuration.shockwaveHoldDuration, 0.5)
+        XCTAssertEqual(configuration.shockwaveHoldDuration, 0.1)
     }
 
     func testWeaponSpriteSheetMapsWeaponsToIconAndEffectRows() {
@@ -31,11 +31,13 @@ final class StartingWeaponResolverTests: XCTestCase {
         }
     }
 
-    func testDefaultPowerWaveAndWarpDashTuningUseUpdatedBalance() {
+    func testDefaultWeaponTuningUsesUpdatedBalance() {
         let configuration = StartingWeaponConfiguration()
+        let flameTrailConfiguration = FlameTrailConfiguration()
 
         XCTAssertEqual(configuration.seekerExplosionRadius, 30)
         XCTAssertEqual(configuration.seekerExplosionHoldDuration, 0.3)
+        XCTAssertEqual(configuration.seekerTravelSpeed, 320)
         XCTAssertEqual(configuration.razorShieldRadius, 28)
         XCTAssertEqual(configuration.razorShieldExplosionRadius, 48)
         XCTAssertEqual(configuration.freezeExpansionDuration, 0.5)
@@ -43,8 +45,14 @@ final class StartingWeaponResolverTests: XCTestCase {
         XCTAssertEqual(configuration.gravityWellRadius, 148)
         XCTAssertEqual(configuration.gravityWellPullDuration, 1)
         XCTAssertEqual(configuration.chainLightningInitialRange, 140)
-        XCTAssertEqual(FlameTrailConfiguration().segmentRadius, 16)
-        XCTAssertEqual(configuration.warpDashInvulnerabilityDuration, 1)
+        XCTAssertEqual(flameTrailConfiguration.duration, 1)
+        XCTAssertEqual(flameTrailConfiguration.segmentLifetime, 3)
+        XCTAssertEqual(flameTrailConfiguration.segmentRadius, 16)
+        XCTAssertEqual(flameTrailConfiguration.speedMultiplier, 5)
+        XCTAssertEqual(configuration.timeDilationRadius, 132)
+        XCTAssertEqual(configuration.timeDilationDuration, 1)
+        XCTAssertEqual(configuration.timeDilationMaximumSlowFactor, 10)
+        XCTAssertEqual(configuration.timeDilationPushRadius, 48)
         XCTAssertEqual(configuration.powerWaveChargeDuration, 0.5)
         XCTAssertEqual(configuration.powerWaveRange, 180)
         XCTAssertEqual(configuration.powerWaveFanAngleDegrees, 60)
@@ -52,6 +60,7 @@ final class StartingWeaponResolverTests: XCTestCase {
         XCTAssertEqual(configuration.ricochetLanceRange, 560)
         XCTAssertEqual(configuration.ricochetLanceBeamWidth, 18)
         XCTAssertEqual(configuration.ricochetLanceMaximumBounces, 3)
+        XCTAssertEqual(configuration.ricochetLanceHoldDuration, 0.5)
         XCTAssertEqual(configuration.novaBombMinimumTargetCount, 15)
     }
 
@@ -367,7 +376,7 @@ final class StartingWeaponResolverTests: XCTestCase {
         XCTAssertEqual(resolution.frozenEnemyIDs, [])
     }
 
-    func testWarpDashDoesNotInstantlyResolveTargets() {
+    func testTimeDilationDoesNotInstantlyResolveTargets() {
         let resolver = StartingWeaponResolver()
         let enemies = [
             enemy(id: 1, position: CGPoint(x: 10, y: 0))

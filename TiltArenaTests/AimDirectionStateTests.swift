@@ -2,16 +2,16 @@ import CoreGraphics
 import XCTest
 @testable import TiltArena
 
-final class WarpDashStateTests: XCTestCase {
+final class AimDirectionStateTests: XCTestCase {
     func testDefaultsToUpwardDirectionBeforeMovement() {
-        let state = WarpDashState()
+        let state = AimDirectionState()
 
         XCTAssertEqual(state.resolvedDirection().dx, 0, accuracy: 0.0001)
         XCTAssertEqual(state.resolvedDirection().dy, 1, accuracy: 0.0001)
     }
 
     func testRecordsNormalizedMovementDirection() {
-        var state = WarpDashState()
+        var state = AimDirectionState()
 
         state.record(input: CGVector(dx: 3, dy: 4))
 
@@ -20,7 +20,7 @@ final class WarpDashStateTests: XCTestCase {
     }
 
     func testNeutralInputKeepsLastMovementDirection() {
-        var state = WarpDashState()
+        var state = AimDirectionState()
         state.record(input: CGVector(dx: -1, dy: 0))
         state.record(input: CGVector(dx: 0.01, dy: 0))
 
@@ -29,7 +29,7 @@ final class WarpDashStateTests: XCTestCase {
     }
 
     func testResetRestoresUpwardFallback() {
-        var state = WarpDashState()
+        var state = AimDirectionState()
         state.record(input: CGVector(dx: 1, dy: 0))
         state.reset()
 

@@ -7,7 +7,7 @@ extension ArenaScene {
         onImpact: @escaping (WeaponImpactTarget) -> Void
     ) {
         for (index, target) in targets.enumerated() {
-            let duration = weaponEffectTiming.projectileDuration(from: origin, to: target.position)
+            let duration = seekerTravelDuration(from: origin, to: target.position)
             playSeekerBolt(
                 from: origin,
                 to: target,
@@ -16,6 +16,16 @@ extension ArenaScene {
                 onImpact: onImpact
             )
         }
+    }
+
+    private func seekerTravelDuration(from origin: CGPoint, to target: CGPoint) -> TimeInterval {
+        let distance = hypot(target.x - origin.x, target.y - origin.y)
+        guard distance > 0 else {
+            return weaponEffectTiming.minimumTravelDuration
+        }
+
+        let speed = max(1, weaponResolver.configuration.seekerTravelSpeed)
+        return max(weaponEffectTiming.minimumTravelDuration, TimeInterval(distance / speed))
     }
 
     private func playSeekerBolt(

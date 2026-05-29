@@ -8,11 +8,9 @@ extension ArenaScene {
         coreColor: SKColor,
         onImpact: @escaping (Set<Int>) -> Void
     ) {
-        guard !targets.isEmpty else {
-            return
-        }
-
-        let targetPositions = targets.map(\.position)
+        let displayTargets = targets.isEmpty ? [randomChainFallbackTarget(from: origin)] : targets
+        let shouldApplyImpacts = !targets.isEmpty
+        let targetPositions = displayTargets.map(\.position)
         let impactDelays = weaponEffectTiming.chainImpactDelays(origin: origin, targets: targetPositions)
         let charge = SKShapeNode(circleOfRadius: 5.5)
         charge.position = origin
@@ -28,7 +26,7 @@ extension ArenaScene {
         var previousDelay: TimeInterval = 0
         var travelActions: [SKAction] = []
 
-        for (index, target) in targets.enumerated() {
+        for (index, target) in displayTargets.enumerated() {
             let impactDelay = impactDelays[index]
             let travelDuration = max(0.04, impactDelay - previousDelay)
             let segment = SKShapeNode(path: Self.chainSegmentPath(from: previousPoint, to: target.position))
@@ -58,6 +56,7 @@ extension ArenaScene {
                 delay: impactDelay,
                 accentColor: accentColor,
                 coreColor: coreColor,
+                shouldApplyImpact: shouldApplyImpacts,
                 onImpact: onImpact
             )
 
@@ -70,6 +69,29 @@ extension ArenaScene {
 
         travelActions.append(.removeFromParent())
         charge.run(.sequence(travelActions))
+    }
+
+    private func randomChainFallbackTarget(from origin: CGPoint) -> WeaponImpactTarget {
+        let range = max(1, weaponResolver.configuration.chainLightningInitialRange)
+        let angle = CGFloat.random(in: 0..<(2 * .pi))
+        let distance = CGFloat.random(in: (range * 0.55)...range)
+        let rawPosition = CGPoint(
+            x: origin.x + cos(angle) * distance,
+            y: origin.y + sin(angle) * distance
+        )
+        let playableRect = currentPlayableRect.insetBy(dx: 8, dy: 8)
+
+        guard playableRect.width > 0, playableRect.height > 0 else {
+            return WeaponImpactTarget(id: Int.min, position: rawPosition)
+        }
+
+        return WeaponImpactTarget(
+            id: Int.min,
+            position: CGPoint(
+                x: min(playableRect.maxX, max(playableRect.minX, rawPosition.x)),
+                y: min(playableRect.maxY, max(playableRect.minY, rawPosition.y))
+            )
+        )
     }
 
     private func playChainChargeRing(at position: CGPoint, accentColor: SKColor) {
@@ -96,6 +118,7 @@ extension ArenaScene {
         delay: TimeInterval,
         accentColor: SKColor,
         coreColor: SKColor,
+        shouldApplyImpact: Bool,
         onImpact: @escaping (Set<Int>) -> Void
     ) {
         let ring = SKShapeNode(circleOfRadius: 16)
@@ -122,7 +145,9 @@ extension ArenaScene {
         ring.run(.sequence([
             .wait(forDuration: max(0, delay)),
             .run {
-                onImpact([target.id])
+                if shouldApplyImpact {
+                    onImpact([target.id])
+                }
             },
             .group([
                 .fadeAlpha(to: 1, duration: 0.02),

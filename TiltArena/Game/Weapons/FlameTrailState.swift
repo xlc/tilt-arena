@@ -2,12 +2,13 @@ import CoreGraphics
 import Foundation
 
 struct FlameTrailConfiguration: Equatable {
-    var duration: TimeInterval = 4.0
-    var segmentLifetime: TimeInterval = 1.2
+    var duration: TimeInterval = 1.0
+    var segmentLifetime: TimeInterval = 3.0
     var segmentRadius: CGFloat = 16
     var segmentSpacing: CGFloat = 14
     var maxSegments: Int = 24
     var frozenMeltDelay: TimeInterval = 0.3
+    var speedMultiplier: CGFloat = 5
 }
 
 struct FlameTrailSegment: Equatable, Identifiable {

@@ -81,9 +81,10 @@ final class ArenaEffectSnapshotTests: XCTestCase {
             holdDuration: 0.04
         )
         scene.playFreezeBurstEffect(at: CGPoint(x: 344, y: 286), duration: 0.28)
-        scene.playWarpDashEffect(
-            from: CGPoint(x: 460, y: 292),
-            to: CGPoint(x: 626, y: 330)
+        _ = scene.playTimeDilationAuraEffect(
+            at: CGPoint(x: 552, y: 300),
+            radius: 72,
+            duration: 1
         )
         scene.playChainLightningEffect(
             from: CGPoint(x: 470, y: 250),

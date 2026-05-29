@@ -106,7 +106,8 @@ extension ArenaScene {
             .wait(forDuration: delay),
             .fadeAlpha(to: 1, duration: 0.025),
             .wait(forDuration: duration),
-            .fadeOut(withDuration: 0.08),
+            .wait(forDuration: max(0, weaponResolver.configuration.ricochetLanceHoldDuration)),
+            .fadeOut(withDuration: 0.16),
             .removeFromParent()
         ])
     }

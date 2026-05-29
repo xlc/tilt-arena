@@ -59,8 +59,17 @@ struct PlayerMovementController {
     }
 
     mutating func update(input: CGVector, deltaTime: TimeInterval, arenaBounds: CGRect) -> PlayerMovementState {
+        update(input: input, deltaTime: deltaTime, arenaBounds: arenaBounds, speedMultiplier: 1)
+    }
+
+    mutating func update(
+        input: CGVector,
+        deltaTime: TimeInterval,
+        arenaBounds: CGRect,
+        speedMultiplier: CGFloat
+    ) -> PlayerMovementState {
         let clampedInput = input.clamped(toMaximumLength: 1)
-        let maximumSpeed = configuration.maximumSpeed(in: arenaBounds)
+        let maximumSpeed = configuration.maximumSpeed(in: arenaBounds) * max(0, speedMultiplier)
         let velocity = CGVector(
             dx: clampedInput.dx * maximumSpeed,
             dy: clampedInput.dy * maximumSpeed

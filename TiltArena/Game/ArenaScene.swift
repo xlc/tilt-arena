@@ -88,11 +88,13 @@ final class ArenaScene: SKScene {
     private var shockwaveWaveStates: [ShockwaveWaveState] = []
     private var freezeBurstWaveStates: [FreezeBurstWaveState] = []
     private var flameTrailState = FlameTrailState()
+    private var flameTrailSpeedBoostTimeRemaining: TimeInterval = 0
     private lazy var flameTrailEffectNode = FlameTrailEffectNode(theme: theme)
     private var gravityWellState: GravityWellState?
     var gravityWellEffectNode: SKNode?
-    private var warpDashState = WarpDashState()
-    private var warpDashInvulnerabilityTimeRemaining: TimeInterval = 0
+    private var aimDirectionState = AimDirectionState()
+    private var timeDilationTimeRemaining: TimeInterval = 0
+    private var timeDilationAuraNode: SKNode?
     private var powerWaveState = PowerWaveState()
     var powerWaveChargeNode: SKNode?
     private let timerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
@@ -518,8 +520,13 @@ final class ArenaScene: SKScene {
         }
 
         let input = movementInput(deltaTime: deltaTime)
-        warpDashState.record(input: input)
-        let state = movementController.update(input: input, deltaTime: deltaTime, arenaBounds: currentGameplayBounds)
+        aimDirectionState.record(input: input)
+        let state = movementController.update(
+            input: input,
+            deltaTime: deltaTime,
+            arenaBounds: currentGameplayBounds,
+            speedMultiplier: flameTrailMovementSpeedMultiplier()
+        )
         applyPlayerState(state, resetTrail: false)
         updateActiveRun(deltaTime: deltaTime, playerPosition: state.position)
     }
@@ -672,6 +679,8 @@ final class ArenaScene: SKScene {
         freezeBurstWaveStates.removeAll()
         powerWaveState.reset()
         powerWaveChargeNode = nil
+        flameTrailSpeedBoostTimeRemaining = 0
+        deactivateTimeDilationAura()
         audioController.stopMusic()
         lastDeathCollisionSnapshot = collision
         let isNewBest = (runController.finalizedSummary?.score ?? runController.score) > previousBestScore
@@ -739,10 +748,11 @@ final class ArenaScene: SKScene {
         shockwaveWaveStates.removeAll()
         freezeBurstWaveStates.removeAll()
         flameTrailState.reset()
+        flameTrailSpeedBoostTimeRemaining = 0
         flameTrailEffectNode.reset()
         deactivateGravityWell()
-        warpDashState.reset()
-        warpDashInvulnerabilityTimeRemaining = 0
+        aimDirectionState.reset()
+        deactivateTimeDilationAura()
         powerWaveState.reset()
         deactivatePowerWaveChargeEffect()
     }
@@ -863,7 +873,7 @@ final class ArenaScene: SKScene {
         if powerWaveState.isCharging {
             playPowerWaveChargeEffect(
                 at: movementController.state.position,
-                direction: warpDashState.resolvedDirection(),
+                direction: aimDirectionState.resolvedDirection(),
                 duration: powerWaveState.chargeTimeRemaining
             )
         }
@@ -876,8 +886,10 @@ final class ArenaScene: SKScene {
         deathReplayTrace.record(time: runController.survivalTime, position: playerPosition)
         spawnEnemiesIfNeeded(deltaTime: deltaTime, playerPosition: playerPosition)
         spawnPickupIfNeeded(deltaTime: deltaTime, playerPosition: playerPosition)
+        updateFlameTrailSpeedBoost(deltaTime: deltaTime)
         playerPosition = collectPickups(playerPosition: playerPosition)
         advanceEnemies(deltaTime: deltaTime, playerPosition: playerPosition)
+        updateTimeDilationAura(deltaTime: deltaTime, playerPosition: playerPosition)
         updateGravityWell(deltaTime: deltaTime)
         updateShockwaveWaves(deltaTime: deltaTime)
         updateFreezeBurstWaves(deltaTime: deltaTime)
@@ -887,9 +899,7 @@ final class ArenaScene: SKScene {
         updateRazorShield(deltaTime: deltaTime, playerPosition: playerPosition)
         shatterFrozenContactEnemies(playerPosition: playerPosition)
         updateFlameTrail(deltaTime: deltaTime, playerPosition: playerPosition)
-        resolveWarpDashContactKills(playerPosition: playerPosition)
         detectPlayerCollision(playerPosition: playerPosition)
-        updateWarpDashInvulnerability(deltaTime: deltaTime)
         updateRunDisplay()
     }
 
@@ -980,7 +990,14 @@ final class ArenaScene: SKScene {
                 continue
             }
 
-            enemies[index].advance(toward: playerPosition, deltaTime: deltaTime)
+            enemies[index].advance(
+                toward: playerPosition,
+                deltaTime: deltaTime,
+                externalSpeedMultiplier: timeDilationEnemySpeedMultiplier(
+                    for: enemies[index],
+                    playerPosition: playerPosition
+                )
+            )
             enemyNodes[enemies[index].id]?.apply(enemies[index])
         }
     }
@@ -1102,8 +1119,9 @@ final class ArenaScene: SKScene {
         case .chainLightning(let enemyIDs):
             playChainLightning(enemyIDs: enemyIDs, from: playerPosition)
         case .flameTrail:
-            flameTrailState.activate(at: playerPosition)
-            flameTrailEffectNode.apply(segments: flameTrailState.segments)
+            activateFlameTrail(at: playerPosition)
+        case .timeDilationAura:
+            return activateTimeDilationAura(at: playerPosition)
         case .directional(let kind):
             return performDirectionalWeapon(kind, from: playerPosition)
         case .powerWave:
@@ -1417,39 +1435,120 @@ final class ArenaScene: SKScene {
         flameTrailEffectNode.apply(segments: frame.segments)
     }
 
-    private func performWarpDash(from startPosition: CGPoint) -> Int {
-        let state = movementController.dash(
-            direction: warpDashState.resolvedDirection(),
-            distance: warpDashDistance(),
-            arenaBounds: currentGameplayBounds
+    private func activateFlameTrail(at playerPosition: CGPoint) {
+        flameTrailState.activate(at: playerPosition)
+        flameTrailSpeedBoostTimeRemaining = max(
+            flameTrailSpeedBoostTimeRemaining,
+            flameTrailState.configuration.duration
         )
-
-        applyPlayerState(state, resetTrail: false)
-        warpDashInvulnerabilityTimeRemaining = max(
-            warpDashInvulnerabilityTimeRemaining,
-            weaponResolver.configuration.warpDashInvulnerabilityDuration
-        )
-        playWarpDashEffect(from: startPosition, to: state.position)
-
-        let targetIDs = WarpDashCollision.sweptTargets(
-            from: startPosition,
-            to: state.position,
-            playerRadius: runController.configuration.playerHitRadius,
-            enemies: weaponTargetableEnemies()
-        )
-        destroyEnemies(ids: targetIDs, weaponKind: .warpDash)
-        return targetIDs.count
+        flameTrailEffectNode.apply(segments: flameTrailState.segments)
     }
 
-    private func warpDashDistance() -> CGFloat {
-        min(currentPlayableRect.width, currentPlayableRect.height)
-            * max(0, weaponResolver.configuration.warpDashDistanceFractionOfShortSide)
+    private func flameTrailMovementSpeedMultiplier() -> CGFloat {
+        guard flameTrailSpeedBoostTimeRemaining > 0 else {
+            return 1
+        }
+
+        return max(1, flameTrailState.configuration.speedMultiplier)
+    }
+
+    private func updateFlameTrailSpeedBoost(deltaTime: TimeInterval) {
+        guard flameTrailSpeedBoostTimeRemaining > 0 else {
+            return
+        }
+
+        flameTrailSpeedBoostTimeRemaining = max(
+            0,
+            flameTrailSpeedBoostTimeRemaining - max(0, deltaTime)
+        )
+    }
+
+    private func activateTimeDilationAura(at playerPosition: CGPoint) -> Int {
+        timeDilationTimeRemaining = max(
+            timeDilationTimeRemaining,
+            weaponResolver.configuration.timeDilationDuration
+        )
+        timeDilationAuraNode?.removeFromParent()
+        timeDilationAuraNode = playTimeDilationAuraEffect(
+            at: playerPosition,
+            radius: weaponResolver.configuration.timeDilationRadius,
+            duration: timeDilationTimeRemaining
+        )
+        pushTimeDilationEnemies(from: playerPosition)
+        return 0
+    }
+
+    private func pushTimeDilationEnemies(from playerPosition: CGPoint) {
+        let pushRadius = max(0, weaponResolver.configuration.timeDilationPushRadius)
+        let maximumPushDistance = max(0, weaponResolver.configuration.timeDilationMaximumPushDistance)
+
+        guard pushRadius > 0, maximumPushDistance > 0 else {
+            return
+        }
+
+        for index in enemies.indices {
+            let distance = hypot(
+                enemies[index].position.x - playerPosition.x,
+                enemies[index].position.y - playerPosition.y
+            )
+
+            guard distance <= pushRadius else {
+                continue
+            }
+
+            let strength = 1 - min(1, max(0, distance / pushRadius))
+            enemies[index].pushAway(from: playerPosition, distance: maximumPushDistance * strength)
+            enemyNodes[enemies[index].id]?.apply(enemies[index])
+        }
+    }
+
+    private func updateTimeDilationAura(deltaTime: TimeInterval, playerPosition: CGPoint) {
+        guard timeDilationTimeRemaining > 0 else {
+            return
+        }
+
+        timeDilationAuraNode?.position = playerPosition
+        timeDilationTimeRemaining = max(
+            0,
+            timeDilationTimeRemaining - max(0, deltaTime)
+        )
+
+        if timeDilationTimeRemaining == 0 {
+            timeDilationAuraNode = nil
+        }
+    }
+
+    private func deactivateTimeDilationAura() {
+        timeDilationTimeRemaining = 0
+        timeDilationAuraNode?.removeFromParent()
+        timeDilationAuraNode = nil
+    }
+
+    private func timeDilationEnemySpeedMultiplier(for enemy: ArenaEnemy, playerPosition: CGPoint) -> CGFloat {
+        guard timeDilationTimeRemaining > 0 else {
+            return 1
+        }
+
+        let radius = max(0, weaponResolver.configuration.timeDilationRadius)
+        guard radius > 0 else {
+            return 1
+        }
+
+        let distance = hypot(enemy.position.x - playerPosition.x, enemy.position.y - playerPosition.y)
+        guard distance < radius else {
+            return 1
+        }
+
+        let closeness = 1 - min(1, max(0, distance / radius))
+        let maximumSlowFactor = max(1, weaponResolver.configuration.timeDilationMaximumSlowFactor)
+        let slowFactor = 1 + closeness * (maximumSlowFactor - 1)
+        return 1 / slowFactor
     }
 
     private func performDirectionalWeapon(_ kind: WeaponKind, from playerPosition: CGPoint) -> Int {
         switch kind {
         case .warpDash:
-            return performWarpDash(from: playerPosition)
+            return 0
         case .ricochetLance:
             return fireRicochetLance(from: playerPosition)
         case .shockwave, .seekerSwarm, .razorShield, .freezeBurst, .gravityWell,
@@ -1461,7 +1560,7 @@ final class ArenaScene: SKScene {
     private func fireRicochetLance(from playerPosition: CGPoint) -> Int {
         let result = RicochetLancePath.resolve(
             origin: playerPosition,
-            direction: warpDashState.resolvedDirection(),
+            direction: aimDirectionState.resolvedDirection(),
             playableRect: currentPlayableRect,
             enemies: weaponTargetableEnemies(),
             configuration: weaponResolver.configuration
@@ -1474,36 +1573,7 @@ final class ArenaScene: SKScene {
 
         return targets.count
     }
-
-    private func updateWarpDashInvulnerability(deltaTime: TimeInterval) {
-        guard warpDashInvulnerabilityTimeRemaining > 0 else {
-            return
-        }
-
-        warpDashInvulnerabilityTimeRemaining = max(
-            0,
-            warpDashInvulnerabilityTimeRemaining - max(0, deltaTime)
-        )
-    }
-
-    private func resolveWarpDashContactKills(playerPosition: CGPoint) {
-        guard warpDashInvulnerabilityTimeRemaining > 0 else {
-            return
-        }
-
-        let targetIDs = WarpDashCollision.contactTargets(
-            playerPosition: playerPosition,
-            playerRadius: runController.configuration.playerHitRadius,
-            enemies: weaponTargetableEnemies()
-        )
-        destroyEnemies(ids: targetIDs, weaponKind: .warpDash)
-    }
-
     private func detectPlayerCollision(playerPosition: CGPoint) {
-        guard warpDashInvulnerabilityTimeRemaining == 0 else {
-            return
-        }
-
         let playerCircle = CollisionCircle(
             center: playerPosition,
             radius: runController.configuration.playerHitRadius
@@ -3706,7 +3776,7 @@ private extension ArenaScene {
         powerWaveState.activate(configuration: weaponResolver.configuration)
         playPowerWaveChargeEffect(
             at: position,
-            direction: warpDashState.resolvedDirection(),
+            direction: aimDirectionState.resolvedDirection(),
             duration: weaponResolver.configuration.powerWaveChargeDuration
         )
     }
@@ -3719,7 +3789,7 @@ private extension ArenaScene {
         let frame = powerWaveState.update(
             deltaTime: deltaTime,
             playerPosition: playerPosition,
-            direction: warpDashState.resolvedDirection(),
+            direction: aimDirectionState.resolvedDirection(),
             playableRect: currentPlayableRect,
             enemies: weaponTargetableEnemies(),
             configuration: weaponResolver.configuration
@@ -3728,7 +3798,7 @@ private extension ArenaScene {
         if frame.isCharging {
             updatePowerWaveChargeEffect(
                 at: playerPosition,
-                direction: warpDashState.resolvedDirection()
+                direction: aimDirectionState.resolvedDirection()
             )
         }
 

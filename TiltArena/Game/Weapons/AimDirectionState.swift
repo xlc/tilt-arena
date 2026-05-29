@@ -1,6 +1,6 @@
 import CoreGraphics
 
-struct WarpDashState {
+struct AimDirectionState {
     private let minimumDirectionMagnitude: CGFloat = 0.05
     private(set) var lastDirection = CGVector(dx: 0, dy: 1)
 

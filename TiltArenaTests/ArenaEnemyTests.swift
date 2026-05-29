@@ -40,6 +40,22 @@ final class ArenaEnemyTests: XCTestCase {
         XCTAssertEqual(enemy.position.x, 240, accuracy: 0.0001)
     }
 
+    func testExternalSpeedMultiplierSlowsMovementWithoutStoppingRamp() {
+        var enemy = ArenaEnemy(
+            id: 1,
+            position: CGPoint(x: 0, y: 0),
+            radius: 8,
+            speed: 100,
+            speedRampPerSecond: 1,
+            maximumSpeedMultiplier: 2
+        )
+
+        enemy.advance(toward: CGPoint(x: 1_000, y: 0), deltaTime: 1, externalSpeedMultiplier: 0.25)
+        enemy.advance(toward: CGPoint(x: 1_000, y: 0), deltaTime: 1, externalSpeedMultiplier: 0.25)
+
+        XCTAssertEqual(enemy.position.x, 75, accuracy: 0.0001)
+    }
+
     func testFormationLineMovesAlongVelocity() {
         var enemy = ArenaEnemy(
             id: 1,
@@ -188,6 +204,15 @@ final class ArenaEnemyTests: XCTestCase {
 
         XCTAssertEqual(enemy.position.x, 15, accuracy: 0.0001)
         XCTAssertEqual(enemy.position.y, 20, accuracy: 0.0001)
+    }
+
+    func testPushAwayMovesOutwardFromSource() {
+        var enemy = ArenaEnemy(id: 1, position: CGPoint(x: 3, y: 4), radius: 8, speed: 0)
+
+        enemy.pushAway(from: .zero, distance: 10)
+
+        XCTAssertEqual(enemy.position.x, 9, accuracy: 0.0001)
+        XCTAssertEqual(enemy.position.y, 12, accuracy: 0.0001)
     }
 
     func testHunterDotUsesPredictedPlayerPosition() {

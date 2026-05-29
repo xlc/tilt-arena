@@ -104,7 +104,7 @@ final class WeaponApplicationCoordinatorTests: XCTestCase {
         }
     }
 
-    func testDirectionalWeaponsDeferSceneSpecificResolution() {
+    func testTimeDilationAuraDefersSceneSpecificResolution() {
         let coordinator = WeaponApplicationCoordinator()
         let enemies = [enemy(id: 1, position: CGPoint(x: 10, y: 0))]
         var rng = SeededGenerator(seed: 1)
@@ -116,7 +116,7 @@ final class WeaponApplicationCoordinatorTests: XCTestCase {
             using: &rng
         )
 
-        XCTAssertEqual(application.effect, .directional(.warpDash))
+        XCTAssertEqual(application.effect, .timeDilationAura)
         XCTAssertEqual(application.log.destroyedCount, 0)
     }
 
