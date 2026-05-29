@@ -9,6 +9,8 @@ enum EnemyBehavior: Equatable {
     case hunterDot(predictionLead: CGFloat, previousTarget: CGPoint?)
     case paddleTrapBar(trapID: Int, remainingLifetime: TimeInterval)
     case paddleTrapDot(trapID: Int, velocity: CGVector, bounds: CGRect, remainingLifetime: TimeInterval)
+    case splitter
+    case splitterChild
 }
 
 struct ArenaEnemy: Equatable, Identifiable {
@@ -23,10 +25,11 @@ struct ArenaEnemy: Equatable, Identifiable {
     var frozenTimeRemaining: TimeInterval = 0
     var thawGraceTimeRemaining: TimeInterval = 0
     var thawGraceDuration: TimeInterval = 0
+    var splitSpawnGraceTimeRemaining: TimeInterval = 0
 
     var formationID: Int? {
         switch behavior {
-        case .chaser, .arrowRush, .mineDot, .hunterDot, .paddleTrapBar, .paddleTrapDot:
+        case .chaser, .arrowRush, .mineDot, .hunterDot, .paddleTrapBar, .paddleTrapDot, .splitter, .splitterChild:
             return nil
         case let .formationLine(_, formationID):
             return formationID
@@ -35,7 +38,7 @@ struct ArenaEnemy: Equatable, Identifiable {
 
     var isLinearPatternEnemy: Bool {
         switch behavior {
-        case .chaser, .mineDot, .hunterDot, .paddleTrapBar, .paddleTrapDot:
+        case .chaser, .mineDot, .hunterDot, .paddleTrapBar, .paddleTrapDot, .splitter, .splitterChild:
             return false
         case .formationLine, .arrowRush:
             return true
@@ -58,11 +61,23 @@ struct ArenaEnemy: Equatable, Identifiable {
         paddleTrapID != nil
     }
 
+    var isSplitter: Bool {
+        behavior == .splitter
+    }
+
+    var isSplitterChild: Bool {
+        behavior == .splitterChild
+    }
+
+    var isSplitProtected: Bool {
+        splitSpawnGraceTimeRemaining > 0
+    }
+
     var paddleTrapID: Int? {
         switch behavior {
         case let .paddleTrapBar(trapID, _), let .paddleTrapDot(trapID, _, _, _):
             return trapID
-        case .chaser, .formationLine, .arrowRush, .mineDot, .hunterDot:
+        case .chaser, .formationLine, .arrowRush, .mineDot, .hunterDot, .splitter, .splitterChild:
             return nil
         }
     }
@@ -71,7 +86,7 @@ struct ArenaEnemy: Equatable, Identifiable {
         switch behavior {
         case let .paddleTrapBar(_, remainingLifetime), let .paddleTrapDot(_, _, _, remainingLifetime):
             return remainingLifetime <= 0
-        case .chaser, .formationLine, .arrowRush, .mineDot, .hunterDot:
+        case .chaser, .formationLine, .arrowRush, .mineDot, .hunterDot, .splitter, .splitterChild:
             return false
         }
     }
@@ -93,7 +108,11 @@ struct ArenaEnemy: Equatable, Identifiable {
     }
 
     var canDamagePlayer: Bool {
-        !isShatterableFrozen
+        !isShatterableFrozen && !isSplitProtected
+    }
+
+    var canBeTargetedByWeapons: Bool {
+        !isSplitProtected
     }
 
     mutating func freeze(duration: TimeInterval, thawGraceDuration: TimeInterval = 0) {
@@ -150,21 +169,12 @@ struct ArenaEnemy: Equatable, Identifiable {
         let clampedDelta = CGFloat(clampedTime)
         let effectiveSpeedMultiplier = movementSpeedMultiplier * max(0, externalSpeedMultiplier)
 
-        if isFrozen {
-            frozenTimeRemaining = max(0, frozenTimeRemaining - clampedTime)
-            if frozenTimeRemaining == 0 {
-                thawGraceTimeRemaining = max(thawGraceTimeRemaining, thawGraceDuration)
-            }
-            return
-        }
-
-        if isThawing {
-            thawGraceTimeRemaining = max(0, thawGraceTimeRemaining - clampedTime)
+        if consumeMovementPause(deltaTime: clampedTime) {
             return
         }
 
         switch behavior {
-        case .chaser:
+        case .chaser, .splitter, .splitterChild:
             advanceChaser(toward: target, deltaTime: clampedDelta, speedMultiplier: effectiveSpeedMultiplier)
             recordMovementTime(clampedTime)
         case let .arrowRush(velocity):
@@ -197,6 +207,28 @@ struct ArenaEnemy: Equatable, Identifiable {
             )
             recordMovementTime(clampedTime)
         }
+    }
+
+    private mutating func consumeMovementPause(deltaTime: TimeInterval) -> Bool {
+        if isFrozen {
+            frozenTimeRemaining = max(0, frozenTimeRemaining - deltaTime)
+            if frozenTimeRemaining == 0 {
+                thawGraceTimeRemaining = max(thawGraceTimeRemaining, thawGraceDuration)
+            }
+            return true
+        }
+
+        if isThawing {
+            thawGraceTimeRemaining = max(0, thawGraceTimeRemaining - deltaTime)
+            return true
+        }
+
+        if isSplitProtected {
+            splitSpawnGraceTimeRemaining = max(0, splitSpawnGraceTimeRemaining - deltaTime)
+            return true
+        }
+
+        return false
     }
 
     private var movementSpeedMultiplier: CGFloat {

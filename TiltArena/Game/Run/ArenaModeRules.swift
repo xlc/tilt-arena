@@ -140,7 +140,10 @@ struct ArenaModeRules {
             maxActivePaddleTraps: 1,
             paddleTrapLifetime: 7,
             paddleTrapBarEnemyCount: 4,
-            paddleTrapDotSpeed: 184
+            paddleTrapDotSpeed: 184,
+            splitterSpawnInterval: 11,
+            splitterSpeed: 88,
+            maxActiveSplitters: 2
         )
         configuration.chaos = EnemyPhaseTuning(
             chaserSpawnInterval: 0.31,
@@ -162,7 +165,10 @@ struct ArenaModeRules {
             maxActivePaddleTraps: 2,
             paddleTrapLifetime: 8,
             paddleTrapBarEnemyCount: 5,
-            paddleTrapDotSpeed: 228
+            paddleTrapDotSpeed: 228,
+            splitterSpawnInterval: 8.2,
+            splitterSpeed: 112,
+            maxActiveSplitters: 3
         )
         configuration.survivalHell = EnemyPhaseTuning(
             chaserSpawnInterval: 0.23,
@@ -184,7 +190,10 @@ struct ArenaModeRules {
             maxActivePaddleTraps: 2,
             paddleTrapLifetime: 8,
             paddleTrapBarEnemyCount: 5,
-            paddleTrapDotSpeed: 258
+            paddleTrapDotSpeed: 258,
+            splitterSpawnInterval: 6.4,
+            splitterSpeed: 136,
+            maxActiveSplitters: 4
         )
         return configuration
     }

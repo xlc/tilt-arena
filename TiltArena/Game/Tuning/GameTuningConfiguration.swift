@@ -334,6 +334,12 @@ enum GameTuningParameterCatalog {
         specs.append(cgFloat("\(sourcePrefix).maximumEnemySpeedMultiplier", group, "enemy max speed multiplier", keyPath.appending(path: \.maximumEnemySpeedMultiplier), 0.05, 1, nil, 2))
         specs.append(cgFloat("\(sourcePrefix).playerSafetyRadius", group, "player safety radius", keyPath.appending(path: \.playerSafetyRadius), 4, 0, nil, 1))
         specs.append(cgFloat("\(sourcePrefix).pickupClearance", group, "pickup clearance", keyPath.appending(path: \.pickupClearance), 1, 0, nil, 1))
+        specs.append(cgFloat("\(sourcePrefix).splitterRadiusScale", group, "splitter radius scale", keyPath.appending(path: \.splitterRadiusScale), 0.05, 1, nil, 2))
+        specs.append(cgFloat("\(sourcePrefix).splitterChildRadiusScale", group, "splitter child radius scale", keyPath.appending(path: \.splitterChildRadiusScale), 0.05, 0.1, nil, 2))
+        specs.append(cgFloat("\(sourcePrefix).splitterChildSpeedScale", group, "splitter child speed scale", keyPath.appending(path: \.splitterChildSpeedScale), 0.05, 0, nil, 2))
+        specs.append(cgFloat("\(sourcePrefix).splitterChildSpawnOffset", group, "splitter child offset", keyPath.appending(path: \.splitterChildSpawnOffset), 1, 0, nil, 1))
+        specs.append(double("\(sourcePrefix).splitterChildGraceDuration", group, "splitter child grace", keyPath.appending(path: \.splitterChildGraceDuration), 0.05, 0, nil, 2))
+        specs.append(cgFloat("\(sourcePrefix).splitterChildPlayerSafetyRadius", group, "splitter child player safety", keyPath.appending(path: \.splitterChildPlayerSafetyRadius), 2, 0, nil, 1))
         specs.append(double("\(sourcePrefix).formationTelegraphDuration", group, "formation telegraph", keyPath.appending(path: \.formationTelegraphDuration), 0.05, 0, nil, 2))
         specs.append(cgFloat("\(sourcePrefix).formationLineInset", group, "formation line inset", keyPath.appending(path: \.formationLineInset), 1, 0, nil, 1))
         specs.append(cgFloat("\(sourcePrefix).formationGapScale", group, "formation gap scale", keyPath.appending(path: \.formationGapScale), 0.05, 0.1, 3, 2))
@@ -393,6 +399,9 @@ enum GameTuningParameterCatalog {
         specs.append(double("\(phasePrefix).paddleTrapLifetime", group, "paddle lifetime", keyPath.appending(path: \.paddleTrapLifetime), 0.5, 0, nil, 2))
         specs.append(int("\(phasePrefix).paddleTrapBarEnemyCount", group, "paddle bar count", keyPath.appending(path: \.paddleTrapBarEnemyCount), 1, 0, nil))
         specs.append(cgFloat("\(phasePrefix).paddleTrapDotSpeed", group, "paddle dot speed", keyPath.appending(path: \.paddleTrapDotSpeed), 2, 0, nil, 1))
+        specs.append(optionalDouble("\(phasePrefix).splitterSpawnInterval", group, "splitter interval", keyPath.appending(path: \.splitterSpawnInterval), 0.5, 0.1, nil, 2))
+        specs.append(cgFloat("\(phasePrefix).splitterSpeed", group, "splitter speed", keyPath.appending(path: \.splitterSpeed), 2, 0, nil, 1))
+        specs.append(int("\(phasePrefix).maxActiveSplitters", group, "max splitters", keyPath.appending(path: \.maxActiveSplitters), 1, 0, nil))
     }
 
     private static func appendPickupParameters(

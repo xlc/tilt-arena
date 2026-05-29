@@ -56,6 +56,9 @@ struct EnemyPhaseTuning: Equatable {
     var paddleTrapLifetime: TimeInterval = 0
     var paddleTrapBarEnemyCount: Int = 0
     var paddleTrapDotSpeed: CGFloat = 0
+    var splitterSpawnInterval: TimeInterval?
+    var splitterSpeed: CGFloat = 0
+    var maxActiveSplitters: Int = 0
 }
 
 struct EnemySpawnConfiguration: Equatable {
@@ -64,6 +67,12 @@ struct EnemySpawnConfiguration: Equatable {
     var maximumEnemySpeedMultiplier: CGFloat = 1.9
     var playerSafetyRadius: CGFloat = 120
     var pickupClearance: CGFloat = 8
+    var splitterRadiusScale: CGFloat = 1.85
+    var splitterChildRadiusScale: CGFloat = 0.85
+    var splitterChildSpeedScale: CGFloat = 0.82
+    var splitterChildSpawnOffset: CGFloat = 18
+    var splitterChildGraceDuration: TimeInterval = 0.75
+    var splitterChildPlayerSafetyRadius: CGFloat = 42
     var formationTelegraphDuration: TimeInterval = 1.1
     var formationLineInset: CGFloat = 28
     var formationGapScale: CGFloat = 0.85
@@ -100,7 +109,10 @@ struct EnemySpawnConfiguration: Equatable {
         maxActiveEnemies: 82,
         formationSpawnInterval: 8.5,
         formationSpeed: 108,
-        formationLaneCount: 5
+        formationLaneCount: 5,
+        splitterSpawnInterval: 14,
+        splitterSpeed: 64,
+        maxActiveSplitters: 2
     )
     var chaos = EnemyPhaseTuning(
         chaserSpawnInterval: 0.46,
@@ -122,7 +134,10 @@ struct EnemySpawnConfiguration: Equatable {
         maxActivePaddleTraps: 1,
         paddleTrapLifetime: 7,
         paddleTrapBarEnemyCount: 4,
-        paddleTrapDotSpeed: 172
+        paddleTrapDotSpeed: 172,
+        splitterSpawnInterval: 10.5,
+        splitterSpeed: 82,
+        maxActiveSplitters: 3
     )
     var survivalHell = EnemyPhaseTuning(
         chaserSpawnInterval: 0.30,
@@ -144,7 +159,10 @@ struct EnemySpawnConfiguration: Equatable {
         maxActivePaddleTraps: 2,
         paddleTrapLifetime: 8,
         paddleTrapBarEnemyCount: 5,
-        paddleTrapDotSpeed: 214
+        paddleTrapDotSpeed: 214,
+        splitterSpawnInterval: 7.8,
+        splitterSpeed: 104,
+        maxActiveSplitters: 4
     )
 
     func tuning(at survivalTime: TimeInterval) -> EnemyPhaseTuning {
@@ -211,7 +229,18 @@ struct EnemySpawnConfiguration: Equatable {
                 next?.tuning.paddleTrapBarEnemyCount,
                 progress
             ),
-            paddleTrapDotSpeed: interpolate(current.tuning.paddleTrapDotSpeed, next?.tuning.paddleTrapDotSpeed, progress)
+            paddleTrapDotSpeed: interpolate(current.tuning.paddleTrapDotSpeed, next?.tuning.paddleTrapDotSpeed, progress),
+            splitterSpawnInterval: interpolateOptional(
+                current.tuning.splitterSpawnInterval,
+                next?.tuning.splitterSpawnInterval,
+                progress
+            ),
+            splitterSpeed: interpolate(current.tuning.splitterSpeed, next?.tuning.splitterSpeed, progress),
+            maxActiveSplitters: interpolateCount(
+                current.tuning.maxActiveSplitters,
+                next?.tuning.maxActiveSplitters,
+                progress
+            )
         )
     }
 

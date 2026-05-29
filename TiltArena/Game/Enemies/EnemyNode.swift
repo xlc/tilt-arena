@@ -61,12 +61,14 @@ private extension EnemyNode {
         let role: VisualRole
         let isFrozen: Bool
         let isThawing: Bool
+        let isSplitProtected: Bool
         let radius: CGFloat
 
         init(enemy: ArenaEnemy) {
             role = VisualRole(enemy: enemy)
             isFrozen = enemy.isFrozen
             isThawing = enemy.isThawing
+            isSplitProtected = enemy.isSplitProtected
             radius = enemy.radius
         }
     }
@@ -76,6 +78,8 @@ private extension EnemyNode {
         case mine
         case hunter
         case paddleTrap
+        case splitter
+        case splitterChild
 
         init(enemy: ArenaEnemy) {
             if enemy.isMineDot {
@@ -84,6 +88,10 @@ private extension EnemyNode {
                 self = .hunter
             } else if enemy.isPaddleTrap {
                 self = .paddleTrap
+            } else if enemy.isSplitter {
+                self = .splitter
+            } else if enemy.isSplitterChild {
+                self = .splitterChild
             } else {
                 self = .chaser
             }
@@ -108,7 +116,7 @@ private extension EnemyNode {
         }
         markerNode.fillColor = .clear
         highlightNode.strokeColor = .clear
-        resetThawAnimation()
+        resetStateAnimations()
         applyBaseStyle()
         applyRoleStyle(enemy)
 
@@ -117,9 +125,18 @@ private extension EnemyNode {
         } else if enemy.isThawing {
             applyThawingStyle()
             startThawAnimation()
+        } else if enemy.isSplitProtected {
+            applySplitProtectedStyle()
+            startSplitProtectedAnimation()
         }
 
-        let isNormalChaser = !enemy.isMineDot && !enemy.isHunterDot && !enemy.isPaddleTrap && !enemy.isShatterableFrozen
+        let isNormalChaser = !enemy.isMineDot
+            && !enemy.isHunterDot
+            && !enemy.isPaddleTrap
+            && !enemy.isSplitter
+            && !enemy.isSplitterChild
+            && !enemy.isShatterableFrozen
+            && !enemy.isSplitProtected
         dangerHaloNode.isHidden = isNormalChaser
         ringNode.isHidden = isNormalChaser
         highlightNode.isHidden = isNormalChaser
@@ -171,6 +188,19 @@ private extension EnemyNode {
             ringNode.lineWidth = 1.5
             bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.82)
             bodyNode.glowWidth = 0.55
+        } else if enemy.isSplitter {
+            ringNode.strokeColor = theme.playerColor.withAlphaComponent(0.78)
+            ringNode.lineWidth = 1.8
+            ringNode.glowWidth = 0.7
+            bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.86)
+            bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.9)
+            bodyNode.glowWidth = 0.8
+        } else if enemy.isSplitterChild {
+            ringNode.strokeColor = theme.playerColor.withAlphaComponent(0.48)
+            ringNode.lineWidth = 1.3
+            bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.76)
+            bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.72)
+            bodyNode.glowWidth = 0.45
         }
     }
 
@@ -202,12 +232,29 @@ private extension EnemyNode {
         highlightNode.fillColor = theme.playerColor.withAlphaComponent(0.2)
     }
 
-    func resetThawAnimation() {
+    func applySplitProtectedStyle() {
+        dangerHaloNode.strokeColor = theme.playerColor.withAlphaComponent(0.36)
+        dangerHaloNode.lineWidth = 1.4
+        ringNode.strokeColor = theme.playerColor.withAlphaComponent(0.54)
+        ringNode.lineWidth = 1.5
+        ringNode.glowWidth = 0.6
+        bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.34)
+        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.54)
+        bodyNode.lineWidth = 1.3
+        bodyNode.glowWidth = 0.5
+        markerNode.strokeColor = theme.playerColor.withAlphaComponent(0.58)
+        highlightNode.fillColor = theme.playerColor.withAlphaComponent(0.18)
+    }
+
+    func resetStateAnimations() {
         dangerHaloNode.removeAction(forKey: "enemy.thaw.halo")
         bodyNode.removeAction(forKey: "enemy.thaw.body")
         ringNode.removeAction(forKey: "enemy.thaw.ring")
         markerNode.removeAction(forKey: "enemy.thaw.marker")
         highlightNode.removeAction(forKey: "enemy.thaw.highlight")
+        dangerHaloNode.removeAction(forKey: "enemy.split.halo")
+        bodyNode.removeAction(forKey: "enemy.split.body")
+        ringNode.removeAction(forKey: "enemy.split.ring")
         dangerHaloNode.alpha = 1
         bodyNode.alpha = 1
         ringNode.alpha = 1
@@ -258,6 +305,27 @@ private extension EnemyNode {
         highlightNode.run(highlightPulse, withKey: "enemy.thaw.highlight")
     }
 
+    func startSplitProtectedAnimation() {
+        let ringPulse = SKAction.repeatForever(.sequence([
+            .group([
+                .scale(to: 1.14, duration: 0.1),
+                .fadeAlpha(to: 0.38, duration: 0.1)
+            ]),
+            .group([
+                .scale(to: 1, duration: 0.1),
+                .fadeAlpha(to: 0.85, duration: 0.1)
+            ])
+        ]))
+        let bodyPulse = SKAction.repeatForever(.sequence([
+            .fadeAlpha(to: 0.5, duration: 0.09),
+            .fadeAlpha(to: 0.88, duration: 0.09)
+        ]))
+
+        dangerHaloNode.run(ringPulse, withKey: "enemy.split.halo")
+        ringNode.run(ringPulse, withKey: "enemy.split.ring")
+        bodyNode.run(bodyPulse, withKey: "enemy.split.body")
+    }
+
     static func bodyPath(for enemy: ArenaEnemy, radius: CGFloat) -> CGPath {
         if enemy.isMineDot {
             return minePath(radius: radius)
@@ -269,6 +337,10 @@ private extension EnemyNode {
 
         if enemy.isPaddleTrap {
             return squarePath(radius: radius)
+        }
+
+        if enemy.isSplitter {
+            return diamondPath(radius: radius)
         }
 
         return circlePath(radius: radius)
@@ -289,6 +361,10 @@ private extension EnemyNode {
 
         if enemy.isPaddleTrap {
             return paddleMarkerPath(radius: radius)
+        }
+
+        if enemy.isSplitter || enemy.isSplitterChild {
+            return splitterMarkerPath(radius: radius)
         }
 
         return nil
@@ -316,6 +392,16 @@ private extension EnemyNode {
             rect: CGRect(x: -side / 2, y: -side / 2, width: side, height: side),
             transform: nil
         )
+    }
+
+    static func diamondPath(radius: CGFloat) -> CGPath {
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: 0, y: radius * 1.05))
+        path.addLine(to: CGPoint(x: radius * 1.05, y: 0))
+        path.addLine(to: CGPoint(x: 0, y: -radius * 1.05))
+        path.addLine(to: CGPoint(x: -radius * 1.05, y: 0))
+        path.closeSubpath()
+        return path
     }
 
     static func minePath(radius: CGFloat) -> CGPath {
@@ -361,6 +447,16 @@ private extension EnemyNode {
             path.move(to: CGPoint(x: -halfWidth, y: y))
             path.addLine(to: CGPoint(x: halfWidth, y: y))
         }
+        return path
+    }
+
+    static func splitterMarkerPath(radius: CGFloat) -> CGPath {
+        let path = CGMutablePath()
+        let halfWidth = radius * 0.42
+        path.move(to: CGPoint(x: -halfWidth, y: radius * 0.24))
+        path.addLine(to: CGPoint(x: halfWidth, y: radius * 0.24))
+        path.move(to: CGPoint(x: -halfWidth, y: -radius * 0.24))
+        path.addLine(to: CGPoint(x: halfWidth, y: -radius * 0.24))
         return path
     }
 

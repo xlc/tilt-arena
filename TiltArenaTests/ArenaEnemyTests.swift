@@ -180,6 +180,39 @@ final class ArenaEnemyTests: XCTestCase {
         XCTAssertEqual(enemy.formationID, 4)
     }
 
+    func testSplitSpawnGracePreventsMovementDamageAndWeaponTargeting() {
+        var enemy = ArenaEnemy(
+            id: 1,
+            position: CGPoint(x: 0, y: 0),
+            radius: 4,
+            speed: 100,
+            behavior: .splitterChild,
+            splitSpawnGraceTimeRemaining: 0.5
+        )
+
+        XCTAssertTrue(enemy.isSplitterChild)
+        XCTAssertTrue(enemy.isSplitProtected)
+        XCTAssertFalse(enemy.canDamagePlayer)
+        XCTAssertFalse(enemy.canBeTargetedByWeapons)
+
+        enemy.advance(toward: CGPoint(x: 100, y: 0), deltaTime: 0.25)
+
+        XCTAssertEqual(enemy.position.x, 0, accuracy: 0.0001)
+        XCTAssertTrue(enemy.isSplitProtected)
+        XCTAssertFalse(enemy.canDamagePlayer)
+
+        enemy.advance(toward: CGPoint(x: 100, y: 0), deltaTime: 0.25)
+
+        XCTAssertEqual(enemy.position.x, 0, accuracy: 0.0001)
+        XCTAssertFalse(enemy.isSplitProtected)
+        XCTAssertTrue(enemy.canDamagePlayer)
+        XCTAssertTrue(enemy.canBeTargetedByWeapons)
+
+        enemy.advance(toward: CGPoint(x: 100, y: 0), deltaTime: 0.1)
+
+        XCTAssertEqual(enemy.position.x, 10, accuracy: 0.0001)
+    }
+
     func testGravityPullMovesTowardTargetWithoutOvershootingAndCanMoveFrozenEnemies() {
         var enemy = ArenaEnemy(id: 1, position: CGPoint(x: 0, y: 0), radius: 8, speed: 0)
 

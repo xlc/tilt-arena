@@ -41,16 +41,18 @@ struct EnemySpawnDirector {
     var nextEnemyID = 1
     private(set) var nextFormationID = 1
     var nextTelegraphID = 1
-    private var nextChaserCandidateIndex = 0
+    var nextChaserCandidateIndex = 0
     private var nextFormationDirectionIndex = 0
+    var nextSplitterCandidateIndex = 0
     var nextArrowRushDirectionIndex = 0
     var nextMineDotCandidateIndex = 0
     var nextHunterDotCandidateIndex = 0
     var nextPaddleTrapCandidateIndex = 0
     var nextPaddleTrapOrientationIndex = 0
     var nextPaddleTrapID = 1
-    private var timeUntilNextChaser: TimeInterval = 0
+    var timeUntilNextChaser: TimeInterval = 0
     private var timeUntilNextFormation: TimeInterval = 0
+    var timeUntilNextSplitter: TimeInterval = 0
     var timeUntilNextArrowRush: TimeInterval = 0
     var timeUntilNextMineDot: TimeInterval = 0
     var timeUntilNextHunterDot: TimeInterval = 0
@@ -94,6 +96,7 @@ struct EnemySpawnDirector {
         nextTelegraphID = 1
         nextChaserCandidateIndex = 0
         nextFormationDirectionIndex = 0
+        nextSplitterCandidateIndex = 0
         nextArrowRushDirectionIndex = 0
         nextMineDotCandidateIndex = 0
         nextHunterDotCandidateIndex = 0
@@ -102,6 +105,7 @@ struct EnemySpawnDirector {
         nextPaddleTrapID = 1
         timeUntilNextChaser = 0
         timeUntilNextFormation = 0
+        timeUntilNextSplitter = 0
         timeUntilNextArrowRush = 0
         timeUntilNextMineDot = 0
         timeUntilNextHunterDot = 0
@@ -144,6 +148,10 @@ struct EnemySpawnDirector {
             frame: &frame
         )
 
+        spawnSplitterIfNeeded(
+            projectedEnemyCount: activeEnemyCount + frame.newEnemies.count + pendingEnemyCount, context: context, frame: &frame
+        )
+
         spawnFormationTelegraphIfNeeded(
             projectedEnemyCount: activeEnemyCount + frame.newEnemies.count + pendingEnemyCount,
             context: context,
@@ -177,15 +185,17 @@ struct EnemySpawnDirector {
     func isSafeSpawn(
         _ position: CGPoint,
         avoiding playerPosition: CGPoint,
-        pickupCircles: [CollisionCircle] = []
+        pickupCircles: [CollisionCircle] = [],
+        enemyRadius: CGFloat? = nil
     ) -> Bool {
-        let playerClearance = configuration.playerSafetyRadius + configuration.enemyRadius
+        let spawnRadius = enemyRadius ?? configuration.enemyRadius
+        let playerClearance = configuration.playerSafetyRadius + spawnRadius
         guard ArenaGeometry.squaredDistance(from: position, to: playerPosition) >= playerClearance * playerClearance else {
             return false
         }
 
         return pickupCircles.allSatisfy { pickupCircle in
-            let clearance = pickupCircle.radius + configuration.enemyRadius + configuration.pickupClearance
+            let clearance = pickupCircle.radius + spawnRadius + configuration.pickupClearance
             return ArenaGeometry.squaredDistance(from: position, to: pickupCircle.center) >= clearance * clearance
         }
     }
@@ -223,70 +233,6 @@ struct EnemySpawnDirector {
         }
     }
 
-    private mutating func spawnChasersIfNeeded(
-        projectedEnemyCount: Int,
-        context: SpawnContext,
-        frame: inout EnemySpawnFrame
-    ) {
-        guard context.deltaTime > 0, context.tuning.chaserSpawnInterval > 0 else {
-            return
-        }
-
-        guard projectedEnemyCount < context.tuning.maxActiveEnemies else {
-            timeUntilNextChaser = max(timeUntilNextChaser, context.tuning.chaserSpawnInterval)
-            return
-        }
-
-        timeUntilNextChaser -= context.deltaTime
-        var projectedEnemyCount = projectedEnemyCount
-
-        while timeUntilNextChaser <= 0, projectedEnemyCount < context.tuning.maxActiveEnemies {
-            guard let enemy = spawnChaser(
-                in: context.playableRect,
-                avoiding: context.playerPosition,
-                pickupCircles: context.pickupCircles,
-                tuning: context.tuning
-            ) else {
-                timeUntilNextChaser = context.tuning.chaserSpawnInterval
-                return
-            }
-
-            frame.newEnemies.append(enemy)
-            projectedEnemyCount += 1
-            timeUntilNextChaser += context.tuning.chaserSpawnInterval
-        }
-    }
-
-    private mutating func spawnChaser(
-        in playableRect: CGRect,
-        avoiding playerPosition: CGPoint,
-        pickupCircles: [CollisionCircle],
-        tuning: EnemyPhaseTuning
-    ) -> ArenaEnemy? {
-        guard playableRect.width > 0, playableRect.height > 0 else {
-            return nil
-        }
-
-        for _ in 0..<(Self.candidateSideCount * Self.candidateLaneCount) {
-            let position = candidatePosition(in: playableRect, index: nextChaserCandidateIndex)
-            nextChaserCandidateIndex += 1
-
-            guard isSafeSpawn(position, avoiding: playerPosition, pickupCircles: pickupCircles) else {
-                continue
-            }
-
-            let enemy = movingEnemy(
-                id: nextEnemyID,
-                position: position,
-                speed: tuning.chaserSpeed
-            )
-            nextEnemyID += 1
-            return enemy
-        }
-
-        return nil
-    }
-
     private mutating func applySequenceSeed(_ seed: Int?) {
         guard let seed else {
             return
@@ -294,6 +240,7 @@ struct EnemySpawnDirector {
 
         nextChaserCandidateIndex = positiveModulo(seed, Self.candidateSideCount * Self.candidateLaneCount)
         nextFormationDirectionIndex = positiveModulo(seed / 3, EdgeDirection.allCases.count)
+        nextSplitterCandidateIndex = positiveModulo(seed / 19, Self.candidateSideCount * Self.candidateLaneCount)
         nextArrowRushDirectionIndex = positiveModulo(seed / 5, EdgeDirection.allCases.count)
         nextMineDotCandidateIndex = positiveModulo(seed / 7, Self.candidateSideCount * Self.candidateLaneCount)
         nextHunterDotCandidateIndex = positiveModulo(seed / 11, Self.candidateSideCount * Self.candidateLaneCount)
@@ -623,13 +570,14 @@ extension EnemySpawnDirector {
     func movingEnemy(
         id: Int,
         position: CGPoint,
+        radius: CGFloat? = nil,
         speed: CGFloat,
         behavior: EnemyBehavior = .chaser
     ) -> ArenaEnemy {
         ArenaEnemy(
             id: id,
             position: position,
-            radius: configuration.enemyRadius,
+            radius: radius ?? configuration.enemyRadius,
             speed: speed,
             speedRampPerSecond: configuration.enemySpeedRampPerSecond,
             maximumSpeedMultiplier: configuration.maximumEnemySpeedMultiplier,

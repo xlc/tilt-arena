@@ -1160,7 +1160,7 @@ final class ArenaScene: SKScene {
         }
 
         destroyEnemies(
-            ids: weaponResolver.seekerExplosionTargets(center: target.position, enemies: enemies),
+            ids: weaponResolver.seekerExplosionTargets(center: target.position, enemies: weaponTargetableEnemies()),
             weaponKind: .seekerSwarm
         )
     }
@@ -1191,7 +1191,7 @@ final class ArenaScene: SKScene {
     }
 
     private func weaponTargetableEnemies() -> [ArenaEnemy] {
-        enemies.filter { !pendingWeaponImpactEnemyIDs.contains($0.id) }
+        enemies.filter { !pendingWeaponImpactEnemyIDs.contains($0.id) && $0.canBeTargetedByWeapons }
     }
 
     private func impactTargets(forEnemyIDs enemyIDs: Set<Int>) -> [WeaponImpactTarget] {
@@ -1237,6 +1237,8 @@ final class ArenaScene: SKScene {
             return
         }
 
+        let destroyedEnemies = enemies.filter { enemyIDs.contains($0.id) }
+        let splitChildren = splitterChildren(from: destroyedEnemies)
         pendingWeaponImpactEnemyIDs.subtract(enemyIDs)
         let previousComboMultiplier = runController.comboMultiplier
         runController.recordEnemyKills(count: enemyIDs.count, weaponKind: weaponKind)
@@ -1259,6 +1261,33 @@ final class ArenaScene: SKScene {
             )
         }
         removeEnemies(ids: enemyIDs)
+        addSplitterChildren(splitChildren)
+    }
+
+    private func splitterChildren(from destroyedEnemies: [ArenaEnemy]) -> [ArenaEnemy] {
+        let playerPosition = movementController.state.position
+        return destroyedEnemies.flatMap { enemy in
+            spawnDirector.splitChildren(
+                for: enemy,
+                playableRect: currentPlayableRect,
+                playerPosition: playerPosition
+            )
+        }
+    }
+
+    private func addSplitterChildren(_ children: [ArenaEnemy]) {
+        let maxActiveEnemies = spawnDirector.configuration.tuning(at: runController.survivalTime).maxActiveEnemies
+        let availableSlots = max(0, maxActiveEnemies - enemies.count)
+        let childrenToAdd = Array(children.prefix(availableSlots))
+
+        guard !childrenToAdd.isEmpty else {
+            return
+        }
+
+        AppDiagnostics.logger(.spawn).info("enemy.split", metadata: [
+            "children": "\(childrenToAdd.count)"
+        ])
+        addSpawnedEnemies(childrenToAdd)
     }
 
     private func reportGameCenterAchievementEvent(_ event: GameCenterAchievementEvent) {
@@ -1366,7 +1395,7 @@ final class ArenaScene: SKScene {
 
         let targetIDs = weaponResolver.shieldTargets(
             playerPosition: playerPosition,
-            enemies: enemies
+            enemies: weaponTargetableEnemies()
         ).subtracting(pendingWeaponImpactEnemyIDs)
         let targets = impactTargets(forEnemyIDs: targetIDs)
         markPendingWeaponImpacts(targets)
@@ -1434,7 +1463,11 @@ final class ArenaScene: SKScene {
     }
 
     private func updateFlameTrail(deltaTime: TimeInterval, playerPosition: CGPoint) {
-        let frame = flameTrailState.update(deltaTime: deltaTime, playerPosition: playerPosition, enemies: enemies)
+        let frame = flameTrailState.update(
+            deltaTime: deltaTime,
+            playerPosition: playerPosition,
+            enemies: weaponTargetableEnemies()
+        )
         let targetIDs = frame.burnedEnemyIDs.subtracting(pendingWeaponImpactEnemyIDs)
         let targets = impactTargets(forEnemyIDs: targetIDs)
         markPendingWeaponImpacts(targets)
@@ -3901,6 +3934,8 @@ private extension ArenaScene {
         guard !shatterIDs.isEmpty else {
             return
         }
+        let shatteredEnemies = enemies.filter { shatterIDs.contains($0.id) }
+        let splitChildren = splitterChildren(from: shatteredEnemies)
         playFrozenShatterEffect(at: positions(forEnemyIDs: shatterIDs), color: theme.playerColor)
         let previousComboMultiplier = runController.comboMultiplier
         runController.recordEnemyKills(count: shatterIDs.count, weaponKind: .freezeBurst)
@@ -3913,6 +3948,7 @@ private extension ArenaScene {
             )
         }
         removeEnemies(ids: shatterIDs)
+        addSplitterChildren(splitChildren)
     }
 
     func canShatterOnContact(_ enemy: ArenaEnemy) -> Bool {

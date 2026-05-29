@@ -39,6 +39,11 @@ final class EnemySpawnDirectorTests: XCTestCase {
             try XCTUnwrap(configuration.tuning(at: 90).mineDotSpawnInterval),
             try XCTUnwrap(configuration.tuning(at: 135).mineDotSpawnInterval)
         )
+        XCTAssertNil(configuration.tuning(at: 15).splitterSpawnInterval)
+        XCTAssertGreaterThan(
+            try XCTUnwrap(configuration.tuning(at: 30).splitterSpawnInterval),
+            try XCTUnwrap(configuration.tuning(at: 60).splitterSpawnInterval)
+        )
     }
 
     func testDefaultEnemyRadiusKeepsDotCompact() {
