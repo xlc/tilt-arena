@@ -37,6 +37,7 @@ final class ArenaScene: SKScene {
     private let tiltSettingsStore: TiltSettingsStore
     private let runProfileStore: RunProfileStore
     private let localOptionsStore: ArenaLocalOptionsStore
+    private let gameTuningStore: GameTuningStore
     private let hapticsController = ArenaHapticsController()
     private let audioController = ArenaAudioController()
     private var arenaRoot = SKNode()
@@ -61,6 +62,9 @@ final class ArenaScene: SKScene {
     private var hasPersistedFinalRun = false
     private var isResolvingDeath = false
     private var developerTuningPageIndex = 0
+    private var developerTuningSelectedGroup: String?
+    private var developerTuningSelectedSubgroup: String?
+    private var developerTuningChangedOnly = false
     private var developerTuningCopyConfirmation: String?
     private var deathReplayTrace = DeathReplayTrace()
     private var lastDeathCollisionSnapshot: DeathCollisionSnapshot?
@@ -121,6 +125,7 @@ final class ArenaScene: SKScene {
         tiltSettingsStore = TiltSettingsStore()
         runProfileStore = RunProfileStore()
         localOptionsStore = ArenaLocalOptionsStore()
+        gameTuningStore = GameTuningStore()
         super.init(size: size)
         configureSceneDefaults()
     }
@@ -129,16 +134,21 @@ final class ArenaScene: SKScene {
         size: CGSize,
         tiltSettingsStore: TiltSettingsStore,
         runProfileStore: RunProfileStore = RunProfileStore(),
-        localOptionsStore: ArenaLocalOptionsStore = ArenaLocalOptionsStore()
+        localOptionsStore: ArenaLocalOptionsStore = ArenaLocalOptionsStore(),
+        gameTuningStore: GameTuningStore = GameTuningStore()
     ) {
         self.tiltSettingsStore = tiltSettingsStore
         self.runProfileStore = runProfileStore
         self.localOptionsStore = localOptionsStore
+        self.gameTuningStore = gameTuningStore
         super.init(size: size)
         configureSceneDefaults()
     }
 
     private func configureSceneDefaults() {
+        #if DEBUG
+        gameTuning = gameTuningStore.tuning
+        #endif
         applyGameTuning()
         anchorPoint = .zero
         backgroundColor = theme.backgroundColor
@@ -2064,68 +2074,93 @@ private extension ArenaScene {
     func renderDeveloperTuning() {
         let layout = currentLandscapeLayout()
         let contentFrame = addMenuChrome(title: "DEV TUNING", layout: layout)
+        let changedCount = gameTuning.changedParameters().count
 
+        renderDeveloperTuningHeaderActions(layout: layout, changedCount: changedCount)
+
+        let menu = currentDeveloperTuningMenu()
+        let frames = developerTuningFrames(in: contentFrame)
+        renderDeveloperTuningSelector(
+            title: "GROUP",
+            items: menu.groups,
+            selected: menu.selectedGroup,
+            frame: frames.group,
+            action: { .selectTuningGroup($0) }
+        )
+        renderDeveloperTuningSelector(
+            title: "SUBGROUP",
+            items: menu.subgroups,
+            selected: menu.selectedSubgroup,
+            frame: frames.subgroup,
+            action: { .selectTuningSubgroup($0) }
+        )
+        renderDeveloperTuningParameterList(
+            menu.parameters,
+            selectedGroup: menu.selectedGroup,
+            selectedSubgroup: menu.selectedSubgroup,
+            frame: frames.parameters
+        )
+    }
+
+    func renderDeveloperTuningHeaderActions(layout: ArenaLandscapeUILayout, changedCount: Int) {
         addButton(
-            "COPY ALL",
-            frame: CGRect(x: layout.safeRect.maxX - 136, y: layout.safeRect.maxY - 48, width: 122, height: 34),
+            "COPY",
+            frame: CGRect(x: layout.safeRect.maxX - 246, y: layout.safeRect.maxY - 48, width: 66, height: 34),
             action: .copyTuningParameters,
-            style: .primary
+            style: changedCount == 0 ? .secondary : .primary
+        )
+        addButton(
+            developerTuningChangedOnly ? "CHANGED" : "ALL",
+            frame: CGRect(x: layout.safeRect.maxX - 174, y: layout.safeRect.maxY - 48, width: 98, height: 34),
+            action: .toggleDeveloperTuningChangedOnly,
+            style: developerTuningChangedOnly ? .primary : .secondary
+        )
+        addButton(
+            "RESET",
+            frame: CGRect(x: layout.safeRect.maxX - 68, y: layout.safeRect.maxY - 48, width: 54, height: 34),
+            action: .resetTuningParameters,
+            style: changedCount == 0 ? .secondary : .danger
         )
 
         if let developerTuningCopyConfirmation {
             addLabel(
                 developerTuningCopyConfirmation,
-                at: CGPoint(x: layout.safeRect.maxX - 150, y: layout.safeRect.maxY - 66),
+                at: CGPoint(x: layout.safeRect.maxX - 14, y: layout.safeRect.maxY - 66),
                 fontSize: 9,
                 color: theme.playerAccentColor,
                 alignment: .right
             )
         }
+    }
 
-        let parameters = GameTuningParameterCatalog.parameters
-        let pageSize = developerTuningPageSize(in: contentFrame)
-        let pageCount = max(1, Int(ceil(Double(parameters.count) / Double(pageSize))))
-        developerTuningPageIndex = min(max(0, developerTuningPageIndex), pageCount - 1)
-
-        let pageStart = developerTuningPageIndex * pageSize
-        let pageEnd = min(parameters.count, pageStart + pageSize)
-        let visibleParameters = Array(parameters[pageStart..<pageEnd])
-        let controlsY = contentFrame.maxY - 28
-
-        addButton(
-            "<",
-            frame: CGRect(x: contentFrame.minX, y: controlsY - 15, width: 38, height: 30),
-            action: .developerTuningPreviousPage,
-            style: developerTuningPageIndex == 0 ? .secondary : .primary
+    private func developerTuningFrames(in contentFrame: CGRect) -> DeveloperTuningFrames {
+        let columnGap: CGFloat = contentFrame.width < 620 ? 8 : 12
+        let groupWidth = min(126, max(102, contentFrame.width * 0.2))
+        let subgroupWidth = min(148, max(116, contentFrame.width * 0.23))
+        let group = CGRect(
+            x: contentFrame.minX,
+            y: contentFrame.minY,
+            width: groupWidth,
+            height: contentFrame.height
         )
-        addButton(
-            ">",
-            frame: CGRect(x: contentFrame.minX + 48, y: controlsY - 15, width: 38, height: 30),
-            action: .developerTuningNextPage,
-            style: developerTuningPageIndex + 1 >= pageCount ? .secondary : .primary
+        let subgroup = CGRect(
+            x: group.maxX + columnGap,
+            y: contentFrame.minY,
+            width: subgroupWidth,
+            height: contentFrame.height
         )
-        addSmallLabel(
-            "PAGE \(developerTuningPageIndex + 1)/\(pageCount)  \(parameters.count) VALUES",
-            at: CGPoint(x: contentFrame.minX + 104, y: controlsY),
-            color: theme.borderColor,
-            alignment: .left
+        let parameters = CGRect(
+            x: subgroup.maxX + columnGap,
+            y: contentFrame.minY,
+            width: max(0, contentFrame.maxX - subgroup.maxX - columnGap),
+            height: contentFrame.height
         )
 
-        let rowHeight = developerTuningRowHeight(in: contentFrame)
-        let rowStartY = contentFrame.maxY - 58
-        for (index, parameter) in visibleParameters.enumerated() {
-            let rowFrame = CGRect(
-                x: contentFrame.minX,
-                y: rowStartY - CGFloat(index + 1) * rowHeight,
-                width: contentFrame.width,
-                height: rowHeight - 4
-            )
-            renderDeveloperTuningRow(parameter, frame: rowFrame)
-        }
+        return DeveloperTuningFrames(group: group, subgroup: subgroup, parameters: parameters)
     }
 
     func developerTuningPageSize(in frame: CGRect) -> Int {
-        let usableHeight = max(0, frame.height - 62)
+        let usableHeight = max(0, frame.height - 76)
         return max(1, Int(floor(usableHeight / developerTuningRowHeight(in: frame))))
     }
 
@@ -2133,25 +2168,270 @@ private extension ArenaScene {
         frame.height < 230 ? 28 : 32
     }
 
-    func renderDeveloperTuningRow(_ parameter: GameTuningParameterSpec, frame: CGRect) {
-        addPanel(
-            frame: frame,
-            stroke: theme.borderColor.withAlphaComponent(0.28),
-            fill: theme.backgroundColor.withAlphaComponent(0.42)
+    private func currentDeveloperTuningMenu() -> DeveloperTuningMenu {
+        let groups = GameTuningParameterCatalog.groupNames(
+            changedOnly: developerTuningChangedOnly,
+            tuning: gameTuning
+        )
+        if developerTuningSelectedGroup.map({ !groups.contains($0) }) ?? true {
+            developerTuningSelectedGroup = groups.first
+            developerTuningPageIndex = 0
+        }
+
+        guard let selectedGroup = developerTuningSelectedGroup else {
+            developerTuningSelectedSubgroup = nil
+            return DeveloperTuningMenu(
+                groups: groups,
+                selectedGroup: nil,
+                subgroups: [],
+                selectedSubgroup: nil,
+                parameters: []
+            )
+        }
+
+        let subgroups = GameTuningParameterCatalog.subgroupNames(
+            in: selectedGroup,
+            changedOnly: developerTuningChangedOnly,
+            tuning: gameTuning
+        )
+        if developerTuningSelectedSubgroup.map({ !subgroups.contains($0) }) ?? true {
+            developerTuningSelectedSubgroup = subgroups.first
+            developerTuningPageIndex = 0
+        }
+
+        guard let selectedSubgroup = developerTuningSelectedSubgroup else {
+            return DeveloperTuningMenu(
+                groups: groups,
+                selectedGroup: selectedGroup,
+                subgroups: subgroups,
+                selectedSubgroup: nil,
+                parameters: []
+            )
+        }
+
+        let parameters = GameTuningParameterCatalog.parameters(
+            in: selectedGroup,
+            subgroup: selectedSubgroup,
+            changedOnly: developerTuningChangedOnly,
+            tuning: gameTuning
         )
 
-        let compact = frame.width < 560
+        return DeveloperTuningMenu(
+            groups: groups,
+            selectedGroup: selectedGroup,
+            subgroups: subgroups,
+            selectedSubgroup: selectedSubgroup,
+            parameters: parameters
+        )
+    }
+
+    func renderDeveloperTuningSelector(
+        title: String,
+        items: [String],
+        selected: String?,
+        frame: CGRect,
+        action: (String) -> ArenaControlAction
+    ) {
+        addPanel(frame: frame)
+        addSectionLabel(title, at: CGPoint(x: frame.minX + 10, y: frame.maxY - 15))
+
+        guard !items.isEmpty else {
+            addLabel(
+                "NONE",
+                at: CGPoint(x: frame.minX + 10, y: frame.maxY - 42),
+                fontSize: 9,
+                color: theme.borderColor.withAlphaComponent(0.75),
+                alignment: .left
+            )
+            return
+        }
+
+        let headerHeight: CGFloat = 22
+        let bottomPadding: CGFloat = 6
+        let rowGap: CGFloat = 2
+        let rowHeight = min(
+            28,
+            max(
+                10,
+                (
+                    frame.height - headerHeight - bottomPadding - CGFloat(max(0, items.count - 1)) * rowGap
+                ) / CGFloat(items.count)
+            )
+        )
+        let rowFontSize = min(10, max(6.8, rowHeight * 0.42))
+
+        for (index, item) in items.enumerated() {
+            let rowFrame = CGRect(
+                x: frame.minX + 6,
+                y: frame.maxY - headerHeight - CGFloat(index + 1) * rowHeight - CGFloat(index) * rowGap,
+                width: frame.width - 12,
+                height: rowHeight
+            )
+            let isSelected = item == selected
+            addPanel(
+                frame: rowFrame,
+                stroke: isSelected ? theme.playerAccentColor.withAlphaComponent(0.85) : theme.borderColor.withAlphaComponent(0.26),
+                fill: isSelected ? theme.playerAccentColor.withAlphaComponent(0.11) : theme.backgroundColor.withAlphaComponent(0.28)
+            )
+            addLabel(
+                truncatedMenuText(item.uppercased(), fontSize: rowFontSize, width: rowFrame.width - 14),
+                at: CGPoint(x: rowFrame.minX + 7, y: rowFrame.midY),
+                fontSize: rowFontSize,
+                color: isSelected ? theme.playerAccentColor : theme.playerColor.withAlphaComponent(0.82),
+                alignment: .left
+            )
+            uiHitTargets.append(ArenaControlHitTarget(action: action(item), frame: rowFrame))
+        }
+    }
+
+    func renderDeveloperTuningParameterList(
+        _ parameters: [GameTuningParameterSpec],
+        selectedGroup: String?,
+        selectedSubgroup: String?,
+        frame: CGRect
+    ) {
+        addPanel(frame: frame)
+
+        let changedCount = gameTuning.changedParameters().count
+        renderDeveloperTuningParameterHeader(
+            selectedGroup: selectedGroup,
+            selectedSubgroup: selectedSubgroup,
+            frame: frame,
+            changedCount: changedCount
+        )
+
+        guard !parameters.isEmpty else {
+            renderDeveloperTuningEmptyParameterList(in: frame)
+            return
+        }
+
+        let pageSize = developerTuningPageSize(in: frame)
+        let pageCount = max(1, Int(ceil(Double(parameters.count) / Double(pageSize))))
+        developerTuningPageIndex = min(max(0, developerTuningPageIndex), pageCount - 1)
+
+        renderDeveloperTuningPageControls(
+            pageCount: pageCount,
+            parameterCount: parameters.count,
+            frame: frame
+        )
+        renderDeveloperTuningRows(parameters, pageSize: pageSize, frame: frame)
+    }
+
+    func renderDeveloperTuningParameterHeader(
+        selectedGroup: String?,
+        selectedSubgroup: String?,
+        frame: CGRect,
+        changedCount: Int
+    ) {
+        let heading = [selectedGroup, selectedSubgroup].compactMap { $0 }.joined(separator: " / ")
+        let headingText = heading.isEmpty ? "NO PARAMETERS" : heading.uppercased()
         addLabel(
-            parameter.group.uppercased(),
-            at: CGPoint(x: frame.minX + 10, y: frame.midY),
-            fontSize: compact ? 7 : 8,
-            color: theme.borderColor.withAlphaComponent(0.8),
+            truncatedMenuText(headingText, fontSize: 10, width: frame.width - 116),
+            at: CGPoint(x: frame.minX + 10, y: frame.maxY - 17),
+            fontSize: 10,
+            color: theme.playerColor,
             alignment: .left
         )
         addLabel(
-            parameter.title.uppercased(),
-            at: CGPoint(x: frame.minX + (compact ? 86 : 126), y: frame.midY),
-            fontSize: compact ? 8 : 9,
+            "\(changedCount) CHANGED",
+            at: CGPoint(x: frame.maxX - 10, y: frame.maxY - 17),
+            fontSize: 8,
+            color: changedCount == 0 ? theme.borderColor : theme.playerAccentColor,
+            alignment: .right
+        )
+    }
+
+    func renderDeveloperTuningEmptyParameterList(in frame: CGRect) {
+        addLabel(
+            developerTuningChangedOnly ? "NO CHANGED PARAMETERS" : "NO PARAMETERS",
+            at: CGPoint(x: frame.midX, y: frame.midY),
+            fontSize: 11,
+            color: theme.borderColor.withAlphaComponent(0.78),
+            alignment: .center
+        )
+    }
+
+    func renderDeveloperTuningPageControls(pageCount: Int, parameterCount: Int, frame: CGRect) {
+        let controlsY = frame.maxY - 46
+        addButton(
+            "<",
+            frame: CGRect(x: frame.minX + 10, y: controlsY - 13, width: 34, height: 26),
+            action: .developerTuningPreviousPage,
+            style: developerTuningPageIndex == 0 ? .secondary : .primary
+        )
+        addButton(
+            ">",
+            frame: CGRect(x: frame.minX + 52, y: controlsY - 13, width: 34, height: 26),
+            action: .developerTuningNextPage,
+            style: developerTuningPageIndex + 1 >= pageCount ? .secondary : .primary
+        )
+        addLabel(
+            "PAGE \(developerTuningPageIndex + 1)/\(pageCount)  \(parameterCount) VALUES",
+            at: CGPoint(x: frame.minX + 98, y: controlsY),
+            fontSize: 8,
+            color: theme.borderColor,
+            alignment: .left
+        )
+    }
+
+    func renderDeveloperTuningRows(
+        _ parameters: [GameTuningParameterSpec],
+        pageSize: Int,
+        frame: CGRect
+    ) {
+        let pageStart = developerTuningPageIndex * pageSize
+        let pageEnd = min(parameters.count, pageStart + pageSize)
+        let visibleParameters = Array(parameters[pageStart..<pageEnd])
+        let rowHeight = developerTuningRowHeight(in: frame)
+        let rowStartY = frame.maxY - 68
+        for (index, parameter) in visibleParameters.enumerated() {
+            let rowFrame = CGRect(
+                x: frame.minX + 8,
+                y: rowStartY - CGFloat(index + 1) * rowHeight,
+                width: frame.width - 16,
+                height: rowHeight - 4
+            )
+            renderDeveloperTuningRow(parameter, frame: rowFrame)
+        }
+    }
+
+    func truncatedMenuText(_ text: String, fontSize: CGFloat, width: CGFloat) -> String {
+        let maxCharacters = max(1, Int(width / max(1, fontSize * 0.62)))
+        guard text.count > maxCharacters else {
+            return text
+        }
+        guard maxCharacters > 3 else {
+            return String(text.prefix(maxCharacters))
+        }
+
+        return "\(text.prefix(maxCharacters - 3))..."
+    }
+
+    func renderDeveloperTuningRow(_ parameter: GameTuningParameterSpec, frame: CGRect) {
+        let isChanged = gameTuning.isChanged(parameter)
+        addPanel(
+            frame: frame,
+            stroke: isChanged ? theme.playerAccentColor.withAlphaComponent(0.62) : theme.borderColor.withAlphaComponent(0.28),
+            fill: isChanged ? theme.playerAccentColor.withAlphaComponent(0.08) : theme.backgroundColor.withAlphaComponent(0.42)
+        )
+
+        let compact = frame.width < 320
+        if isChanged {
+            addLabel(
+                "*",
+                at: CGPoint(x: frame.minX + 10, y: frame.midY),
+                fontSize: 11,
+                color: theme.playerAccentColor,
+                alignment: .left
+            )
+        }
+        let titleFontSize: CGFloat = compact ? 8 : 9
+        let titleX = frame.minX + (isChanged ? 24 : 12)
+        let titleMaxWidth = max(44, frame.maxX - titleX - 124)
+        addLabel(
+            truncatedMenuText(parameter.title.uppercased(), fontSize: titleFontSize, width: titleMaxWidth),
+            at: CGPoint(x: titleX, y: frame.midY),
+            fontSize: titleFontSize,
             color: theme.playerColor,
             alignment: .left
         )
@@ -2731,8 +3011,12 @@ private extension ArenaScene {
             performOptionsAction(action)
         case .developerTuningPreviousPage,
                 .developerTuningNextPage,
+                .selectTuningGroup,
+                .selectTuningSubgroup,
+                .toggleDeveloperTuningChangedOnly,
                 .adjustTuningParameter,
-                .copyTuningParameters:
+                .copyTuningParameters,
+                .resetTuningParameters:
             performDeveloperTuningAction(action)
         }
     }
@@ -2781,17 +3065,27 @@ private extension ArenaScene {
         case .home:
             resetMenuPreviewIfNeeded()
             show(.home)
-        case .back where uiState == .calibrationPreview:
-            tiltInputController.resetSmoothedInput()
-            show(calibrationReturnState)
-        case .back where uiState == .developerTuning:
-            developerTuningCopyConfirmation = nil
-            show(developerReturnState)
         case .back:
-            show(uiState == .options ? optionsReturnState : .home)
+            performBackNavigation()
         default:
             break
         }
+    }
+
+    func performBackNavigation() {
+        if uiState == .calibrationPreview {
+            tiltInputController.resetSmoothedInput()
+            show(calibrationReturnState)
+            return
+        }
+
+        if uiState == .developerTuning {
+            developerTuningCopyConfirmation = nil
+            show(developerReturnState)
+            return
+        }
+
+        show(uiState == .options ? optionsReturnState : .home)
     }
 
     func performRunControlAction(_ action: ArenaControlAction) {
@@ -2842,32 +3136,80 @@ private extension ArenaScene {
             developerTuningPageIndex = max(0, developerTuningPageIndex - 1)
             rebuildUI()
         case .developerTuningNextPage:
-            let pageSize = developerTuningPageSize(in: menuContentFrame(layout: currentLandscapeLayout()))
-            let pageCount = max(
-                1,
-                Int(ceil(Double(GameTuningParameterCatalog.parameters.count) / Double(pageSize)))
-            )
-            developerTuningPageIndex = min(pageCount - 1, developerTuningPageIndex + 1)
+            advanceDeveloperTuningPage()
+        case let .selectTuningGroup(group):
+            developerTuningSelectedGroup = group
+            developerTuningSelectedSubgroup = nil
+            developerTuningPageIndex = 0
+            developerTuningCopyConfirmation = nil
+            rebuildUI()
+        case let .selectTuningSubgroup(subgroup):
+            developerTuningSelectedSubgroup = subgroup
+            developerTuningPageIndex = 0
+            developerTuningCopyConfirmation = nil
+            rebuildUI()
+        case .toggleDeveloperTuningChangedOnly:
+            developerTuningChangedOnly.toggle()
+            developerTuningPageIndex = 0
+            developerTuningCopyConfirmation = nil
             rebuildUI()
         case let .adjustTuningParameter(parameterID, direction):
-            let oldPlayerRadius = gameTuning.playerMovement.visualRadius
-            gameTuning.adjustParameter(id: parameterID, direction: direction)
-            let didChangePlayerRadius = oldPlayerRadius != gameTuning.playerMovement.visualRadius
-            applyGameTuning(rebuildPlayerVisuals: didChangePlayerRadius)
-            developerTuningCopyConfirmation = nil
-            rebuildArena()
-            layoutLabels()
-            rebuildUI()
+            adjustDeveloperTuningParameter(id: parameterID, direction: direction)
         case .copyTuningParameters:
-            UIPasteboard.general.string = gameTuning.sourceSnapshot()
-            developerTuningCopyConfirmation = "COPIED"
-            AppDiagnostics.logger(.app).info("dev.tuning_copied", metadata: [
-                "parameters": "\(GameTuningParameterCatalog.parameters.count)"
-            ])
-            rebuildUI()
+            copyChangedTuningParameters()
+        case .resetTuningParameters:
+            resetTuningParameters()
         default:
             break
         }
+    }
+
+    func advanceDeveloperTuningPage() {
+        let pageSize = developerTuningPageSize(in: menuContentFrame(layout: currentLandscapeLayout()))
+        let parameters = currentDeveloperTuningMenu().parameters
+        let pageCount = max(
+            1,
+            Int(ceil(Double(parameters.count) / Double(pageSize)))
+        )
+        developerTuningPageIndex = min(pageCount - 1, developerTuningPageIndex + 1)
+        rebuildUI()
+    }
+
+    func adjustDeveloperTuningParameter(id parameterID: String, direction: GameTuningAdjustmentDirection) {
+        let oldPlayerRadius = gameTuning.playerMovement.visualRadius
+        gameTuning.adjustParameter(id: parameterID, direction: direction)
+        gameTuningStore.tuning = gameTuning
+        let didChangePlayerRadius = oldPlayerRadius != gameTuning.playerMovement.visualRadius
+        applyGameTuning(rebuildPlayerVisuals: didChangePlayerRadius)
+        developerTuningCopyConfirmation = nil
+        rebuildArena()
+        layoutLabels()
+        rebuildUI()
+    }
+
+    func copyChangedTuningParameters() {
+        let changedCount = gameTuning.changedParameters().count
+        UIPasteboard.general.string = gameTuning.sourceSnapshot(changedOnly: true)
+        developerTuningCopyConfirmation = "COPIED \(changedCount)"
+        AppDiagnostics.logger(.app).info("dev.tuning_copied", metadata: [
+            "parameters": "\(changedCount)"
+        ])
+        rebuildUI()
+    }
+
+    func resetTuningParameters() {
+        gameTuningStore.reset()
+        gameTuning = .defaults
+        developerTuningPageIndex = 0
+        developerTuningSelectedGroup = nil
+        developerTuningSelectedSubgroup = nil
+        developerTuningChangedOnly = false
+        developerTuningCopyConfirmation = "RESET"
+        applyGameTuning(rebuildPlayerVisuals: true)
+        rebuildArena()
+        layoutLabels()
+        rebuildUI()
+        AppDiagnostics.logger(.app).notice("dev.tuning_reset")
     }
 
     func performLocalOptionToggle(_ action: ArenaControlAction) {
@@ -3517,7 +3859,12 @@ extension ArenaScene {
         calibrationReturnState = .home
         developerReturnState = .home
         developerTuningPageIndex = 0
+        developerTuningSelectedGroup = nil
+        developerTuningSelectedSubgroup = nil
+        developerTuningChangedOnly = false
         developerTuningCopyConfirmation = nil
+        gameTuning = .defaults
+        applyGameTuning(rebuildPlayerVisuals: true)
         gameCenterStatusMessage = nil
         lastProgressionResult = nil
         lastDeathCollisionSnapshot = nil
@@ -3705,7 +4052,8 @@ extension ArenaScene {
 
     var devTuningPageCountForTesting: Int {
         let pageSize = developerTuningPageSize(in: menuContentFrame(layout: currentLandscapeLayout()))
-        return max(1, Int(ceil(Double(GameTuningParameterCatalog.parameters.count) / Double(pageSize))))
+        let parameters = currentDeveloperTuningMenu().parameters
+        return max(1, Int(ceil(Double(parameters.count) / Double(pageSize))))
     }
 
     var playerHitRadiusForTesting: CGFloat {
@@ -3734,6 +4082,18 @@ extension ArenaScene {
 
     func advanceDeveloperTuningPageForTesting() {
         performDeveloperTuningAction(.developerTuningNextPage)
+    }
+
+    func selectDeveloperTuningGroupForTesting(_ group: String) {
+        performDeveloperTuningAction(.selectTuningGroup(group))
+    }
+
+    func selectDeveloperTuningSubgroupForTesting(_ subgroup: String) {
+        performDeveloperTuningAction(.selectTuningSubgroup(subgroup))
+    }
+
+    func toggleDeveloperTuningChangedOnlyForTesting() {
+        performDeveloperTuningAction(.toggleDeveloperTuningChangedOnly)
     }
 
     func adjustTuningParameterForTesting(id: String, direction: GameTuningAdjustmentDirection) {
@@ -3967,6 +4327,20 @@ private struct ArenaControlHitTarget {
     let frame: CGRect
 }
 
+private struct DeveloperTuningMenu {
+    let groups: [String]
+    let selectedGroup: String?
+    let subgroups: [String]
+    let selectedSubgroup: String?
+    let parameters: [GameTuningParameterSpec]
+}
+
+private struct DeveloperTuningFrames {
+    let group: CGRect
+    let subgroup: CGRect
+    let parameters: CGRect
+}
+
 private enum ArenaControlAction: Equatable {
     case play
     case playAgain
@@ -3992,8 +4366,12 @@ private enum ArenaControlAction: Equatable {
     case openClassicLeaderboard
     case developerTuningPreviousPage
     case developerTuningNextPage
+    case selectTuningGroup(String)
+    case selectTuningSubgroup(String)
+    case toggleDeveloperTuningChangedOnly
     case adjustTuningParameter(String, GameTuningAdjustmentDirection)
     case copyTuningParameters
+    case resetTuningParameters
 }
 
 private enum ArenaButtonStyle {

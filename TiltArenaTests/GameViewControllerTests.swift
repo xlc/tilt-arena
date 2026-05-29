@@ -135,9 +135,16 @@ final class GameViewControllerTests: XCTestCase {
 
     @MainActor
     func testDeveloperTuningNextPageReachesRenderedLastPage() {
-        let scene = ArenaScene(size: CGSize(width: 560, height: 280))
+        let suiteName = "DeveloperTuningPageTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+        let scene = makeArenaScene(size: CGSize(width: 560, height: 280), defaults: defaults)
         scene.prepareForVisualSnapshot(state: .home)
         scene.openDeveloperTuningForTesting()
+        scene.selectDeveloperTuningGroupForTesting("Classic")
+        scene.selectDeveloperTuningSubgroupForTesting("Enemies")
         let lastRenderedPageIndex = scene.devTuningPageCountForTesting - 1
 
         XCTAssertGreaterThan(lastRenderedPageIndex, 0)
@@ -227,7 +234,12 @@ final class GameViewControllerTests: XCTestCase {
 
     @MainActor
     func testPlayerVisualRadiusTuningKeepsHitRadiusInSync() {
-        let scene = ArenaScene(size: CGSize(width: 852, height: 393))
+        let suiteName = "DeveloperTuningRadiusTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+        let scene = makeArenaScene(defaults: defaults)
         scene.prepareActiveRunForTesting()
         let originalVisualRadius = scene.playerVisualRadiusForTesting
 
@@ -238,6 +250,36 @@ final class GameViewControllerTests: XCTestCase {
             scene.playerHitRadiusForTesting,
             scene.playerVisualRadiusForTesting * ClassicRunConfiguration().playerHitRadiusScale,
             accuracy: 0.0001
+        )
+    }
+
+    @MainActor
+    func testDeveloperTuningAdjustmentsAutoSaveForNextScene() {
+        let suiteName = "DeveloperTuningAutosaveTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+        let scene = makeArenaScene(defaults: defaults)
+        let defaultRadius = GameTuningConfiguration.defaults.playerMovement.visualRadius
+
+        scene.adjustTuningParameterForTesting(id: "playerMovement.visualRadius", direction: .increase)
+
+        XCTAssertEqual(GameTuningStore(defaults: defaults).tuning.playerMovement.visualRadius, defaultRadius + 1)
+        XCTAssertEqual(makeArenaScene(defaults: defaults).playerVisualRadiusForTesting, defaultRadius + 1)
+    }
+
+    @MainActor
+    private func makeArenaScene(
+        size: CGSize = CGSize(width: 852, height: 393),
+        defaults: UserDefaults
+    ) -> ArenaScene {
+        ArenaScene(
+            size: size,
+            tiltSettingsStore: TiltSettingsStore(defaults: defaults),
+            runProfileStore: RunProfileStore(defaults: defaults),
+            localOptionsStore: ArenaLocalOptionsStore(defaults: defaults),
+            gameTuningStore: GameTuningStore(defaults: defaults)
         )
     }
 }
