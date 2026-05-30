@@ -87,6 +87,7 @@ final class ArenaScene: SKScene {
     private var playerNode: PlayerCraftNode?
     private var playerTrailNode: PlayerTrailNode?
     private var razorShieldTimeRemaining: TimeInterval = 0
+    private var activeRazorShieldConfiguration: StartingWeaponConfiguration?
     private var hasPlayedRazorShieldWarning = false
     private var razorShieldNode: SKShapeNode?
     private var shockwaveWaveStates: [ShockwaveWaveState] = []
@@ -98,6 +99,7 @@ final class ArenaScene: SKScene {
     var gravityWellEffectNode: SKNode?
     private var aimDirectionState = AimDirectionState()
     private var timeDilationTimeRemaining: TimeInterval = 0
+    private var activeTimeDilationConfiguration: StartingWeaponConfiguration?
     private var timeDilationAuraNode: SKNode?
     private var powerWaveState = PowerWaveState()
     var powerWaveChargeNode: SKNode?
@@ -800,7 +802,7 @@ final class ArenaScene: SKScene {
             razorShieldNode.removeFromParent()
             self.razorShieldNode = nil
             if remainingShieldTime > 0 {
-                let node = SKShapeNode(circleOfRadius: weaponResolver.configuration.razorShieldRadius)
+                let node = SKShapeNode(circleOfRadius: razorShieldConfiguration.razorShieldRadius)
                 node.zPosition = 19
                 styleRazorShieldNode(node)
                 node.position = movementController.state.position
@@ -877,7 +879,11 @@ final class ArenaScene: SKScene {
         }
 
         if let gravityWellState {
-            playGravityWellEffect(at: gravityWellState.center, duration: gravityWellState.totalTimeRemaining)
+            playGravityWellEffect(
+                at: gravityWellState.center,
+                radius: gravityWellState.pullRadius,
+                duration: gravityWellState.totalTimeRemaining
+            )
         }
 
         if powerWaveState.isCharging {
@@ -892,7 +898,7 @@ final class ArenaScene: SKScene {
             timeDilationAuraNode?.removeFromParent()
             timeDilationAuraNode = playTimeDilationAuraEffect(
                 at: movementController.state.position,
-                radius: weaponResolver.configuration.timeDilationRadius,
+                radius: timeDilationConfiguration.timeDilationRadius,
                 duration: timeDilationTimeRemaining
             )
         }
@@ -904,6 +910,7 @@ final class ArenaScene: SKScene {
         runController.update(deltaTime: deltaTime)
         deathReplayTrace.record(time: runController.survivalTime, position: playerPosition)
         spawnEnemiesIfNeeded(deltaTime: deltaTime, playerPosition: playerPosition)
+        advancePickupCharges(deltaTime: deltaTime)
         spawnPickupIfNeeded(deltaTime: deltaTime, playerPosition: playerPosition)
         updateFlameTrailSpeedBoost(deltaTime: deltaTime)
         playerPosition = collectPickups(playerPosition: playerPosition)
@@ -994,12 +1001,35 @@ final class ArenaScene: SKScene {
             pickups.append(pickup)
             AppDiagnostics.logger(.weapon).info("pickup.spawned", metadata: [
                 "id": "\(pickup.id)",
-                "kind": "\(pickup.kind.rawValue)"
+                "kind": "\(pickup.kind.rawValue)",
+                "tier": "\(pickup.chargeTier.metadataValue)"
             ])
 
             let node = WeaponPickupNode(pickup: pickup, theme: theme)
             pickupNodes[pickup.id] = node
             addChild(node)
+        }
+    }
+
+    private func advancePickupCharges(deltaTime: TimeInterval) {
+        guard deltaTime > 0, !pickups.isEmpty else {
+            return
+        }
+
+        for index in pickups.indices {
+            let previousTier = pickups[index].chargeTier
+            pickups[index].advanceCharge(deltaTime: deltaTime, configuration: pickupSpawnConfiguration)
+
+            guard pickups[index].chargeTier != previousTier else {
+                continue
+            }
+
+            pickupNodes[pickups[index].id]?.apply(pickups[index])
+            AppDiagnostics.logger(.weapon).info("pickup.charged", metadata: [
+                "id": "\(pickups[index].id)",
+                "kind": "\(pickups[index].kind.rawValue)",
+                "tier": "\(pickups[index].chargeTier.metadataValue)"
+            ])
         }
     }
 
@@ -1087,12 +1117,13 @@ final class ArenaScene: SKScene {
             playHaptic(.pickup)
             AppDiagnostics.logger(.weapon).notice("pickup.collected", metadata: [
                 "id": "\(pickup.id)",
-                "kind": "\(pickup.kind.rawValue)"
+                "kind": "\(pickup.kind.rawValue)",
+                "tier": "\(pickup.chargeTier.metadataValue)"
             ])
 
             playPickupCollectionPop(for: pickup)
             removePickup(id: pickup.id)
-            applyWeapon(pickup.kind, playerPosition: currentPlayerPosition)
+            applyWeapon(pickup, playerPosition: currentPlayerPosition)
             currentPlayerPosition = movementController.state.position
         }
 
@@ -1104,22 +1135,30 @@ final class ArenaScene: SKScene {
         pickupNodes.removeValue(forKey: id)?.removeFromParent()
     }
 
-    private func applyWeapon(_ kind: WeaponKind, playerPosition: CGPoint) {
+    private func applyWeapon(_ pickup: WeaponPickup, playerPosition: CGPoint) {
         var rng = SystemRandomNumberGenerator()
-        let application = WeaponApplicationCoordinator(resolver: weaponResolver).application(
-            kind: kind,
+        let chargedConfiguration = weaponResolver.configuration.applying(chargeTier: pickup.chargeTier)
+        let chargedResolver = StartingWeaponResolver(configuration: chargedConfiguration)
+        let application = WeaponApplicationCoordinator(resolver: chargedResolver).application(
+            kind: pickup.kind,
             playerPosition: playerPosition,
             enemies: weaponTargetableEnemies(),
             using: &rng
         )
         var log = application.log
 
-        if let directionalDestroyedCount = performWeaponApplicationEffect(application.effect, from: playerPosition) {
+        if let directionalDestroyedCount = performWeaponApplicationEffect(
+            application.effect,
+            from: playerPosition,
+            configuration: chargedConfiguration,
+            chargeTier: pickup.chargeTier
+        ) {
             log.destroyedCount = directionalDestroyedCount
         }
 
         AppDiagnostics.logger(.weapon).notice("weapon.resolved", metadata: [
-            "kind": "\(kind.rawValue)",
+            "kind": "\(pickup.kind.rawValue)",
+            "tier": "\(pickup.chargeTier.metadataValue)",
             "destroyed": "\(log.destroyedCount)",
             "frozen": "\(log.frozenCount)",
             "gravityTargets": "\(log.gravityTargetCount)"
@@ -1128,29 +1167,35 @@ final class ArenaScene: SKScene {
 
     private func performWeaponApplicationEffect(
         _ effect: WeaponApplication.Effect,
-        from playerPosition: CGPoint
+        from playerPosition: CGPoint,
+        configuration: StartingWeaponConfiguration,
+        chargeTier: WeaponPickupChargeTier
     ) -> Int? {
         switch effect {
         case .shockwaveWave:
-            activateShockwaveWave(at: playerPosition)
+            activateShockwaveWave(at: playerPosition, configuration: configuration)
         case .seekerSwarm(let enemyIDs):
-            playSeekerSwarm(enemyIDs: enemyIDs, from: playerPosition)
+            playSeekerSwarm(
+                enemyIDs: enemyIDs,
+                from: playerPosition,
+                configuration: configuration
+            )
         case .razorShield:
-            activateRazorShield(at: playerPosition)
+            activateRazorShield(at: playerPosition, configuration: configuration)
         case .freezeBurstWave:
-            activateFreezeBurstWave(at: playerPosition)
+            activateFreezeBurstWave(at: playerPosition, configuration: configuration)
         case .gravityWell(let enemyIDs):
-            activateGravityWell(at: playerPosition, enemyIDs: enemyIDs)
+            activateGravityWell(at: playerPosition, enemyIDs: enemyIDs, configuration: configuration)
         case .chainLightning(let enemyIDs):
-            playChainLightning(enemyIDs: enemyIDs, from: playerPosition)
+            playChainLightning(enemyIDs: enemyIDs, from: playerPosition, configuration: configuration)
         case .flameTrail:
-            activateFlameTrail(at: playerPosition)
+            activateFlameTrail(at: playerPosition, chargeTier: chargeTier)
         case .timeDilationAura:
-            return activateTimeDilationAura(at: playerPosition)
+            return activateTimeDilationAura(at: playerPosition, configuration: configuration)
         case .ricochetLance:
-            return fireRicochetLance(from: playerPosition)
+            return fireRicochetLance(from: playerPosition, configuration: configuration)
         case .powerWave:
-            activatePowerWave(at: playerPosition)
+            activatePowerWave(at: playerPosition, configuration: configuration)
         case .novaBomb(let enemyIDs):
             playNovaBomb(enemyIDs: enemyIDs)
         }
@@ -1158,35 +1203,49 @@ final class ArenaScene: SKScene {
         return nil
     }
 
-    private func playSeekerSwarm(enemyIDs: Set<Int>, from playerPosition: CGPoint) {
+    private func playSeekerSwarm(
+        enemyIDs: Set<Int>,
+        from playerPosition: CGPoint,
+        configuration: StartingWeaponConfiguration
+    ) {
+        let resolver = StartingWeaponResolver(configuration: configuration)
         let targets = impactTargets(forEnemyIDs: enemyIDs)
             .sorted { lhs, rhs in
                 ArenaGeometry.squaredDistance(from: lhs.position, to: playerPosition)
                     < ArenaGeometry.squaredDistance(from: rhs.position, to: playerPosition)
             }
         markPendingWeaponImpacts(targets)
-        playSeekerSwarmEffect(from: playerPosition, to: targets) { [weak self] target in
-            self?.resolveSeekerExplosion(at: target)
+        playSeekerSwarmEffect(
+            from: playerPosition,
+            to: targets,
+            configuration: configuration
+        ) { [weak self] target in
+            self?.resolveSeekerExplosion(at: target, resolver: resolver)
         }
     }
 
-    private func resolveSeekerExplosion(at target: WeaponImpactTarget) {
+    private func resolveSeekerExplosion(at target: WeaponImpactTarget, resolver: StartingWeaponResolver) {
         guard enemies.contains(where: { $0.id == target.id }) else {
             return
         }
 
         destroyEnemies(
-            ids: weaponResolver.seekerExplosionTargets(center: target.position, enemies: weaponTargetableEnemies()),
+            ids: resolver.seekerExplosionTargets(center: target.position, enemies: weaponTargetableEnemies()),
             weaponKind: .seekerSwarm
         )
     }
 
-    private func playChainLightning(enemyIDs: [Int], from playerPosition: CGPoint) {
+    private func playChainLightning(
+        enemyIDs: [Int],
+        from playerPosition: CGPoint,
+        configuration: StartingWeaponConfiguration
+    ) {
         let targets = impactTargets(forEnemyIDs: enemyIDs)
         markPendingWeaponImpacts(targets)
         playChainLightningEffect(
             from: playerPosition,
             through: targets,
+            configuration: configuration,
             accentColor: theme.playerAccentColor,
             coreColor: theme.playerColor
         ) { [weak self] enemyIDs in
@@ -1348,23 +1407,31 @@ final class ArenaScene: SKScene {
         }
     }
 
-    private func activateRazorShield(at playerPosition: CGPoint) {
-        razorShieldTimeRemaining = weaponResolver.configuration.razorShieldDuration
+    private func activateRazorShield(
+        at playerPosition: CGPoint,
+        configuration: StartingWeaponConfiguration
+    ) {
+        activeRazorShieldConfiguration = configuration
+        razorShieldTimeRemaining = configuration.razorShieldDuration
         hasPlayedRazorShieldWarning = false
 
-        if razorShieldNode == nil {
-            let node = SKShapeNode(circleOfRadius: weaponResolver.configuration.razorShieldRadius)
-            node.zPosition = 19
-            styleRazorShieldNode(node)
-            addWeaponEffectNode(node)
-            razorShieldNode = node
-        }
+        razorShieldNode?.removeFromParent()
+        let node = SKShapeNode(circleOfRadius: configuration.razorShieldRadius)
+        node.zPosition = 19
+        styleRazorShieldNode(node)
+        addWeaponEffectNode(node)
+        razorShieldNode = node
 
         razorShieldNode?.position = playerPosition
         razorShieldNode?.isHidden = false
     }
 
+    private var razorShieldConfiguration: StartingWeaponConfiguration {
+        activeRazorShieldConfiguration ?? weaponResolver.configuration
+    }
+
     private func styleRazorShieldNode(_ node: SKShapeNode) {
+        let configuration = razorShieldConfiguration
         node.strokeColor = theme.pickupBlue.withAlphaComponent(0.72)
         node.fillColor = theme.pickupBlue.withAlphaComponent(0.05)
         node.lineWidth = 2
@@ -1377,7 +1444,7 @@ final class ArenaScene: SKScene {
 
         for index in 0..<3 {
             let angle = CGFloat(index) * (2 * .pi / 3)
-            let blade = SKShapeNode(path: razorShieldBladePath(radius: weaponResolver.configuration.razorShieldRadius))
+            let blade = SKShapeNode(path: razorShieldBladePath(radius: configuration.razorShieldRadius))
             blade.zRotation = angle
             blade.strokeColor = theme.playerColor.withAlphaComponent(0.68)
             blade.lineWidth = 1.4
@@ -1409,7 +1476,8 @@ final class ArenaScene: SKScene {
 
         razorShieldNode?.position = playerPosition
 
-        let targetIDs = weaponResolver.shieldTargets(
+        let resolver = StartingWeaponResolver(configuration: razorShieldConfiguration)
+        let targetIDs = resolver.shieldTargets(
             playerPosition: playerPosition,
             enemies: weaponTargetableEnemies()
         ).subtracting(pendingWeaponImpactEnemyIDs)
@@ -1429,7 +1497,9 @@ final class ArenaScene: SKScene {
     }
 
     private func triggerRazorShieldExpiryExplosion(at playerPosition: CGPoint) {
-        let targetIDs = weaponResolver.shieldExplosionTargets(
+        let configuration = razorShieldConfiguration
+        let resolver = StartingWeaponResolver(configuration: configuration)
+        let targetIDs = resolver.shieldExplosionTargets(
             playerPosition: playerPosition,
             enemies: weaponTargetableEnemies()
         ).subtracting(pendingWeaponImpactEnemyIDs)
@@ -1437,8 +1507,8 @@ final class ArenaScene: SKScene {
         markPendingWeaponImpacts(targets)
         playRazorShieldExplosionEffect(
             at: playerPosition,
-            startRadius: weaponResolver.configuration.razorShieldRadius,
-            explosionRadius: weaponResolver.configuration.razorShieldExplosionRadius,
+            startRadius: configuration.razorShieldRadius,
+            explosionRadius: configuration.razorShieldExplosionRadius,
             targets: targets
         ) { [weak self] enemyIDs in
             self?.destroyEnemies(ids: enemyIDs, weaponKind: .razorShield)
@@ -1448,6 +1518,7 @@ final class ArenaScene: SKScene {
     private func deactivateRazorShield(emitHaptic: Bool = false) {
         let hadActiveShield = razorShieldNode != nil || razorShieldTimeRemaining > 0
         razorShieldTimeRemaining = 0
+        activeRazorShieldConfiguration = nil
         hasPlayedRazorShieldWarning = false
         razorShieldNode?.removeFromParent()
         razorShieldNode = nil
@@ -1493,7 +1564,8 @@ final class ArenaScene: SKScene {
         flameTrailEffectNode.apply(segments: frame.segments)
     }
 
-    private func activateFlameTrail(at playerPosition: CGPoint) {
+    private func activateFlameTrail(at playerPosition: CGPoint, chargeTier: WeaponPickupChargeTier = .base) {
+        flameTrailState.configuration = gameTuning.flameTrail.applying(chargeTier: chargeTier)
         flameTrailState.activate(at: playerPosition)
         flameTrailSpeedBoostTimeRemaining = max(
             flameTrailSpeedBoostTimeRemaining,
@@ -1521,24 +1593,33 @@ final class ArenaScene: SKScene {
         )
     }
 
-    private func activateTimeDilationAura(at playerPosition: CGPoint) -> Int {
+    private func activateTimeDilationAura(
+        at playerPosition: CGPoint,
+        configuration: StartingWeaponConfiguration
+    ) -> Int {
+        activeTimeDilationConfiguration = configuration
         timeDilationTimeRemaining = max(
             timeDilationTimeRemaining,
-            weaponResolver.configuration.timeDilationDuration
+            configuration.timeDilationDuration
         )
         timeDilationAuraNode?.removeFromParent()
         timeDilationAuraNode = playTimeDilationAuraEffect(
             at: playerPosition,
-            radius: weaponResolver.configuration.timeDilationRadius,
+            radius: configuration.timeDilationRadius,
             duration: timeDilationTimeRemaining
         )
         pushTimeDilationEnemies(from: playerPosition)
         return 0
     }
 
+    private var timeDilationConfiguration: StartingWeaponConfiguration {
+        activeTimeDilationConfiguration ?? weaponResolver.configuration
+    }
+
     private func pushTimeDilationEnemies(from playerPosition: CGPoint) {
-        let pushRadius = max(0, weaponResolver.configuration.timeDilationPushRadius)
-        let maximumPushDistance = max(0, weaponResolver.configuration.timeDilationMaximumPushDistance)
+        let configuration = timeDilationConfiguration
+        let pushRadius = max(0, configuration.timeDilationPushRadius)
+        let maximumPushDistance = max(0, configuration.timeDilationMaximumPushDistance)
 
         guard pushRadius > 0, maximumPushDistance > 0 else {
             return
@@ -1574,11 +1655,13 @@ final class ArenaScene: SKScene {
         if timeDilationTimeRemaining == 0 {
             timeDilationAuraNode?.removeFromParent()
             timeDilationAuraNode = nil
+            activeTimeDilationConfiguration = nil
         }
     }
 
     private func deactivateTimeDilationAura() {
         timeDilationTimeRemaining = 0
+        activeTimeDilationConfiguration = nil
         timeDilationAuraNode?.removeFromParent()
         timeDilationAuraNode = nil
     }
@@ -1588,7 +1671,8 @@ final class ArenaScene: SKScene {
             return 1
         }
 
-        let radius = max(0, weaponResolver.configuration.timeDilationRadius)
+        let configuration = timeDilationConfiguration
+        let radius = max(0, configuration.timeDilationRadius)
         guard radius > 0 else {
             return 1
         }
@@ -1599,27 +1683,35 @@ final class ArenaScene: SKScene {
         }
 
         let closeness = 1 - min(1, max(0, distance / radius))
-        let maximumSlowFactor = max(1, weaponResolver.configuration.timeDilationMaximumSlowFactor)
+        let maximumSlowFactor = max(1, configuration.timeDilationMaximumSlowFactor)
         let slowFactor = 1 + closeness * (maximumSlowFactor - 1)
         return 1 / slowFactor
     }
 
-    private func fireRicochetLance(from playerPosition: CGPoint) -> Int {
+    private func fireRicochetLance(
+        from playerPosition: CGPoint,
+        configuration: StartingWeaponConfiguration
+    ) -> Int {
         let result = RicochetLancePath.resolve(
             origin: playerPosition,
             direction: aimDirectionState.resolvedDirection(),
             playableRect: currentPlayableRect,
             enemies: weaponTargetableEnemies(),
-            configuration: weaponResolver.configuration
+            configuration: configuration
         )
         let targets = impactTargets(forEnemyIDs: result.destroyedEnemyIDs)
         markPendingWeaponImpacts(targets)
-        playRicochetLanceEffect(segments: result.segments, targets: targets) { [weak self] enemyIDs in
+        playRicochetLanceEffect(
+            segments: result.segments,
+            targets: targets,
+            configuration: configuration
+        ) { [weak self] enemyIDs in
             self?.destroyEnemies(ids: enemyIDs, weaponKind: .ricochetLance)
         }
 
         return targets.count
     }
+
     private func detectPlayerCollision(playerPosition: CGPoint) {
         let playerCircle = CollisionCircle(
             center: playerPosition,
@@ -4103,19 +4195,23 @@ extension ArenaScene {
 #endif
 
 private extension ArenaScene {
-    func activateShockwaveWave(at center: CGPoint) {
+    func activateShockwaveWave(
+        at center: CGPoint,
+        configuration: StartingWeaponConfiguration
+    ) {
         shockwaveWaveStates.append(
             ShockwaveWaveState(
                 center: center,
-                maximumRadius: weaponResolver.configuration.shockwaveRadius,
-                expansionDuration: weaponResolver.configuration.shockwaveExpansionDuration,
-                holdDuration: weaponResolver.configuration.shockwaveHoldDuration
+                maximumRadius: configuration.shockwaveRadius,
+                expansionDuration: configuration.shockwaveExpansionDuration,
+                holdDuration: configuration.shockwaveHoldDuration
             )
         )
         playShockwaveEffect(
             at: center,
-            duration: weaponResolver.configuration.shockwaveExpansionDuration,
-            holdDuration: weaponResolver.configuration.shockwaveHoldDuration
+            radius: configuration.shockwaveRadius,
+            duration: configuration.shockwaveExpansionDuration,
+            holdDuration: configuration.shockwaveHoldDuration
         )
     }
 
@@ -4135,17 +4231,23 @@ private extension ArenaScene {
         shockwaveWaveStates = activeStates
     }
 
-    func activateFreezeBurstWave(at center: CGPoint) {
+    func activateFreezeBurstWave(
+        at center: CGPoint,
+        configuration: StartingWeaponConfiguration
+    ) {
         freezeBurstWaveStates.append(
             FreezeBurstWaveState(
                 center: center,
-                maximumRadius: weaponResolver.configuration.freezeBurstRadius,
-                duration: weaponResolver.configuration.freezeExpansionDuration
+                maximumRadius: configuration.freezeBurstRadius,
+                duration: configuration.freezeExpansionDuration,
+                freezeDuration: configuration.freezeDuration,
+                thawGraceDuration: configuration.freezeThawGraceDuration
             )
         )
         playFreezeBurstEffect(
             at: center,
-            duration: weaponResolver.configuration.freezeExpansionDuration
+            radius: configuration.freezeBurstRadius,
+            duration: configuration.freezeExpansionDuration
         )
     }
 
@@ -4159,8 +4261,8 @@ private extension ArenaScene {
             let frame = state.update(deltaTime: deltaTime, enemies: weaponTargetableEnemies())
             freezeEnemies(
                 ids: frame.frozenEnemyIDs,
-                duration: weaponResolver.configuration.freezeDuration,
-                thawGraceDuration: weaponResolver.configuration.freezeThawGraceDuration
+                duration: state.freezeDuration,
+                thawGraceDuration: state.thawGraceDuration
             )
             if !frame.isComplete {
                 activeStates.append(state)
@@ -4169,12 +4271,15 @@ private extension ArenaScene {
         freezeBurstWaveStates = activeStates
     }
 
-    func activatePowerWave(at position: CGPoint) {
-        powerWaveState.activate(configuration: weaponResolver.configuration)
+    func activatePowerWave(
+        at position: CGPoint,
+        configuration: StartingWeaponConfiguration
+    ) {
+        powerWaveState.activate(configuration: configuration)
         playPowerWaveChargeEffect(
             at: position,
             direction: aimDirectionState.resolvedDirection(),
-            duration: weaponResolver.configuration.powerWaveChargeDuration
+            duration: configuration.powerWaveChargeDuration
         )
     }
 
@@ -4204,27 +4309,35 @@ private extension ArenaScene {
             playPowerWaveReleaseEffect(
                 at: release.center,
                 direction: release.direction,
-                range: weaponResolver.configuration.powerWaveRange,
-                fanAngleDegrees: weaponResolver.configuration.powerWaveFanAngleDegrees,
+                range: release.range,
+                fanAngleDegrees: release.fanAngleDegrees,
                 travelDistance: release.travelDistance,
-                duration: weaponResolver.configuration.powerWaveExpansionDuration
+                duration: release.expansionDuration
             )
         }
 
         destroyEnemies(ids: frame.destroyedEnemyIDs, weaponKind: .powerWave)
     }
 
-    func activateGravityWell(at center: CGPoint, enemyIDs: Set<Int>) {
+    func activateGravityWell(
+        at center: CGPoint,
+        enemyIDs: Set<Int>,
+        configuration: StartingWeaponConfiguration
+    ) {
         gravityWellState = GravityWellState(
             center: center,
             enemyIDs: enemyIDs,
-            timeRemaining: weaponResolver.configuration.gravityWellPullDuration,
-            activationDelayRemaining: weaponResolver.configuration.gravityWellActivationDelay
+            timeRemaining: configuration.gravityWellPullDuration,
+            activationDelayRemaining: configuration.gravityWellActivationDelay,
+            pullRadius: configuration.gravityWellRadius,
+            pullDuration: configuration.gravityWellPullDuration,
+            clearRadius: configuration.gravityWellClearRadius
         )
         playGravityWellEffect(
             at: center,
-            duration: weaponResolver.configuration.gravityWellActivationDelay
-                + weaponResolver.configuration.gravityWellPullDuration
+            radius: configuration.gravityWellRadius,
+            duration: configuration.gravityWellActivationDelay
+                + configuration.gravityWellPullDuration
         )
     }
 
@@ -4234,8 +4347,8 @@ private extension ArenaScene {
         }
 
         let pullDelta = state.consumePullDelta(deltaTime: deltaTime)
-        let pullDuration = max(weaponResolver.configuration.gravityWellPullDuration, 0.001)
-        let pullDistance = weaponResolver.configuration.gravityWellRadius / CGFloat(pullDuration) * CGFloat(pullDelta)
+        let pullDuration = max(state.pullDuration, 0.001)
+        let pullDistance = state.pullRadius / CGFloat(pullDuration) * CGFloat(pullDelta)
 
         if pullDistance > 0 {
             for index in enemies.indices where state.enemyIDs.contains(enemies[index].id) {
@@ -4258,11 +4371,15 @@ private extension ArenaScene {
 
         let destroyedIDs = state.collapseTargets(
             enemies: enemies,
-            clearRadius: weaponResolver.configuration.gravityWellClearRadius
+            clearRadius: state.clearRadius
         )
         let targets = impactTargets(forEnemyIDs: destroyedIDs)
         markPendingWeaponImpacts(targets)
-        playGravityWellCollapseEffect(at: state.center, targets: targets) { [weak self] enemyIDs in
+        playGravityWellCollapseEffect(
+            at: state.center,
+            clearRadius: state.clearRadius,
+            targets: targets
+        ) { [weak self] enemyIDs in
             self?.destroyEnemies(ids: enemyIDs, weaponKind: .gravityWell)
         }
     }

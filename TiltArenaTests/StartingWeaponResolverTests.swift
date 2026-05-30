@@ -64,6 +64,27 @@ final class StartingWeaponResolverTests: XCTestCase {
         XCTAssertEqual(configuration.novaBombMinimumTargetCount, 15)
     }
 
+    func testChargedWeaponConfigurationAppliesModestUpgrade() {
+        let base = StartingWeaponConfiguration(
+            shockwaveRadius: 100,
+            seekerTargetLimit: 4,
+            chainLightningTargetLimit: 6,
+            novaBombTargetFraction: 0.8
+        )
+
+        let charged = base.applying(chargeTier: .charged)
+        let overcharged = base.applying(chargeTier: .overcharged)
+
+        XCTAssertEqual(charged.shockwaveRadius, 112, accuracy: 0.0001)
+        XCTAssertEqual(charged.seekerTargetLimit, 5)
+        XCTAssertEqual(charged.chainLightningTargetLimit, 7)
+        XCTAssertEqual(charged.novaBombTargetFraction, 0.88, accuracy: 0.0001)
+        XCTAssertEqual(overcharged.shockwaveRadius, 124, accuracy: 0.0001)
+        XCTAssertEqual(overcharged.seekerTargetLimit, 6)
+        XCTAssertEqual(overcharged.chainLightningTargetLimit, 8)
+        XCTAssertEqual(overcharged.novaBombTargetFraction, 0.96, accuracy: 0.0001)
+    }
+
     func testShockwaveClearsEnemiesInsideRadius() {
         let resolver = StartingWeaponResolver(
             configuration: StartingWeaponConfiguration(shockwaveRadius: 50)

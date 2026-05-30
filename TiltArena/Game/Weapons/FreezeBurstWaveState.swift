@@ -11,13 +11,23 @@ struct FreezeBurstWaveState: Equatable {
     let center: CGPoint
     let maximumRadius: CGFloat
     let duration: TimeInterval
+    let freezeDuration: TimeInterval
+    let thawGraceDuration: TimeInterval
     private(set) var elapsedTime: TimeInterval = 0
     private var appliedEnemyIDs: Set<Int> = []
 
-    init(center: CGPoint, maximumRadius: CGFloat, duration: TimeInterval) {
+    init(
+        center: CGPoint,
+        maximumRadius: CGFloat,
+        duration: TimeInterval,
+        freezeDuration: TimeInterval = StartingWeaponConfiguration().freezeDuration,
+        thawGraceDuration: TimeInterval = StartingWeaponConfiguration().freezeThawGraceDuration
+    ) {
         self.center = center
         self.maximumRadius = maximumRadius
         self.duration = duration
+        self.freezeDuration = freezeDuration
+        self.thawGraceDuration = thawGraceDuration
     }
 
     var isComplete: Bool {

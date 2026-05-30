@@ -1,8 +1,12 @@
 import SpriteKit
 
 extension ArenaScene {
-    func playFreezeBurstEffect(at position: CGPoint, duration: TimeInterval? = nil) {
-        let radius = weaponResolver.configuration.freezeBurstRadius
+    func playFreezeBurstEffect(
+        at position: CGPoint,
+        radius: CGFloat? = nil,
+        duration: TimeInterval? = nil
+    ) {
+        let radius = radius ?? weaponResolver.configuration.freezeBurstRadius
         let duration = max(0.05, duration ?? weaponEffectTiming.waveDuration(radius: radius))
         let ring = makeEffectRing(
             radius: radius,

@@ -40,6 +40,45 @@ struct StartingWeaponConfiguration: Equatable {
     var novaBombTargetFraction: Double = 0.8
 }
 
+extension StartingWeaponConfiguration {
+    func applying(chargeTier: WeaponPickupChargeTier) -> StartingWeaponConfiguration {
+        guard chargeTier > .base else {
+            return self
+        }
+
+        let level = CGFloat(chargeTier.rawValue)
+        let rangeScale = 1 + level * 0.12
+        let compactRangeScale = 1 + level * 0.08
+        let durationScale = 1 + level * 0.15
+        let targetBonus = chargeTier.rawValue
+        var configuration = self
+
+        configuration.shockwaveRadius *= rangeScale
+        configuration.seekerTargetLimit += targetBonus
+        configuration.seekerExplosionRadius *= compactRangeScale
+        configuration.razorShieldRadius *= 1 + level * 0.06
+        configuration.razorShieldDuration *= durationScale
+        configuration.razorShieldExplosionRadius *= compactRangeScale
+        configuration.freezeBurstRadius *= rangeScale
+        configuration.freezeDuration *= durationScale
+        configuration.gravityWellRadius *= rangeScale
+        configuration.gravityWellClearRadius *= compactRangeScale
+        configuration.chainLightningJumpRange *= rangeScale
+        configuration.chainLightningTargetLimit += targetBonus
+        configuration.timeDilationRadius *= compactRangeScale
+        configuration.timeDilationDuration *= durationScale
+        configuration.timeDilationMaximumPushDistance *= compactRangeScale
+        configuration.powerWaveRange *= rangeScale
+        configuration.powerWaveFanAngleDegrees = min(360, configuration.powerWaveFanAngleDegrees + level * 6)
+        configuration.ricochetLanceBeamWidth *= compactRangeScale
+        configuration.ricochetLanceMaximumBounces += targetBonus
+        configuration.novaBombMinimumTargetCount += targetBonus * 3
+        configuration.novaBombTargetFraction = min(1, configuration.novaBombTargetFraction + Double(targetBonus) * 0.08)
+
+        return configuration
+    }
+}
+
 struct WeaponResolution: Equatable {
     var destroyedEnemyIDs: Set<Int> = []
     var frozenEnemyIDs: Set<Int> = []

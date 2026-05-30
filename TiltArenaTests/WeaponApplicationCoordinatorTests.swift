@@ -28,6 +28,32 @@ final class WeaponApplicationCoordinatorTests: XCTestCase {
         XCTAssertEqual(application.log.gravityTargetCount, 0)
     }
 
+    func testChargedSeekerSwarmAddsTargets() {
+        let coordinator = WeaponApplicationCoordinator(
+            resolver: StartingWeaponResolver(
+                configuration: StartingWeaponConfiguration(seekerTargetLimit: 2)
+                    .applying(chargeTier: .overcharged)
+            )
+        )
+        let enemies = [
+            enemy(id: 1, position: CGPoint(x: 20, y: 0)),
+            enemy(id: 2, position: CGPoint(x: 40, y: 0)),
+            enemy(id: 3, position: CGPoint(x: 60, y: 0)),
+            enemy(id: 4, position: CGPoint(x: 80, y: 0))
+        ]
+        var rng = SeededGenerator(seed: 1)
+
+        let application = coordinator.application(
+            kind: .seekerSwarm,
+            playerPosition: .zero,
+            enemies: enemies,
+            using: &rng
+        )
+
+        XCTAssertEqual(application.effect, .seekerSwarm(enemyIDs: [1, 2, 3, 4]))
+        XCTAssertEqual(application.log.destroyedCount, 4)
+    }
+
     func testShockwavePlansWaveWithoutImmediateDestroyedLog() {
         let coordinator = WeaponApplicationCoordinator(
             resolver: StartingWeaponResolver(

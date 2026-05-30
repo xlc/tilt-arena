@@ -5,6 +5,9 @@ struct PowerWaveRelease: Equatable {
     let center: CGPoint
     let direction: CGVector
     let travelDistance: CGFloat
+    let range: CGFloat
+    let fanAngleDegrees: CGFloat
+    let expansionDuration: TimeInterval
 }
 
 struct PowerWaveFrame: Equatable {
@@ -19,6 +22,7 @@ struct PowerWaveState: Equatable {
     private(set) var isCharging = false
     private(set) var chargeTimeRemaining: TimeInterval = 0
     private var waveState: PowerWaveWaveState?
+    private var activeConfiguration: StartingWeaponConfiguration?
 
     var isActive: Bool {
         isCharging || waveState != nil
@@ -26,6 +30,7 @@ struct PowerWaveState: Equatable {
 
     mutating func activate(configuration: StartingWeaponConfiguration) {
         isCharging = true
+        activeConfiguration = configuration
         chargeTimeRemaining = max(0, configuration.powerWaveChargeDuration)
         waveState = nil
     }
@@ -34,6 +39,7 @@ struct PowerWaveState: Equatable {
         isCharging = false
         chargeTimeRemaining = 0
         waveState = nil
+        activeConfiguration = nil
     }
 
     mutating func update(
@@ -46,6 +52,7 @@ struct PowerWaveState: Equatable {
     ) -> PowerWaveFrame {
         var remainingDelta = max(0, deltaTime)
         var release: PowerWaveRelease?
+        let resolvedConfiguration = activeConfiguration ?? configuration
 
         if isCharging {
             if chargeTimeRemaining > remainingDelta {
@@ -60,25 +67,34 @@ struct PowerWaveState: Equatable {
             let wave = PowerWaveWaveState(
                 center: playerPosition,
                 direction: direction,
-                maximumRange: configuration.powerWaveRange,
-                fanAngleDegrees: configuration.powerWaveFanAngleDegrees,
-                expansionDuration: configuration.powerWaveExpansionDuration,
+                maximumRange: resolvedConfiguration.powerWaveRange,
+                fanAngleDegrees: resolvedConfiguration.powerWaveFanAngleDegrees,
+                expansionDuration: resolvedConfiguration.powerWaveExpansionDuration,
                 playableRect: playableRect
             )
             waveState = wave
             release = PowerWaveRelease(
                 center: wave.center,
                 direction: wave.direction,
-                travelDistance: wave.travelDistance
+                travelDistance: wave.travelDistance,
+                range: resolvedConfiguration.powerWaveRange,
+                fanAngleDegrees: resolvedConfiguration.powerWaveFanAngleDegrees,
+                expansionDuration: resolvedConfiguration.powerWaveExpansionDuration
             )
         }
 
         guard var activeWaveState = waveState else {
+            if !isActive {
+                activeConfiguration = nil
+            }
             return PowerWaveFrame(release: release, isComplete: !isActive)
         }
 
         let waveFrame = activeWaveState.update(deltaTime: remainingDelta, enemies: enemies)
         waveState = waveFrame.isComplete ? nil : activeWaveState
+        if waveState == nil {
+            activeConfiguration = nil
+        }
 
         return PowerWaveFrame(
             destroyedEnemyIDs: waveFrame.destroyedEnemyIDs,

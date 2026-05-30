@@ -4,27 +4,38 @@ extension ArenaScene {
     func playSeekerSwarmEffect(
         from origin: CGPoint,
         to targets: [WeaponImpactTarget],
+        configuration: StartingWeaponConfiguration? = nil,
         onImpact: @escaping (WeaponImpactTarget) -> Void
     ) {
+        let configuration = configuration ?? weaponResolver.configuration
         for (index, target) in targets.enumerated() {
-            let duration = seekerTravelDuration(from: origin, to: target.position)
+            let duration = seekerTravelDuration(
+                from: origin,
+                to: target.position,
+                configuration: configuration
+            )
             playSeekerBolt(
                 from: origin,
                 to: target,
                 delay: TimeInterval(index) * 0.035,
                 duration: duration,
+                configuration: configuration,
                 onImpact: onImpact
             )
         }
     }
 
-    private func seekerTravelDuration(from origin: CGPoint, to target: CGPoint) -> TimeInterval {
+    private func seekerTravelDuration(
+        from origin: CGPoint,
+        to target: CGPoint,
+        configuration: StartingWeaponConfiguration
+    ) -> TimeInterval {
         let distance = hypot(target.x - origin.x, target.y - origin.y)
         guard distance > 0 else {
             return weaponEffectTiming.minimumTravelDuration
         }
 
-        let speed = max(1, weaponResolver.configuration.seekerTravelSpeed)
+        let speed = max(1, configuration.seekerTravelSpeed)
         return max(weaponEffectTiming.minimumTravelDuration, TimeInterval(distance / speed))
     }
 
@@ -33,6 +44,7 @@ extension ArenaScene {
         to target: WeaponImpactTarget,
         delay: TimeInterval,
         duration: TimeInterval,
+        configuration: StartingWeaponConfiguration,
         onImpact: @escaping (WeaponImpactTarget) -> Void
     ) {
         let trail = SKShapeNode(path: Self.seekerLinePath(from: origin, to: target.position))
@@ -71,16 +83,22 @@ extension ArenaScene {
             .removeFromParent()
         ]))
 
-        playSeekerExplosion(at: target, delay: delay + duration, onImpact: onImpact)
+        playSeekerExplosion(
+            at: target,
+            delay: delay + duration,
+            configuration: configuration,
+            onImpact: onImpact
+        )
     }
 
     private func playSeekerExplosion(
         at target: WeaponImpactTarget,
         delay: TimeInterval,
+        configuration: StartingWeaponConfiguration,
         onImpact: @escaping (WeaponImpactTarget) -> Void
     ) {
-        let radius = weaponResolver.configuration.seekerExplosionRadius
-        let holdDuration = max(0, weaponResolver.configuration.seekerExplosionHoldDuration)
+        let radius = configuration.seekerExplosionRadius
+        let holdDuration = max(0, configuration.seekerExplosionHoldDuration)
         let ring = makeEffectRing(
             radius: radius,
             strokeColor: theme.pickupViolet.withAlphaComponent(0.95),

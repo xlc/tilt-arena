@@ -8,6 +8,35 @@ final class PickupSpawnPlannerTests: XCTestCase {
         XCTAssertEqual(configuration.pickupRadius, 8.5)
     }
 
+    func testPickupChargeTierUsesTimeOnScreenThresholds() {
+        let configuration = PickupSpawnConfiguration(
+            chargedPickupDelay: 2.5,
+            overchargedPickupDelay: 6.5
+        )
+
+        XCTAssertEqual(configuration.chargeTier(for: 2.49), .base)
+        XCTAssertEqual(configuration.chargeTier(for: 2.5), .charged)
+        XCTAssertEqual(configuration.chargeTier(for: 6.49), .charged)
+        XCTAssertEqual(configuration.chargeTier(for: 6.5), .overcharged)
+    }
+
+    func testPickupAdvancesChargeWithoutEnemyContext() {
+        let configuration = PickupSpawnConfiguration(
+            chargedPickupDelay: 2,
+            overchargedPickupDelay: 5
+        )
+        var pickup = WeaponPickup(id: 1, kind: .shockwave, position: .zero, radius: 8)
+
+        pickup.advanceCharge(deltaTime: 1.9, configuration: configuration)
+        XCTAssertEqual(pickup.chargeTier, .base)
+
+        pickup.advanceCharge(deltaTime: 0.1, configuration: configuration)
+        XCTAssertEqual(pickup.chargeTier, .charged)
+
+        pickup.advanceCharge(deltaTime: 3, configuration: configuration)
+        XCTAssertEqual(pickup.chargeTier, .overcharged)
+    }
+
     func testPickupScheduleRespectsActiveCap() {
         let configuration = PickupSpawnConfiguration(maxActivePickups: 1)
         var planner = PickupSpawnPlanner(configuration: configuration)

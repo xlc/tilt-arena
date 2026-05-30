@@ -4,12 +4,14 @@ extension ArenaScene {
     func playChainLightningEffect(
         from origin: CGPoint,
         through targets: [WeaponImpactTarget],
+        configuration: StartingWeaponConfiguration? = nil,
         accentColor: SKColor,
         coreColor: SKColor,
         onImpact: @escaping (Set<Int>) -> Void
     ) {
+        let configuration = configuration ?? weaponResolver.configuration
         let targetPositions = targets.isEmpty
-            ? [randomChainFallbackTarget(from: origin)]
+            ? [randomChainFallbackTarget(from: origin, configuration: configuration)]
             : targets.map(\.position)
         let impactDelays = weaponEffectTiming.chainImpactDelays(origin: origin, targets: targetPositions)
         let charge = SKShapeNode(circleOfRadius: 5.5)
@@ -58,8 +60,11 @@ extension ArenaScene {
         charge.run(.sequence(travelActions))
     }
 
-    private func randomChainFallbackTarget(from origin: CGPoint) -> CGPoint {
-        let range = max(1, weaponResolver.configuration.chainLightningInitialRange)
+    private func randomChainFallbackTarget(
+        from origin: CGPoint,
+        configuration: StartingWeaponConfiguration
+    ) -> CGPoint {
+        let range = max(1, configuration.chainLightningInitialRange)
         let angle = CGFloat.random(in: 0..<(2 * .pi))
         let distance = CGFloat.random(in: (range * 0.55)...range)
         let rawPosition = CGPoint(

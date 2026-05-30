@@ -4,8 +4,10 @@ extension ArenaScene {
     func playRicochetLanceEffect(
         segments: [RicochetLanceSegment],
         targets: [WeaponImpactTarget],
+        configuration: StartingWeaponConfiguration? = nil,
         onImpact: @escaping (Set<Int>) -> Void
     ) {
+        let configuration = configuration ?? weaponResolver.configuration
         guard !segments.isEmpty else {
             runRicochetImpactBatch(targets, delay: 0, onImpact: onImpact)
             return
@@ -14,7 +16,7 @@ extension ArenaScene {
         var elapsed: TimeInterval = 0
         for (index, segment) in segments.enumerated() {
             let travelDuration = ricochetSegmentDuration(segment)
-            addRicochetBeam(segment, delay: elapsed, duration: travelDuration)
+            addRicochetBeam(segment, delay: elapsed, duration: travelDuration, configuration: configuration)
 
             if index < segments.count - 1 {
                 playRicochetBouncePulse(at: segment.end, delay: elapsed + travelDuration)
@@ -29,12 +31,13 @@ extension ArenaScene {
     private func addRicochetBeam(
         _ segment: RicochetLanceSegment,
         delay: TimeInterval,
-        duration: TimeInterval
+        duration: TimeInterval,
+        configuration: StartingWeaponConfiguration
     ) {
         let beam = ricochetBeamNode(
             segment,
             color: theme.pickupBlue.withAlphaComponent(0.7),
-            lineWidth: max(2.2, weaponResolver.configuration.ricochetLanceBeamWidth * 0.4),
+            lineWidth: max(2.2, configuration.ricochetLanceBeamWidth * 0.4),
             glowWidth: 1.8,
             zPosition: 18
         )
@@ -48,8 +51,8 @@ extension ArenaScene {
 
         addWeaponEffectNode(beam)
         addWeaponEffectNode(core)
-        beam.run(ricochetRevealAction(delay: delay, duration: duration))
-        core.run(ricochetRevealAction(delay: delay, duration: duration))
+        beam.run(ricochetRevealAction(delay: delay, duration: duration, configuration: configuration))
+        core.run(ricochetRevealAction(delay: delay, duration: duration, configuration: configuration))
     }
 
     private func ricochetBeamNode(
@@ -101,12 +104,16 @@ extension ArenaScene {
         )
     }
 
-    private func ricochetRevealAction(delay: TimeInterval, duration: TimeInterval) -> SKAction {
+    private func ricochetRevealAction(
+        delay: TimeInterval,
+        duration: TimeInterval,
+        configuration: StartingWeaponConfiguration
+    ) -> SKAction {
         .sequence([
             .wait(forDuration: delay),
             .fadeAlpha(to: 1, duration: 0.025),
             .wait(forDuration: duration),
-            .wait(forDuration: max(0, weaponResolver.configuration.ricochetLanceHoldDuration)),
+            .wait(forDuration: max(0, configuration.ricochetLanceHoldDuration)),
             .fadeOut(withDuration: 0.16),
             .removeFromParent()
         ])

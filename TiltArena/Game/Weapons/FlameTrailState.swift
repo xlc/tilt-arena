@@ -11,6 +11,22 @@ struct FlameTrailConfiguration: Equatable {
     var speedMultiplier: CGFloat = 5
 }
 
+extension FlameTrailConfiguration {
+    func applying(chargeTier: WeaponPickupChargeTier) -> FlameTrailConfiguration {
+        guard chargeTier > .base else {
+            return self
+        }
+
+        let level = CGFloat(chargeTier.rawValue)
+        var configuration = self
+        configuration.duration *= 1 + level * 0.15
+        configuration.segmentLifetime *= 1 + level * 0.1
+        configuration.segmentRadius *= 1 + level * 0.08
+        configuration.maxSegments += chargeTier.rawValue * 4
+        return configuration
+    }
+}
+
 struct FlameTrailSegment: Equatable, Identifiable {
     let id: Int
     let position: CGPoint

@@ -4,6 +4,9 @@ import Foundation
 struct GravityWellState {
     let center: CGPoint
     let enemyIDs: Set<Int>
+    let pullRadius: CGFloat
+    let pullDuration: TimeInterval
+    let clearRadius: CGFloat
     var activationDelayRemaining: TimeInterval
     var timeRemaining: TimeInterval
 
@@ -11,10 +14,16 @@ struct GravityWellState {
         center: CGPoint,
         enemyIDs: Set<Int>,
         timeRemaining: TimeInterval,
-        activationDelayRemaining: TimeInterval = 0
+        activationDelayRemaining: TimeInterval = 0,
+        pullRadius: CGFloat = StartingWeaponConfiguration().gravityWellRadius,
+        pullDuration: TimeInterval = StartingWeaponConfiguration().gravityWellPullDuration,
+        clearRadius: CGFloat = StartingWeaponConfiguration().gravityWellClearRadius
     ) {
         self.center = center
         self.enemyIDs = enemyIDs
+        self.pullRadius = pullRadius
+        self.pullDuration = pullDuration
+        self.clearRadius = clearRadius
         self.activationDelayRemaining = max(0, activationDelayRemaining)
         self.timeRemaining = max(0, timeRemaining)
     }

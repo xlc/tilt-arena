@@ -228,6 +228,8 @@ enum GameTuningParameterCatalog {
     ) {
         let group = "\(modeTitle) Pickups"
         specs.append(double("\(sourcePrefix).refillDelay", group, "refill delay", keyPath.appending(path: \.refillDelay), 0.05, 0, nil, 2))
+        specs.append(double("\(sourcePrefix).chargedPickupDelay", group, "charge delay", keyPath.appending(path: \.chargedPickupDelay), 0.25, 0, nil, 2))
+        specs.append(double("\(sourcePrefix).overchargedPickupDelay", group, "overcharge delay", keyPath.appending(path: \.overchargedPickupDelay), 0.25, 0, nil, 2))
         specs.append(int("\(sourcePrefix).maxActivePickups", group, "max active pickups", keyPath.appending(path: \.maxActivePickups), 1, 0, nil))
         specs.append(cgFloat("\(sourcePrefix).pickupRadius", group, "pickup radius", keyPath.appending(path: \.pickupRadius), 1, 1, nil, 1))
         specs.append(cgFloat("\(sourcePrefix).edgeInset", group, "edge inset", keyPath.appending(path: \.edgeInset), 2, 0, nil, 1))

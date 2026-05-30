@@ -8,10 +8,11 @@ struct WeaponImpactTarget: Equatable {
 extension ArenaScene {
     func playShockwaveEffect(
         at position: CGPoint,
+        radius: CGFloat? = nil,
         duration: TimeInterval,
         holdDuration: TimeInterval
     ) {
-        let radius = weaponResolver.configuration.shockwaveRadius
+        let radius = radius ?? weaponResolver.configuration.shockwaveRadius
         let expansionDuration = max(0.01, duration)
         let holdDuration = max(0, holdDuration)
         let fadeDuration = max(0.01, holdDuration)
@@ -140,7 +141,11 @@ extension ArenaScene {
         }
     }
 
-    func playGravityWellEffect(at position: CGPoint, duration: TimeInterval? = nil) {
+    func playGravityWellEffect(
+        at position: CGPoint,
+        radius: CGFloat? = nil,
+        duration: TimeInterval? = nil
+    ) {
         gravityWellEffectNode?.removeFromParent()
         let container = SKNode()
         container.position = position
@@ -148,7 +153,7 @@ extension ArenaScene {
         addWeaponEffectNode(container)
         gravityWellEffectNode = container
 
-        let radius = weaponResolver.configuration.gravityWellRadius
+        let radius = radius ?? weaponResolver.configuration.gravityWellRadius
         let ring = makeEffectRing(
             radius: radius,
             strokeColor: theme.pickupViolet.withAlphaComponent(0.84),
@@ -191,12 +196,13 @@ extension ArenaScene {
 
     func playGravityWellCollapseEffect(
         at position: CGPoint,
+        clearRadius: CGFloat,
         targets: [WeaponImpactTarget],
         onImpact: @escaping (Set<Int>) -> Void
     ) {
         let delay: TimeInterval = 0.12
         let ring = makeEffectRing(
-            radius: weaponResolver.configuration.gravityWellClearRadius * 1.5,
+            radius: clearRadius * 1.5,
             strokeColor: theme.pickupViolet.withAlphaComponent(0.95),
             fillColor: theme.pickupViolet.withAlphaComponent(0.12),
             lineWidth: 2,

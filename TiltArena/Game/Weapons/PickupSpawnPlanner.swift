@@ -32,12 +32,30 @@ struct PickupSpawnConfiguration: Equatable {
     ]
 
     var refillDelay: TimeInterval = 0.5
+    var chargedPickupDelay: TimeInterval = 2.5
+    var overchargedPickupDelay: TimeInterval = 6.5
     var maxActivePickups: Int = 3
     var pickupRadius: CGFloat = 8.5
     var edgeInset: CGFloat = 44
     var playerClearance: CGFloat = 84
     var enemyClearance: CGFloat = 8
     var weaponKindCycle: [WeaponKind] = PickupSpawnConfiguration.defaultWeaponKindCycle
+
+    func chargeTier(for timeOnScreen: TimeInterval) -> WeaponPickupChargeTier {
+        let age = max(0, timeOnScreen)
+        let chargedDelay = max(0, chargedPickupDelay)
+        let overchargedDelay = max(chargedDelay, overchargedPickupDelay)
+
+        if age >= overchargedDelay {
+            return .overcharged
+        }
+
+        if age >= chargedDelay {
+            return .charged
+        }
+
+        return .base
+    }
 }
 
 struct PickupSpawnPlanner {
