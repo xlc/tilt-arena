@@ -5,6 +5,7 @@ extension ArenaScene {
         from origin: CGPoint,
         to targets: [WeaponImpactTarget],
         configuration: StartingWeaponConfiguration? = nil,
+        targetPosition: @escaping (Int) -> CGPoint? = { _ in nil },
         onImpact: @escaping (WeaponImpactTarget) -> Void
     ) {
         let configuration = configuration ?? weaponResolver.configuration
@@ -15,11 +16,14 @@ extension ArenaScene {
                 configuration: configuration
             )
             playSeekerBolt(
-                from: origin,
-                to: target,
-                delay: TimeInterval(index) * 0.035,
-                duration: duration,
-                configuration: configuration,
+                SeekerBoltSpec(
+                    origin: origin,
+                    target: target,
+                    delay: TimeInterval(index) * 0.035,
+                    duration: duration,
+                    configuration: configuration
+                ),
+                targetPosition: targetPosition,
                 onImpact: onImpact
             )
         }
@@ -40,21 +44,36 @@ extension ArenaScene {
     }
 
     private func playSeekerBolt(
-        from origin: CGPoint,
-        to target: WeaponImpactTarget,
-        delay: TimeInterval,
-        duration: TimeInterval,
-        configuration: StartingWeaponConfiguration,
+        _ spec: SeekerBoltSpec,
+        targetPosition: @escaping (Int) -> CGPoint?,
         onImpact: @escaping (WeaponImpactTarget) -> Void
     ) {
-        let trail = SKShapeNode(path: Self.seekerLinePath(from: origin, to: target.position))
+        let trail = makeSeekerTrail(from: spec.origin, to: spec.target.position)
+        addWeaponEffectNode(trail)
+
+        let projectile = makeSeekerProjectile(at: spec.origin)
+        addWeaponEffectNode(projectile)
+
+        trail.run(seekerTrailAction(delay: spec.delay, duration: spec.duration))
+        projectile.run(seekerProjectileAction(
+            spec: spec,
+            trail: trail,
+            targetPosition: targetPosition,
+            onImpact: onImpact
+        ))
+    }
+
+    private func makeSeekerTrail(from origin: CGPoint, to target: CGPoint) -> SKShapeNode {
+        let trail = SKShapeNode(path: Self.seekerLinePath(from: origin, to: target))
         trail.strokeColor = theme.pickupViolet.withAlphaComponent(0.22)
         trail.lineWidth = 0.9
         trail.glowWidth = 0.65
         trail.zPosition = 18
         trail.alpha = 0
-        addWeaponEffectNode(trail)
+        return trail
+    }
 
+    private func makeSeekerProjectile(at origin: CGPoint) -> SKShapeNode {
         let projectile = SKShapeNode(circleOfRadius: 4)
         projectile.position = origin
         projectile.fillColor = theme.pickupViolet.withAlphaComponent(0.78)
@@ -63,32 +82,80 @@ extension ArenaScene {
         projectile.glowWidth = 0.8
         projectile.zPosition = 19
         projectile.alpha = 0
-        addWeaponEffectNode(projectile)
+        return projectile
+    }
 
-        trail.run(.sequence([
+    private func seekerTrailAction(delay: TimeInterval, duration: TimeInterval) -> SKAction {
+        .sequence([
             .wait(forDuration: delay),
             .fadeAlpha(to: 0.5, duration: min(0.05, duration * 0.35)),
             .wait(forDuration: max(0, duration * 0.45)),
             .fadeOut(withDuration: max(0.04, duration * 0.35)),
             .removeFromParent()
-        ]))
+        ])
+    }
 
-        projectile.run(.sequence([
-            .wait(forDuration: delay),
+    private func seekerProjectileAction(
+        spec: SeekerBoltSpec,
+        trail: SKShapeNode,
+        targetPosition: @escaping (Int) -> CGPoint?,
+        onImpact: @escaping (WeaponImpactTarget) -> Void
+    ) -> SKAction {
+        var impactTarget = spec.target
+
+        return .sequence([
+            .wait(forDuration: spec.delay),
             .fadeAlpha(to: 1, duration: 0.02),
             .group([
-                .move(to: target.position, duration: duration),
-                .scale(to: 1.35, duration: duration)
+                Self.seekAction(
+                    from: spec.origin,
+                    toward: spec.target,
+                    duration: spec.duration,
+                    targetPosition: targetPosition,
+                    trail: trail
+                ) { updatedTarget in
+                    impactTarget = updatedTarget
+                },
+                .scale(to: 1.35, duration: spec.duration)
             ]),
+            .run { [weak self] in
+                if let trackedPosition = targetPosition(spec.target.id) {
+                    impactTarget = WeaponImpactTarget(id: spec.target.id, position: trackedPosition)
+                }
+                self?.playSeekerExplosion(
+                    at: impactTarget,
+                    delay: 0,
+                    configuration: spec.configuration,
+                    onImpact: onImpact
+                )
+            },
             .removeFromParent()
-        ]))
+        ])
+    }
 
-        playSeekerExplosion(
-            at: target,
-            delay: delay + duration,
-            configuration: configuration,
-            onImpact: onImpact
-        )
+    private static func seekAction(
+        from origin: CGPoint,
+        toward target: WeaponImpactTarget,
+        duration: TimeInterval,
+        targetPosition: @escaping (Int) -> CGPoint?,
+        trail: SKShapeNode,
+        updateImpactTarget: @escaping (WeaponImpactTarget) -> Void
+    ) -> SKAction {
+        var lastKnownPosition = target.position
+
+        return SKAction.customAction(withDuration: max(0.01, duration)) { node, elapsedTime in
+            let progress = min(1, max(0, elapsedTime / CGFloat(max(0.01, duration))))
+            if let trackedPosition = targetPosition(target.id) {
+                lastKnownPosition = trackedPosition
+            }
+            let projectilePosition = CGPoint(
+                x: origin.x + (lastKnownPosition.x - origin.x) * progress,
+                y: origin.y + (lastKnownPosition.y - origin.y) * progress
+            )
+            node.position = projectilePosition
+            trail.path = seekerLinePath(from: origin, to: projectilePosition)
+            updateImpactTarget(WeaponImpactTarget(id: target.id, position: lastKnownPosition))
+        }
     }
 
     private func playSeekerExplosion(
@@ -172,4 +239,12 @@ extension ArenaScene {
         path.addLine(to: CGPoint(x: 0, y: radius))
         return path
     }
+}
+
+private struct SeekerBoltSpec {
+    let origin: CGPoint
+    let target: WeaponImpactTarget
+    let delay: TimeInterval
+    let duration: TimeInterval
+    let configuration: StartingWeaponConfiguration
 }
