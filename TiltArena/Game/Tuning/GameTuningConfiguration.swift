@@ -23,6 +23,11 @@ struct GameTuningConfiguration: Equatable {
     var classic: GameModeTuningConfiguration
     var redline: GameModeTuningConfiguration
     var daily: GameModeTuningConfiguration
+    // Weapon tuning entry points:
+    // - startingWeapons: gameplay reach, duration, target counts, and clear strength.
+    // - weaponEffectTiming: shared visual travel timing only.
+    // - flameTrail: persistent trail segments and its movement boost.
+    // Keep GameTuningParameterCatalog in sync when adding new public tuning knobs.
     var startingWeapons = StartingWeaponConfiguration()
     var weaponEffectTiming = WeaponEffectTiming()
     var flameTrail = FlameTrailConfiguration()

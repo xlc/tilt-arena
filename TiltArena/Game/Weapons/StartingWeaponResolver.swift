@@ -2,41 +2,84 @@ import CoreGraphics
 import Foundation
 
 struct StartingWeaponConfiguration: Equatable {
-    var shockwaveRadius: CGFloat = 96
-    var shockwaveExpansionDuration: TimeInterval = 0.5
-    var shockwaveHoldDuration: TimeInterval = 0.1
+    // Gameplay-impacting weapon knobs. Distances are SpriteKit points, durations are seconds,
+    // and target limits are enemy counts. Shared visual travel timing lives in WeaponEffectTiming;
+    // per-weapon visual timing stays here when it only applies to one weapon.
+    //
+    // Naming convention:
+    // - Radius/range/beam width values define what enemies a weapon can reach or clear.
+    // - Duration/hold/delay values define how long the gameplay effect lasts or waits.
+    // - Target limit/count/fraction values cap how many enemies a weapon may affect.
+    var shockwaveRadius: CGFloat = 90
+    // Time for the expanding damaging wave to reach shockwaveRadius.
+    var shockwaveExpansionDuration: TimeInterval = 0.6
+    // Extra time the wave remains active after reaching full radius.
+    var shockwaveHoldDuration: TimeInterval = 0.2
+    // Number of nearest enemies the swarm launches at.
     var seekerTargetLimit: Int = 4
+    // Area clear around each seeker impact.
     var seekerExplosionRadius: CGFloat = 30
-    var seekerExplosionHoldDuration: TimeInterval = 0.3
+    // Time seeker impact markers linger after exploding.
+    var seekerExplosionHoldDuration: TimeInterval = 0.2
+    // Projectile travel speed for seeker visuals.
     var seekerTravelSpeed: CGFloat = 320
+    // Contact kill radius while the shield is orbiting the player.
     var razorShieldRadius: CGFloat = 28
+    // How long the shield stays active.
     var razorShieldDuration: TimeInterval = 4
+    // Final burst radius when the shield expires.
     var razorShieldExplosionRadius: CGFloat = 48
+    // Enemies inside this radius are frozen, not destroyed.
     var freezeBurstRadius: CGFloat = 140
-    var freezeExpansionDuration: TimeInterval = 0.5
-    var freezeDuration: TimeInterval = 4
+    // Time for the freeze wave to reach freezeBurstRadius.
+    var freezeExpansionDuration: TimeInterval = 0.8
+    // How long enemies remain frozen.
+    var freezeDuration: TimeInterval = 12
+    // Short post-thaw grace before an enemy can collide again.
     var freezeThawGraceDuration: TimeInterval = 0.5
-    var gravityWellRadius: CGFloat = 148
+    // Enemies inside this radius get pulled toward the well.
+    var gravityWellRadius: CGFloat = 160
+    // Arming delay before the pull starts.
     var gravityWellActivationDelay: TimeInterval = 0.5
-    var gravityWellPullDuration: TimeInterval = 1
+    // How long the pull lasts.
+    var gravityWellPullDuration: TimeInterval = 3
+    // Kill radius at the center after enemies have been pulled inward.
     var gravityWellClearRadius: CGFloat = 32
+    // First chain search range from the player.
     var chainLightningInitialRange: CGFloat = 140
+    // Search range for each jump after the first hit.
     var chainLightningJumpRange: CGFloat = 96
+    // Maximum chain hits.
     var chainLightningTargetLimit: Int = 6
-    var timeDilationRadius: CGFloat = 132
-    var timeDilationDuration: TimeInterval = 1
-    var timeDilationMaximumSlowFactor: CGFloat = 10
+    // Aura radius for slowed enemies.
+    var timeDilationRadius: CGFloat = 120
+    // How long the slowing aura stays active.
+    var timeDilationDuration: TimeInterval = 6
+    // Divides affected enemy speed; larger means slower enemies.
+    var timeDilationMaximumSlowFactor: CGFloat = 8
+    // Inner shove radius around the player.
     var timeDilationPushRadius: CGFloat = 48
-    var timeDilationMaximumPushDistance: CGFloat = 24
-    var powerWaveChargeDuration: TimeInterval = 0.5
-    var powerWaveRange: CGFloat = 180
+    // Maximum outward shove distance for close enemies.
+    var timeDilationMaximumPushDistance: CGFloat = 180
+    // Pre-fire aiming/charge time before the wave releases.
+    var powerWaveChargeDuration: TimeInterval = 0.6
+    // Length of the cone-shaped wave.
+    var powerWaveRange: CGFloat = 160
+    // Cone width in degrees; 360 becomes a full circle.
     var powerWaveFanAngleDegrees: CGFloat = 60
+    // Time for the cone to expand to full range.
     var powerWaveExpansionDuration: TimeInterval = 0.24
+    // Maximum traced path length across bounces.
     var ricochetLanceRange: CGFloat = 560
+    // Forgiving beam thickness used for collision along the traced path.
     var ricochetLanceBeamWidth: CGFloat = 18
+    // Maximum wall bounces after the first segment.
     var ricochetLanceMaximumBounces: Int = 3
+    // Time the traced beam remains active/visible.
     var ricochetLanceHoldDuration: TimeInterval = 0.5
+    // Nova Bomb requires this many available enemies before it fires.
     var novaBombMinimumTargetCount: Int = 15
+    // Fraction of available enemies selected once the minimum count is met.
     var novaBombTargetFraction: Double = 0.8
 }
 
@@ -87,6 +130,8 @@ struct WeaponResolution: Equatable {
 }
 
 struct WeaponEffectTiming: Equatable {
+    // Visual timing shared by projectile and wave effects. These values should make
+    // effects readable; they do not decide which enemies are hit.
     var projectileSpeed: CGFloat = 520
     var waveSpeed: CGFloat = 620
     var minimumTravelDuration: TimeInterval = 0.08

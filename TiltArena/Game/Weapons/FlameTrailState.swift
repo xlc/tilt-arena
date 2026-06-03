@@ -2,12 +2,22 @@ import CoreGraphics
 import Foundation
 
 struct FlameTrailConfiguration: Equatable {
+    // Gameplay-impacting Flame Trail knobs. Distances are SpriteKit points and durations are seconds.
+    // This weapon is separate from StartingWeaponConfiguration because it creates persistent segments
+    // over time instead of resolving a one-shot target set.
+    // How long the player keeps emitting new trail segments after pickup.
     var duration: TimeInterval = 1.0
+    // How long each placed segment remains dangerous.
     var segmentLifetime: TimeInterval = 3.0
+    // Kill radius around each segment.
     var segmentRadius: CGFloat = 16
+    // Minimum player movement before another segment is placed.
     var segmentSpacing: CGFloat = 14
+    // Segment cap; old segments are dropped first when the cap is exceeded.
     var maxSegments: Int = 24
+    // Frozen enemies must touch flame this long before melting.
     var frozenMeltDelay: TimeInterval = 0.3
+    // Player movement multiplier while the trail is being generated.
     var speedMultiplier: CGFloat = 5
 }
 
