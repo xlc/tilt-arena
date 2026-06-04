@@ -105,6 +105,13 @@ enum GameTuningParameterCatalog {
         specs.append(double("run.survivalBonusStartTime", "Scoring", "survival bonus start", \.run.survivalBonusStartTime, 5, 0, nil, 1))
         specs.append(double("run.survivalBonusInterval", "Scoring", "survival bonus interval", \.run.survivalBonusInterval, 1, 0, nil, 1))
         specs.append(double("run.survivalBonusEnemySqrtDivisor", "Scoring", "survival bonus sqrt divisor", \.run.survivalBonusEnemySqrtDivisor, 0.5, 0.1, nil, 1))
+        specs.append(double("run.weaponComboWindow", "Scoring", "weapon combo window", \.run.weaponComboWindow, 0.25, 0, nil, 2))
+        specs.append(int("run.weaponComboMinimumKillCount", "Scoring", "weapon combo minimum kills", \.run.weaponComboMinimumKillCount, 1, 2, nil))
+        specs.append(int("run.weaponComboScoreBonus", "Scoring", "weapon combo score bonus", \.run.weaponComboScoreBonus, 5, 0, nil))
+        specs.append(int("run.weaponComboCascadeScoreBonus", "Scoring", "weapon combo cascade bonus", \.run.weaponComboCascadeScoreBonus, 5, 0, nil))
+        specs.append(double("run.weaponComboWindowExtension", "Scoring", "weapon combo window extension", \.run.weaponComboWindowExtension, 0.05, 0, nil, 2))
+        specs.append(double("run.weaponComboCascadeWindowExtension", "Scoring", "weapon combo cascade extension", \.run.weaponComboCascadeWindowExtension, 0.05, 0, nil, 2))
+        specs.append(double("run.weaponComboEventDisplayDuration", "Scoring", "weapon combo display duration", \.run.weaponComboEventDisplayDuration, 0.1, 0, nil, 2))
     }
 
     private static func appendReadyStartParameters(to specs: inout [GameTuningParameterSpec]) {

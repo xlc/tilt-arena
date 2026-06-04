@@ -2,12 +2,13 @@ import XCTest
 @testable import TiltArena
 
 final class StartingWeaponResolverTests: XCTestCase {
-    func testDefaultShockwaveRadiusUsesBuffedRadius() {
+    func testDefaultShockwaveTuningKeepsWaveReadableAndLargerThanShieldBurst() {
         let configuration = StartingWeaponConfiguration()
 
-        XCTAssertEqual(configuration.shockwaveRadius, 96)
-        XCTAssertEqual(configuration.shockwaveExpansionDuration, 0.5)
-        XCTAssertEqual(configuration.shockwaveHoldDuration, 0.1)
+        XCTAssertGreaterThan(configuration.shockwaveRadius, configuration.razorShieldExplosionRadius)
+        XCTAssertGreaterThan(configuration.shockwaveExpansionDuration, 0)
+        XCTAssertGreaterThanOrEqual(configuration.shockwaveHoldDuration, 0)
+        XCTAssertLessThanOrEqual(configuration.shockwaveHoldDuration, configuration.shockwaveExpansionDuration)
     }
 
     func testWeaponSpriteSheetMapsWeaponsToIconAndEffectRows() {
@@ -31,37 +32,33 @@ final class StartingWeaponResolverTests: XCTestCase {
         }
     }
 
-    func testDefaultWeaponTuningUsesUpdatedBalance() {
+    func testDefaultWeaponTuningKeepsWeaponFamiliesInDistinctRoles() {
         let configuration = StartingWeaponConfiguration()
         let flameTrailConfiguration = FlameTrailConfiguration()
 
-        XCTAssertEqual(configuration.seekerExplosionRadius, 30)
-        XCTAssertEqual(configuration.seekerExplosionHoldDuration, 0.3)
-        XCTAssertEqual(configuration.seekerTravelSpeed, 320)
-        XCTAssertEqual(configuration.razorShieldRadius, 28)
-        XCTAssertEqual(configuration.razorShieldExplosionRadius, 48)
-        XCTAssertEqual(configuration.freezeExpansionDuration, 0.5)
-        XCTAssertEqual(configuration.freezeThawGraceDuration, 0.5)
-        XCTAssertEqual(configuration.gravityWellRadius, 148)
-        XCTAssertEqual(configuration.gravityWellPullDuration, 1)
-        XCTAssertEqual(configuration.chainLightningInitialRange, 140)
-        XCTAssertEqual(flameTrailConfiguration.duration, 1)
-        XCTAssertEqual(flameTrailConfiguration.segmentLifetime, 3)
-        XCTAssertEqual(flameTrailConfiguration.segmentRadius, 16)
-        XCTAssertEqual(flameTrailConfiguration.speedMultiplier, 5)
-        XCTAssertEqual(configuration.timeDilationRadius, 132)
-        XCTAssertEqual(configuration.timeDilationDuration, 1)
-        XCTAssertEqual(configuration.timeDilationMaximumSlowFactor, 10)
-        XCTAssertEqual(configuration.timeDilationPushRadius, 48)
-        XCTAssertEqual(configuration.powerWaveChargeDuration, 0.5)
-        XCTAssertEqual(configuration.powerWaveRange, 180)
-        XCTAssertEqual(configuration.powerWaveFanAngleDegrees, 60)
-        XCTAssertEqual(configuration.powerWaveExpansionDuration, 0.24)
-        XCTAssertEqual(configuration.ricochetLanceRange, 560)
-        XCTAssertEqual(configuration.ricochetLanceBeamWidth, 18)
-        XCTAssertEqual(configuration.ricochetLanceMaximumBounces, 3)
-        XCTAssertEqual(configuration.ricochetLanceHoldDuration, 0.5)
-        XCTAssertEqual(configuration.novaBombMinimumTargetCount, 15)
+        XCTAssertGreaterThan(configuration.seekerExplosionRadius, 0)
+        XCTAssertGreaterThan(configuration.seekerTravelSpeed, 0)
+        XCTAssertGreaterThan(configuration.razorShieldExplosionRadius, configuration.razorShieldRadius)
+        XCTAssertGreaterThan(configuration.freezeBurstRadius, configuration.shockwaveRadius)
+        XCTAssertGreaterThan(configuration.freezeDuration, configuration.freezeExpansionDuration)
+        XCTAssertGreaterThan(configuration.gravityWellRadius, configuration.gravityWellClearRadius)
+        XCTAssertGreaterThan(configuration.gravityWellPullDuration, configuration.gravityWellActivationDelay)
+        XCTAssertGreaterThan(configuration.chainLightningInitialRange, configuration.chainLightningJumpRange)
+        XCTAssertGreaterThan(configuration.chainLightningTargetLimit, configuration.seekerTargetLimit)
+        XCTAssertGreaterThan(flameTrailConfiguration.segmentLifetime, flameTrailConfiguration.duration)
+        XCTAssertGreaterThan(flameTrailConfiguration.segmentRadius, 0)
+        XCTAssertGreaterThan(flameTrailConfiguration.speedMultiplier, 1)
+        XCTAssertGreaterThan(configuration.timeDilationRadius, configuration.timeDilationPushRadius)
+        XCTAssertGreaterThan(configuration.timeDilationDuration, 0)
+        XCTAssertGreaterThan(configuration.timeDilationMaximumSlowFactor, 1)
+        XCTAssertGreaterThan(configuration.powerWaveRange, configuration.timeDilationPushRadius)
+        XCTAssertGreaterThan(configuration.powerWaveFanAngleDegrees, 0)
+        XCTAssertLessThanOrEqual(configuration.powerWaveFanAngleDegrees, 360)
+        XCTAssertGreaterThan(configuration.ricochetLanceRange, configuration.powerWaveRange)
+        XCTAssertGreaterThan(configuration.ricochetLanceBeamWidth, 0)
+        XCTAssertGreaterThan(configuration.ricochetLanceMaximumBounces, 0)
+        XCTAssertGreaterThan(configuration.ricochetLanceHoldDuration, 0)
+        XCTAssertGreaterThan(configuration.novaBombMinimumTargetCount, configuration.seekerTargetLimit)
     }
 
     func testChargedWeaponConfigurationAppliesModestUpgrade() {

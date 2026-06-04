@@ -1290,7 +1290,7 @@ final class ArenaScene: SKScene {
         let destroyedEnemies = enemies.filter { enemyIDs.contains($0.id) }
         let splitChildren = splitterChildren(from: destroyedEnemies)
         let previousComboMultiplier = runController.comboMultiplier
-        runController.recordEnemyKills(count: enemyIDs.count, weaponKind: weaponKind)
+        let weaponComboEvent = runController.recordEnemyKills(count: enemyIDs.count, weaponKind: weaponKind)
         reportGameCenterAchievementEvent(.enemyClear(
             count: enemyIDs.count,
             weaponKind: weaponKind,
@@ -1298,6 +1298,9 @@ final class ArenaScene: SKScene {
         ))
         playEnemyClearHaptics(killCount: enemyIDs.count, previousComboMultiplier: previousComboMultiplier)
         playEnemyClearAudio(killCount: enemyIDs.count, previousComboMultiplier: previousComboMultiplier)
+        if let weaponComboEvent {
+            recordWeaponComboFeedback(weaponComboEvent, previousComboMultiplier: previousComboMultiplier)
+        }
         playEnemyClearBursts(
             at: positions(forEnemyIDs: enemyIDs),
             weaponKind: weaponKind,
@@ -1811,16 +1814,34 @@ final class ArenaScene: SKScene {
     }
 
     private func formatCombo() -> String {
+        let weaponComboText = formatWeaponCombo()
         guard runController.currentCombo > 0 else {
-            return ""
+            return weaponComboText
         }
 
-        return String(
+        let comboText = String(
             format: "COMBO %d  x%d  %.1fs",
             runController.currentCombo,
             runController.comboMultiplier,
             runController.comboTimeRemaining
         )
+        guard !weaponComboText.isEmpty else {
+            return comboText
+        }
+
+        return "\(comboText)  \(weaponComboText)"
+    }
+
+    private func formatWeaponCombo() -> String {
+        if let event = runController.weaponComboEvent {
+            return "\(event.kind.hudLabel) +\(event.scoreBonus)"
+        }
+
+        guard let primer = runController.weaponComboPrimer else {
+            return ""
+        }
+
+        return String(format: "%@ %.1fs", primer.family.hudLabel, primer.timeRemaining)
     }
 
     private func persistFinalRunIfNeeded() {
@@ -4415,9 +4436,12 @@ private extension ArenaScene {
         let splitChildren = splitterChildren(from: shatteredEnemies)
         playFrozenShatterEffect(at: positions(forEnemyIDs: shatterIDs), color: theme.playerColor)
         let previousComboMultiplier = runController.comboMultiplier
-        runController.recordEnemyKills(count: shatterIDs.count, weaponKind: .freezeBurst)
+        let weaponComboEvent = runController.recordEnemyKills(count: shatterIDs.count, weaponKind: .freezeBurst)
         playEnemyClearHaptics(killCount: shatterIDs.count, previousComboMultiplier: previousComboMultiplier)
         playEnemyClearAudio(killCount: shatterIDs.count, previousComboMultiplier: previousComboMultiplier)
+        if let weaponComboEvent {
+            recordWeaponComboFeedback(weaponComboEvent, previousComboMultiplier: previousComboMultiplier)
+        }
         if shatterIDs.count >= gameTuning.feedback.multiKillShakeThreshold {
             playScreenShake(
                 amplitude: gameTuning.feedback.multiKillShakeAmplitude,
@@ -4426,6 +4450,22 @@ private extension ArenaScene {
         }
         removeEnemies(ids: shatterIDs)
         addSplitterChildren(splitChildren)
+    }
+
+    private func recordWeaponComboFeedback(_ event: WeaponComboEvent, previousComboMultiplier: Int) {
+        AppDiagnostics.logger(.weapon).notice("weapon.combo.resolved", metadata: [
+            "kind": "\(event.kind.rawValue)",
+            "from": "\(event.previousFamily.rawValue)",
+            "to": "\(event.currentFamily.rawValue)",
+            "scoreBonus": "\(event.scoreBonus)"
+        ])
+
+        guard runController.comboMultiplier == previousComboMultiplier else {
+            return
+        }
+
+        playAudio(.comboMilestone)
+        playHaptic(.comboMilestone(multiplier: event.kind == .cascade ? 4 : 2))
     }
 
     func canShatterOnContact(_ enemy: ArenaEnemy) -> Bool {
