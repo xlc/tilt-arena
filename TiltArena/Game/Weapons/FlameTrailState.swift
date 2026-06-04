@@ -5,8 +5,8 @@ struct FlameTrailConfiguration: Equatable {
     // Gameplay-impacting Flame Trail knobs. Distances are SpriteKit points and durations are seconds.
     // This weapon is separate from StartingWeaponConfiguration because it creates persistent segments
     // over time instead of resolving a one-shot target set.
-    // How long the player keeps emitting new trail segments after pickup.
-    var duration: TimeInterval = 1.0
+    // How long the fixed-speed burst emits new trail segments after pickup.
+    var duration: TimeInterval = 0.3
     // How long each placed segment remains dangerous.
     var segmentLifetime: TimeInterval = 3.0
     // Kill radius around each segment.
@@ -15,9 +15,9 @@ struct FlameTrailConfiguration: Equatable {
     var segmentSpacing: CGFloat = 14
     // Segment cap; old segments are dropped first when the cap is exceeded.
     var maxSegments: Int = 24
-    // Frozen enemies must touch flame this long before melting.
-    var frozenMeltDelay: TimeInterval = 0.3
-    // Player movement multiplier while the trail is being generated.
+    // Invulnerability granted after the fixed-speed burst.
+    var invulnerabilityDuration: TimeInterval = 0.5
+    // Player fixed-speed multiplier while the trail is being generated.
     var speedMultiplier: CGFloat = 5
 }
 
@@ -29,7 +29,6 @@ extension FlameTrailConfiguration {
 
         let level = CGFloat(chargeTier.rawValue)
         var configuration = self
-        configuration.duration *= 1 + level * 0.20
         configuration.segmentLifetime *= 1 + level * 0.12
         configuration.segmentRadius *= 1 + level * 0.10
         configuration.maxSegments += chargeTier.rawValue * 6
@@ -66,7 +65,6 @@ struct FlameTrailState {
     private(set) var timeRemaining: TimeInterval = 0
     private(set) var segments: [FlameTrailSegment] = []
     private var nextSegmentID = 1
-    private var frozenMeltDurations: [Int: TimeInterval] = [:]
 
     init(configuration: FlameTrailConfiguration = FlameTrailConfiguration()) {
         self.configuration = configuration
@@ -85,7 +83,6 @@ struct FlameTrailState {
         timeRemaining = 0
         segments.removeAll()
         nextSegmentID = 1
-        frozenMeltDurations.removeAll()
     }
 
     mutating func update(
@@ -101,7 +98,7 @@ struct FlameTrailState {
             appendSegmentIfNeeded(at: playerPosition)
         }
 
-        let burnedEnemyIDs = burnTargets(enemies: enemies, deltaTime: clampedDelta)
+        let burnedEnemyIDs = burnTargets(enemies: enemies)
         return FlameTrailFrame(burnedEnemyIDs: burnedEnemyIDs, segments: segments)
     }
 
@@ -150,34 +147,18 @@ struct FlameTrailState {
         }
     }
 
-    private mutating func burnTargets(enemies: [ArenaEnemy], deltaTime: TimeInterval) -> Set<Int> {
+    private func burnTargets(enemies: [ArenaEnemy]) -> Set<Int> {
         guard !segments.isEmpty else {
-            frozenMeltDurations.removeAll()
             return []
         }
 
-        var burnedEnemyIDs = Set<Int>()
-        var contactingFrozenEnemyIDs = Set<Int>()
-
-        for enemy in enemies where segments.contains(where: { $0.collisionCircle.intersects(enemy.collisionCircle) }) {
-            if enemy.isFrozen {
-                contactingFrozenEnemyIDs.insert(enemy.id)
-                let meltDuration = frozenMeltDurations[enemy.id, default: 0] + deltaTime
-
-                if meltDuration >= max(0, configuration.frozenMeltDelay) {
-                    burnedEnemyIDs.insert(enemy.id)
-                } else {
-                    frozenMeltDurations[enemy.id] = meltDuration
+        return Set(
+            enemies
+                .filter { enemy in
+                    segments.contains { $0.collisionCircle.intersects(enemy.collisionCircle) }
                 }
-            } else {
-                burnedEnemyIDs.insert(enemy.id)
-            }
-        }
-
-        frozenMeltDurations = frozenMeltDurations.filter { enemyID, _ in
-            contactingFrozenEnemyIDs.contains(enemyID) && !burnedEnemyIDs.contains(enemyID)
-        }
-        return burnedEnemyIDs
+                .map(\.id)
+        )
     }
 
 }

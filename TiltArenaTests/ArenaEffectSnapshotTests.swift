@@ -125,9 +125,7 @@ final class ArenaEffectSnapshotTests: XCTestCase {
             WeaponComboEvent(
                 kind: .cascade,
                 previousFamily: .force,
-                currentFamily: .seek,
-                scoreBonus: 160,
-                comboWindowExtension: 1
+                currentFamily: .seek
             ),
             at: [
                 CGPoint(x: 520, y: 196),

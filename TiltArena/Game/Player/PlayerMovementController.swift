@@ -87,6 +87,37 @@ struct PlayerMovementController {
         return state
     }
 
+    mutating func updateWithFixedSpeed(
+        input: CGVector,
+        deltaTime: TimeInterval,
+        arenaBounds: CGRect,
+        speedMultiplier: CGFloat
+    ) -> PlayerMovementState {
+        let clampedInput = input.clamped(toMaximumLength: 1)
+        guard clampedInput.length > 0 else {
+            state = PlayerMovementState(position: state.position, velocity: .zero)
+            return state
+        }
+
+        let maximumSpeed = configuration.maximumSpeed(in: arenaBounds) * max(0, speedMultiplier)
+        let direction = clampedInput.normalized
+        let velocity = CGVector(
+            dx: direction.dx * maximumSpeed,
+            dy: direction.dy * maximumSpeed
+        )
+        let proposedPosition = CGPoint(
+            x: state.position.x + velocity.dx * CGFloat(max(0, deltaTime)),
+            y: state.position.y + velocity.dy * CGFloat(max(0, deltaTime))
+        )
+
+        state = PlayerMovementState(
+            position: clampedPosition(proposedPosition, in: arenaBounds),
+            velocity: velocity
+        )
+
+        return state
+    }
+
     mutating func dash(direction: CGVector, distance: CGFloat, arenaSize: CGSize) -> PlayerMovementState {
         dash(direction: direction, distance: distance, arenaBounds: CGRect(origin: .zero, size: arenaSize))
     }

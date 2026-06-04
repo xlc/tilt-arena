@@ -2,12 +2,11 @@ import XCTest
 @testable import TiltArena
 
 final class RicochetLancePathTests: XCTestCase {
-    func testSegmentsBounceOffArenaWallsWithinRange() {
+    func testSegmentsBounceOffArenaWallsWithoutRangeLimit() {
         let segments = RicochetLancePath.segments(
             origin: CGPoint(x: 50, y: 50),
             direction: CGVector(dx: 1, dy: 0),
             playableRect: CGRect(x: 0, y: 0, width: 100, height: 100),
-            maximumDistance: 130,
             maximumBounces: 1
         )
 
@@ -15,7 +14,7 @@ final class RicochetLancePathTests: XCTestCase {
         XCTAssertEqual(segments[0].start, CGPoint(x: 50, y: 50))
         XCTAssertEqual(segments[0].end, CGPoint(x: 100, y: 50))
         XCTAssertEqual(segments[1].start, CGPoint(x: 100, y: 50))
-        XCTAssertEqual(segments[1].end, CGPoint(x: 20, y: 50))
+        XCTAssertEqual(segments[1].end, CGPoint(x: 0, y: 50))
     }
 
     func testMaximumBounceCountStopsAtFirstWallWhenZero() {
@@ -23,7 +22,6 @@ final class RicochetLancePathTests: XCTestCase {
             origin: CGPoint(x: 50, y: 50),
             direction: CGVector(dx: 1, dy: 0),
             playableRect: CGRect(x: 0, y: 0, width: 100, height: 100),
-            maximumDistance: 130,
             maximumBounces: 0
         )
 
@@ -46,13 +44,12 @@ final class RicochetLancePathTests: XCTestCase {
                 enemy(id: 3, position: CGPoint(x: 170, y: 10), radius: 4)
             ],
             configuration: StartingWeaponConfiguration(
-                ricochetLanceRange: 120,
                 ricochetLanceBeamWidth: 10,
                 ricochetLanceMaximumBounces: 0
             )
         )
 
-        XCTAssertEqual(result.destroyedEnemyIDs, [1])
+        XCTAssertEqual(result.destroyedEnemyIDs, [1, 3])
     }
 
     func testZeroDirectionFallsBackToUpwardBeam() {
@@ -65,16 +62,15 @@ final class RicochetLancePathTests: XCTestCase {
                 enemy(id: 2, position: CGPoint(x: 75, y: 50), radius: 4)
             ],
             configuration: StartingWeaponConfiguration(
-                ricochetLanceRange: 30,
                 ricochetLanceBeamWidth: 8,
-                ricochetLanceMaximumBounces: 1
+                ricochetLanceMaximumBounces: 0
             )
         )
 
         XCTAssertEqual(result.segments, [
             RicochetLanceSegment(
                 start: CGPoint(x: 50, y: 50),
-                end: CGPoint(x: 50, y: 80)
+                end: CGPoint(x: 50, y: 100)
             )
         ])
         XCTAssertEqual(result.destroyedEnemyIDs, [1])

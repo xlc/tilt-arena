@@ -25,7 +25,6 @@ enum RicochetLancePath {
             origin: origin,
             direction: direction,
             playableRect: playableRect,
-            maximumDistance: configuration.ricochetLanceRange,
             maximumBounces: configuration.ricochetLanceMaximumBounces
         )
         let beamRadius = max(0, configuration.ricochetLanceBeamWidth) / 2
@@ -53,21 +52,19 @@ enum RicochetLancePath {
         origin: CGPoint,
         direction rawDirection: CGVector,
         playableRect: CGRect,
-        maximumDistance: CGFloat,
         maximumBounces: Int
     ) -> [RicochetLanceSegment] {
-        let clampedDistance = max(0, maximumDistance)
-        guard clampedDistance > 0, playableRect.width > 0, playableRect.height > 0 else {
+        guard playableRect.width > 0, playableRect.height > 0 else {
             return []
         }
 
         var start = clamped(origin, to: playableRect)
         var direction = resolvedDirection(rawDirection)
-        var remainingDistance = clampedDistance
+        var remainingSegments = max(0, maximumBounces) + 1
         var remainingBounces = max(0, maximumBounces)
         var segments: [RicochetLanceSegment] = []
 
-        while remainingDistance > epsilon {
+        while remainingSegments > 0 {
             direction = reflectedIfLeavingBounds(direction, from: start, in: playableRect)
 
             let hit = nextBoundaryHit(from: start, direction: direction, in: playableRect)
@@ -75,21 +72,19 @@ enum RicochetLancePath {
                 break
             }
 
-            let travelDistance = min(remainingDistance, hit.distance)
             let end = CGPoint(
-                x: start.x + direction.dx * travelDistance,
-                y: start.y + direction.dy * travelDistance
+                x: start.x + direction.dx * hit.distance,
+                y: start.y + direction.dy * hit.distance
             )
 
             if ArenaGeometry.squaredDistance(from: start, to: end) > epsilon * epsilon {
                 segments.append(RicochetLanceSegment(start: start, end: end))
             }
+            remainingSegments -= 1
 
-            remainingDistance -= travelDistance
             guard
-                remainingDistance > epsilon,
-                remainingBounces > 0,
-                abs(travelDistance - hit.distance) <= epsilon
+                remainingSegments > 0,
+                remainingBounces > 0
             else {
                 break
             }

@@ -7,8 +7,8 @@ final class FlameTrailStateTests: XCTestCase {
         let charged = base.applying(chargeTier: .charged)
         let overcharged = base.applying(chargeTier: .overcharged)
 
-        XCTAssertGreaterThan(charged.duration, base.duration)
-        XCTAssertGreaterThan(overcharged.duration, charged.duration)
+        XCTAssertEqual(charged.duration, base.duration)
+        XCTAssertEqual(overcharged.duration, base.duration)
         XCTAssertGreaterThan(charged.segmentLifetime, base.segmentLifetime)
         XCTAssertGreaterThan(overcharged.segmentLifetime, charged.segmentLifetime)
         XCTAssertGreaterThan(charged.segmentRadius, base.segmentRadius)
@@ -33,40 +33,13 @@ final class FlameTrailStateTests: XCTestCase {
         XCTAssertEqual(frame.burnedEnemyIDs, [1])
     }
 
-    func testFrozenEnemiesBurnAfterContinuousMeltDelay() {
-        var state = FlameTrailState(configuration: FlameTrailConfiguration(segmentRadius: 12, frozenMeltDelay: 0.3))
+    func testFrozenEnemiesBurnImmediatelyOnContact() {
+        var state = FlameTrailState(configuration: FlameTrailConfiguration(segmentRadius: 12))
         state.activate(at: .zero)
         let frozen = frozenEnemy(id: 1, position: CGPoint(x: 10, y: 0))
 
-        var frame = state.update(deltaTime: 0.2, playerPosition: .zero, enemies: [frozen])
-        XCTAssertEqual(frame.burnedEnemyIDs, [])
-
-        frame = state.update(deltaTime: 0.1, playerPosition: .zero, enemies: [frozen])
+        let frame = state.update(deltaTime: 0.1, playerPosition: .zero, enemies: [frozen])
         XCTAssertEqual(frame.burnedEnemyIDs, [1])
-    }
-
-    func testFrozenMeltCancelsWhenContactEnds() {
-        var state = FlameTrailState(configuration: FlameTrailConfiguration(segmentRadius: 12, frozenMeltDelay: 0.3))
-        state.activate(at: .zero)
-        let frozenInContact = frozenEnemy(id: 1, position: CGPoint(x: 10, y: 0))
-        let frozenAway = frozenEnemy(id: 1, position: CGPoint(x: 80, y: 0))
-
-        XCTAssertEqual(
-            state.update(deltaTime: 0.2, playerPosition: .zero, enemies: [frozenInContact]).burnedEnemyIDs,
-            []
-        )
-        XCTAssertEqual(
-            state.update(deltaTime: 0.1, playerPosition: .zero, enemies: [frozenAway]).burnedEnemyIDs,
-            []
-        )
-        XCTAssertEqual(
-            state.update(deltaTime: 0.1, playerPosition: .zero, enemies: [frozenInContact]).burnedEnemyIDs,
-            []
-        )
-        XCTAssertEqual(
-            state.update(deltaTime: 0.2, playerPosition: .zero, enemies: [frozenInContact]).burnedEnemyIDs,
-            [1]
-        )
     }
 
     func testSegmentsExpireAfterLifetimeWhenTrailStopsGenerating() {

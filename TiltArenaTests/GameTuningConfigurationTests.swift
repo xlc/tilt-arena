@@ -83,7 +83,7 @@ final class GameTuningConfigurationTests: XCTestCase {
         XCTAssertTrue(classicSubgroups.contains("Warmup"))
         XCTAssertTrue(classicSubgroups.contains("Pickups"))
         XCTAssertTrue(weaponSubgroups.contains("Shockwave"))
-        XCTAssertTrue(weaponSubgroups.contains("Nova Bomb"))
+        XCTAssertFalse(weaponSubgroups.contains("Nova Bomb"))
     }
 
     func testChangedOnlyCatalogFiltersToChangedParameters() {

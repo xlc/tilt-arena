@@ -107,10 +107,6 @@ enum GameTuningParameterCatalog {
         specs.append(double("run.survivalBonusEnemySqrtDivisor", "Scoring", "survival bonus sqrt divisor", \.run.survivalBonusEnemySqrtDivisor, 0.5, 0.1, nil, 1))
         specs.append(double("run.weaponComboWindow", "Scoring", "weapon combo window", \.run.weaponComboWindow, 0.25, 0, nil, 2))
         specs.append(int("run.weaponComboMinimumKillCount", "Scoring", "weapon combo minimum kills", \.run.weaponComboMinimumKillCount, 1, 2, nil))
-        specs.append(int("run.weaponComboScoreBonus", "Scoring", "weapon combo score bonus", \.run.weaponComboScoreBonus, 5, 0, nil))
-        specs.append(int("run.weaponComboCascadeScoreBonus", "Scoring", "weapon combo cascade bonus", \.run.weaponComboCascadeScoreBonus, 5, 0, nil))
-        specs.append(double("run.weaponComboWindowExtension", "Scoring", "weapon combo window extension", \.run.weaponComboWindowExtension, 0.05, 0, nil, 2))
-        specs.append(double("run.weaponComboCascadeWindowExtension", "Scoring", "weapon combo cascade extension", \.run.weaponComboCascadeWindowExtension, 0.05, 0, nil, 2))
         specs.append(double("run.weaponComboEventDisplayDuration", "Scoring", "weapon combo display duration", \.run.weaponComboEventDisplayDuration, 0.1, 0, nil, 2))
     }
 
@@ -305,12 +301,8 @@ enum GameTuningParameterCatalog {
         specs.append(cgFloat("startingWeapons.powerWaveRange", "Weapons", "power wave range", \.startingWeapons.powerWaveRange, 4, 0, nil, 1))
         specs.append(cgFloat("startingWeapons.powerWaveFanAngleDegrees", "Weapons", "power wave angle", \.startingWeapons.powerWaveFanAngleDegrees, 2, 0, 360, 1))
         specs.append(double("startingWeapons.powerWaveExpansionDuration", "Weapons", "power wave expand", \.startingWeapons.powerWaveExpansionDuration, 0.02, 0, nil, 2))
-        specs.append(cgFloat("startingWeapons.ricochetLanceRange", "Weapons", "ricochet range", \.startingWeapons.ricochetLanceRange, 20, 0, nil, 1))
         specs.append(cgFloat("startingWeapons.ricochetLanceBeamWidth", "Weapons", "ricochet width", \.startingWeapons.ricochetLanceBeamWidth, 1, 0, nil, 1))
-        specs.append(int("startingWeapons.ricochetLanceMaximumBounces", "Weapons", "ricochet bounces", \.startingWeapons.ricochetLanceMaximumBounces, 1, 0, nil))
         specs.append(double("startingWeapons.ricochetLanceHoldDuration", "Weapons", "ricochet hold", \.startingWeapons.ricochetLanceHoldDuration, 0.05, 0, nil, 2))
-        specs.append(int("startingWeapons.novaBombMinimumTargetCount", "Weapons", "nova min targets", \.startingWeapons.novaBombMinimumTargetCount, 1, 0, nil))
-        specs.append(double("startingWeapons.novaBombTargetFraction", "Weapons", "nova target fraction", \.startingWeapons.novaBombTargetFraction, 0.05, 0, 1, 2))
     }
 
     private static func appendWeaponEffectParameters(to specs: inout [GameTuningParameterSpec]) {
@@ -331,13 +323,13 @@ enum GameTuningParameterCatalog {
     }
 
     private static func appendFlameTrailParameters(to specs: inout [GameTuningParameterSpec]) {
-        specs.append(double("flameTrail.duration", "Flame Trail", "generation duration", \.flameTrail.duration, 0.25, 0, nil, 2))
+        specs.append(double("flameTrail.duration", "Flame Trail", "burst duration", \.flameTrail.duration, 0.05, 0, nil, 2))
         specs.append(double("flameTrail.segmentLifetime", "Flame Trail", "segment lifetime", \.flameTrail.segmentLifetime, 0.1, 0, nil, 2))
         specs.append(cgFloat("flameTrail.segmentRadius", "Flame Trail", "segment radius", \.flameTrail.segmentRadius, 1, 0, nil, 1))
         specs.append(cgFloat("flameTrail.segmentSpacing", "Flame Trail", "segment spacing", \.flameTrail.segmentSpacing, 1, 0, nil, 1))
         specs.append(int("flameTrail.maxSegments", "Flame Trail", "max segments", \.flameTrail.maxSegments, 1, 0, nil))
-        specs.append(double("flameTrail.frozenMeltDelay", "Flame Trail", "frozen melt delay", \.flameTrail.frozenMeltDelay, 0.05, 0, nil, 2))
-        specs.append(cgFloat("flameTrail.speedMultiplier", "Flame Trail", "speed multiplier", \.flameTrail.speedMultiplier, 0.5, 1, nil, 1))
+        specs.append(double("flameTrail.invulnerabilityDuration", "Flame Trail", "invulnerable duration", \.flameTrail.invulnerabilityDuration, 0.05, 0, nil, 2))
+        specs.append(cgFloat("flameTrail.speedMultiplier", "Flame Trail", "fixed speed multiplier", \.flameTrail.speedMultiplier, 0.5, 1, nil, 1))
     }
 
     private static func appendFeedbackParameters(to specs: inout [GameTuningParameterSpec]) {

@@ -1,24 +1,23 @@
 import Foundation
 
 struct NovaBombTargetSelector: Equatable {
-    let minimumTargetCount: Int
     let targetFraction: Double
 
     init(configuration: StartingWeaponConfiguration = StartingWeaponConfiguration()) {
-        minimumTargetCount = configuration.novaBombMinimumTargetCount
         targetFraction = configuration.novaBombTargetFraction
     }
 
     func targetCount(enemyCount: Int) -> Int {
         let clampedEnemyCount = max(0, enemyCount)
-        let fractionalTargetCount = (Double(clampedEnemyCount) * max(0, targetFraction)).rounded()
+        let clampedFraction = min(1, max(0, targetFraction))
+        let fractionalTargetCount = (Double(clampedEnemyCount) * clampedFraction).rounded()
         guard clampedEnemyCount > 0 else {
             return 0
         }
 
         return min(
             clampedEnemyCount,
-            max(max(0, minimumTargetCount), max(0, Int(fractionalTargetCount)))
+            max(0, Int(fractionalTargetCount))
         )
     }
 

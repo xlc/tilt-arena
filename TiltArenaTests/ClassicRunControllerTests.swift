@@ -153,13 +153,11 @@ final class ClassicRunControllerTests: XCTestCase {
         XCTAssertEqual(controller.weaponComboPrimer?.timeRemaining ?? 0, configuration.weaponComboWindow, accuracy: 0.0001)
     }
 
-    func testWeaponComboAwardsSmallBonusForDifferentFamilyClear() {
+    func testWeaponComboReportsDifferentFamilyClearWithoutChangingScoreOrComboTimer() {
         var configuration = ClassicRunConfiguration()
         configuration.baseEnemyScore = 7
         configuration.killsPerMultiplierStep = 100
         configuration.comboWindow = 1.1
-        configuration.weaponComboScoreBonus = 13
-        configuration.weaponComboWindowExtension = 0.4
         configuration.weaponComboEventDisplayDuration = 0.6
         var controller = ClassicRunController(configuration: configuration)
 
@@ -170,21 +168,19 @@ final class ClassicRunControllerTests: XCTestCase {
         XCTAssertEqual(event?.kind, .synergy)
         XCTAssertEqual(event?.previousFamily, .force)
         XCTAssertEqual(event?.currentFamily, .seek)
-        XCTAssertEqual(event?.scoreBonus, configuration.weaponComboScoreBonus)
-        XCTAssertEqual(controller.score, 4 * configuration.baseEnemyScore + configuration.weaponComboScoreBonus)
+        XCTAssertEqual(controller.score, 4 * configuration.baseEnemyScore)
         XCTAssertEqual(controller.weaponComboEvent, event)
         XCTAssertEqual(
             controller.comboTimeRemaining,
-            configuration.comboWindow + configuration.weaponComboWindowExtension,
+            configuration.comboWindow,
             accuracy: 0.0001
         )
     }
 
-    func testWeaponComboCanAwardWithoutHudEventWhenDisplayDurationIsDisabled() {
+    func testWeaponComboCanReturnEventWithoutHudEventWhenDisplayDurationIsDisabled() {
         var configuration = ClassicRunConfiguration()
         configuration.baseEnemyScore = 7
         configuration.killsPerMultiplierStep = 100
-        configuration.weaponComboScoreBonus = 13
         configuration.weaponComboEventDisplayDuration = 0
         var controller = ClassicRunController(configuration: configuration)
 
@@ -193,7 +189,7 @@ final class ClassicRunControllerTests: XCTestCase {
         let event = controller.recordEnemyKills(count: 2, weaponKind: .seekerSwarm)
 
         XCTAssertEqual(event?.kind, .synergy)
-        XCTAssertEqual(controller.score, 4 * configuration.baseEnemyScore + configuration.weaponComboScoreBonus)
+        XCTAssertEqual(controller.score, 4 * configuration.baseEnemyScore)
         XCTAssertNil(controller.weaponComboEvent)
     }
 
@@ -213,14 +209,11 @@ final class ClassicRunControllerTests: XCTestCase {
         XCTAssertEqual(controller.weaponComboPrimer?.family, .seek)
     }
 
-    func testWeaponComboCascadeAfterThreeDistinctFamilies() {
+    func testWeaponComboCascadeAfterThreeDistinctFamiliesWithoutChangingScoreOrComboTimer() {
         var configuration = ClassicRunConfiguration()
         configuration.baseEnemyScore = 7
         configuration.killsPerMultiplierStep = 100
         configuration.comboWindow = 1.1
-        configuration.weaponComboScoreBonus = 13
-        configuration.weaponComboCascadeScoreBonus = 29
-        configuration.weaponComboCascadeWindowExtension = 0.7
         var controller = ClassicRunController(configuration: configuration)
 
         controller.start()
@@ -231,16 +224,10 @@ final class ClassicRunControllerTests: XCTestCase {
         XCTAssertEqual(event?.kind, .cascade)
         XCTAssertEqual(event?.previousFamily, .seek)
         XCTAssertEqual(event?.currentFamily, .control)
-        XCTAssertEqual(event?.scoreBonus, configuration.weaponComboCascadeScoreBonus)
-        XCTAssertEqual(
-            controller.score,
-            6 * configuration.baseEnemyScore
-                + configuration.weaponComboScoreBonus
-                + configuration.weaponComboCascadeScoreBonus
-        )
+        XCTAssertEqual(controller.score, 6 * configuration.baseEnemyScore)
         XCTAssertEqual(
             controller.comboTimeRemaining,
-            configuration.comboWindow + configuration.weaponComboCascadeWindowExtension,
+            configuration.comboWindow,
             accuracy: 0.0001
         )
     }

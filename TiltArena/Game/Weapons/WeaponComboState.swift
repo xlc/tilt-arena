@@ -58,8 +58,6 @@ struct WeaponComboEvent: Equatable {
     let kind: WeaponComboEventKind
     let previousFamily: WeaponComboFamily
     let currentFamily: WeaponComboFamily
-    let scoreBonus: Int
-    let comboWindowExtension: TimeInterval
 }
 
 struct WeaponComboState: Equatable {
@@ -124,18 +122,10 @@ struct WeaponComboState: Equatable {
         }
 
         let isCascade = nextChainFamilies.count >= Self.cascadeFamilyCount
-        let scoreBonus = isCascade
-            ? max(0, configuration.weaponComboCascadeScoreBonus)
-            : max(0, configuration.weaponComboScoreBonus)
-        let comboWindowExtension = isCascade
-            ? max(0, configuration.weaponComboCascadeWindowExtension)
-            : max(0, configuration.weaponComboWindowExtension)
         let event = WeaponComboEvent(
             kind: isCascade ? .cascade : .synergy,
             previousFamily: previousFamily,
-            currentFamily: currentFamily,
-            scoreBonus: scoreBonus,
-            comboWindowExtension: comboWindowExtension
+            currentFamily: currentFamily
         )
 
         chainFamilies = isCascade ? [currentFamily] : nextChainFamilies

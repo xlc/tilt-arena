@@ -121,9 +121,9 @@ final class WeaponApplicationCoordinatorTests: XCTestCase {
         )
 
         XCTAssertEqual(firstApplication, secondApplication)
-        XCTAssertEqual(firstApplication.log.destroyedCount, 12)
+        XCTAssertEqual(firstApplication.log.destroyedCount, 6)
         if case .novaBomb(let enemyIDs) = firstApplication.effect {
-            XCTAssertEqual(enemyIDs.count, 12)
+            XCTAssertEqual(enemyIDs.count, 6)
             XCTAssertTrue(enemyIDs.isSubset(of: Set(enemies.map(\.id))))
         } else {
             XCTFail("Expected nova bomb application")

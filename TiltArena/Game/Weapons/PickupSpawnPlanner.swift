@@ -32,8 +32,8 @@ struct PickupSpawnConfiguration: Equatable {
     ]
 
     var refillDelay: TimeInterval = 0.5
-    var chargedPickupDelay: TimeInterval = 2.0
-    var overchargedPickupDelay: TimeInterval = 5.5
+    var chargedPickupDelay: TimeInterval = 3.0
+    var overchargedPickupDelay: TimeInterval = 6.0
     var maxActivePickups: Int = 3
     var pickupRadius: CGFloat = 8.5
     var edgeInset: CGFloat = 44

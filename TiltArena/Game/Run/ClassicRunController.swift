@@ -20,10 +20,6 @@ struct ClassicRunConfiguration: Equatable {
     var survivalBonusEnemySqrtDivisor: Double = 10
     var weaponComboWindow: TimeInterval = 6
     var weaponComboMinimumKillCount = 2
-    var weaponComboScoreBonus = 60
-    var weaponComboCascadeScoreBonus = 160
-    var weaponComboWindowExtension: TimeInterval = 0.5
-    var weaponComboCascadeWindowExtension: TimeInterval = 1.0
     var weaponComboEventDisplayDuration: TimeInterval = 1
 
     var playerHitRadius: CGFloat {
@@ -296,8 +292,6 @@ struct ClassicRunController {
             return nil
         }
 
-        score += event.scoreBonus
-        comboTimeRemaining = max(comboTimeRemaining, configuration.comboWindow + event.comboWindowExtension)
         weaponComboEventTimeRemaining = max(0, configuration.weaponComboEventDisplayDuration)
         weaponComboEvent = weaponComboEventTimeRemaining > 0 ? event : nil
         return event

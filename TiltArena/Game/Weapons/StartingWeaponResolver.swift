@@ -69,24 +69,24 @@ struct StartingWeaponConfiguration: Equatable {
     var powerWaveFanAngleDegrees: CGFloat = 60
     // Time for the cone to expand to full range.
     var powerWaveExpansionDuration: TimeInterval = 0.24
-    // Maximum traced path length across bounces.
-    var ricochetLanceRange: CGFloat = 560
     // Forgiving beam thickness used for collision along the traced path.
     var ricochetLanceBeamWidth: CGFloat = 18
     // Maximum wall bounces after the first segment.
-    var ricochetLanceMaximumBounces: Int = 3
+    var ricochetLanceMaximumBounces: Int = 0
     // Time the traced beam remains active/visible.
     var ricochetLanceHoldDuration: TimeInterval = 0.5
-    // Nova Bomb requires this many available enemies before it fires.
-    var novaBombMinimumTargetCount: Int = 15
-    // Fraction of available enemies selected once the minimum count is met.
-    var novaBombTargetFraction: Double = 0.8
+    // Fraction of available enemies selected.
+    var novaBombTargetFraction: Double = 0.5
 }
 
 extension StartingWeaponConfiguration {
     func applying(chargeTier: WeaponPickupChargeTier) -> StartingWeaponConfiguration {
+        var configuration = self
+        configuration.ricochetLanceMaximumBounces = max(0, chargeTier.rawValue)
+        configuration.novaBombTargetFraction = Self.novaBombTargetFraction(for: chargeTier)
+
         guard chargeTier > .base else {
-            return self
+            return configuration
         }
 
         let level = CGFloat(chargeTier.rawValue)
@@ -94,10 +94,6 @@ extension StartingWeaponConfiguration {
         let compactRangeScale = 1 + level * 0.10
         let durationScale = 1 + level * 0.20
         let targetLimitBonus = chargeTier.rawValue * 2
-        let bounceBonus = chargeTier.rawValue
-        let novaMinimumTargetReduction = chargeTier.rawValue * 4
-        let novaTargetFractionBonus = Double(chargeTier.rawValue) * 0.10
-        var configuration = self
 
         configuration.shockwaveRadius *= rangeScale
         configuration.seekerTargetLimit += targetLimitBonus
@@ -117,14 +113,19 @@ extension StartingWeaponConfiguration {
         configuration.powerWaveRange *= rangeScale
         configuration.powerWaveFanAngleDegrees = min(360, configuration.powerWaveFanAngleDegrees + level * 6)
         configuration.ricochetLanceBeamWidth *= compactRangeScale
-        configuration.ricochetLanceMaximumBounces += bounceBonus
-        configuration.novaBombMinimumTargetCount = max(
-            1,
-            configuration.novaBombMinimumTargetCount - novaMinimumTargetReduction
-        )
-        configuration.novaBombTargetFraction = min(1, configuration.novaBombTargetFraction + novaTargetFractionBonus)
 
         return configuration
+    }
+
+    private static func novaBombTargetFraction(for chargeTier: WeaponPickupChargeTier) -> Double {
+        switch chargeTier {
+        case .base:
+            return 0.5
+        case .charged:
+            return 0.75
+        case .overcharged:
+            return 1
+        }
     }
 }
 

@@ -26,7 +26,7 @@ struct GameTuningConfiguration: Equatable {
     // Weapon tuning entry points:
     // - startingWeapons: gameplay reach, duration, target counts, and clear strength.
     // - weaponEffectTiming: shared visual travel timing only.
-    // - flameTrail: persistent trail segments and its movement boost.
+    // - flameTrail: fixed-speed burst, short invulnerability, and persistent segments.
     // Keep GameTuningParameterCatalog in sync when adding new public tuning knobs.
     var startingWeapons = StartingWeaponConfiguration()
     var weaponEffectTiming = WeaponEffectTiming()
@@ -294,9 +294,6 @@ struct GameTuningParameterSpec {
         }
         if id.hasPrefix("startingWeapons.ricochetLance") {
             return "Ricochet Lance"
-        }
-        if id.hasPrefix("startingWeapons.novaBomb") {
-            return "Nova Bomb"
         }
 
         return "Weapons"

@@ -93,6 +93,7 @@ final class ArenaScene: SKScene {
     private var freezeBurstWaveStates: [FreezeBurstWaveState] = []
     private var flameTrailState = FlameTrailState()
     private var flameTrailSpeedBoostTimeRemaining: TimeInterval = 0
+    private var flameTrailInvulnerabilityTimeRemaining: TimeInterval = 0
     private lazy var flameTrailEffectNode = FlameTrailEffectNode(theme: theme)
     private var gravityWellState: GravityWellState?
     var gravityWellEffectNode: SKNode?
@@ -532,14 +533,26 @@ final class ArenaScene: SKScene {
 
         let input = movementInput(deltaTime: deltaTime)
         aimDirectionState.record(input: input)
-        let state = movementController.update(
+        let state = updatePlayerMovement(input: input, deltaTime: deltaTime)
+        applyPlayerState(state, resetTrail: false)
+        updateActiveRun(deltaTime: deltaTime, playerPosition: state.position)
+    }
+
+    private func updatePlayerMovement(input: CGVector, deltaTime: TimeInterval) -> PlayerMovementState {
+        guard flameTrailSpeedBoostTimeRemaining > 0 else {
+            return movementController.update(
+                input: input,
+                deltaTime: deltaTime,
+                arenaBounds: currentGameplayBounds
+            )
+        }
+
+        return movementController.updateWithFixedSpeed(
             input: input,
             deltaTime: deltaTime,
             arenaBounds: currentGameplayBounds,
-            speedMultiplier: flameTrailMovementSpeedMultiplier()
+            speedMultiplier: flameTrailState.configuration.speedMultiplier
         )
-        applyPlayerState(state, resetTrail: false)
-        updateActiveRun(deltaTime: deltaTime, playerPosition: state.position)
     }
 
     private func updateCalibrationPreview(deltaTime: TimeInterval) {
@@ -691,6 +704,7 @@ final class ArenaScene: SKScene {
         powerWaveState.reset()
         powerWaveChargeNode = nil
         flameTrailSpeedBoostTimeRemaining = 0
+        flameTrailInvulnerabilityTimeRemaining = 0
         deactivateTimeDilationAura()
         audioController.stopMusic()
         lastDeathCollisionSnapshot = collision
@@ -759,6 +773,7 @@ final class ArenaScene: SKScene {
         freezeBurstWaveStates.removeAll()
         flameTrailState.reset()
         flameTrailSpeedBoostTimeRemaining = 0
+        flameTrailInvulnerabilityTimeRemaining = 0
         flameTrailEffectNode.reset()
         deactivateGravityWell()
         aimDirectionState.reset()
@@ -910,7 +925,7 @@ final class ArenaScene: SKScene {
         spawnEnemiesIfNeeded(deltaTime: deltaTime, playerPosition: playerPosition)
         advancePickupCharges(deltaTime: deltaTime)
         spawnPickupIfNeeded(deltaTime: deltaTime, playerPosition: playerPosition)
-        updateFlameTrailSpeedBoost(deltaTime: deltaTime)
+        updateFlameTrailTimers(deltaTime: deltaTime)
         playerPosition = collectPickups(playerPosition: playerPosition)
         advanceEnemies(deltaTime: deltaTime, playerPosition: playerPosition)
         updateTimeDilationAura(deltaTime: deltaTime, playerPosition: playerPosition)
@@ -1131,9 +1146,10 @@ final class ArenaScene: SKScene {
         var rng = SystemRandomNumberGenerator()
         let chargedConfiguration = weaponResolver.configuration.applying(chargeTier: pickup.chargeTier)
         let chargedResolver = StartingWeaponResolver(configuration: chargedConfiguration)
+        let effectOrigin = weaponEffectOrigin(for: pickup.kind, playerPosition: playerPosition)
         let application = WeaponApplicationCoordinator(resolver: chargedResolver).application(
             kind: pickup.kind,
-            playerPosition: playerPosition,
+            playerPosition: effectOrigin,
             enemies: weaponTargetableEnemies(),
             using: &rng
         )
@@ -1141,7 +1157,7 @@ final class ArenaScene: SKScene {
 
         if let directionalDestroyedCount = performWeaponApplicationEffect(
             application.effect,
-            from: playerPosition,
+            from: effectOrigin,
             configuration: chargedConfiguration,
             chargeTier: pickup.chargeTier
         ) {
@@ -1162,12 +1178,38 @@ final class ArenaScene: SKScene {
         ])
     }
 
+    private func weaponEffectOrigin(for kind: WeaponKind, playerPosition: CGPoint) -> CGPoint {
+        kind == .gravityWell ? CGPoint(x: currentPlayableRect.midX, y: currentPlayableRect.midY) : playerPosition
+    }
+
     private func performWeaponApplicationEffect(
         _ effect: WeaponApplication.Effect,
         from playerPosition: CGPoint,
         configuration: StartingWeaponConfiguration,
         chargeTier: WeaponPickupChargeTier
     ) -> Int? {
+        switch effect {
+        case .timeDilationAura:
+            return activateTimeDilationAura(at: playerPosition, configuration: configuration)
+        case .ricochetLance:
+            return fireRicochetLance(from: playerPosition, configuration: configuration)
+        default:
+            performWeaponActivationEffect(
+                effect,
+                from: playerPosition,
+                configuration: configuration,
+                chargeTier: chargeTier
+            )
+            return nil
+        }
+    }
+
+    private func performWeaponActivationEffect(
+        _ effect: WeaponApplication.Effect,
+        from playerPosition: CGPoint,
+        configuration: StartingWeaponConfiguration,
+        chargeTier: WeaponPickupChargeTier
+    ) {
         switch effect {
         case .shockwaveWave:
             activateShockwaveWave(at: playerPosition, configuration: configuration)
@@ -1187,17 +1229,13 @@ final class ArenaScene: SKScene {
             playChainLightning(enemyIDs: enemyIDs, from: playerPosition, configuration: configuration)
         case .flameTrail:
             activateFlameTrail(at: playerPosition, chargeTier: chargeTier)
-        case .timeDilationAura:
-            return activateTimeDilationAura(at: playerPosition, configuration: configuration)
-        case .ricochetLance:
-            return fireRicochetLance(from: playerPosition, configuration: configuration)
+        case .timeDilationAura, .ricochetLance:
+            break
         case .powerWave:
             activatePowerWave(at: playerPosition, configuration: configuration)
         case .novaBomb(let enemyIDs):
             playNovaBomb(enemyIDs: enemyIDs)
         }
-
-        return nil
     }
 
     private func playSeekerSwarm(
@@ -1553,26 +1591,26 @@ final class ArenaScene: SKScene {
             flameTrailSpeedBoostTimeRemaining,
             flameTrailState.configuration.duration
         )
+        flameTrailInvulnerabilityTimeRemaining = max(
+            flameTrailInvulnerabilityTimeRemaining,
+            flameTrailState.configuration.invulnerabilityDuration
+        )
         flameTrailEffectNode.apply(segments: flameTrailState.segments)
     }
 
-    private func flameTrailMovementSpeedMultiplier() -> CGFloat {
-        guard flameTrailSpeedBoostTimeRemaining > 0 else {
-            return 1
-        }
+    private func updateFlameTrailTimers(deltaTime: TimeInterval) {
+        let clampedDelta = max(0, deltaTime)
+        let boostDelta = min(flameTrailSpeedBoostTimeRemaining, clampedDelta)
 
-        return max(1, flameTrailState.configuration.speedMultiplier)
+        flameTrailSpeedBoostTimeRemaining -= boostDelta
+        flameTrailInvulnerabilityTimeRemaining = max(
+            0,
+            flameTrailInvulnerabilityTimeRemaining - (clampedDelta - boostDelta)
+        )
     }
 
-    private func updateFlameTrailSpeedBoost(deltaTime: TimeInterval) {
-        guard flameTrailSpeedBoostTimeRemaining > 0 else {
-            return
-        }
-
-        flameTrailSpeedBoostTimeRemaining = max(
-            0,
-            flameTrailSpeedBoostTimeRemaining - max(0, deltaTime)
-        )
+    private var isFlameTrailInvulnerable: Bool {
+        flameTrailSpeedBoostTimeRemaining == 0 && flameTrailInvulnerabilityTimeRemaining > 0
     }
 
     private func activateTimeDilationAura(
@@ -1694,6 +1732,10 @@ final class ArenaScene: SKScene {
     }
 
     private func detectPlayerCollision(playerPosition: CGPoint) {
+        guard !isFlameTrailInvulnerable else {
+            return
+        }
+
         let playerCircle = CollisionCircle(
             center: playerPosition,
             radius: runController.configuration.playerHitRadius
@@ -1844,7 +1886,7 @@ final class ArenaScene: SKScene {
 
     private func formatWeaponCombo() -> String {
         if let event = runController.weaponComboEvent {
-            return "\(event.kind.hudLabel) +\(event.scoreBonus)"
+            return event.kind.hudLabel
         }
 
         guard let primer = runController.weaponComboPrimer else {
@@ -4144,6 +4186,14 @@ extension ArenaScene {
         )
     }
 
+    func activateGravityWellForTesting(
+        center: CGPoint,
+        enemyIDs: Set<Int>,
+        configuration: StartingWeaponConfiguration
+    ) {
+        activateGravityWell(at: center, enemyIDs: enemyIDs, configuration: configuration)
+    }
+
     func resolveSeekerExplosionForTesting(at target: WeaponImpactTarget) {
         resolveSeekerExplosion(at: target, resolver: weaponResolver)
     }
@@ -4180,6 +4230,10 @@ extension ArenaScene {
 
     var playerVisualRadiusForTesting: CGFloat {
         movementController.configuration.visualRadius
+    }
+
+    func weaponEffectOriginForTesting(kind: WeaponKind, playerPosition: CGPoint) -> CGPoint {
+        weaponEffectOrigin(for: kind, playerPosition: playerPosition)
     }
 
     func openDeveloperTuningForTesting() {
@@ -4350,7 +4404,7 @@ private extension ArenaScene {
         enemyIDs: Set<Int>,
         configuration: StartingWeaponConfiguration
     ) {
-        gravityWellState = GravityWellState(
+        let state = GravityWellState(
             center: center,
             enemyIDs: enemyIDs,
             timeRemaining: configuration.gravityWellPullDuration,
@@ -4359,12 +4413,14 @@ private extension ArenaScene {
             pullDuration: configuration.gravityWellPullDuration,
             clearRadius: configuration.gravityWellClearRadius
         )
+        gravityWellState = state
         playGravityWellEffect(
             at: center,
             radius: configuration.gravityWellRadius,
             duration: configuration.gravityWellActivationDelay
                 + configuration.gravityWellPullDuration
         )
+        destroyGravityWellCenterEnemies(state)
     }
 
     func updateGravityWell(deltaTime: TimeInterval) {
@@ -4372,6 +4428,7 @@ private extension ArenaScene {
             return
         }
 
+        destroyGravityWellCenterEnemies(state)
         let pullDelta = state.consumePullDelta(deltaTime: deltaTime)
         let pullDuration = max(state.pullDuration, 0.001)
         let pullDistance = state.pullRadius / CGFloat(pullDuration) * CGFloat(pullDelta)
@@ -4381,6 +4438,7 @@ private extension ArenaScene {
                 enemies[index].pullToward(state.center, distance: pullDistance)
                 enemyNodes[enemies[index].id]?.apply(enemies[index])
             }
+            destroyGravityWellCenterEnemies(state)
         }
 
         if state.isComplete {
@@ -4388,6 +4446,13 @@ private extension ArenaScene {
         } else {
             gravityWellState = state
         }
+    }
+
+    func destroyGravityWellCenterEnemies(_ state: GravityWellState) {
+        destroyEnemies(
+            ids: state.collapseTargets(enemies: enemies, clearRadius: state.clearRadius),
+            weaponKind: .gravityWell
+        )
     }
 
     func completeGravityWell(_ state: GravityWellState) {
@@ -4475,8 +4540,7 @@ private extension ArenaScene {
         AppDiagnostics.logger(.weapon).notice("weapon.combo.resolved", metadata: [
             "kind": "\(event.kind.rawValue)",
             "from": "\(event.previousFamily.rawValue)",
-            "to": "\(event.currentFamily.rawValue)",
-            "scoreBonus": "\(event.scoreBonus)"
+            "to": "\(event.currentFamily.rawValue)"
         ])
 
         playWeaponComboEffect(event, at: clearPositions)
