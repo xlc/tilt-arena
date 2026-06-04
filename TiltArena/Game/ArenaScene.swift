@@ -1146,10 +1146,9 @@ final class ArenaScene: SKScene {
         var rng = SystemRandomNumberGenerator()
         let chargedConfiguration = weaponResolver.configuration.applying(chargeTier: pickup.chargeTier)
         let chargedResolver = StartingWeaponResolver(configuration: chargedConfiguration)
-        let effectOrigin = weaponEffectOrigin(for: pickup.kind, playerPosition: playerPosition)
         let application = WeaponApplicationCoordinator(resolver: chargedResolver).application(
             kind: pickup.kind,
-            playerPosition: effectOrigin,
+            playerPosition: playerPosition,
             enemies: weaponTargetableEnemies(),
             using: &rng
         )
@@ -1157,7 +1156,7 @@ final class ArenaScene: SKScene {
 
         if let directionalDestroyedCount = performWeaponApplicationEffect(
             application.effect,
-            from: effectOrigin,
+            from: playerPosition,
             configuration: chargedConfiguration,
             chargeTier: pickup.chargeTier
         ) {
@@ -1176,10 +1175,6 @@ final class ArenaScene: SKScene {
             "frozen": "\(log.frozenCount)",
             "gravityTargets": "\(log.gravityTargetCount)"
         ])
-    }
-
-    private func weaponEffectOrigin(for kind: WeaponKind, playerPosition: CGPoint) -> CGPoint {
-        kind == .gravityWell ? CGPoint(x: currentPlayableRect.midX, y: currentPlayableRect.midY) : playerPosition
     }
 
     private func performWeaponApplicationEffect(
@@ -1610,7 +1605,7 @@ final class ArenaScene: SKScene {
     }
 
     private var isFlameTrailInvulnerable: Bool {
-        flameTrailSpeedBoostTimeRemaining == 0 && flameTrailInvulnerabilityTimeRemaining > 0
+        flameTrailSpeedBoostTimeRemaining > 0 || flameTrailInvulnerabilityTimeRemaining > 0
     }
 
     private func activateTimeDilationAura(
@@ -4230,10 +4225,6 @@ extension ArenaScene {
 
     var playerVisualRadiusForTesting: CGFloat {
         movementController.configuration.visualRadius
-    }
-
-    func weaponEffectOriginForTesting(kind: WeaponKind, playerPosition: CGPoint) -> CGPoint {
-        weaponEffectOrigin(for: kind, playerPosition: playerPosition)
     }
 
     func openDeveloperTuningForTesting() {
