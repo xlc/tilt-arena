@@ -9,15 +9,18 @@ final class PickupSpawnPlannerTests: XCTestCase {
     }
 
     func testPickupChargeTierUsesTimeOnScreenThresholds() {
+        let chargedDelay: TimeInterval = 2.5
+        let overchargedDelay: TimeInterval = 6.5
         let configuration = PickupSpawnConfiguration(
-            chargedPickupDelay: 2.5,
-            overchargedPickupDelay: 6.5
+            chargedPickupDelay: chargedDelay,
+            overchargedPickupDelay: overchargedDelay
         )
+        let momentBeforeThreshold: TimeInterval = 0.01
 
-        XCTAssertEqual(configuration.chargeTier(for: 2.49), .base)
-        XCTAssertEqual(configuration.chargeTier(for: 2.5), .charged)
-        XCTAssertEqual(configuration.chargeTier(for: 6.49), .charged)
-        XCTAssertEqual(configuration.chargeTier(for: 6.5), .overcharged)
+        XCTAssertEqual(configuration.chargeTier(for: chargedDelay - momentBeforeThreshold), .base)
+        XCTAssertEqual(configuration.chargeTier(for: chargedDelay), .charged)
+        XCTAssertEqual(configuration.chargeTier(for: overchargedDelay - momentBeforeThreshold), .charged)
+        XCTAssertEqual(configuration.chargeTier(for: overchargedDelay), .overcharged)
     }
 
     func testPickupAdvancesChargeWithoutEnemyContext() {

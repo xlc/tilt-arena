@@ -64,17 +64,32 @@ final class ArenaEffectSnapshotTests: XCTestCase {
     }
 
     private func addPickupExamples(to scene: ArenaScene, theme: ArenaTheme) {
-        let pickup = WeaponPickup(
+        let basePickup = WeaponPickup(
             id: 1,
             kind: .chainLightning,
-            position: CGPoint(x: 350, y: 104),
+            position: CGPoint(x: 326, y: 104),
             radius: 13
         )
-        scene.addChild(WeaponPickupNode(pickup: pickup, theme: theme))
-        scene.playPickupCollectionPop(for: pickup)
+        let overchargedPickup = WeaponPickup(
+            id: 2,
+            kind: .novaBomb,
+            position: CGPoint(x: 388, y: 104),
+            radius: 13,
+            chargeTier: .overcharged
+        )
+
+        [basePickup, overchargedPickup].forEach { pickup in
+            scene.addChild(WeaponPickupNode(pickup: pickup, theme: theme))
+        }
+        scene.playPickupCollectionPop(for: basePickup)
     }
 
     private func addWeaponEffectExamples(to scene: ArenaScene, theme: ArenaTheme) {
+        scene.playChargedWeaponActivationEffect(
+            kind: .novaBomb,
+            at: CGPoint(x: 92, y: 210),
+            chargeTier: .overcharged
+        )
         scene.playShockwaveEffect(
             at: CGPoint(x: 150, y: 286),
             duration: 0.28,
@@ -105,6 +120,20 @@ final class ArenaEffectSnapshotTests: XCTestCase {
             ],
             weaponKind: .chainLightning,
             comboMultiplier: 4
+        )
+        scene.playWeaponComboEffect(
+            WeaponComboEvent(
+                kind: .cascade,
+                previousFamily: .force,
+                currentFamily: .seek,
+                scoreBonus: 160,
+                comboWindowExtension: 1
+            ),
+            at: [
+                CGPoint(x: 520, y: 196),
+                CGPoint(x: 558, y: 184),
+                CGPoint(x: 596, y: 204)
+            ]
         )
     }
 }

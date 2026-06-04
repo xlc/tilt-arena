@@ -1147,6 +1147,11 @@ final class ArenaScene: SKScene {
         ) {
             log.destroyedCount = directionalDestroyedCount
         }
+        playChargedWeaponActivationEffect(
+            kind: pickup.kind,
+            at: playerPosition,
+            chargeTier: pickup.chargeTier
+        )
 
         AppDiagnostics.logger(.weapon).notice("weapon.resolved", metadata: [
             "kind": "\(pickup.kind.rawValue)",
@@ -1288,6 +1293,7 @@ final class ArenaScene: SKScene {
         }
 
         let destroyedEnemies = enemies.filter { enemyIDs.contains($0.id) }
+        let clearPositions = destroyedEnemies.map(\.position)
         let splitChildren = splitterChildren(from: destroyedEnemies)
         let previousComboMultiplier = runController.comboMultiplier
         let weaponComboEvent = runController.recordEnemyKills(count: enemyIDs.count, weaponKind: weaponKind)
@@ -1299,10 +1305,14 @@ final class ArenaScene: SKScene {
         playEnemyClearHaptics(killCount: enemyIDs.count, previousComboMultiplier: previousComboMultiplier)
         playEnemyClearAudio(killCount: enemyIDs.count, previousComboMultiplier: previousComboMultiplier)
         if let weaponComboEvent {
-            recordWeaponComboFeedback(weaponComboEvent, previousComboMultiplier: previousComboMultiplier)
+            recordWeaponComboFeedback(
+                weaponComboEvent,
+                previousComboMultiplier: previousComboMultiplier,
+                clearPositions: clearPositions
+            )
         }
         playEnemyClearBursts(
-            at: positions(forEnemyIDs: enemyIDs),
+            at: clearPositions,
             weaponKind: weaponKind,
             comboMultiplier: runController.comboMultiplier
         )
@@ -4434,13 +4444,18 @@ private extension ArenaScene {
         }
         let shatteredEnemies = enemies.filter { shatterIDs.contains($0.id) }
         let splitChildren = splitterChildren(from: shatteredEnemies)
-        playFrozenShatterEffect(at: positions(forEnemyIDs: shatterIDs), color: theme.playerColor)
+        let shatterPositions = shatteredEnemies.map(\.position)
+        playFrozenShatterEffect(at: shatterPositions, color: theme.playerColor)
         let previousComboMultiplier = runController.comboMultiplier
         let weaponComboEvent = runController.recordEnemyKills(count: shatterIDs.count, weaponKind: .freezeBurst)
         playEnemyClearHaptics(killCount: shatterIDs.count, previousComboMultiplier: previousComboMultiplier)
         playEnemyClearAudio(killCount: shatterIDs.count, previousComboMultiplier: previousComboMultiplier)
         if let weaponComboEvent {
-            recordWeaponComboFeedback(weaponComboEvent, previousComboMultiplier: previousComboMultiplier)
+            recordWeaponComboFeedback(
+                weaponComboEvent,
+                previousComboMultiplier: previousComboMultiplier,
+                clearPositions: shatterPositions
+            )
         }
         if shatterIDs.count >= gameTuning.feedback.multiKillShakeThreshold {
             playScreenShake(
@@ -4452,13 +4467,19 @@ private extension ArenaScene {
         addSplitterChildren(splitChildren)
     }
 
-    private func recordWeaponComboFeedback(_ event: WeaponComboEvent, previousComboMultiplier: Int) {
+    private func recordWeaponComboFeedback(
+        _ event: WeaponComboEvent,
+        previousComboMultiplier: Int,
+        clearPositions: [CGPoint]
+    ) {
         AppDiagnostics.logger(.weapon).notice("weapon.combo.resolved", metadata: [
             "kind": "\(event.kind.rawValue)",
             "from": "\(event.previousFamily.rawValue)",
             "to": "\(event.currentFamily.rawValue)",
             "scoreBonus": "\(event.scoreBonus)"
         ])
+
+        playWeaponComboEffect(event, at: clearPositions)
 
         guard runController.comboMultiplier == previousComboMultiplier else {
             return

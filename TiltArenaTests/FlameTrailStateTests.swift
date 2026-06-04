@@ -2,6 +2,21 @@ import XCTest
 @testable import TiltArena
 
 final class FlameTrailStateTests: XCTestCase {
+    func testChargedConfigurationExtendsTrailControl() {
+        let base = FlameTrailConfiguration()
+        let charged = base.applying(chargeTier: .charged)
+        let overcharged = base.applying(chargeTier: .overcharged)
+
+        XCTAssertGreaterThan(charged.duration, base.duration)
+        XCTAssertGreaterThan(overcharged.duration, charged.duration)
+        XCTAssertGreaterThan(charged.segmentLifetime, base.segmentLifetime)
+        XCTAssertGreaterThan(overcharged.segmentLifetime, charged.segmentLifetime)
+        XCTAssertGreaterThan(charged.segmentRadius, base.segmentRadius)
+        XCTAssertGreaterThan(overcharged.segmentRadius, charged.segmentRadius)
+        XCTAssertGreaterThan(charged.maxSegments, base.maxSegments)
+        XCTAssertGreaterThan(overcharged.maxSegments, charged.maxSegments)
+    }
+
     func testActiveEnemiesBurnImmediatelyOnContact() {
         var state = FlameTrailState(configuration: FlameTrailConfiguration(segmentRadius: 12))
         state.activate(at: .zero)

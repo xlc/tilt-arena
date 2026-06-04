@@ -90,14 +90,17 @@ extension StartingWeaponConfiguration {
         }
 
         let level = CGFloat(chargeTier.rawValue)
-        let rangeScale = 1 + level * 0.12
-        let compactRangeScale = 1 + level * 0.08
-        let durationScale = 1 + level * 0.15
-        let targetBonus = chargeTier.rawValue
+        let rangeScale = 1 + level * 0.16
+        let compactRangeScale = 1 + level * 0.10
+        let durationScale = 1 + level * 0.20
+        let targetLimitBonus = chargeTier.rawValue * 2
+        let bounceBonus = chargeTier.rawValue
+        let novaMinimumTargetReduction = chargeTier.rawValue * 4
+        let novaTargetFractionBonus = Double(chargeTier.rawValue) * 0.10
         var configuration = self
 
         configuration.shockwaveRadius *= rangeScale
-        configuration.seekerTargetLimit += targetBonus
+        configuration.seekerTargetLimit += targetLimitBonus
         configuration.seekerExplosionRadius *= compactRangeScale
         configuration.razorShieldRadius *= 1 + level * 0.06
         configuration.razorShieldDuration *= durationScale
@@ -107,16 +110,19 @@ extension StartingWeaponConfiguration {
         configuration.gravityWellRadius *= rangeScale
         configuration.gravityWellClearRadius *= compactRangeScale
         configuration.chainLightningJumpRange *= rangeScale
-        configuration.chainLightningTargetLimit += targetBonus
+        configuration.chainLightningTargetLimit += targetLimitBonus
         configuration.timeDilationRadius *= compactRangeScale
         configuration.timeDilationDuration *= durationScale
         configuration.timeDilationMaximumPushDistance *= compactRangeScale
         configuration.powerWaveRange *= rangeScale
         configuration.powerWaveFanAngleDegrees = min(360, configuration.powerWaveFanAngleDegrees + level * 6)
         configuration.ricochetLanceBeamWidth *= compactRangeScale
-        configuration.ricochetLanceMaximumBounces += targetBonus
-        configuration.novaBombMinimumTargetCount += targetBonus * 3
-        configuration.novaBombTargetFraction = min(1, configuration.novaBombTargetFraction + Double(targetBonus) * 0.08)
+        configuration.ricochetLanceMaximumBounces += bounceBonus
+        configuration.novaBombMinimumTargetCount = max(
+            1,
+            configuration.novaBombMinimumTargetCount - novaMinimumTargetReduction
+        )
+        configuration.novaBombTargetFraction = min(1, configuration.novaBombTargetFraction + novaTargetFractionBonus)
 
         return configuration
     }

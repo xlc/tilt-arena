@@ -18,12 +18,12 @@ struct ClassicRunConfiguration: Equatable {
     var survivalBonusStartTime: TimeInterval = 60
     var survivalBonusInterval: TimeInterval = 1
     var survivalBonusEnemySqrtDivisor: Double = 10
-    var weaponComboWindow: TimeInterval = 5
+    var weaponComboWindow: TimeInterval = 6
     var weaponComboMinimumKillCount = 2
-    var weaponComboScoreBonus = 40
-    var weaponComboCascadeScoreBonus = 100
-    var weaponComboWindowExtension: TimeInterval = 0.3
-    var weaponComboCascadeWindowExtension: TimeInterval = 0.6
+    var weaponComboScoreBonus = 60
+    var weaponComboCascadeScoreBonus = 160
+    var weaponComboWindowExtension: TimeInterval = 0.5
+    var weaponComboCascadeWindowExtension: TimeInterval = 1.0
     var weaponComboEventDisplayDuration: TimeInterval = 1
 
     var playerHitRadius: CGFloat {

@@ -29,10 +29,10 @@ extension FlameTrailConfiguration {
 
         let level = CGFloat(chargeTier.rawValue)
         var configuration = self
-        configuration.duration *= 1 + level * 0.15
-        configuration.segmentLifetime *= 1 + level * 0.1
-        configuration.segmentRadius *= 1 + level * 0.08
-        configuration.maxSegments += chargeTier.rawValue * 4
+        configuration.duration *= 1 + level * 0.20
+        configuration.segmentLifetime *= 1 + level * 0.12
+        configuration.segmentRadius *= 1 + level * 0.10
+        configuration.maxSegments += chargeTier.rawValue * 6
         return configuration
     }
 }

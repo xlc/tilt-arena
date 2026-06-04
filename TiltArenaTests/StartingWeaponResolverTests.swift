@@ -61,25 +61,28 @@ final class StartingWeaponResolverTests: XCTestCase {
         XCTAssertGreaterThan(configuration.novaBombMinimumTargetCount, configuration.seekerTargetLimit)
     }
 
-    func testChargedWeaponConfigurationAppliesModestUpgrade() {
+    func testChargedWeaponConfigurationAppliesMeaningfulUpgrade() {
         let base = StartingWeaponConfiguration(
             shockwaveRadius: 100,
             seekerTargetLimit: 4,
             chainLightningTargetLimit: 6,
+            novaBombMinimumTargetCount: 15,
             novaBombTargetFraction: 0.8
         )
 
         let charged = base.applying(chargeTier: .charged)
         let overcharged = base.applying(chargeTier: .overcharged)
 
-        XCTAssertEqual(charged.shockwaveRadius, 112, accuracy: 0.0001)
-        XCTAssertEqual(charged.seekerTargetLimit, 5)
-        XCTAssertEqual(charged.chainLightningTargetLimit, 7)
-        XCTAssertEqual(charged.novaBombTargetFraction, 0.88, accuracy: 0.0001)
-        XCTAssertEqual(overcharged.shockwaveRadius, 124, accuracy: 0.0001)
-        XCTAssertEqual(overcharged.seekerTargetLimit, 6)
-        XCTAssertEqual(overcharged.chainLightningTargetLimit, 8)
-        XCTAssertEqual(overcharged.novaBombTargetFraction, 0.96, accuracy: 0.0001)
+        XCTAssertGreaterThan(charged.shockwaveRadius, base.shockwaveRadius)
+        XCTAssertGreaterThan(overcharged.shockwaveRadius, charged.shockwaveRadius)
+        XCTAssertGreaterThan(charged.seekerTargetLimit, base.seekerTargetLimit)
+        XCTAssertGreaterThan(overcharged.seekerTargetLimit, charged.seekerTargetLimit)
+        XCTAssertGreaterThan(charged.chainLightningTargetLimit, base.chainLightningTargetLimit)
+        XCTAssertGreaterThan(overcharged.chainLightningTargetLimit, charged.chainLightningTargetLimit)
+        XCTAssertLessThan(charged.novaBombMinimumTargetCount, base.novaBombMinimumTargetCount)
+        XCTAssertLessThan(overcharged.novaBombMinimumTargetCount, charged.novaBombMinimumTargetCount)
+        XCTAssertGreaterThan(charged.novaBombTargetFraction, base.novaBombTargetFraction)
+        XCTAssertGreaterThanOrEqual(overcharged.novaBombTargetFraction, charged.novaBombTargetFraction)
     }
 
     func testShockwaveClearsEnemiesInsideRadius() {
