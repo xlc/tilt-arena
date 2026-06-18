@@ -41,8 +41,8 @@ struct ArenaTheme {
     static let darkTacticalRadar = ArenaTheme(
         kind: .darkTacticalRadar,
         backgroundColor: SKColor(red: 0.03, green: 0.07, blue: 0.11, alpha: 1.00),
-        gridColor: SKColor(red: 0.12, green: 0.35, blue: 0.48, alpha: 0.28),
-        borderColor: SKColor(red: 0.37, green: 0.66, blue: 0.78, alpha: 0.70),
+        gridColor: SKColor(red: 0.12, green: 0.35, blue: 0.48, alpha: 0.22),
+        borderColor: SKColor(red: 0.42, green: 0.74, blue: 0.86, alpha: 0.86),
         panelFillColor: SKColor(red: 0.03, green: 0.07, blue: 0.11, alpha: 0.96),
         panelStrokeColor: SKColor(red: 0.37, green: 0.66, blue: 0.78, alpha: 0.35),
         playerColor: SKColor(red: 0.97, green: 0.98, blue: 1.00, alpha: 1.00),
@@ -57,8 +57,8 @@ struct ArenaTheme {
     static let whitePrecisionBoard = ArenaTheme(
         kind: .whitePrecisionBoard,
         backgroundColor: SKColor(red: 0.95, green: 0.96, blue: 0.94, alpha: 1.00),
-        gridColor: SKColor(red: 0.37, green: 0.41, blue: 0.43, alpha: 0.24),
-        borderColor: SKColor(red: 0.10, green: 0.12, blue: 0.13, alpha: 0.74),
+        gridColor: SKColor(red: 0.37, green: 0.41, blue: 0.43, alpha: 0.20),
+        borderColor: SKColor(red: 0.08, green: 0.10, blue: 0.11, alpha: 0.82),
         panelFillColor: SKColor(red: 1.00, green: 1.00, blue: 0.98, alpha: 0.98),
         panelStrokeColor: SKColor(red: 0.10, green: 0.12, blue: 0.13, alpha: 0.24),
         playerColor: SKColor(red: 0.10, green: 0.11, blue: 0.12, alpha: 1.00),

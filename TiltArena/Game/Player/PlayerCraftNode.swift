@@ -2,14 +2,14 @@ import SpriteKit
 
 @MainActor
 final class PlayerCraftNode: SKNode {
-    private let glowNode: SKShapeNode
+    private let outlineNode: SKShapeNode
     private let bodyNode: SKShapeNode
     private let coreNode: SKShapeNode
     private let engineNode: SKShapeNode
     private let visualRadius: CGFloat
 
     init(theme: ArenaTheme, visualRadius: CGFloat) {
-        glowNode = SKShapeNode(path: Self.makeBodyPath(radius: visualRadius * 1.08))
+        outlineNode = SKShapeNode(path: Self.makeBodyPath(radius: visualRadius * 1.13))
         bodyNode = SKShapeNode(path: Self.makeBodyPath(radius: visualRadius))
         coreNode = SKShapeNode(circleOfRadius: visualRadius * 0.23)
         engineNode = SKShapeNode(ellipseOf: CGSize(width: visualRadius * 0.34, height: visualRadius * 0.2))
@@ -19,7 +19,7 @@ final class PlayerCraftNode: SKNode {
         zPosition = 20
 
         applyTheme(theme)
-        addChild(glowNode)
+        addChild(outlineNode)
         addChild(bodyNode)
         addChild(coreNode)
         addChild(engineNode)
@@ -30,28 +30,28 @@ final class PlayerCraftNode: SKNode {
     }
 
     func applyTheme(_ theme: ArenaTheme) {
-        glowNode.fillColor = theme.playerAccentColor.withAlphaComponent(0.1)
-        glowNode.strokeColor = theme.playerAccentColor.withAlphaComponent(0.28)
-        glowNode.lineWidth = 1
-        glowNode.lineJoin = .round
-        glowNode.glowWidth = 1.15
+        outlineNode.fillColor = .clear
+        outlineNode.strokeColor = theme.backgroundColor.withAlphaComponent(0.88)
+        outlineNode.lineWidth = 2.6
+        outlineNode.lineJoin = .round
+        outlineNode.glowWidth = 0.2
 
         bodyNode.fillColor = theme.playerColor
         bodyNode.strokeColor = theme.playerAccentColor
-        bodyNode.lineWidth = 1.8
+        bodyNode.lineWidth = 2.15
         bodyNode.lineJoin = .round
-        bodyNode.glowWidth = 0.55
+        bodyNode.glowWidth = 1
 
         coreNode.fillColor = theme.playerAccentColor
         coreNode.strokeColor = theme.playerColor.withAlphaComponent(0.86)
-        coreNode.lineWidth = 0.8
+        coreNode.lineWidth = 0.95
         coreNode.position = CGPoint(x: 0, y: -visualRadius * 0.03)
-        coreNode.glowWidth = 0.95
+        coreNode.glowWidth = 1.1
 
-        engineNode.fillColor = theme.playerAccentColor.withAlphaComponent(0.58)
+        engineNode.fillColor = theme.playerAccentColor.withAlphaComponent(0.66)
         engineNode.strokeColor = .clear
         engineNode.position = CGPoint(x: 0, y: -visualRadius * 0.54)
-        engineNode.glowWidth = 0.7
+        engineNode.glowWidth = 0.85
     }
 
     func apply(state: PlayerMovementState, speedFraction rawSpeedFraction: CGFloat) {
@@ -59,7 +59,6 @@ final class PlayerCraftNode: SKNode {
         let speedFraction = min(1, max(0, rawSpeedFraction))
         engineNode.alpha = 0.36 + speedFraction * 0.4
         engineNode.setScale(0.82 + speedFraction * 0.42)
-        glowNode.alpha = 0.5 + speedFraction * 0.22
 
         guard state.velocity.length > 2 else {
             return

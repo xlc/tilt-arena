@@ -15,7 +15,7 @@ final class EnemyTelegraphNode: SKNode {
 
         super.init()
 
-        zPosition = 14
+        zPosition = 9
         applyTheme(theme)
         addChild(glowNode)
         addChild(lineNode)
@@ -27,14 +27,14 @@ final class EnemyTelegraphNode: SKNode {
     }
 
     func applyTheme(_ theme: ArenaTheme) {
-        glowNode.strokeColor = theme.enemyColor.withAlphaComponent(0.16)
-        glowNode.lineWidth = 5.2
-        glowNode.glowWidth = 1.1
+        glowNode.strokeColor = theme.enemyColor.withAlphaComponent(0.12)
+        glowNode.lineWidth = 4.8
+        glowNode.glowWidth = 0.85
         glowNode.lineCap = .round
 
-        lineNode.strokeColor = theme.enemyColor.withAlphaComponent(0.72)
-        lineNode.lineWidth = 2.2
-        lineNode.glowWidth = 0.65
+        lineNode.strokeColor = theme.enemyColor.withAlphaComponent(0.58)
+        lineNode.lineWidth = 1.9
+        lineNode.glowWidth = 0.42
         lineNode.lineCap = .round
     }
 
@@ -49,13 +49,13 @@ final class EnemyTelegraphNode: SKNode {
         // pulse opacity-only. Scaling it would drift the warning away from the
         // actual hazard lane for paths far from the scene origin.
         glowNode.run(.repeatForever(.sequence([
-            .fadeAlpha(to: 0.38, duration: 0.16),
-            .fadeAlpha(to: 0.78, duration: 0.14)
+            .fadeAlpha(to: 0.32, duration: 0.16),
+            .fadeAlpha(to: 0.68, duration: 0.14)
         ])), withKey: "telegraph.warning.glow")
 
         lineNode.run(.repeatForever(.sequence([
-            .fadeAlpha(to: 0.54, duration: 0.1),
-            .fadeAlpha(to: 0.86, duration: 0.1),
+            .fadeAlpha(to: 0.48, duration: 0.1),
+            .fadeAlpha(to: 0.76, duration: 0.1),
             .wait(forDuration: 0.1)
         ])), withKey: "telegraph.warning.line")
     }

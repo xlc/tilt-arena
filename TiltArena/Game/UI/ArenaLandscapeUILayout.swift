@@ -3,6 +3,7 @@ import UIKit
 struct ArenaLandscapeUILayout: Equatable {
     private static let controlBorderGap: CGFloat = 12
     private static let gameplayEdgeMargin: CGFloat = 8
+    private static let titleTopClearance: CGFloat = 10
 
     let sceneSize: CGSize
     let safeAreaInsets: UIEdgeInsets
@@ -26,7 +27,7 @@ struct ArenaLandscapeUILayout: Equatable {
     }
 
     var titlePosition: CGPoint {
-        CGPoint(x: safeRect.minX, y: safeRect.maxY)
+        CGPoint(x: safeRect.minX, y: safeRect.maxY - Self.titleTopClearance)
     }
 
     var bottomCenterPosition: CGPoint {

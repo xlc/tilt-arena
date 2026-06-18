@@ -56,7 +56,7 @@ final class ArenaThemeRenderer {
 
         let node = SKShapeNode(path: path)
         node.strokeColor = theme.gridColor
-        node.lineWidth = 0.6
+        node.lineWidth = 0.55
         node.lineCap = .square
         return node
     }
@@ -70,8 +70,8 @@ final class ArenaThemeRenderer {
             let radius = maxRadius * CGFloat(index) / 4
             let ring = SKShapeNode(circleOfRadius: radius)
             ring.position = center
-            ring.strokeColor = theme.gridColor.withAlphaComponent(0.55)
-            ring.lineWidth = 0.8
+            ring.strokeColor = theme.gridColor.withAlphaComponent(0.48)
+            ring.lineWidth = 0.7
             ring.fillColor = .clear
             root.addChild(ring)
         }
@@ -92,8 +92,8 @@ final class ArenaThemeRenderer {
         }
 
         let node = SKShapeNode(path: path)
-        node.strokeColor = theme.gridColor.withAlphaComponent(0.75)
-        node.lineWidth = 0.8
+        node.strokeColor = theme.gridColor.withAlphaComponent(0.62)
+        node.lineWidth = 0.7
         node.lineCap = .square
         return node
     }
@@ -165,7 +165,7 @@ final class ArenaThemeRenderer {
 
         let border = SKShapeNode(rect: rect, cornerRadius: 6)
         border.strokeColor = theme.borderColor
-        border.lineWidth = 1.5
+        border.lineWidth = 1.8
         border.fillColor = .clear
 
         return border

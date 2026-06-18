@@ -11,7 +11,7 @@ final class ArenaLandscapeUILayoutTests: XCTestCase {
         )
 
         XCTAssertEqual(layout.safeRect, CGRect(x: 83, y: 45, width: 686, height: 324))
-        XCTAssertEqual(layout.titlePosition, CGPoint(x: 83, y: 369))
+        XCTAssertEqual(layout.titlePosition, CGPoint(x: 83, y: 359))
         XCTAssertEqual(layout.bottomCenterPosition, CGPoint(x: 426, y: 45))
     }
 
@@ -37,7 +37,7 @@ final class ArenaLandscapeUILayoutTests: XCTestCase {
         )
 
         XCTAssertEqual(layout.safeRect, CGRect(x: 83, y: 58, width: 804, height: 339))
-        XCTAssertEqual(layout.titlePosition, CGPoint(x: 83, y: 397))
+        XCTAssertEqual(layout.titlePosition, CGPoint(x: 83, y: 387))
         XCTAssertEqual(layout.bottomCenterPosition, CGPoint(x: 485, y: 58))
     }
 

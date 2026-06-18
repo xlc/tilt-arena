@@ -29,6 +29,8 @@ final class ArenaModeRulesTests: XCTestCase {
         XCTAssertGreaterThan(redlineWarmup.chaserSpeed, classicWarmup.chaserSpeed)
         XCTAssertGreaterThan(redlineWarmup.maxActiveEnemies, classicWarmup.maxActiveEnemies)
         XCTAssertNotNil(redlineWarmup.formationSpawnInterval)
+        XCTAssertNil(classicWarmup.arrowRushSpawnInterval)
+        XCTAssertNotNil(redlineWarmup.arrowRushSpawnInterval)
 
         let panicWeapons: Set<WeaponKind> = [.shockwave, .seekerSwarm, .razorShield, .novaBomb]
         let movementControlWeapons: Set<WeaponKind> = [
@@ -50,6 +52,81 @@ final class ArenaModeRulesTests: XCTestCase {
             classic.pickupSpawnConfiguration.weaponKindCycle.filter { $0 == .shockwave }.count
         )
         XCTAssertFalse(cycle.contains(.novaBomb))
+    }
+
+    func testRedlineTightensSafetyWindowsAndPickupForgiveness() {
+        let classic = ArenaModeRules.runSettings(for: .classic)
+        let redline = ArenaModeRules.runSettings(for: .redline)
+
+        XCTAssertGreaterThan(
+            redline.enemySpawnConfiguration.enemySurvivalSpeedMultiplier(at: 0),
+            classic.enemySpawnConfiguration.enemySurvivalSpeedMultiplier(at: 0)
+        )
+        XCTAssertGreaterThan(
+            redline.enemySpawnConfiguration.enemySurvivalSpeedMultiplier(at: 120),
+            classic.enemySpawnConfiguration.enemySurvivalSpeedMultiplier(at: 120)
+        )
+        XCTAssertLessThan(
+            redline.enemySpawnConfiguration.playerSafetyRadius,
+            classic.enemySpawnConfiguration.playerSafetyRadius
+        )
+        XCTAssertLessThan(
+            redline.enemySpawnConfiguration.spawnWarningDuration,
+            classic.enemySpawnConfiguration.spawnWarningDuration
+        )
+        XCTAssertLessThan(
+            redline.enemySpawnConfiguration.spawnPlayerCollisionGraceDuration,
+            classic.enemySpawnConfiguration.spawnPlayerCollisionGraceDuration
+        )
+        XCTAssertGreaterThan(
+            redline.enemySpawnConfiguration.maxPendingEnemyTelegraphs,
+            classic.enemySpawnConfiguration.maxPendingEnemyTelegraphs
+        )
+        XCTAssertLessThan(
+            redline.pickupSpawnConfiguration.maxActivePickups,
+            classic.pickupSpawnConfiguration.maxActivePickups
+        )
+        XCTAssertGreaterThan(
+            redline.pickupSpawnConfiguration.refillDelay,
+            classic.pickupSpawnConfiguration.refillDelay
+        )
+        XCTAssertGreaterThan(
+            redline.pickupSpawnConfiguration.playerClearance,
+            classic.pickupSpawnConfiguration.playerClearance
+        )
+        XCTAssertLessThan(
+            redline.pickupSpawnConfiguration.enemyClearance,
+            classic.pickupSpawnConfiguration.enemyClearance
+        )
+    }
+
+    func testRedlineEscalatesSpecialThreatsMoreAggressivelyThanClassic() throws {
+        let classic = ArenaModeRules.runSettings(for: .classic).enemySpawnConfiguration
+        let redline = ArenaModeRules.runSettings(for: .redline).enemySpawnConfiguration
+        let classicChaos = classic.tuning(at: 90)
+        let redlineChaos = redline.tuning(at: 90)
+        let classicHell = classic.tuning(at: 180)
+        let redlineHell = redline.tuning(at: 180)
+
+        XCTAssertLessThan(
+            try XCTUnwrap(redlineChaos.arrowRushSpawnInterval),
+            try XCTUnwrap(classicChaos.arrowRushSpawnInterval)
+        )
+        XCTAssertLessThan(
+            try XCTUnwrap(redlineChaos.mineDotSpawnInterval),
+            try XCTUnwrap(classicChaos.mineDotSpawnInterval)
+        )
+        XCTAssertLessThan(
+            try XCTUnwrap(redlineChaos.hunterDotSpawnInterval),
+            try XCTUnwrap(classicChaos.hunterDotSpawnInterval)
+        )
+        XCTAssertGreaterThan(redlineChaos.arrowRushEnemyCount, classicChaos.arrowRushEnemyCount)
+        XCTAssertGreaterThan(redlineChaos.maxActiveHunterDots, classicChaos.maxActiveHunterDots)
+
+        XCTAssertLessThan(redlineHell.chaserSpawnInterval, classicHell.chaserSpawnInterval)
+        XCTAssertGreaterThan(redlineHell.maxActiveEnemies, classicHell.maxActiveEnemies)
+        XCTAssertGreaterThan(redlineHell.maxActivePaddleTraps, classicHell.maxActivePaddleTraps)
+        XCTAssertGreaterThan(redlineHell.maxActiveSplitters, classicHell.maxActiveSplitters)
     }
 
     func testDailyUsesClassicBalanceWithStableLocalDaySeed() throws {

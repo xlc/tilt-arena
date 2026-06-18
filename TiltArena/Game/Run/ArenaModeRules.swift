@@ -110,97 +110,138 @@ struct ArenaModeRules {
 
     private static func redlineEnemySpawnConfiguration() -> EnemySpawnConfiguration {
         var configuration = EnemySpawnConfiguration()
-        configuration.enemySpeedRampPerSecond = 0.03
-        configuration.maximumEnemySpeedMultiplier = 2.05
-        configuration.warmup = EnemyPhaseTuning(
-            chaserSpawnInterval: 0.62,
-            chaserSpeed: 96,
-            maxActiveEnemies: 76,
-            formationSpawnInterval: 6.8,
-            formationSpeed: 130,
-            formationLaneCount: 5
+        applyRedlineEnemySpawnOverrides(to: &configuration)
+        configuration.warmup = redlineWarmupTuning()
+        configuration.pressure = redlinePressureTuning()
+        configuration.chaos = redlineChaosTuning()
+        configuration.survivalHell = redlineSurvivalHellTuning()
+        return configuration
+    }
+
+    private static func applyRedlineEnemySpawnOverrides(to configuration: inout EnemySpawnConfiguration) {
+        configuration.enemySurvivalSpeedStartMultiplier = 0.9
+        configuration.enemySurvivalSpeedRampDuration = 95
+        configuration.maximumEnemySurvivalSpeedMultiplier = 1.52
+        configuration.enemySpeedRampPerSecond = 0.036
+        configuration.maximumEnemySpeedMultiplier = 2.25
+        configuration.playerSafetyRadius = 100
+        configuration.spawnWarningDuration = 0.35
+        configuration.spawnPlayerCollisionGraceDuration = 0.32
+        configuration.maxPendingSpawnWarnings = 5
+        configuration.maxPendingEnemyTelegraphs = 3
+        configuration.formationTelegraphDuration = 0.95
+        configuration.arrowRushTelegraphDuration = 0.68
+        configuration.mineDotTelegraphDuration = 0.72
+        configuration.hunterDotTelegraphDuration = 0.6
+        configuration.paddleTrapTelegraphDuration = 0.82
+    }
+
+    private static func redlineWarmupTuning() -> EnemyPhaseTuning {
+        EnemyPhaseTuning(
+            chaserSpawnInterval: 0.54,
+            chaserSpeed: 104,
+            maxActiveEnemies: 88,
+            formationSpawnInterval: 5.6,
+            formationSpeed: 142,
+            formationLaneCount: 5,
+            arrowRushSpawnInterval: 9.5,
+            arrowRushSpeed: 206,
+            arrowRushEnemyCount: 2
         )
-        configuration.pressure = EnemyPhaseTuning(
-            chaserSpawnInterval: 0.43,
-            chaserSpeed: 118,
-            maxActiveEnemies: 118,
-            formationSpawnInterval: 4.2,
-            formationSpeed: 150,
+    }
+
+    private static func redlinePressureTuning() -> EnemyPhaseTuning {
+        EnemyPhaseTuning(
+            chaserSpawnInterval: 0.36,
+            chaserSpeed: 130,
+            maxActiveEnemies: 136,
+            formationSpawnInterval: 3.5,
+            formationSpeed: 166,
             formationLaneCount: 7,
-            arrowRushSpawnInterval: 7.2,
-            arrowRushSpeed: 198,
-            arrowRushEnemyCount: 3,
-            mineDotSpawnInterval: 10.5,
-            maxActiveMineDots: 4,
-            hunterDotSpawnInterval: 12,
-            hunterDotSpeed: 146,
-            hunterDotPredictionLead: 0.65,
+            arrowRushSpawnInterval: 5.6,
+            arrowRushSpeed: 224,
+            arrowRushEnemyCount: 4,
+            mineDotSpawnInterval: 8.4,
+            maxActiveMineDots: 5,
+            hunterDotSpawnInterval: 9.5,
+            hunterDotSpeed: 162,
+            hunterDotPredictionLead: 0.75,
             maxActiveHunterDots: 2,
-            paddleTrapSpawnInterval: 16,
+            paddleTrapSpawnInterval: 13.5,
             maxActivePaddleTraps: 1,
             paddleTrapLifetime: 7,
             paddleTrapBarEnemyCount: 4,
-            paddleTrapDotSpeed: 184,
-            splitterSpawnInterval: 11,
-            splitterSpeed: 88,
-            maxActiveSplitters: 2
-        )
-        configuration.chaos = EnemyPhaseTuning(
-            chaserSpawnInterval: 0.31,
-            chaserSpeed: 146,
-            maxActiveEnemies: 166,
-            formationSpawnInterval: 3.1,
-            formationSpeed: 178,
-            formationLaneCount: 9,
-            arrowRushSpawnInterval: 4.8,
-            arrowRushSpeed: 238,
-            arrowRushEnemyCount: 5,
-            mineDotSpawnInterval: 6.2,
-            maxActiveMineDots: 7,
-            hunterDotSpawnInterval: 7.8,
-            hunterDotSpeed: 184,
-            hunterDotPredictionLead: 0.9,
-            maxActiveHunterDots: 3,
-            paddleTrapSpawnInterval: 10.8,
-            maxActivePaddleTraps: 2,
-            paddleTrapLifetime: 8,
-            paddleTrapBarEnemyCount: 5,
-            paddleTrapDotSpeed: 228,
-            splitterSpawnInterval: 8.2,
-            splitterSpeed: 112,
+            paddleTrapDotSpeed: 202,
+            splitterSpawnInterval: 8.8,
+            splitterSpeed: 98,
             maxActiveSplitters: 3
         )
-        configuration.survivalHell = EnemyPhaseTuning(
-            chaserSpawnInterval: 0.23,
-            chaserSpeed: 174,
-            maxActiveEnemies: 240,
-            formationSpawnInterval: 2.5,
-            formationSpeed: 210,
+    }
+
+    private static func redlineChaosTuning() -> EnemyPhaseTuning {
+        EnemyPhaseTuning(
+            chaserSpawnInterval: 0.25,
+            chaserSpeed: 162,
+            maxActiveEnemies: 192,
+            formationSpawnInterval: 2.45,
+            formationSpeed: 198,
             formationLaneCount: 9,
-            arrowRushSpawnInterval: 3.7,
-            arrowRushSpeed: 274,
+            arrowRushSpawnInterval: 3.8,
+            arrowRushSpeed: 266,
             arrowRushEnemyCount: 6,
-            mineDotSpawnInterval: 5.1,
-            maxActiveMineDots: 9,
-            hunterDotSpawnInterval: 6.2,
-            hunterDotSpeed: 214,
-            hunterDotPredictionLead: 1.1,
+            mineDotSpawnInterval: 5.0,
+            maxActiveMineDots: 8,
+            hunterDotSpawnInterval: 6.3,
+            hunterDotSpeed: 206,
+            hunterDotPredictionLead: 1.05,
             maxActiveHunterDots: 4,
-            paddleTrapSpawnInterval: 8.6,
+            paddleTrapSpawnInterval: 8.8,
             maxActivePaddleTraps: 2,
             paddleTrapLifetime: 8,
             paddleTrapBarEnemyCount: 5,
-            paddleTrapDotSpeed: 258,
+            paddleTrapDotSpeed: 252,
             splitterSpawnInterval: 6.4,
-            splitterSpeed: 136,
+            splitterSpeed: 128,
             maxActiveSplitters: 4
         )
-        return configuration
+    }
+
+    private static func redlineSurvivalHellTuning() -> EnemyPhaseTuning {
+        EnemyPhaseTuning(
+            chaserSpawnInterval: 0.18,
+            chaserSpeed: 194,
+            maxActiveEnemies: 270,
+            formationSpawnInterval: 1.95,
+            formationSpeed: 236,
+            formationLaneCount: 9,
+            arrowRushSpawnInterval: 2.9,
+            arrowRushSpeed: 308,
+            arrowRushEnemyCount: 7,
+            mineDotSpawnInterval: 4.0,
+            maxActiveMineDots: 11,
+            hunterDotSpawnInterval: 4.8,
+            hunterDotSpeed: 242,
+            hunterDotPredictionLead: 1.25,
+            maxActiveHunterDots: 5,
+            paddleTrapSpawnInterval: 6.8,
+            maxActivePaddleTraps: 3,
+            paddleTrapLifetime: 9,
+            paddleTrapBarEnemyCount: 6,
+            paddleTrapDotSpeed: 288,
+            splitterSpawnInterval: 5.0,
+            splitterSpeed: 156,
+            maxActiveSplitters: 5
+        )
     }
 
     private static func redlinePickupSpawnConfiguration() -> PickupSpawnConfiguration {
         PickupSpawnConfiguration(
-            maxActivePickups: 3,
+            refillDelay: 0.75,
+            chargedPickupDelay: 3.8,
+            overchargedPickupDelay: 7.2,
+            maxActivePickups: 2,
+            playerClearance: 104,
+            enemyClearance: 4,
             weaponKindCycle: [
                 .flameTrail,
                 .warpDash,

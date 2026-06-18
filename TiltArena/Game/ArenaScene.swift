@@ -378,11 +378,11 @@ final class ArenaScene: SKScene {
     }
 
     private func configureLabels() {
-        configureLabel(timerLabel, fontSize: 16, color: theme.borderColor)
+        configureLabel(timerLabel, fontSize: 16, color: theme.playerColor.withAlphaComponent(0.9))
         timerLabel.horizontalAlignmentMode = .left
         timerLabel.verticalAlignmentMode = .top
 
-        configureLabel(bestMarkerLabel, fontSize: 12, color: theme.borderColor)
+        configureLabel(bestMarkerLabel, fontSize: 12, color: theme.playerColor.withAlphaComponent(0.78))
         bestMarkerLabel.horizontalAlignmentMode = .right
         bestMarkerLabel.verticalAlignmentMode = .top
 
