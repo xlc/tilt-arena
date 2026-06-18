@@ -17,7 +17,7 @@ extension EnemySpawnDirector {
             return
         }
 
-        guard pendingSpawns.count < configuration.maxPendingEnemyTelegraphs else {
+        guard pendingTelegraphSlotCount < configuration.maxPendingEnemyTelegraphs else {
             timeUntilNextHunterDot = max(timeUntilNextHunterDot, hunterDotSpawnInterval)
             return
         }
@@ -91,7 +91,8 @@ extension EnemySpawnDirector {
                 timeRemaining: configuration.hunterDotTelegraphDuration,
                 requiredEnemyCount: 1,
                 enemies: [enemy],
-                telegraph: telegraph
+                telegraph: telegraph,
+                reservesTelegraphSlot: true
             )
         }
 

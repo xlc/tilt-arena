@@ -23,6 +23,7 @@ struct EnemySpawnDirector {
         let requiredEnemyCount: Int
         let enemies: [ArenaEnemy]
         let telegraph: EnemyTelegraph
+        let reservesTelegraphSlot: Bool
     }
 
     struct SpawnContext {
@@ -61,6 +62,18 @@ struct EnemySpawnDirector {
 
     var pendingEnemyCount: Int {
         pendingSpawns.values.reduce(0) { $0 + $1.enemies.count }
+    }
+
+    var pendingTelegraphSlotCount: Int {
+        pendingSpawns.values.filter(\.reservesTelegraphSlot).count
+    }
+
+    var pendingSpawnWarningCount: Int {
+        pendingSpawns.values.filter { !$0.reservesTelegraphSlot }.count
+    }
+
+    var pendingSplitterCount: Int {
+        pendingSpawns.values.reduce(0) { $0 + $1.enemies.filter(\.isSplitter).count }
     }
 
     var pendingMineDotCount: Int {
@@ -267,7 +280,7 @@ struct EnemySpawnDirector {
             return
         }
 
-        guard pendingSpawns.count < configuration.maxPendingEnemyTelegraphs else {
+        guard pendingTelegraphSlotCount < configuration.maxPendingEnemyTelegraphs else {
             timeUntilNextFormation = max(timeUntilNextFormation, formationSpawnInterval)
             return
         }
@@ -339,9 +352,7 @@ struct EnemySpawnDirector {
                 )
             }
 
-        guard enemies.count >= requiredFormationEnemyCount else {
-            return nil
-        }
+        guard enemies.count >= requiredFormationEnemyCount else { return nil }
 
         nextEnemyID += enemies.count
         nextFormationID += 1
@@ -358,7 +369,8 @@ struct EnemySpawnDirector {
             timeRemaining: configuration.formationTelegraphDuration,
             requiredEnemyCount: requiredFormationEnemyCount,
             enemies: enemies,
-            telegraph: telegraph
+            telegraph: telegraph,
+            reservesTelegraphSlot: true
         )
     }
 
@@ -560,10 +572,7 @@ struct EnemySpawnDirector {
         }
     }
 
-    private var requiredFormationEnemyCount: Int {
-        max(1, configuration.minimumFormationEnemyCount)
-    }
-
+    private var requiredFormationEnemyCount: Int { max(1, configuration.minimumFormationEnemyCount) }
 }
 
 extension EnemySpawnDirector {
@@ -574,7 +583,7 @@ extension EnemySpawnDirector {
         speed: CGFloat,
         behavior: EnemyBehavior = .chaser
     ) -> ArenaEnemy {
-        ArenaEnemy(
+        var enemy = ArenaEnemy(
             id: id,
             position: position,
             radius: radius ?? configuration.enemyRadius,
@@ -583,5 +592,57 @@ extension EnemySpawnDirector {
             maximumSpeedMultiplier: configuration.maximumEnemySpeedMultiplier,
             behavior: behavior
         )
+        enemy.startPlayerCollisionGrace(duration: configuration.spawnPlayerCollisionGraceDuration)
+        return enemy
+    }
+
+    mutating func spawnWarning(
+        for enemy: ArenaEnemy,
+        radius: CGFloat? = nil
+    ) -> PendingEnemySpawn {
+        let telegraphID = nextTelegraphID
+        nextTelegraphID += 1
+        return PendingEnemySpawn(
+            timeRemaining: configuration.spawnWarningDuration,
+            requiredEnemyCount: 1,
+            enemies: [enemy],
+            telegraph: EnemyTelegraph(
+                id: telegraphID,
+                segments: spawnWarningSegments(center: enemy.position, radius: radius ?? enemy.radius)
+            ),
+            reservesTelegraphSlot: false
+        )
+    }
+
+    @discardableResult
+    mutating func appendSpawnCandidate(
+        _ enemy: ArenaEnemy,
+        usesWarning: Bool,
+        frame: inout EnemySpawnFrame
+    ) -> Bool {
+        guard usesWarning else {
+            frame.newEnemies.append(enemy)
+            return false
+        }
+
+        let warning = spawnWarning(for: enemy, radius: enemy.radius)
+        pendingSpawns[warning.telegraph.id] = warning
+        frame.telegraphsToShow.append(warning.telegraph)
+        return true
+    }
+
+    private func spawnWarningSegments(center: CGPoint, radius: CGFloat) -> [EnemyTelegraphSegment] {
+        let markerRadius = max(configuration.enemyRadius * 2.6, radius * 2.4)
+        let innerRadius = markerRadius * 0.28
+        func segment(_ start: CGPoint, _ end: CGPoint) -> EnemyTelegraphSegment {
+            EnemyTelegraphSegment(start: start, end: end)
+        }
+
+        return [
+            segment(CGPoint(x: center.x - markerRadius, y: center.y), CGPoint(x: center.x - innerRadius, y: center.y)),
+            segment(CGPoint(x: center.x + innerRadius, y: center.y), CGPoint(x: center.x + markerRadius, y: center.y)),
+            segment(CGPoint(x: center.x, y: center.y - markerRadius), CGPoint(x: center.x, y: center.y - innerRadius)),
+            segment(CGPoint(x: center.x, y: center.y + innerRadius), CGPoint(x: center.x, y: center.y + markerRadius))
+        ]
     }
 }

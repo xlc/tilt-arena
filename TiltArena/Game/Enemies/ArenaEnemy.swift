@@ -26,6 +26,7 @@ struct ArenaEnemy: Equatable, Identifiable {
     var thawGraceTimeRemaining: TimeInterval = 0
     var thawGraceDuration: TimeInterval = 0
     var splitSpawnGraceTimeRemaining: TimeInterval = 0
+    var playerCollisionGraceTimeRemaining: TimeInterval = 0
 
     var formationID: Int? {
         switch behavior {
@@ -73,6 +74,10 @@ struct ArenaEnemy: Equatable, Identifiable {
         splitSpawnGraceTimeRemaining > 0
     }
 
+    var isPlayerCollisionGraceActive: Bool {
+        playerCollisionGraceTimeRemaining > 0
+    }
+
     var paddleTrapID: Int? {
         switch behavior {
         case let .paddleTrapBar(trapID, _), let .paddleTrapDot(trapID, _, _, _):
@@ -108,11 +113,11 @@ struct ArenaEnemy: Equatable, Identifiable {
     }
 
     var canDamagePlayer: Bool {
-        !isShatterableFrozen && !isSplitProtected
+        !isShatterableFrozen && !isSplitProtected && !isPlayerCollisionGraceActive
     }
 
     var canBeTargetedByWeapons: Bool {
-        !isSplitProtected
+        true
     }
 
     mutating func freeze(duration: TimeInterval, thawGraceDuration: TimeInterval = 0) {
@@ -124,6 +129,10 @@ struct ArenaEnemy: Equatable, Identifiable {
         frozenTimeRemaining = max(frozenTimeRemaining, clampedDuration)
         self.thawGraceDuration = max(self.thawGraceDuration, max(0, thawGraceDuration))
         thawGraceTimeRemaining = 0
+    }
+
+    mutating func startPlayerCollisionGrace(duration: TimeInterval) {
+        playerCollisionGraceTimeRemaining = max(playerCollisionGraceTimeRemaining, max(0, duration))
     }
 
     mutating func pullToward(_ target: CGPoint, distance: CGFloat) {
@@ -173,6 +182,8 @@ struct ArenaEnemy: Equatable, Identifiable {
         let clampedTime = max(0, deltaTime)
         let clampedDelta = CGFloat(clampedTime)
 
+        consumePlayerCollisionGrace(deltaTime: clampedTime)
+
         if consumeMovementPause(deltaTime: clampedTime) {
             return
         }
@@ -218,6 +229,14 @@ struct ArenaEnemy: Equatable, Identifiable {
             )
             recordMovementTime(clampedTime)
         }
+    }
+
+    private mutating func consumePlayerCollisionGrace(deltaTime: TimeInterval) {
+        guard isPlayerCollisionGraceActive else {
+            return
+        }
+
+        playerCollisionGraceTimeRemaining = max(0, playerCollisionGraceTimeRemaining - deltaTime)
     }
 
     private mutating func consumeMovementPause(deltaTime: TimeInterval) -> Bool {

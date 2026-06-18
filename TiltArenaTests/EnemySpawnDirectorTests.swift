@@ -55,6 +55,9 @@ final class EnemySpawnDirectorTests: XCTestCase {
         XCTAssertEqual(configuration.maximumEnemySurvivalSpeedMultiplier, 1.35, accuracy: 0.0001)
         XCTAssertEqual(configuration.enemySpeedRampPerSecond, 0.024, accuracy: 0.0001)
         XCTAssertEqual(configuration.maximumEnemySpeedMultiplier, 1.9, accuracy: 0.0001)
+        XCTAssertEqual(configuration.spawnWarningDuration, 0.45, accuracy: 0.0001)
+        XCTAssertEqual(configuration.spawnPlayerCollisionGraceDuration, 0.5, accuracy: 0.0001)
+        XCTAssertEqual(configuration.maxPendingSpawnWarnings, 4)
     }
 
     func testEnemySurvivalSpeedMultiplierStartsSlowAndGainsTaperOff() {
@@ -110,7 +113,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         let playerPosition = CGPoint(x: 0, y: 75)
         let pickupCircle = CollisionCircle(center: CGPoint(x: 320, y: 75), radius: 16)
 
-        let frame = director.update(
+        let warningFrame = director.update(
             deltaTime: 0.1,
             survivalTime: 0,
             activeEnemies: [],
@@ -119,7 +122,23 @@ final class EnemySpawnDirectorTests: XCTestCase {
             pickupCircles: [pickupCircle]
         )
 
+        XCTAssertEqual(warningFrame.telegraphsToShow.count, 1)
+        XCTAssertTrue(warningFrame.newEnemies.isEmpty)
+
+        let frame = director.update(
+            deltaTime: configuration.spawnWarningDuration,
+            survivalTime: configuration.spawnWarningDuration,
+            activeEnemies: [],
+            playableRect: playableRect,
+            playerPosition: playerPosition,
+            pickupCircles: [pickupCircle]
+        )
+
+        XCTAssertEqual(frame.telegraphIDsToRemove, [warningFrame.telegraphsToShow[0].id])
         XCTAssertEqual(frame.newEnemies.count, 1)
+        XCTAssertTrue(frame.newEnemies[0].isPlayerCollisionGraceActive)
+        XCTAssertFalse(frame.newEnemies[0].canDamagePlayer)
+        XCTAssertTrue(frame.newEnemies[0].canBeTargetedByWeapons)
         XCTAssertTrue(director.isSafeSpawn(
             frame.newEnemies[0].position,
             avoiding: playerPosition,
@@ -460,6 +479,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
 
     func testResetRestartsEnemyAndFormationIDs() {
         var configuration = EnemySpawnConfiguration()
+        configuration.spawnWarningDuration = 0
         configuration.warmup = EnemyPhaseTuning(
             chaserSpawnInterval: 1,
             chaserSpeed: 50,
@@ -610,6 +630,8 @@ private func firstChaserFrame(
     sequenceSeed: Int,
     survivalTime: TimeInterval = 0
 ) -> EnemySpawnFrame {
+    var configuration = configuration
+    configuration.spawnWarningDuration = 0
     var director = EnemySpawnDirector(configuration: configuration, sequenceSeed: sequenceSeed)
     return director.update(
         deltaTime: 0.1,

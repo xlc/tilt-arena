@@ -70,6 +70,9 @@ struct EnemySpawnConfiguration: Equatable {
     var maximumEnemySpeedMultiplier: CGFloat = 1.9
     var playerSafetyRadius: CGFloat = 120
     var pickupClearance: CGFloat = 8
+    var spawnWarningDuration: TimeInterval = 0.45
+    var spawnPlayerCollisionGraceDuration: TimeInterval = 0.5
+    var maxPendingSpawnWarnings = 4
     var splitterRadiusScale: CGFloat = 1.85
     var splitterChildRadiusScale: CGFloat = 0.85
     var splitterChildSpeedScale: CGFloat = 0.82

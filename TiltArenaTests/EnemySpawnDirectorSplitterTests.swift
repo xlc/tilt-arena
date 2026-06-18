@@ -19,7 +19,7 @@ final class EnemySpawnDirectorSplitterTests: XCTestCase {
         )
         XCTAssertTrue(warmupFrame.newEnemies.allSatisfy { !$0.isSplitter })
 
-        let frame = director.update(
+        let warningFrame = director.update(
             deltaTime: 0.1,
             survivalTime: 30,
             activeEnemies: [],
@@ -28,9 +28,25 @@ final class EnemySpawnDirectorSplitterTests: XCTestCase {
             pickupCircles: []
         )
 
+        XCTAssertEqual(warningFrame.telegraphsToShow.count, 1)
+        XCTAssertTrue(warningFrame.newEnemies.isEmpty)
+
+        let frame = director.update(
+            deltaTime: configuration.spawnWarningDuration,
+            survivalTime: 30 + configuration.spawnWarningDuration,
+            activeEnemies: [],
+            playableRect: playableRect,
+            playerPosition: playerPosition,
+            pickupCircles: []
+        )
+
+        XCTAssertEqual(frame.telegraphIDsToRemove, [warningFrame.telegraphsToShow[0].id])
         let splitter = try XCTUnwrap(frame.newEnemies.first)
         XCTAssertEqual(frame.newEnemies.count, 1)
         XCTAssertTrue(splitter.isSplitter)
+        XCTAssertTrue(splitter.isPlayerCollisionGraceActive)
+        XCTAssertFalse(splitter.canDamagePlayer)
+        XCTAssertTrue(splitter.canBeTargetedByWeapons)
         XCTAssertEqual(splitter.radius, configuration.enemyRadius * configuration.splitterRadiusScale, accuracy: 0.0001)
         XCTAssertEqual(splitter.speed, 72, accuracy: 0.0001)
         XCTAssertTrue(director.isSafeSpawn(splitter.position, avoiding: playerPosition, enemyRadius: splitter.radius))
@@ -45,6 +61,46 @@ final class EnemySpawnDirectorSplitterTests: XCTestCase {
         )
 
         XCTAssertTrue(cappedFrame.newEnemies.allSatisfy { !$0.isSplitter })
+    }
+
+    func testPendingSplitterWarningCountsAgainstSplitterCap() {
+        var configuration = splitterSpawnConfiguration()
+        let fastSplitterPhase = EnemyPhaseTuning(
+            chaserSpawnInterval: 0,
+            chaserSpeed: 0,
+            maxActiveEnemies: 10,
+            formationSpawnInterval: nil,
+            formationSpeed: 0,
+            formationLaneCount: 5,
+            splitterSpawnInterval: 0.1,
+            splitterSpeed: 72,
+            maxActiveSplitters: 1
+        )
+        configuration.pressure = fastSplitterPhase
+        configuration.chaos = fastSplitterPhase
+        configuration.survivalHell = fastSplitterPhase
+        var director = EnemySpawnDirector(configuration: configuration)
+
+        let warningFrame = director.update(
+            deltaTime: 0.1,
+            survivalTime: 30,
+            activeEnemies: [],
+            playableRect: CGRect(x: 0, y: 0, width: 320, height: 320),
+            playerPosition: CGPoint(x: 160, y: 160),
+            pickupCircles: []
+        )
+        let blockedFrame = director.update(
+            deltaTime: 0.05,
+            survivalTime: 30.05,
+            activeEnemies: [],
+            playableRect: CGRect(x: 0, y: 0, width: 320, height: 320),
+            playerPosition: CGPoint(x: 160, y: 160),
+            pickupCircles: []
+        )
+
+        XCTAssertEqual(warningFrame.telegraphsToShow.count, 1)
+        XCTAssertTrue(blockedFrame.telegraphsToShow.isEmpty)
+        XCTAssertTrue(blockedFrame.newEnemies.isEmpty)
     }
 
     func testSplitterChildrenSpawnProtectedAndAwayFromPlayer() {
@@ -75,7 +131,7 @@ final class EnemySpawnDirectorSplitterTests: XCTestCase {
             XCTAssertTrue(child.isSplitterChild)
             XCTAssertTrue(child.isSplitProtected)
             XCTAssertFalse(child.canDamagePlayer)
-            XCTAssertFalse(child.canBeTargetedByWeapons)
+            XCTAssertTrue(child.canBeTargetedByWeapons)
             XCTAssertEqual(child.speed, 72, accuracy: 0.0001)
             XCTAssertGreaterThanOrEqual(
                 hypot(child.position.x - playerPosition.x, child.position.y - playerPosition.y) + 0.001,

@@ -214,7 +214,35 @@ final class ArenaEnemyTests: XCTestCase {
         XCTAssertEqual(enemy.formationID, 4)
     }
 
-    func testSplitSpawnGracePreventsMovementDamageAndWeaponTargeting() {
+    func testPlayerCollisionGracePreventsDamageWithoutStoppingMovementOrWeaponTargeting() {
+        var enemy = ArenaEnemy(
+            id: 1,
+            position: CGPoint(x: 0, y: 0),
+            radius: 4,
+            speed: 100,
+            playerCollisionGraceTimeRemaining: 0.5
+        )
+
+        XCTAssertTrue(enemy.isPlayerCollisionGraceActive)
+        XCTAssertFalse(enemy.canDamagePlayer)
+        XCTAssertTrue(enemy.canBeTargetedByWeapons)
+
+        enemy.advance(toward: CGPoint(x: 100, y: 0), deltaTime: 0.25)
+
+        XCTAssertEqual(enemy.position.x, 25, accuracy: 0.0001)
+        XCTAssertTrue(enemy.isPlayerCollisionGraceActive)
+        XCTAssertFalse(enemy.canDamagePlayer)
+        XCTAssertTrue(enemy.canBeTargetedByWeapons)
+
+        enemy.advance(toward: CGPoint(x: 100, y: 0), deltaTime: 0.25)
+
+        XCTAssertEqual(enemy.position.x, 50, accuracy: 0.0001)
+        XCTAssertFalse(enemy.isPlayerCollisionGraceActive)
+        XCTAssertTrue(enemy.canDamagePlayer)
+        XCTAssertTrue(enemy.canBeTargetedByWeapons)
+    }
+
+    func testSplitSpawnGracePreventsMovementAndDamageButAllowsWeaponTargeting() {
         var enemy = ArenaEnemy(
             id: 1,
             position: CGPoint(x: 0, y: 0),
@@ -227,7 +255,7 @@ final class ArenaEnemyTests: XCTestCase {
         XCTAssertTrue(enemy.isSplitterChild)
         XCTAssertTrue(enemy.isSplitProtected)
         XCTAssertFalse(enemy.canDamagePlayer)
-        XCTAssertFalse(enemy.canBeTargetedByWeapons)
+        XCTAssertTrue(enemy.canBeTargetedByWeapons)
 
         enemy.advance(toward: CGPoint(x: 100, y: 0), deltaTime: 0.25)
 

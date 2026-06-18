@@ -21,7 +21,7 @@ extension EnemySpawnDirector {
             return
         }
 
-        guard pendingSpawns.count < configuration.maxPendingEnemyTelegraphs else {
+        guard pendingTelegraphSlotCount < configuration.maxPendingEnemyTelegraphs else {
             timeUntilNextMineDot = max(timeUntilNextMineDot, mineDotSpawnInterval)
             return
         }
@@ -116,13 +116,14 @@ extension EnemySpawnDirector {
     }
 
     private mutating func pendingMineDot(at position: CGPoint) -> PendingEnemySpawn {
-        let enemy = ArenaEnemy(
+        var enemy = ArenaEnemy(
             id: nextEnemyID,
             position: position,
             radius: configuration.enemyRadius,
             speed: 0,
             behavior: .mineDot
         )
+        enemy.startPlayerCollisionGrace(duration: configuration.spawnPlayerCollisionGraceDuration)
         let telegraph = EnemyTelegraph(
             id: nextTelegraphID,
             segments: mineDotTelegraphSegments(center: position)
@@ -135,7 +136,8 @@ extension EnemySpawnDirector {
             timeRemaining: configuration.mineDotTelegraphDuration,
             requiredEnemyCount: 1,
             enemies: [enemy],
-            telegraph: telegraph
+            telegraph: telegraph,
+            reservesTelegraphSlot: true
         )
     }
 

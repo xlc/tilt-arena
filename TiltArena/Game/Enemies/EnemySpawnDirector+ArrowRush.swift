@@ -19,7 +19,7 @@ extension EnemySpawnDirector {
 
         let requiredEnemyCount = requiredArrowRushEnemyCount(configuredEnemyCount: configuredEnemyCount)
 
-        guard pendingSpawns.count < configuration.maxPendingEnemyTelegraphs else {
+        guard pendingTelegraphSlotCount < configuration.maxPendingEnemyTelegraphs else {
             timeUntilNextArrowRush = max(timeUntilNextArrowRush, arrowRushSpawnInterval)
             return
         }
@@ -109,7 +109,8 @@ extension EnemySpawnDirector {
             timeRemaining: configuration.arrowRushTelegraphDuration,
             requiredEnemyCount: requiredEnemyCount,
             enemies: enemies,
-            telegraph: EnemyTelegraph(id: telegraphID, segments: segments)
+            telegraph: EnemyTelegraph(id: telegraphID, segments: segments),
+            reservesTelegraphSlot: true
         )
     }
 

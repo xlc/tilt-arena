@@ -94,6 +94,7 @@ final class ArenaScene: SKScene {
     private var flameTrailState = FlameTrailState()
     private var flameTrailSpeedBoostTimeRemaining: TimeInterval = 0
     private var flameTrailInvulnerabilityTimeRemaining: TimeInterval = 0
+    private var postWeaponSafetyTimeRemaining: TimeInterval = 0
     private lazy var flameTrailEffectNode = FlameTrailEffectNode(theme: theme)
     private var gravityWellState: GravityWellState?
     var gravityWellEffectNode: SKNode?
@@ -705,6 +706,7 @@ final class ArenaScene: SKScene {
         powerWaveChargeNode = nil
         flameTrailSpeedBoostTimeRemaining = 0
         flameTrailInvulnerabilityTimeRemaining = 0
+        clearPostWeaponSafety()
         deactivateTimeDilationAura()
         audioController.stopMusic()
         lastDeathCollisionSnapshot = collision
@@ -774,6 +776,7 @@ final class ArenaScene: SKScene {
         flameTrailState.reset()
         flameTrailSpeedBoostTimeRemaining = 0
         flameTrailInvulnerabilityTimeRemaining = 0
+        clearPostWeaponSafety()
         flameTrailEffectNode.reset()
         deactivateGravityWell()
         aimDirectionState.reset()
@@ -926,6 +929,7 @@ final class ArenaScene: SKScene {
         advancePickupCharges(deltaTime: deltaTime)
         spawnPickupIfNeeded(deltaTime: deltaTime, playerPosition: playerPosition)
         updateFlameTrailTimers(deltaTime: deltaTime)
+        updatePostWeaponSafety(deltaTime: deltaTime)
         playerPosition = collectPickups(playerPosition: playerPosition)
         advanceEnemies(deltaTime: deltaTime, playerPosition: playerPosition)
         updateTimeDilationAura(deltaTime: deltaTime, playerPosition: playerPosition)
@@ -1187,7 +1191,9 @@ final class ArenaScene: SKScene {
         case .timeDilationAura:
             return activateTimeDilationAura(at: playerPosition, configuration: configuration)
         case .ricochetLance:
-            return fireRicochetLance(from: playerPosition, configuration: configuration)
+            let destroyedCount = fireRicochetLance(from: playerPosition, configuration: configuration)
+            grantPostWeaponSafety(for: .ricochetLance)
+            return destroyedCount
         default:
             performWeaponActivationEffect(
                 effect,
@@ -1214,6 +1220,7 @@ final class ArenaScene: SKScene {
                 from: playerPosition,
                 configuration: configuration
             )
+            grantPostWeaponSafety(for: .seekerSwarm)
         case .razorShield:
             activateRazorShield(at: playerPosition, configuration: configuration)
         case .freezeBurstWave:
@@ -1222,6 +1229,7 @@ final class ArenaScene: SKScene {
             activateGravityWell(at: playerPosition, enemyIDs: enemyIDs, configuration: configuration)
         case .chainLightning(let enemyIDs):
             playChainLightning(enemyIDs: enemyIDs, from: playerPosition, configuration: configuration)
+            grantPostWeaponSafety(for: .chainLightning)
         case .flameTrail:
             activateFlameTrail(at: playerPosition, chargeTier: chargeTier)
         case .timeDilationAura, .ricochetLance:
@@ -1230,6 +1238,7 @@ final class ArenaScene: SKScene {
             activatePowerWave(at: playerPosition, configuration: configuration)
         case .novaBomb(let enemyIDs):
             playNovaBomb(enemyIDs: enemyIDs)
+            grantPostWeaponSafety(for: .novaBomb)
         }
     }
 
@@ -1266,6 +1275,7 @@ final class ArenaScene: SKScene {
             ids: resolver.seekerExplosionTargets(center: target.position, enemies: weaponTargetableEnemies()),
             weaponKind: .seekerSwarm
         )
+        grantPostWeaponSafety(for: .seekerSwarm)
     }
 
     private func playChainLightning(
@@ -1282,6 +1292,7 @@ final class ArenaScene: SKScene {
             coreColor: theme.playerColor
         ) { [weak self] enemyIDs in
             self?.destroyEnemies(ids: enemyIDs, weaponKind: .chainLightning)
+            self?.grantPostWeaponSafety(for: .chainLightning)
         }
     }
 
@@ -1289,6 +1300,7 @@ final class ArenaScene: SKScene {
         let targets = impactTargets(forEnemyIDs: enemyIDs)
         playNovaBombEffect(targets: targets) { [weak self] enemyIDs in
             self?.destroyEnemies(ids: enemyIDs, weaponKind: .novaBomb)
+            self?.grantPostWeaponSafety(for: .novaBomb)
         }
     }
 
@@ -1511,6 +1523,7 @@ final class ArenaScene: SKScene {
         if razorShieldTimeRemaining == 0 {
             triggerRazorShieldExpiryExplosion(at: playerPosition)
             deactivateRazorShield(emitHaptic: true)
+            grantPostWeaponSafety(for: .razorShield)
         }
     }
 
@@ -1588,7 +1601,8 @@ final class ArenaScene: SKScene {
         )
         flameTrailInvulnerabilityTimeRemaining = max(
             flameTrailInvulnerabilityTimeRemaining,
-            flameTrailState.configuration.invulnerabilityDuration
+            flameTrailState.configuration.invulnerabilityDuration,
+            gameTuning.feedback.postWeaponSafetyDuration
         )
         flameTrailEffectNode.apply(segments: flameTrailState.segments)
     }
@@ -1606,6 +1620,60 @@ final class ArenaScene: SKScene {
 
     private var isFlameTrailInvulnerable: Bool {
         flameTrailSpeedBoostTimeRemaining > 0 || flameTrailInvulnerabilityTimeRemaining > 0
+    }
+
+    private func grantPostWeaponSafety(for weaponKind: WeaponKind) {
+        let duration = max(0, gameTuning.feedback.postWeaponSafetyDuration)
+        guard duration > 0, runController.phase == .active else {
+            return
+        }
+
+        postWeaponSafetyTimeRemaining = max(postWeaponSafetyTimeRemaining, duration)
+        playPostWeaponSafetyFeedback(duration: duration)
+        AppDiagnostics.logger(.weapon).debug("weapon.postSafety", metadata: [
+            "kind": "\(weaponKind.rawValue)",
+            "duration": "\(duration)"
+        ])
+    }
+
+    private func updatePostWeaponSafety(deltaTime: TimeInterval) {
+        guard postWeaponSafetyTimeRemaining > 0 else {
+            return
+        }
+
+        postWeaponSafetyTimeRemaining = max(0, postWeaponSafetyTimeRemaining - max(0, deltaTime))
+    }
+
+    private func clearPostWeaponSafety() {
+        postWeaponSafetyTimeRemaining = 0
+        playerNode?.removeAction(forKey: "player.postWeaponSafety")
+        playerNode?.setScale(1)
+    }
+
+    private var isPostWeaponSafe: Bool {
+        postWeaponSafetyTimeRemaining > 0
+    }
+
+    private var isPlayerCollisionProtected: Bool {
+        isFlameTrailInvulnerable || isPostWeaponSafe
+    }
+
+    private func playPostWeaponSafetyFeedback(duration: TimeInterval) {
+        guard let playerNode else {
+            return
+        }
+
+        playerNode.removeAction(forKey: "player.postWeaponSafety")
+        playerNode.setScale(1)
+        let pulse = SKAction.sequence([
+            .scale(to: 1.13, duration: 0.08),
+            .scale(to: 1, duration: 0.1)
+        ])
+        let repeatCount = max(1, Int(ceil(max(0.1, duration) / 0.18)))
+        playerNode.run(.sequence([
+            .repeat(pulse, count: repeatCount),
+            .scale(to: 1, duration: 0.04)
+        ]), withKey: "player.postWeaponSafety")
     }
 
     private func activateTimeDilationAura(
@@ -1671,6 +1739,7 @@ final class ArenaScene: SKScene {
             timeDilationAuraNode?.removeFromParent()
             timeDilationAuraNode = nil
             activeTimeDilationConfiguration = nil
+            grantPostWeaponSafety(for: .warpDash)
         }
     }
 
@@ -1721,13 +1790,14 @@ final class ArenaScene: SKScene {
             configuration: configuration
         ) { [weak self] enemyIDs in
             self?.destroyEnemies(ids: enemyIDs, weaponKind: .ricochetLance)
+            self?.grantPostWeaponSafety(for: .ricochetLance)
         }
 
         return targets.count
     }
 
     private func detectPlayerCollision(playerPosition: CGPoint) {
-        guard !isFlameTrailInvulnerable else {
+        guard !isPlayerCollisionProtected else {
             return
         }
 
@@ -4161,6 +4231,18 @@ extension ArenaScene {
         finishRun(playFeedback: false)
     }
 
+    func grantPostWeaponSafetyForTesting(_ weaponKind: WeaponKind = .chainLightning) {
+        grantPostWeaponSafety(for: weaponKind)
+    }
+
+    func advancePostWeaponSafetyForTesting(deltaTime: TimeInterval) {
+        updatePostWeaponSafety(deltaTime: deltaTime)
+    }
+
+    func detectPlayerCollisionForTesting(playerPosition: CGPoint) {
+        detectPlayerCollision(playerPosition: playerPosition)
+    }
+
     func addWeaponEffectNodeForTesting(_ node: SKNode) {
         addWeaponEffectNode(node)
     }
@@ -4199,6 +4281,14 @@ extension ArenaScene {
 
     var enemyNodeCountForTesting: Int {
         enemyNodes.count
+    }
+
+    var playerPositionForTesting: CGPoint {
+        movementController.state.position
+    }
+
+    var isRunGameOverForTesting: Bool {
+        runController.phase == .gameOver
     }
 
     var isWeaponEffectPlaybackPausedForTesting: Bool {
@@ -4292,14 +4382,20 @@ private extension ArenaScene {
         }
 
         var activeStates: [ShockwaveWaveState] = []
+        var didCompleteWave = false
         for var state in shockwaveWaveStates {
             let frame = state.update(deltaTime: deltaTime, enemies: weaponTargetableEnemies())
             destroyEnemies(ids: frame.destroyedEnemyIDs, weaponKind: .shockwave)
             if !frame.isComplete {
                 activeStates.append(state)
+            } else {
+                didCompleteWave = true
             }
         }
         shockwaveWaveStates = activeStates
+        if didCompleteWave {
+            grantPostWeaponSafety(for: .shockwave)
+        }
     }
 
     func activateFreezeBurstWave(
@@ -4328,6 +4424,7 @@ private extension ArenaScene {
         }
 
         var activeStates: [FreezeBurstWaveState] = []
+        var didCompleteWave = false
         for var state in freezeBurstWaveStates {
             let frame = state.update(deltaTime: deltaTime, enemies: weaponTargetableEnemies())
             freezeEnemies(
@@ -4337,9 +4434,14 @@ private extension ArenaScene {
             )
             if !frame.isComplete {
                 activeStates.append(state)
+            } else {
+                didCompleteWave = true
             }
         }
         freezeBurstWaveStates = activeStates
+        if didCompleteWave {
+            grantPostWeaponSafety(for: .freezeBurst)
+        }
     }
 
     func activatePowerWave(
@@ -4388,6 +4490,9 @@ private extension ArenaScene {
         }
 
         destroyEnemies(ids: frame.destroyedEnemyIDs, weaponKind: .powerWave)
+        if frame.isComplete {
+            grantPostWeaponSafety(for: .powerWave)
+        }
     }
 
     func activateGravityWell(
@@ -4463,6 +4568,7 @@ private extension ArenaScene {
         ) { [weak self] enemyIDs in
             self?.destroyEnemies(ids: enemyIDs, weaponKind: .gravityWell)
         }
+        grantPostWeaponSafety(for: .gravityWell)
     }
 
     func deactivateGravityWell() {

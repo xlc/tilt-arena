@@ -7,35 +7,40 @@ extension EnemySpawnDirector {
         context: SpawnContext,
         frame: inout EnemySpawnFrame
     ) {
-        guard
-            context.deltaTime > 0,
-            let splitterSpawnInterval = context.tuning.splitterSpawnInterval,
-            splitterSpawnInterval > 0,
-            context.tuning.maxActiveSplitters > 0
-        else {
+        guard let splitterSpawnInterval = activeSplitterSpawnInterval(context) else {
             timeUntilNextSplitter = 0
             return
         }
 
         let activeSplitterCount = context.activeEnemies.filter(\.isSplitter).count
             + frame.newEnemies.filter(\.isSplitter).count
+            + pendingSplitterCount
         guard activeSplitterCount < context.tuning.maxActiveSplitters else {
-            timeUntilNextSplitter = max(timeUntilNextSplitter, splitterSpawnInterval)
+            delayNextSplitter(by: splitterSpawnInterval)
             return
         }
 
         guard projectedEnemyCount < context.tuning.maxActiveEnemies else {
-            timeUntilNextSplitter = max(timeUntilNextSplitter, splitterSpawnInterval)
+            delayNextSplitter(by: splitterSpawnInterval)
+            return
+        }
+
+        let maxPendingSpawnWarnings = max(0, configuration.maxPendingSpawnWarnings)
+        let usesSpawnWarning = configuration.spawnWarningDuration > 0 && maxPendingSpawnWarnings > 0
+        guard !usesSpawnWarning || pendingSpawnWarningCount < maxPendingSpawnWarnings else {
+            delayNextSplitter(by: splitterSpawnInterval)
             return
         }
 
         timeUntilNextSplitter -= context.deltaTime
         var projectedEnemyCount = projectedEnemyCount
         var projectedSplitterCount = activeSplitterCount
+        var projectedSpawnWarningCount = pendingSpawnWarningCount
 
         while timeUntilNextSplitter <= 0,
               projectedEnemyCount < context.tuning.maxActiveEnemies,
-              projectedSplitterCount < context.tuning.maxActiveSplitters {
+              projectedSplitterCount < context.tuning.maxActiveSplitters,
+              !usesSpawnWarning || projectedSpawnWarningCount < maxPendingSpawnWarnings {
             guard let enemy = spawnSplitter(
                 in: context.playableRect,
                 avoiding: context.playerPosition,
@@ -46,11 +51,32 @@ extension EnemySpawnDirector {
                 return
             }
 
-            frame.newEnemies.append(enemy)
+            if appendSpawnCandidate(enemy, usesWarning: usesSpawnWarning, frame: &frame) {
+                projectedSpawnWarningCount += 1
+            }
             projectedEnemyCount += 1
             projectedSplitterCount += 1
             timeUntilNextSplitter += splitterSpawnInterval
         }
+
+        if usesSpawnWarning, projectedSpawnWarningCount >= maxPendingSpawnWarnings {
+            delayNextSplitter(by: splitterSpawnInterval)
+        }
+    }
+
+    private mutating func delayNextSplitter(by interval: TimeInterval) {
+        timeUntilNextSplitter = max(timeUntilNextSplitter, interval)
+    }
+
+    private func activeSplitterSpawnInterval(_ context: SpawnContext) -> TimeInterval? {
+        guard context.deltaTime > 0,
+              let splitterSpawnInterval = context.tuning.splitterSpawnInterval,
+              splitterSpawnInterval > 0,
+              context.tuning.maxActiveSplitters > 0 else {
+            return nil
+        }
+
+        return splitterSpawnInterval
     }
 
     mutating func splitChildren(

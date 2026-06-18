@@ -73,4 +73,22 @@ final class ArenaSceneEnemyLifecycleTests: XCTestCase {
         XCTAssertTrue(scene.enemyIDsForTesting.isEmpty)
         XCTAssertEqual(scene.enemyNodeCountForTesting, 0)
     }
+
+    func testPostWeaponSafetyTemporarilySuppressesEnemyCollision() {
+        let scene = ArenaScene(size: CGSize(width: 320, height: 240))
+        scene.prepareActiveRunForTesting()
+        let playerPosition = scene.playerPositionForTesting
+        let enemy = ArenaEnemy(id: 200, position: playerPosition, radius: 10, speed: 0)
+
+        scene.addEnemyForTesting(enemy)
+        scene.grantPostWeaponSafetyForTesting()
+        scene.detectPlayerCollisionForTesting(playerPosition: playerPosition)
+
+        XCTAssertFalse(scene.isRunGameOverForTesting)
+
+        scene.advancePostWeaponSafetyForTesting(deltaTime: 1)
+        scene.detectPlayerCollisionForTesting(playerPosition: playerPosition)
+
+        XCTAssertTrue(scene.isRunGameOverForTesting)
+    }
 }

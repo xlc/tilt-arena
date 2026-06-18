@@ -16,10 +16,20 @@ extension EnemySpawnDirector {
             return
         }
 
+        let maxPendingSpawnWarnings = max(0, configuration.maxPendingSpawnWarnings)
+        let usesSpawnWarning = configuration.spawnWarningDuration > 0 && maxPendingSpawnWarnings > 0
+        guard !usesSpawnWarning || pendingSpawnWarningCount < maxPendingSpawnWarnings else {
+            timeUntilNextChaser = max(timeUntilNextChaser, context.tuning.chaserSpawnInterval)
+            return
+        }
+
         timeUntilNextChaser -= context.deltaTime
         var projectedEnemyCount = projectedEnemyCount
+        var projectedSpawnWarningCount = pendingSpawnWarningCount
 
-        while timeUntilNextChaser <= 0, projectedEnemyCount < context.tuning.maxActiveEnemies {
+        while timeUntilNextChaser <= 0,
+              projectedEnemyCount < context.tuning.maxActiveEnemies,
+              !usesSpawnWarning || projectedSpawnWarningCount < maxPendingSpawnWarnings {
             guard let enemy = spawnChaser(
                 in: context.playableRect,
                 avoiding: context.playerPosition,
@@ -30,9 +40,15 @@ extension EnemySpawnDirector {
                 return
             }
 
-            frame.newEnemies.append(enemy)
+            if appendSpawnCandidate(enemy, usesWarning: usesSpawnWarning, frame: &frame) {
+                projectedSpawnWarningCount += 1
+            }
             projectedEnemyCount += 1
             timeUntilNextChaser += context.tuning.chaserSpawnInterval
+        }
+
+        if usesSpawnWarning, projectedSpawnWarningCount >= maxPendingSpawnWarnings {
+            timeUntilNextChaser = max(timeUntilNextChaser, context.tuning.chaserSpawnInterval)
         }
     }
 
