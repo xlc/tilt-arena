@@ -62,7 +62,6 @@ private extension EnemyNode {
         let isFrozen: Bool
         let isThawing: Bool
         let isSplitProtected: Bool
-        let isPlayerCollisionGraceActive: Bool
         let radius: CGFloat
 
         init(enemy: ArenaEnemy) {
@@ -70,7 +69,6 @@ private extension EnemyNode {
             isFrozen = enemy.isFrozen
             isThawing = enemy.isThawing
             isSplitProtected = enemy.isSplitProtected
-            isPlayerCollisionGraceActive = enemy.isPlayerCollisionGraceActive
             radius = enemy.radius
         }
     }
@@ -127,9 +125,6 @@ private extension EnemyNode {
         } else if enemy.isThawing {
             applyThawingStyle()
             startThawAnimation()
-        } else if enemy.isPlayerCollisionGraceActive {
-            applySpawnSafeStyle()
-            startSpawnSafeAnimation()
         } else if enemy.isSplitProtected {
             applySplitProtectedStyle()
             startSplitProtectedAnimation()
@@ -141,7 +136,6 @@ private extension EnemyNode {
             && !enemy.isSplitter
             && !enemy.isSplitterChild
             && !enemy.isShatterableFrozen
-            && !enemy.isPlayerCollisionGraceActive
             && !enemy.isSplitProtected
         dangerHaloNode.isHidden = isNormalChaser
         ringNode.isHidden = isNormalChaser
@@ -252,20 +246,6 @@ private extension EnemyNode {
         highlightNode.fillColor = theme.playerColor.withAlphaComponent(0.18)
     }
 
-    func applySpawnSafeStyle() {
-        dangerHaloNode.strokeColor = theme.playerColor.withAlphaComponent(0.5)
-        dangerHaloNode.lineWidth = 1.7
-        ringNode.strokeColor = theme.playerColor.withAlphaComponent(0.64)
-        ringNode.lineWidth = 1.6
-        ringNode.glowWidth = 0.7
-        bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.48)
-        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.68)
-        bodyNode.lineWidth = 1.4
-        bodyNode.glowWidth = 0.55
-        markerNode.strokeColor = theme.playerColor.withAlphaComponent(0.68)
-        highlightNode.fillColor = theme.playerColor.withAlphaComponent(0.22)
-    }
-
     func resetStateAnimations() {
         dangerHaloNode.removeAction(forKey: "enemy.thaw.halo")
         bodyNode.removeAction(forKey: "enemy.thaw.body")
@@ -275,9 +255,6 @@ private extension EnemyNode {
         dangerHaloNode.removeAction(forKey: "enemy.split.halo")
         bodyNode.removeAction(forKey: "enemy.split.body")
         ringNode.removeAction(forKey: "enemy.split.ring")
-        dangerHaloNode.removeAction(forKey: "enemy.spawnSafe.halo")
-        bodyNode.removeAction(forKey: "enemy.spawnSafe.body")
-        ringNode.removeAction(forKey: "enemy.spawnSafe.ring")
         dangerHaloNode.alpha = 1
         bodyNode.alpha = 1
         ringNode.alpha = 1
@@ -347,27 +324,6 @@ private extension EnemyNode {
         dangerHaloNode.run(ringPulse, withKey: "enemy.split.halo")
         ringNode.run(ringPulse, withKey: "enemy.split.ring")
         bodyNode.run(bodyPulse, withKey: "enemy.split.body")
-    }
-
-    func startSpawnSafeAnimation() {
-        let ringPulse = SKAction.repeatForever(.sequence([
-            .group([
-                .scale(to: 1.2, duration: 0.11),
-                .fadeAlpha(to: 0.34, duration: 0.11)
-            ]),
-            .group([
-                .scale(to: 1, duration: 0.11),
-                .fadeAlpha(to: 0.9, duration: 0.11)
-            ])
-        ]))
-        let bodyPulse = SKAction.repeatForever(.sequence([
-            .fadeAlpha(to: 0.52, duration: 0.1),
-            .fadeAlpha(to: 0.9, duration: 0.1)
-        ]))
-
-        dangerHaloNode.run(ringPulse, withKey: "enemy.spawnSafe.halo")
-        ringNode.run(ringPulse, withKey: "enemy.spawnSafe.ring")
-        bodyNode.run(bodyPulse, withKey: "enemy.spawnSafe.body")
     }
 
     static func bodyPath(for enemy: ArenaEnemy, radius: CGFloat) -> CGPath {

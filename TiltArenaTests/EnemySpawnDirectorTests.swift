@@ -138,7 +138,6 @@ final class EnemySpawnDirectorTests: XCTestCase {
         XCTAssertEqual(frame.newEnemies.count, 1)
         XCTAssertTrue(frame.newEnemies[0].isPlayerCollisionGraceActive)
         XCTAssertFalse(frame.newEnemies[0].canDamagePlayer)
-        XCTAssertTrue(frame.newEnemies[0].canBeTargetedByWeapons)
         XCTAssertTrue(director.isSafeSpawn(
             frame.newEnemies[0].position,
             avoiding: playerPosition,

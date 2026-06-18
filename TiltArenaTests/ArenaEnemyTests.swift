@@ -214,7 +214,7 @@ final class ArenaEnemyTests: XCTestCase {
         XCTAssertEqual(enemy.formationID, 4)
     }
 
-    func testPlayerCollisionGracePreventsDamageWithoutStoppingMovementOrWeaponTargeting() {
+    func testPlayerCollisionGracePreventsDamageWithoutStoppingMovement() {
         var enemy = ArenaEnemy(
             id: 1,
             position: CGPoint(x: 0, y: 0),
@@ -225,24 +225,21 @@ final class ArenaEnemyTests: XCTestCase {
 
         XCTAssertTrue(enemy.isPlayerCollisionGraceActive)
         XCTAssertFalse(enemy.canDamagePlayer)
-        XCTAssertTrue(enemy.canBeTargetedByWeapons)
 
         enemy.advance(toward: CGPoint(x: 100, y: 0), deltaTime: 0.25)
 
         XCTAssertEqual(enemy.position.x, 25, accuracy: 0.0001)
         XCTAssertTrue(enemy.isPlayerCollisionGraceActive)
         XCTAssertFalse(enemy.canDamagePlayer)
-        XCTAssertTrue(enemy.canBeTargetedByWeapons)
 
         enemy.advance(toward: CGPoint(x: 100, y: 0), deltaTime: 0.25)
 
         XCTAssertEqual(enemy.position.x, 50, accuracy: 0.0001)
         XCTAssertFalse(enemy.isPlayerCollisionGraceActive)
         XCTAssertTrue(enemy.canDamagePlayer)
-        XCTAssertTrue(enemy.canBeTargetedByWeapons)
     }
 
-    func testSplitSpawnGracePreventsMovementAndDamageButAllowsWeaponTargeting() {
+    func testSplitSpawnGracePreventsMovementAndDamage() {
         var enemy = ArenaEnemy(
             id: 1,
             position: CGPoint(x: 0, y: 0),
@@ -255,7 +252,6 @@ final class ArenaEnemyTests: XCTestCase {
         XCTAssertTrue(enemy.isSplitterChild)
         XCTAssertTrue(enemy.isSplitProtected)
         XCTAssertFalse(enemy.canDamagePlayer)
-        XCTAssertTrue(enemy.canBeTargetedByWeapons)
 
         enemy.advance(toward: CGPoint(x: 100, y: 0), deltaTime: 0.25)
 
@@ -268,7 +264,6 @@ final class ArenaEnemyTests: XCTestCase {
         XCTAssertEqual(enemy.position.x, 0, accuracy: 0.0001)
         XCTAssertFalse(enemy.isSplitProtected)
         XCTAssertTrue(enemy.canDamagePlayer)
-        XCTAssertTrue(enemy.canBeTargetedByWeapons)
 
         enemy.advance(toward: CGPoint(x: 100, y: 0), deltaTime: 0.1)
 

@@ -23,7 +23,7 @@ struct EnemySpawnDirector {
         let requiredEnemyCount: Int
         let enemies: [ArenaEnemy]
         let telegraph: EnemyTelegraph
-        let reservesTelegraphSlot: Bool
+        let isSpawnWarning: Bool
     }
 
     struct SpawnContext {
@@ -65,11 +65,11 @@ struct EnemySpawnDirector {
     }
 
     var pendingTelegraphSlotCount: Int {
-        pendingSpawns.values.filter(\.reservesTelegraphSlot).count
+        pendingSpawns.values.filter { !$0.isSpawnWarning }.count
     }
 
     var pendingSpawnWarningCount: Int {
-        pendingSpawns.values.filter { !$0.reservesTelegraphSlot }.count
+        pendingSpawns.values.filter(\.isSpawnWarning).count
     }
 
     var pendingSplitterCount: Int {
@@ -370,7 +370,7 @@ struct EnemySpawnDirector {
             requiredEnemyCount: requiredFormationEnemyCount,
             enemies: enemies,
             telegraph: telegraph,
-            reservesTelegraphSlot: true
+            isSpawnWarning: false
         )
     }
 
@@ -610,7 +610,7 @@ extension EnemySpawnDirector {
                 id: telegraphID,
                 segments: spawnWarningSegments(center: enemy.position, radius: radius ?? enemy.radius)
             ),
-            reservesTelegraphSlot: false
+            isSpawnWarning: true
         )
     }
 

@@ -176,7 +176,7 @@ extension EnemySpawnDirector {
             requiredEnemyCount: enemies.count,
             enemies: enemies,
             telegraph: EnemyTelegraph(id: telegraphID, segments: layout.telegraphSegments),
-            reservesTelegraphSlot: true
+            isSpawnWarning: false
         )
     }
 

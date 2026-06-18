@@ -116,10 +116,6 @@ struct ArenaEnemy: Equatable, Identifiable {
         !isShatterableFrozen && !isSplitProtected && !isPlayerCollisionGraceActive
     }
 
-    var canBeTargetedByWeapons: Bool {
-        true
-    }
-
     mutating func freeze(duration: TimeInterval, thawGraceDuration: TimeInterval = 0) {
         let clampedDuration = max(0, duration)
         guard clampedDuration > 0 else {

@@ -137,7 +137,7 @@ extension EnemySpawnDirector {
             requiredEnemyCount: 1,
             enemies: [enemy],
             telegraph: telegraph,
-            reservesTelegraphSlot: true
+            isSpawnWarning: false
         )
     }
 

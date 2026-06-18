@@ -1153,7 +1153,7 @@ final class ArenaScene: SKScene {
         let application = WeaponApplicationCoordinator(resolver: chargedResolver).application(
             kind: pickup.kind,
             playerPosition: playerPosition,
-            enemies: weaponTargetableEnemies(),
+            enemies: enemies,
             using: &rng
         )
         var log = application.log
@@ -1272,7 +1272,7 @@ final class ArenaScene: SKScene {
 
     private func resolveSeekerExplosion(at target: WeaponImpactTarget, resolver: StartingWeaponResolver) {
         destroyEnemies(
-            ids: resolver.seekerExplosionTargets(center: target.position, enemies: weaponTargetableEnemies()),
+            ids: resolver.seekerExplosionTargets(center: target.position, enemies: enemies),
             weaponKind: .seekerSwarm
         )
         grantPostWeaponSafety(for: .seekerSwarm)
@@ -1306,10 +1306,6 @@ final class ArenaScene: SKScene {
 
     private func positions(forEnemyIDs enemyIDs: Set<Int>) -> [CGPoint] {
         enemies.compactMap { enemyIDs.contains($0.id) ? $0.position : nil }
-    }
-
-    private func weaponTargetableEnemies() -> [ArenaEnemy] {
-        enemies.filter(\.canBeTargetedByWeapons)
     }
 
     private func impactTargets(forEnemyIDs enemyIDs: Set<Int>) -> [WeaponImpactTarget] {
@@ -1510,7 +1506,7 @@ final class ArenaScene: SKScene {
         let resolver = StartingWeaponResolver(configuration: razorShieldConfiguration)
         let targetIDs = resolver.shieldTargets(
             playerPosition: playerPosition,
-            enemies: weaponTargetableEnemies()
+            enemies: enemies
         )
         let targets = impactTargets(forEnemyIDs: targetIDs)
         playRazorShieldImpactEffect(from: playerPosition, targets: targets) { [weak self] enemyIDs in
@@ -1532,7 +1528,7 @@ final class ArenaScene: SKScene {
         let resolver = StartingWeaponResolver(configuration: configuration)
         let targetIDs = resolver.shieldExplosionTargets(
             playerPosition: playerPosition,
-            enemies: weaponTargetableEnemies()
+            enemies: enemies
         )
         let targets = impactTargets(forEnemyIDs: targetIDs)
         playRazorShieldExplosionEffect(
@@ -1583,7 +1579,7 @@ final class ArenaScene: SKScene {
         let frame = flameTrailState.update(
             deltaTime: deltaTime,
             playerPosition: playerPosition,
-            enemies: weaponTargetableEnemies()
+            enemies: enemies
         )
         let targets = impactTargets(forEnemyIDs: frame.burnedEnemyIDs)
         playFlameTrailImpactEffect(at: targets) { [weak self] enemyIDs in
@@ -1629,7 +1625,6 @@ final class ArenaScene: SKScene {
         }
 
         postWeaponSafetyTimeRemaining = max(postWeaponSafetyTimeRemaining, duration)
-        playPostWeaponSafetyFeedback(duration: duration)
         AppDiagnostics.logger(.weapon).debug("weapon.postSafety", metadata: [
             "kind": "\(weaponKind.rawValue)",
             "duration": "\(duration)"
@@ -1646,8 +1641,6 @@ final class ArenaScene: SKScene {
 
     private func clearPostWeaponSafety() {
         postWeaponSafetyTimeRemaining = 0
-        playerNode?.removeAction(forKey: "player.postWeaponSafety")
-        playerNode?.setScale(1)
     }
 
     private var isPostWeaponSafe: Bool {
@@ -1656,24 +1649,6 @@ final class ArenaScene: SKScene {
 
     private var isPlayerCollisionProtected: Bool {
         isFlameTrailInvulnerable || isPostWeaponSafe
-    }
-
-    private func playPostWeaponSafetyFeedback(duration: TimeInterval) {
-        guard let playerNode else {
-            return
-        }
-
-        playerNode.removeAction(forKey: "player.postWeaponSafety")
-        playerNode.setScale(1)
-        let pulse = SKAction.sequence([
-            .scale(to: 1.13, duration: 0.08),
-            .scale(to: 1, duration: 0.1)
-        ])
-        let repeatCount = max(1, Int(ceil(max(0.1, duration) / 0.18)))
-        playerNode.run(.sequence([
-            .repeat(pulse, count: repeatCount),
-            .scale(to: 1, duration: 0.04)
-        ]), withKey: "player.postWeaponSafety")
     }
 
     private func activateTimeDilationAura(
@@ -1780,7 +1755,7 @@ final class ArenaScene: SKScene {
             origin: playerPosition,
             direction: aimDirectionState.resolvedDirection(),
             playableRect: currentPlayableRect,
-            enemies: weaponTargetableEnemies(),
+            enemies: enemies,
             configuration: configuration
         )
         let targets = impactTargets(forEnemyIDs: result.destroyedEnemyIDs)
@@ -4384,7 +4359,7 @@ private extension ArenaScene {
         var activeStates: [ShockwaveWaveState] = []
         var didCompleteWave = false
         for var state in shockwaveWaveStates {
-            let frame = state.update(deltaTime: deltaTime, enemies: weaponTargetableEnemies())
+            let frame = state.update(deltaTime: deltaTime, enemies: enemies)
             destroyEnemies(ids: frame.destroyedEnemyIDs, weaponKind: .shockwave)
             if !frame.isComplete {
                 activeStates.append(state)
@@ -4426,7 +4401,7 @@ private extension ArenaScene {
         var activeStates: [FreezeBurstWaveState] = []
         var didCompleteWave = false
         for var state in freezeBurstWaveStates {
-            let frame = state.update(deltaTime: deltaTime, enemies: weaponTargetableEnemies())
+            let frame = state.update(deltaTime: deltaTime, enemies: enemies)
             freezeEnemies(
                 ids: frame.frozenEnemyIDs,
                 duration: state.freezeDuration,
@@ -4466,7 +4441,7 @@ private extension ArenaScene {
             playerPosition: playerPosition,
             direction: aimDirectionState.resolvedDirection(),
             playableRect: currentPlayableRect,
-            enemies: weaponTargetableEnemies(),
+            enemies: enemies,
             configuration: weaponResolver.configuration
         )
 

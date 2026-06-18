@@ -46,7 +46,6 @@ final class EnemySpawnDirectorSplitterTests: XCTestCase {
         XCTAssertTrue(splitter.isSplitter)
         XCTAssertTrue(splitter.isPlayerCollisionGraceActive)
         XCTAssertFalse(splitter.canDamagePlayer)
-        XCTAssertTrue(splitter.canBeTargetedByWeapons)
         XCTAssertEqual(splitter.radius, configuration.enemyRadius * configuration.splitterRadiusScale, accuracy: 0.0001)
         XCTAssertEqual(splitter.speed, 72, accuracy: 0.0001)
         XCTAssertTrue(director.isSafeSpawn(splitter.position, avoiding: playerPosition, enemyRadius: splitter.radius))
@@ -131,7 +130,6 @@ final class EnemySpawnDirectorSplitterTests: XCTestCase {
             XCTAssertTrue(child.isSplitterChild)
             XCTAssertTrue(child.isSplitProtected)
             XCTAssertFalse(child.canDamagePlayer)
-            XCTAssertTrue(child.canBeTargetedByWeapons)
             XCTAssertEqual(child.speed, 72, accuracy: 0.0001)
             XCTAssertGreaterThanOrEqual(
                 hypot(child.position.x - playerPosition.x, child.position.y - playerPosition.y) + 0.001,
