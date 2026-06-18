@@ -4488,8 +4488,7 @@ private extension ArenaScene {
         playGravityWellEffect(
             at: center,
             radius: configuration.gravityWellRadius,
-            duration: configuration.gravityWellActivationDelay
-                + configuration.gravityWellPullDuration
+            duration: state.totalTimeRemaining
         )
         destroyGravityWellCenterEnemies(state)
     }
@@ -4521,7 +4520,7 @@ private extension ArenaScene {
 
     func destroyGravityWellCenterEnemies(_ state: GravityWellState) {
         destroyEnemies(
-            ids: state.collapseTargets(enemies: enemies, clearRadius: state.clearRadius),
+            ids: state.collapseTargets(enemies: enemies),
             weaponKind: .gravityWell
         )
     }
@@ -4531,10 +4530,7 @@ private extension ArenaScene {
         gravityWellEffectNode?.removeFromParent()
         gravityWellEffectNode = nil
 
-        let destroyedIDs = state.collapseTargets(
-            enemies: enemies,
-            clearRadius: state.clearRadius
-        )
+        let destroyedIDs = state.collapseTargets(enemies: enemies)
         let targets = impactTargets(forEnemyIDs: destroyedIDs)
         playGravityWellCollapseEffect(
             at: state.center,

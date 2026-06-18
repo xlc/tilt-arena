@@ -214,9 +214,7 @@ struct StartingWeaponResolver {
                 destroyedEnemyIDs: Set(targetIDs),
                 chainLightningEnemyIDs: targetIDs
             )
-        case .flameTrail, .warpDash, .powerWave, .ricochetLance:
-            return WeaponResolution()
-        case .novaBomb:
+        case .flameTrail, .warpDash, .powerWave, .ricochetLance, .novaBomb:
             return WeaponResolution()
         }
     }

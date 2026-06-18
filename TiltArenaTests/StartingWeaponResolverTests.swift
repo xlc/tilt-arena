@@ -233,7 +233,8 @@ final class StartingWeaponResolverTests: XCTestCase {
         let state = GravityWellState(
             center: .zero,
             enemyIDs: [1, 2, 3],
-            timeRemaining: 0
+            timeRemaining: 0,
+            clearRadius: 24
         )
         let enemies = [
             enemy(id: 1, position: CGPoint(x: 12, y: 0)),
@@ -242,7 +243,7 @@ final class StartingWeaponResolverTests: XCTestCase {
         ]
 
         XCTAssertEqual(
-            state.collapseTargets(enemies: enemies, clearRadius: 24),
+            state.collapseTargets(enemies: enemies),
             [1, 3]
         )
     }

@@ -50,7 +50,7 @@ struct GravityWellState {
         return pullDelta
     }
 
-    func collapseTargets(enemies: [ArenaEnemy], clearRadius: CGFloat) -> Set<Int> {
+    func collapseTargets(enemies: [ArenaEnemy]) -> Set<Int> {
         let clearCircle = CollisionCircle(center: center, radius: max(0, clearRadius))
         return Set(
             enemies
