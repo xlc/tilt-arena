@@ -32,6 +32,10 @@ final class ArenaScreenSnapshotTests: XCTestCase {
         try assertScreenSnapshot(state: .awards, themeKind: .whitePrecisionBoard, testName: #function)
     }
 
+    func testDarkWeaponCodexScreen() throws {
+        try assertScreenSnapshot(state: .weaponCodex, themeKind: .darkTacticalRadar, testName: #function)
+    }
+
     func testDarkOptionsScreen() throws {
         try assertScreenSnapshot(state: .options, themeKind: .darkTacticalRadar, testName: #function)
     }
@@ -254,7 +258,7 @@ private extension ArenaUISceneState {
         switch self {
         case .preRun, .activeGameplay, .pause, .postRun:
             return true
-        case .home, .modeSelect, .awards, .options, .developerTuning, .calibrationPreview:
+        case .home, .modeSelect, .awards, .weaponCodex, .options, .developerTuning, .calibrationPreview:
             return false
         }
     }
@@ -263,7 +267,7 @@ private extension ArenaUISceneState {
         switch self {
         case .activeGameplay, .pause, .postRun:
             return true
-        case .home, .modeSelect, .awards, .options, .developerTuning, .calibrationPreview, .preRun:
+        case .home, .modeSelect, .awards, .weaponCodex, .options, .developerTuning, .calibrationPreview, .preRun:
             return false
         }
     }

@@ -235,7 +235,7 @@ final class ArenaScene: SKScene {
             updateGameplay(deltaTime: deltaTime)
         case .options:
             updateTiltReadoutDisplay(deltaTime: deltaTime)
-        case .home, .modeSelect, .awards, .developerTuning, .pause, .postRun:
+        case .home, .modeSelect, .awards, .weaponCodex, .developerTuning, .pause, .postRun:
             break
         }
     }
@@ -1868,7 +1868,7 @@ final class ArenaScene: SKScene {
         timerLabel.alpha = uiState == .pause || uiState == .postRun ? 0.55 : 1
 
         switch uiState {
-        case .home, .modeSelect, .awards, .options, .developerTuning, .calibrationPreview:
+        case .home, .modeSelect, .awards, .weaponCodex, .options, .developerTuning, .calibrationPreview:
             timerLabel.isHidden = true
             bestMarkerLabel.isHidden = true
             comboLabel.isHidden = true
@@ -1992,14 +1992,12 @@ private extension ArenaScene {
 
     var shouldLockCurrentOrientation: Bool {
         switch uiState {
-        case .calibrationPreview, .preRun, .activeGameplay, .pause, .postRun:
-            return true
         case .options:
             return optionsReturnState.requiresLockedRunOrientation
         case .developerTuning:
             return developerReturnState.requiresLockedRunOrientation
-        case .home, .modeSelect, .awards:
-            return false
+        default:
+            return uiState.requiresLockedRunOrientation
         }
     }
 
@@ -2014,6 +2012,20 @@ private extension ArenaScene {
         readyStatusLabel = nil
         updatePersistentGameplayNodeVisibility()
 
+        renderCurrentUI()
+
+        updateRunDisplay()
+    }
+
+    func renderCurrentUI() {
+        guard !renderMenuUI() else {
+            return
+        }
+
+        renderRunUI()
+    }
+
+    func renderMenuUI() -> Bool {
         switch uiState {
         case .home:
             renderHome()
@@ -2021,12 +2033,23 @@ private extension ArenaScene {
             renderModeSelect()
         case .awards:
             renderAwards()
+        case .weaponCodex:
+            renderWeaponCodex()
         case .options:
             renderOptions()
         case .developerTuning:
             renderDeveloperTuning()
         case .calibrationPreview:
             renderCalibrationPreview()
+        default:
+            return false
+        }
+
+        return true
+    }
+
+    func renderRunUI() {
+        switch uiState {
         case .preRun:
             renderPreRun()
         case .activeGameplay:
@@ -2035,9 +2058,9 @@ private extension ArenaScene {
             renderPause()
         case .postRun:
             renderPostRun()
+        default:
+            break
         }
-
-        updateRunDisplay()
     }
 
     func updatePersistentGameplayNodeVisibility() {
@@ -2045,7 +2068,7 @@ private extension ArenaScene {
         switch uiState {
         case .home, .preRun, .activeGameplay, .pause, .postRun:
             isVisible = true
-        case .modeSelect, .awards, .options, .developerTuning, .calibrationPreview:
+        case .modeSelect, .awards, .weaponCodex, .options, .developerTuning, .calibrationPreview:
             isVisible = false
         }
 
@@ -2082,7 +2105,7 @@ private extension ArenaScene {
 
     func renderHome() {
         let layout = currentLandscapeLayout()
-        let bottomButtonSize = CGSize(width: 96, height: 38)
+        let bottomButtonSize = CGSize(width: 88, height: 38)
         addTitle("TILT ARENA", at: layout.titlePosition)
         addSmallLabel(
             "CLASSIC SURVIVAL",
@@ -2121,25 +2144,31 @@ private extension ArenaScene {
     func renderHomeNavigationButtons(layout: ArenaLandscapeUILayout, buttonSize: CGSize) {
         addButton(
             "MODES",
-            frame: layout.bottomButtonFrame(index: 0, count: 4, buttonSize: buttonSize),
+            frame: layout.bottomButtonFrame(index: 0, count: 5, buttonSize: buttonSize),
             action: .openModes,
             style: .secondary
         )
         addButton(
             "AWARDS",
-            frame: layout.bottomButtonFrame(index: 1, count: 4, buttonSize: buttonSize),
+            frame: layout.bottomButtonFrame(index: 1, count: 5, buttonSize: buttonSize),
             action: .openAwards,
             style: .secondary
         )
         addButton(
+            "WEAPONS",
+            frame: layout.bottomButtonFrame(index: 2, count: 5, buttonSize: buttonSize),
+            action: .openWeaponCodex,
+            style: .secondary
+        )
+        addButton(
             "RANKS",
-            frame: layout.bottomButtonFrame(index: 2, count: 4, buttonSize: buttonSize),
+            frame: layout.bottomButtonFrame(index: 3, count: 5, buttonSize: buttonSize),
             action: .openClassicLeaderboard,
             style: .secondary
         )
         addButton(
             "OPTIONS",
-            frame: layout.bottomButtonFrame(index: 3, count: 4, buttonSize: buttonSize),
+            frame: layout.bottomButtonFrame(index: 4, count: 5, buttonSize: buttonSize),
             action: .openOptions,
             style: .secondary
         )
@@ -2215,6 +2244,39 @@ private extension ArenaScene {
                 height: rowHeight
             )
             addAwardRow(row, frame: frame)
+        }
+    }
+
+    func renderWeaponCodex() {
+        let layout = currentLandscapeLayout()
+        let contentFrame = addMenuChrome(title: "WEAPONS", layout: layout)
+        let rows = ArenaMenuContent.weaponCodexRows(profile: runProfile)
+
+        let columnCount = 3
+        let columnGap: CGFloat = 8
+        let rowGap: CGFloat = 8
+        let rowCount = Int(ceil(Double(rows.count) / Double(columnCount)))
+        let columnWidth = max(
+            0,
+            (contentFrame.width - CGFloat(columnCount - 1) * columnGap) / CGFloat(columnCount)
+        )
+        let rowHeight = max(
+            34,
+            (
+                contentFrame.height - CGFloat(max(0, rowCount - 1)) * rowGap
+            ) / CGFloat(max(1, rowCount))
+        )
+
+        for (index, row) in rows.enumerated() {
+            let column = index % columnCount
+            let rowIndex = index / columnCount
+            let frame = CGRect(
+                x: contentFrame.minX + CGFloat(column) * (columnWidth + columnGap),
+                y: contentFrame.maxY - rowHeight - CGFloat(rowIndex) * (rowHeight + rowGap),
+                width: columnWidth,
+                height: rowHeight
+            )
+            addWeaponCodexRow(row, frame: frame)
         }
     }
 
@@ -3167,6 +3229,7 @@ private extension ArenaScene {
                 .playAgain,
                 .openModes,
                 .openAwards,
+                .openWeaponCodex,
                 .openOptions,
                 .openDeveloperTuning,
                 .openCalibrationPreview,
@@ -3220,11 +3283,8 @@ private extension ArenaScene {
             preparePreRun()
         case .playAgain:
             preparePreRun()
-        case .openModes:
-            resetMenuPreviewIfNeeded()
-            show(.modeSelect)
-        case .openAwards:
-            show(.awards)
+        case .openModes, .openAwards, .openWeaponCodex:
+            openMenu(action)
         case .openOptions:
             optionsReturnState = uiState
             show(.options)
@@ -3239,6 +3299,20 @@ private extension ArenaScene {
             show(.home)
         case .back:
             performBackNavigation()
+        default:
+            break
+        }
+    }
+
+    func openMenu(_ action: ArenaControlAction) {
+        switch action {
+        case .openModes:
+            resetMenuPreviewIfNeeded()
+            show(.modeSelect)
+        case .openAwards:
+            show(.awards)
+        case .openWeaponCodex:
+            show(.weaponCodex)
         default:
             break
         }
@@ -3822,6 +3896,79 @@ private extension ArenaScene {
         )
     }
 
+    func addWeaponCodexRow(_ row: WeaponCodexRow, frame: CGRect) {
+        let strokeColor = row.isUnlocked
+            ? theme.playerAccentColor.withAlphaComponent(0.58)
+            : theme.borderColor.withAlphaComponent(0.28)
+        let fillColor = row.isUnlocked
+            ? theme.playerAccentColor.withAlphaComponent(0.06)
+            : theme.backgroundColor.withAlphaComponent(0.46)
+        addPanel(frame: frame, stroke: strokeColor, fill: fillColor)
+
+        let compact = frame.height < 42
+        let iconRadius = min(compact ? 8 : 10, max(6, frame.height * 0.22))
+        let iconPosition = CGPoint(x: frame.minX + 14, y: frame.maxY - (compact ? 10 : 13))
+        addWeaponCodexIcon(kind: row.kind, position: iconPosition, radius: iconRadius, isUnlocked: row.isUnlocked)
+
+        let titleX = iconPosition.x + iconRadius + 8
+        let titleWidth = max(30, frame.maxX - titleX - 48)
+        addLabel(
+            truncatedMenuText(row.title, fontSize: compact ? 7.4 : 8.4, width: titleWidth),
+            at: CGPoint(x: titleX, y: iconPosition.y),
+            fontSize: compact ? 7.4 : 8.4,
+            color: row.isUnlocked ? theme.playerColor : theme.borderColor.withAlphaComponent(0.78),
+            alignment: .left
+        )
+
+        addLabel(
+            row.statusText,
+            at: CGPoint(x: frame.maxX - 8, y: iconPosition.y),
+            fontSize: compact ? 5.8 : 6.6,
+            color: row.isUnlocked ? theme.playerAccentColor : theme.borderColor.withAlphaComponent(0.72),
+            alignment: .right
+        )
+
+        addLabel(
+            truncatedMenuText(row.description.uppercased(), fontSize: compact ? 5.8 : 6.6, width: frame.width - 18),
+            at: CGPoint(x: frame.minX + 9, y: frame.midY - (compact ? 1 : 2)),
+            fontSize: compact ? 5.8 : 6.6,
+            color: theme.playerColor.withAlphaComponent(row.isUnlocked ? 0.78 : 0.48),
+            alignment: .left
+        )
+
+        addLabel(
+            truncatedMenuText(row.unlockText, fontSize: compact ? 5.8 : 6.4, width: frame.width - 18),
+            at: CGPoint(x: frame.minX + 9, y: frame.minY + (compact ? 8 : 10)),
+            fontSize: compact ? 5.8 : 6.4,
+            color: theme.playerAccentColor.withAlphaComponent(row.isUnlocked ? 0.82 : 0.52),
+            alignment: .left
+        )
+    }
+
+    func addWeaponCodexIcon(
+        kind: WeaponKind,
+        position: CGPoint,
+        radius: CGFloat,
+        isUnlocked: Bool
+    ) {
+        let color = theme.playerAccentColor
+        let ring = SKShapeNode(circleOfRadius: radius)
+        ring.position = position
+        ring.zPosition = ArenaUIZPosition.content
+        ring.fillColor = color.withAlphaComponent(isUnlocked ? 0.12 : 0.03)
+        ring.strokeColor = color.withAlphaComponent(isUnlocked ? 0.7 : 0.24)
+        ring.lineWidth = 0.9
+        uiRoot.addChild(ring)
+
+        let icon = SKSpriteNode(texture: WeaponSpriteSheet.texture(for: kind, role: .icon))
+        icon.position = position
+        icon.zPosition = ArenaUIZPosition.label
+        icon.size = CGSize(width: radius * 1.65, height: radius * 1.65)
+        icon.alpha = isUnlocked ? 0.92 : 0.35
+        icon.blendMode = .alpha
+        uiRoot.addChild(icon)
+    }
+
     func addToggle(title: String, isOn: Bool, frame: CGRect, action: ArenaControlAction) {
         addButton(
             "\(title) \(isOn ? "ON" : "OFF")",
@@ -4087,7 +4234,7 @@ extension ArenaScene {
             prepareSeededRunVisualSnapshot(profile: profile, selectedMode: selectedMode)
             finishSeededRunVisualSnapshot(profile: profile, selectedMode: selectedMode)
             show(.postRun)
-        case .home, .modeSelect, .awards, .options, .developerTuning, .calibrationPreview:
+        case .home, .modeSelect, .awards, .weaponCodex, .options, .developerTuning, .calibrationPreview:
             show(state)
         }
     }
@@ -4650,6 +4797,7 @@ private enum ArenaControlAction: Equatable {
     case playAgain
     case openModes
     case openAwards
+    case openWeaponCodex
     case openOptions
     case openDeveloperTuning
     case openCalibrationPreview
@@ -4715,6 +4863,8 @@ private extension ArenaUISceneState {
             return "modeSelect"
         case .awards:
             return "awards"
+        case .weaponCodex:
+            return "weaponCodex"
         case .options:
             return "options"
         case .developerTuning:

@@ -10,6 +10,7 @@ final class ArenaUISceneStateTests: XCTestCase {
         XCTAssertFalse(ArenaUISceneState.home.requiresLockedRunOrientation)
         XCTAssertFalse(ArenaUISceneState.modeSelect.requiresLockedRunOrientation)
         XCTAssertFalse(ArenaUISceneState.awards.requiresLockedRunOrientation)
+        XCTAssertFalse(ArenaUISceneState.weaponCodex.requiresLockedRunOrientation)
         XCTAssertFalse(ArenaUISceneState.options.requiresLockedRunOrientation)
         XCTAssertFalse(ArenaUISceneState.developerTuning.requiresLockedRunOrientation)
     }

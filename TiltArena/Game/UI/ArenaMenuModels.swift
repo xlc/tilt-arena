@@ -16,7 +16,30 @@ struct ArenaAwardRow: Equatable {
     let isComplete: Bool
 }
 
+struct WeaponCodexRow: Equatable {
+    let kind: WeaponKind
+    let title: String
+    let description: String
+    let statusText: String
+    let unlockText: String
+    let isUnlocked: Bool
+}
+
 struct ArenaMenuContent {
+    private static let weaponDescriptions: [WeaponKind: String] = [
+        .shockwave: "A panic ring with perfect timing.",
+        .seekerSwarm: "Tiny hunters with a mean streak.",
+        .razorShield: "Turns close contact into clean cuts.",
+        .freezeBurst: "Stops the rush, then lets it shatter.",
+        .gravityWell: "The arena takes one deep breath.",
+        .chainLightning: "One spark starts a bad idea.",
+        .flameTrail: "Draw a hot line through trouble.",
+        .warpDash: "Borrow a second from chaos.",
+        .powerWave: "A charged shove with attitude.",
+        .ricochetLance: "One bright angle, several regrets.",
+        .novaBomb: "The big screen reset."
+    ]
+
     static func modeRows(profile: RunProfile, selectedMode: ArenaModeKind) -> [ArenaModeRow] {
         ArenaModeKind.allCases.map { mode in
             ArenaModeRow(
@@ -32,6 +55,24 @@ struct ArenaMenuContent {
 
     static func awardRows(profile: RunProfile) -> [ArenaAwardRow] {
         ArenaAwardID.allCases.map { award(id: $0, profile: profile) }
+    }
+
+    static func weaponCodexRows(profile: RunProfile) -> [WeaponCodexRow] {
+        let unlockedWeapons = Set(ArenaProgressionRules.unlockedWeapons(for: profile))
+
+        return ArenaProgressionRules.allGameplayWeapons.map { kind in
+            let milestone = weaponUnlockMilestone(for: kind)
+            let isUnlocked = unlockedWeapons.contains(kind)
+
+            return WeaponCodexRow(
+                kind: kind,
+                title: kind.displayName.uppercased(),
+                description: weaponDescription(for: kind),
+                statusText: isUnlocked ? "UNLOCKED" : "LOCKED",
+                unlockText: weaponUnlockText(milestone: milestone, profile: profile, isUnlocked: isUnlocked),
+                isUnlocked: isUnlocked
+            )
+        }
     }
 
     static func activeUnlockText(profile: RunProfile) -> String {
@@ -82,6 +123,36 @@ struct ArenaMenuContent {
             progressFraction: Double(progress.progress) / Double(progress.target),
             isComplete: progress.isComplete
         )
+    }
+
+    private static func weaponUnlockMilestone(for kind: WeaponKind) -> WeaponUnlockMilestone? {
+        ArenaProgressionRules.weaponUnlockMilestones.first { $0.weapon == kind }
+    }
+
+    private static func weaponUnlockText(
+        milestone: WeaponUnlockMilestone?,
+        profile: RunProfile,
+        isUnlocked: Bool
+    ) -> String {
+        guard let milestone else {
+            return "STARTER"
+        }
+
+        if isUnlocked {
+            return "\(milestone.requirement.target) \(milestone.requirement.label)"
+        }
+
+        let progress = milestone.requirement.progress(in: profile)
+        let target = milestone.requirement.target
+        return "\(min(max(0, progress), target))/\(target) \(milestone.requirement.label)"
+    }
+
+    private static func weaponDescription(for kind: WeaponKind) -> String {
+        guard let description = weaponDescriptions[kind] else {
+            preconditionFailure("Missing weapon codex description for \(kind.rawValue).")
+        }
+
+        return description
     }
 
     private static func formatTime(_ time: TimeInterval) -> String {

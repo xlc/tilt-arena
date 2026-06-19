@@ -61,6 +61,28 @@ final class ArenaMenuContentTests: XCTestCase {
         XCTAssertFalse(rows.first?.isComplete ?? true)
     }
 
+    func testWeaponCodexRowsShowLockStateRequirementsAndDescriptions() {
+        var profile = RunProfile()
+        profile.totalEnemiesDestroyed = 50
+
+        let rows = ArenaMenuContent.weaponCodexRows(profile: profile)
+
+        XCTAssertEqual(rows.map(\.kind), ArenaProgressionRules.allGameplayWeapons)
+        XCTAssertEqual(rows.first?.title, "SHOCKWAVE")
+        XCTAssertEqual(rows.first?.statusText, "UNLOCKED")
+        XCTAssertEqual(rows.first?.unlockText, "STARTER")
+        XCTAssertEqual(rows.first?.description, "A panic ring with perfect timing.")
+
+        let freezeBurst = rows.first { $0.kind == .freezeBurst }
+        XCTAssertEqual(freezeBurst?.statusText, "UNLOCKED")
+        XCTAssertEqual(freezeBurst?.unlockText, "50 KILLS")
+
+        let gravityWell = rows.first { $0.kind == .gravityWell }
+        XCTAssertEqual(gravityWell?.statusText, "LOCKED")
+        XCTAssertEqual(gravityWell?.unlockText, "50/100 KILLS")
+        XCTAssertEqual(gravityWell?.description, "The arena takes one deep breath.")
+    }
+
     func testPostRunHighlightsReportNewAwardsAndNextUnlock() {
         let summary = RunSummary(
             score: 600,
