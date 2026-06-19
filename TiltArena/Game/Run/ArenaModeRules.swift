@@ -139,13 +139,13 @@ struct ArenaModeRules {
     private static func redlineWarmupTuning() -> EnemyPhaseTuning {
         EnemyPhaseTuning(
             chaserSpawnInterval: 0.54,
-            chaserSpeed: 104,
+            chaserSpeed: 112,
             maxActiveEnemies: 88,
             formationSpawnInterval: 5.6,
-            formationSpeed: 142,
+            formationSpeed: 154,
             formationLaneCount: 5,
             arrowRushSpawnInterval: 9.5,
-            arrowRushSpeed: 206,
+            arrowRushSpeed: 236,
             arrowRushEnemyCount: 2
         )
     }
@@ -153,27 +153,27 @@ struct ArenaModeRules {
     private static func redlinePressureTuning() -> EnemyPhaseTuning {
         EnemyPhaseTuning(
             chaserSpawnInterval: 0.36,
-            chaserSpeed: 130,
+            chaserSpeed: 142,
             maxActiveEnemies: 136,
             formationSpawnInterval: 3.5,
-            formationSpeed: 166,
+            formationSpeed: 186,
             formationLaneCount: 7,
             arrowRushSpawnInterval: 5.6,
-            arrowRushSpeed: 224,
+            arrowRushSpeed: 264,
             arrowRushEnemyCount: 4,
             mineDotSpawnInterval: 8.4,
             maxActiveMineDots: 5,
             hunterDotSpawnInterval: 9.5,
-            hunterDotSpeed: 162,
+            hunterDotSpeed: 180,
             hunterDotPredictionLead: 0.75,
             maxActiveHunterDots: 2,
             paddleTrapSpawnInterval: 13.5,
             maxActivePaddleTraps: 1,
             paddleTrapLifetime: 7,
             paddleTrapBarEnemyCount: 4,
-            paddleTrapDotSpeed: 202,
+            paddleTrapDotSpeed: 226,
             splitterSpawnInterval: 8.8,
-            splitterSpeed: 98,
+            splitterSpeed: 110,
             maxActiveSplitters: 3
         )
     }
@@ -181,27 +181,27 @@ struct ArenaModeRules {
     private static func redlineChaosTuning() -> EnemyPhaseTuning {
         EnemyPhaseTuning(
             chaserSpawnInterval: 0.25,
-            chaserSpeed: 162,
+            chaserSpeed: 180,
             maxActiveEnemies: 192,
             formationSpawnInterval: 2.45,
-            formationSpeed: 198,
+            formationSpeed: 228,
             formationLaneCount: 9,
             arrowRushSpawnInterval: 3.8,
-            arrowRushSpeed: 266,
+            arrowRushSpeed: 318,
             arrowRushEnemyCount: 6,
             mineDotSpawnInterval: 5.0,
             maxActiveMineDots: 8,
             hunterDotSpawnInterval: 6.3,
-            hunterDotSpeed: 206,
+            hunterDotSpeed: 234,
             hunterDotPredictionLead: 1.05,
             maxActiveHunterDots: 4,
             paddleTrapSpawnInterval: 8.8,
             maxActivePaddleTraps: 2,
             paddleTrapLifetime: 8,
             paddleTrapBarEnemyCount: 5,
-            paddleTrapDotSpeed: 252,
+            paddleTrapDotSpeed: 292,
             splitterSpawnInterval: 6.4,
-            splitterSpeed: 128,
+            splitterSpeed: 150,
             maxActiveSplitters: 4
         )
     }
@@ -209,27 +209,27 @@ struct ArenaModeRules {
     private static func redlineSurvivalHellTuning() -> EnemyPhaseTuning {
         EnemyPhaseTuning(
             chaserSpawnInterval: 0.18,
-            chaserSpeed: 194,
+            chaserSpeed: 216,
             maxActiveEnemies: 270,
             formationSpawnInterval: 1.95,
-            formationSpeed: 236,
+            formationSpeed: 274,
             formationLaneCount: 9,
             arrowRushSpawnInterval: 2.9,
-            arrowRushSpeed: 308,
+            arrowRushSpeed: 372,
             arrowRushEnemyCount: 7,
             mineDotSpawnInterval: 4.0,
             maxActiveMineDots: 11,
             hunterDotSpawnInterval: 4.8,
-            hunterDotSpeed: 242,
+            hunterDotSpeed: 282,
             hunterDotPredictionLead: 1.25,
             maxActiveHunterDots: 5,
             paddleTrapSpawnInterval: 6.8,
             maxActivePaddleTraps: 3,
             paddleTrapLifetime: 9,
             paddleTrapBarEnemyCount: 6,
-            paddleTrapDotSpeed: 288,
+            paddleTrapDotSpeed: 338,
             splitterSpawnInterval: 5.0,
-            splitterSpeed: 156,
+            splitterSpeed: 186,
             maxActiveSplitters: 5
         )
     }

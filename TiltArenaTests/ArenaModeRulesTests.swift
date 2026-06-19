@@ -31,6 +31,7 @@ final class ArenaModeRulesTests: XCTestCase {
         XCTAssertNotNil(redlineWarmup.formationSpawnInterval)
         XCTAssertNil(classicWarmup.arrowRushSpawnInterval)
         XCTAssertNotNil(redlineWarmup.arrowRushSpawnInterval)
+        XCTAssertGreaterThan(redlineWarmup.arrowRushSpeed, classicWarmup.arrowRushSpeed)
 
         let panicWeapons: Set<WeaponKind> = [.shockwave, .seekerSwarm, .razorShield, .novaBomb]
         let movementControlWeapons: Set<WeaponKind> = [
@@ -121,9 +122,14 @@ final class ArenaModeRulesTests: XCTestCase {
             try XCTUnwrap(classicChaos.hunterDotSpawnInterval)
         )
         XCTAssertGreaterThan(redlineChaos.arrowRushEnemyCount, classicChaos.arrowRushEnemyCount)
+        XCTAssertGreaterThan(redlineChaos.arrowRushSpeed, classicChaos.arrowRushSpeed)
+        XCTAssertGreaterThan(redlineChaos.hunterDotSpeed, classicChaos.hunterDotSpeed)
         XCTAssertGreaterThan(redlineChaos.maxActiveHunterDots, classicChaos.maxActiveHunterDots)
 
         XCTAssertLessThan(redlineHell.chaserSpawnInterval, classicHell.chaserSpawnInterval)
+        XCTAssertGreaterThan(redlineHell.arrowRushSpeed, classicHell.arrowRushSpeed)
+        XCTAssertGreaterThan(redlineHell.paddleTrapDotSpeed, classicHell.paddleTrapDotSpeed)
+        XCTAssertGreaterThan(redlineHell.splitterSpeed, classicHell.splitterSpeed)
         XCTAssertGreaterThan(redlineHell.maxActiveEnemies, classicHell.maxActiveEnemies)
         XCTAssertGreaterThan(redlineHell.maxActivePaddleTraps, classicHell.maxActivePaddleTraps)
         XCTAssertGreaterThan(redlineHell.maxActiveSplitters, classicHell.maxActiveSplitters)
