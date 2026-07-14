@@ -152,7 +152,7 @@ final class ArenaScreenSnapshotTests: XCTestCase {
         addTelegraphFixture(to: scene, bounds: bounds, theme: theme)
         addEnemyFixture(to: scene, center: center, bounds: bounds, theme: theme)
         addPickupFixture(to: scene, center: center, theme: theme)
-        addEffectFixture(to: scene, center: center, theme: theme)
+        addEffectFixture(to: scene, center: center)
         scene.revealWeaponEffectsForSnapshotTesting()
     }
 
@@ -226,7 +226,7 @@ final class ArenaScreenSnapshotTests: XCTestCase {
         pickups.forEach { scene.addChild(WeaponPickupNode(pickup: $0, theme: theme)) }
     }
 
-    private func addEffectFixture(to scene: ArenaScene, center: CGPoint, theme: ArenaTheme) {
+    private func addEffectFixture(to scene: ArenaScene, center: CGPoint) {
         scene.playShockwaveEffect(
             at: CGPoint(x: center.x - 58, y: center.y - 20),
             duration: 0.28,
@@ -237,10 +237,7 @@ final class ArenaScreenSnapshotTests: XCTestCase {
             through: [
                 WeaponImpactTarget(id: 101, position: CGPoint(x: center.x + 96, y: center.y + 58)),
                 WeaponImpactTarget(id: 102, position: CGPoint(x: center.x + 140, y: center.y - 54))
-            ],
-            accentColor: theme.playerAccentColor,
-            coreColor: theme.playerColor,
-            onImpact: { _ in }
+            ]
         )
         scene.playEnemyClearBursts(
             at: [

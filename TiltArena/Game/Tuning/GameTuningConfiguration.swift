@@ -422,20 +422,24 @@ enum GameTuningParameterValue {
 
     func applyStoredValue(_ storedValue: GameTuningStoredValue, to tuning: inout GameTuningConfiguration) {
         switch (self, storedValue.kind) {
-        case let (.cgFloat(keyPath, _, _, _, _), .double):
+        case let (.cgFloat(keyPath, _, minValue, maxValue, _), .double):
             guard let value = storedValue.doubleValue else { return }
-            tuning[keyPath: keyPath] = CGFloat(value)
-        case let (.double(keyPath, _, _, _, _), .double):
+            tuning[keyPath: keyPath] = Self.clamp(
+                CGFloat(value),
+                min: minValue,
+                max: maxValue
+            )
+        case let (.double(keyPath, _, minValue, maxValue, _), .double):
             guard let value = storedValue.doubleValue else { return }
-            tuning[keyPath: keyPath] = value
-        case let (.optionalDouble(keyPath, _, _, _, _), .double):
+            tuning[keyPath: keyPath] = Self.clamp(value, min: minValue, max: maxValue)
+        case let (.optionalDouble(keyPath, _, minValue, maxValue, _), .double):
             guard let value = storedValue.doubleValue else { return }
-            tuning[keyPath: keyPath] = value
+            tuning[keyPath: keyPath] = Self.clamp(value, min: minValue, max: maxValue)
         case let (.optionalDouble(keyPath, _, _, _, _), .none):
             tuning[keyPath: keyPath] = nil
-        case let (.int(keyPath, _, _, _), .int):
+        case let (.int(keyPath, _, minValue, maxValue), .int):
             guard let value = storedValue.intValue else { return }
-            tuning[keyPath: keyPath] = value
+            tuning[keyPath: keyPath] = Self.clamp(value, min: minValue, max: maxValue)
         default:
             return
         }

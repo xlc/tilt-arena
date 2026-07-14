@@ -35,7 +35,10 @@ jsonl_files() {
   if [[ ! -d "$directory" ]]; then
     return
   fi
-  find "$directory" -maxdepth 1 -name '*.jsonl' -print | sort
+  find "$directory" -maxdepth 1 -name 'diagnostics-*.jsonl' -print | sort
+  if [[ -f "$directory/current.jsonl" ]]; then
+    printf '%s/current.jsonl\n' "$directory"
+  fi
 }
 
 command="${1:-}"

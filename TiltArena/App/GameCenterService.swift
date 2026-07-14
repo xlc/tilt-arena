@@ -214,10 +214,25 @@ final class GameCenterService {
         let canPresentPrompt = allowsPrompt && !shouldSuppressAutomaticPrompt
         authenticationPresenter = presenter
         canPresentAuthenticationPrompt = canPresentPrompt
+
+        // GameKit keeps the authentication handler installed and can invoke it
+        // again as account state changes. A passive view appearance must not
+        // replace a useful terminal state (for example, declined) with a
+        // synthetic in-flight state when there is no new authentication attempt.
+        guard !hasInstalledAuthenticationHandler else {
+            return
+        }
+
         updateState(.authenticating)
         logger.info("game_center.auth_started")
 
-        installAuthenticationHandlerIfNeeded()
+        hasInstalledAuthenticationHandler = true
+        localPlayer.setAuthenticateHandler { [weak self] viewController, error in
+            self?.handleAuthenticationCallback(
+                viewController: viewController,
+                error: error
+            )
+        }
     }
 
     func retryAuthentication(presenter: GameCenterAuthenticationPresenting?) {
@@ -376,20 +391,6 @@ final class GameCenterService {
                 "submittedCount": "\(progress.count)",
                 "remainingCount": "\(self.achievementProgressStore.pendingProgress.count)"
             ])
-        }
-    }
-
-    private func installAuthenticationHandlerIfNeeded() {
-        guard !hasInstalledAuthenticationHandler else {
-            return
-        }
-
-        hasInstalledAuthenticationHandler = true
-        localPlayer.setAuthenticateHandler { [weak self] viewController, error in
-            self?.handleAuthenticationCallback(
-                viewController: viewController,
-                error: error
-            )
         }
     }
 
@@ -631,6 +632,11 @@ final class GameCenterService {
 
             var updatedCompletedQueueKeys = completedQueueKeys
             if let error {
+                if !self.shouldQueueRecoverableFailure(error) {
+                    self.scoreSubmissionStore.removeSubmissions(
+                        withQueueKeys: [submission.queueKey]
+                    )
+                }
                 self.logger.warning(
                     "game_center.score_retry_failed",
                     error: error,

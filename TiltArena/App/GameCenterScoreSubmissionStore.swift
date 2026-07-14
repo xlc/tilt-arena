@@ -152,10 +152,19 @@ enum GameCenterAchievementProgressMapper {
         }
 
         var progress = [
-            completed(.firstEnemyClear),
-            milestone(.combo10, currentValue: Double(maxCombo), targetValue: 10),
-            milestone(.combo50, currentValue: Double(maxCombo), targetValue: 50)
+            completed(.firstEnemyClear)
         ]
+
+        // Enemy clears happen during the frame-critical gameplay loop. Report
+        // completed combo milestones immediately, while runFinished reports
+        // partial progress once per run, instead of issuing a Game Center
+        // request after every increase in combo count.
+        if maxCombo >= 10 {
+            progress.append(completed(.combo10))
+        }
+        if maxCombo >= 50 {
+            progress.append(completed(.combo50))
+        }
 
         if weaponKind != nil && count >= 2 {
             progress.append(completed(.firstChainReaction))

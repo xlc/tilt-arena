@@ -49,6 +49,7 @@ struct EnemyPhaseTuning: Equatable {
     var maxActiveMineDots: Int = 0
     var hunterDotSpawnInterval: TimeInterval?
     var hunterDotSpeed: CGFloat = 0
+    // Seconds of player velocity projected ahead when choosing a pursuit target.
     var hunterDotPredictionLead: CGFloat = 0
     var maxActiveHunterDots: Int = 0
     var paddleTrapSpawnInterval: TimeInterval?

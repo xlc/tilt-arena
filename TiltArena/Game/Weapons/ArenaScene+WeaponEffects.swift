@@ -5,6 +5,39 @@ struct WeaponImpactTarget: Equatable {
     let position: CGPoint
 }
 
+struct WeaponImpactPlan {
+    static let maximumVisualTargetCount = 16
+
+    let impactEnemyIDs: Set<Int>
+    let visualTargets: [WeaponImpactTarget]
+
+    init(targets: [WeaponImpactTarget]) {
+        impactEnemyIDs = Set(targets.map(\.id))
+        visualTargets = Self.evenlySampledTargets(
+            targets,
+            maximumCount: Self.maximumVisualTargetCount
+        )
+    }
+
+    private static func evenlySampledTargets(
+        _ targets: [WeaponImpactTarget],
+        maximumCount: Int
+    ) -> [WeaponImpactTarget] {
+        let limit = max(0, maximumCount)
+        guard limit > 0, targets.count > limit else {
+            return limit > 0 ? targets : []
+        }
+        guard limit > 1 else {
+            return [targets[0]]
+        }
+
+        return (0..<limit).map { index in
+            let sourceIndex = index * (targets.count - 1) / (limit - 1)
+            return targets[sourceIndex]
+        }
+    }
+}
+
 extension ArenaScene {
     func playShockwaveEffect(
         at position: CGPoint,
@@ -76,14 +109,12 @@ extension ArenaScene {
         ]))
     }
 
-    func playNovaBombEffect(
-        targets: [WeaponImpactTarget],
-        onImpact: @escaping (Set<Int>) -> Void
-    ) {
+    func playNovaBombEffect(targets: [WeaponImpactTarget]) -> TimeInterval {
+        let plan = WeaponImpactPlan(targets: targets)
         let playableRect = currentPlayableRect
 
         guard playableRect.width > 0, playableRect.height > 0 else {
-            return
+            return 0
         }
 
         let center = CGPoint(x: playableRect.midX, y: playableRect.midY)
@@ -127,18 +158,17 @@ extension ArenaScene {
             .removeFromParent()
         ]))
 
-        for target in targets {
-            let travelDuration = weaponEffectTiming.waveDuration(from: center, to: target.position)
+        for target in plan.visualTargets {
             playTravelingBolt(
                 from: center,
                 to: target,
-                duration: travelDuration,
+                duration: duration,
                 color: theme.pickupAmber,
                 coreColor: theme.playerColor,
-                impactRadius: 18,
-                onImpact: onImpact
+                impactRadius: 18
             )
         }
+        return duration
     }
 
     func playGravityWellEffect(
@@ -232,7 +262,7 @@ extension ArenaScene {
             ]))
         }
 
-        runImpactBatch(targets, delay: delay, onImpact: onImpact)
+        runImpactBatch(Set(targets.map(\.id)), delay: delay, onImpact: onImpact)
     }
 
     func playTimeDilationAuraEffect(
@@ -327,18 +357,17 @@ extension ArenaScene {
 
     func playRazorShieldImpactEffect(
         from origin: CGPoint,
-        targets: [WeaponImpactTarget],
-        onImpact: @escaping (Set<Int>) -> Void
+        targets: [WeaponImpactTarget]
     ) {
-        for target in targets {
+        let plan = WeaponImpactPlan(targets: targets)
+        for target in plan.visualTargets {
             playTravelingBolt(
                 from: origin,
                 to: target,
                 duration: max(0.08, weaponEffectTiming.projectileDuration(from: origin, to: target.position) * 0.55),
                 color: theme.pickupBlue,
                 coreColor: theme.playerColor,
-                impactRadius: 13,
-                onImpact: onImpact
+                impactRadius: 13
             )
         }
     }
@@ -350,6 +379,7 @@ extension ArenaScene {
         targets: [WeaponImpactTarget],
         onImpact: @escaping (Set<Int>) -> Void
     ) {
+        let plan = WeaponImpactPlan(targets: targets)
         let clampedExplosionRadius = max(0, explosionRadius)
         let delay: TimeInterval = 0.1
         let ring = makeEffectRing(
@@ -373,28 +403,25 @@ extension ArenaScene {
             .removeFromParent()
         ]))
 
-        for target in targets {
+        for target in plan.visualTargets {
             playImpactBurst(
                 at: target,
                 delay: delay,
                 color: theme.pickupBlue,
-                radius: 12,
-                onImpact: onImpact
+                radius: 12
             )
         }
+        runImpactBatch(plan.impactEnemyIDs, delay: delay, onImpact: onImpact)
     }
 
-    func playFlameTrailImpactEffect(
-        at targets: [WeaponImpactTarget],
-        onImpact: @escaping (Set<Int>) -> Void
-    ) {
-        for target in targets {
+    func playFlameTrailImpactEffect(at targets: [WeaponImpactTarget]) {
+        let plan = WeaponImpactPlan(targets: targets)
+        for target in plan.visualTargets {
             playImpactBurst(
                 at: target,
                 delay: 0.06,
                 color: theme.pickupAmber,
-                radius: 12,
-                onImpact: onImpact
+                radius: 12
             )
         }
     }
@@ -513,8 +540,7 @@ extension ArenaScene {
         duration: TimeInterval,
         color: SKColor,
         coreColor: SKColor,
-        impactRadius: CGFloat,
-        onImpact: @escaping (Set<Int>) -> Void
+        impactRadius: CGFloat
     ) {
         let trail = SKShapeNode(path: Self.linePath(from: origin, to: target.position))
         trail.strokeColor = color.withAlphaComponent(0.22)
@@ -556,8 +582,7 @@ extension ArenaScene {
             at: target,
             delay: delay + duration,
             color: color,
-            radius: impactRadius,
-            onImpact: onImpact
+            radius: impactRadius
         )
     }
 
@@ -565,8 +590,7 @@ extension ArenaScene {
         at target: WeaponImpactTarget,
         delay: TimeInterval,
         color: SKColor,
-        radius: CGFloat,
-        onImpact: @escaping (Set<Int>) -> Void
+        radius: CGFloat
     ) {
         let ring = makeEffectRing(
             radius: radius,
@@ -591,9 +615,6 @@ extension ArenaScene {
 
         let impact = SKAction.sequence([
             .wait(forDuration: max(0, delay)),
-            .run {
-                onImpact([target.id])
-            },
             .group([
                 .fadeAlpha(to: 1, duration: 0.02),
                 .scale(to: 1.15, duration: 0.1)
@@ -616,18 +637,17 @@ extension ArenaScene {
     }
 
     private func runImpactBatch(
-        _ targets: [WeaponImpactTarget],
+        _ targetIDs: Set<Int>,
         delay: TimeInterval,
         onImpact: @escaping (Set<Int>) -> Void
     ) {
-        guard !targets.isEmpty else {
+        guard !targetIDs.isEmpty else {
             return
         }
 
         let node = SKNode()
         node.zPosition = 18
         addWeaponEffectNode(node)
-        let targetIDs = Set(targets.map(\.id))
         node.run(.sequence([
             .wait(forDuration: max(0, delay)),
             .run {

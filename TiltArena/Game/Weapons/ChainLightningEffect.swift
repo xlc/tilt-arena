@@ -5,11 +5,12 @@ extension ArenaScene {
         from origin: CGPoint,
         through targets: [WeaponImpactTarget],
         configuration: StartingWeaponConfiguration? = nil,
-        accentColor: SKColor,
-        coreColor: SKColor,
-        onImpact: @escaping (Set<Int>) -> Void
+        onImpact: ((Set<Int>) -> Void)? = nil,
+        onComplete: (() -> Void)? = nil
     ) {
         let configuration = configuration ?? weaponResolver.configuration
+        let accentColor = theme.playerAccentColor
+        let coreColor = theme.playerColor
         let targetPositions = targets.isEmpty
             ? [randomChainFallbackTarget(from: origin, configuration: configuration)]
             : targets.map(\.position)
@@ -44,20 +45,36 @@ extension ArenaScene {
                 at: targetPosition,
                 targetID: targets.isEmpty ? nil : targets[index].id,
                 delay: impactDelay,
-                accentColor: accentColor,
-                coreColor: coreColor,
-                onImpact: onImpact
+                onImpact: onImpact,
+                onComplete: index == targetPositions.count - 1 ? onComplete : nil
             )
 
-            travelActions.append(.move(to: targetPosition, duration: travelDuration))
-            travelActions.append(.scale(to: 1.25, duration: 0.025))
-            travelActions.append(.scale(to: 1, duration: 0.025))
+            travelActions.append(Self.chainTravelAction(
+                to: targetPosition,
+                duration: travelDuration
+            ))
             previousPoint = targetPosition
             previousDelay = impactDelay
         }
 
         travelActions.append(.removeFromParent())
         charge.run(.sequence(travelActions))
+    }
+
+    private static func chainTravelAction(
+        to targetPosition: CGPoint,
+        duration: TimeInterval
+    ) -> SKAction {
+        let clampedDuration = max(0, duration)
+        let pulseDuration = min(0.025, clampedDuration / 2)
+        return .group([
+            .move(to: targetPosition, duration: clampedDuration),
+            .sequence([
+                .wait(forDuration: max(0, clampedDuration - pulseDuration * 2)),
+                .scale(to: 1.25, duration: pulseDuration),
+                .scale(to: 1, duration: pulseDuration)
+            ])
+        ])
     }
 
     private func randomChainFallbackTarget(
@@ -137,10 +154,11 @@ extension ArenaScene {
         at position: CGPoint,
         targetID: Int?,
         delay: TimeInterval,
-        accentColor: SKColor,
-        coreColor: SKColor,
-        onImpact: @escaping (Set<Int>) -> Void
+        onImpact: ((Set<Int>) -> Void)?,
+        onComplete: (() -> Void)?
     ) {
+        let accentColor = theme.playerAccentColor
+        let coreColor = theme.playerColor
         let ring = SKShapeNode(circleOfRadius: 16)
         ring.position = position
         ring.strokeColor = accentColor.withAlphaComponent(0.7)
@@ -162,20 +180,12 @@ extension ArenaScene {
         core.alpha = 0
         addWeaponEffectNode(core)
 
-        ring.run(.sequence([
-            .wait(forDuration: max(0, delay)),
-            .run {
-                if let targetID {
-                    onImpact([targetID])
-                }
-            },
-            .group([
-                .fadeAlpha(to: 1, duration: 0.02),
-                .scale(to: 1.2, duration: 0.1)
-            ]),
-            .fadeOut(withDuration: 0.08),
-            .removeFromParent()
-        ]))
+        ring.run(Self.chainImpactAction(
+            targetID: targetID,
+            delay: delay,
+            onImpact: onImpact,
+            onComplete: onComplete
+        ))
         playImpactResidue(
             at: position,
             color: accentColor,
@@ -193,6 +203,29 @@ extension ArenaScene {
             .fadeOut(withDuration: 0.08),
             .removeFromParent()
         ]))
+    }
+
+    private static func chainImpactAction(
+        targetID: Int?,
+        delay: TimeInterval,
+        onImpact: ((Set<Int>) -> Void)?,
+        onComplete: (() -> Void)?
+    ) -> SKAction {
+        .sequence([
+            .wait(forDuration: max(0, delay)),
+            .run {
+                if let targetID {
+                    onImpact?([targetID])
+                }
+                onComplete?()
+            },
+            .group([
+                .fadeAlpha(to: 1, duration: 0.02),
+                .scale(to: 1.2, duration: 0.1)
+            ]),
+            .fadeOut(withDuration: 0.08),
+            .removeFromParent()
+        ])
     }
 
     private static func chainSegmentPath(from start: CGPoint, to end: CGPoint) -> CGPath {

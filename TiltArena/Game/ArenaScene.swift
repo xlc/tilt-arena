@@ -95,6 +95,7 @@ final class ArenaScene: SKScene {
     private var flameTrailSpeedBoostTimeRemaining: TimeInterval = 0
     private var flameTrailInvulnerabilityTimeRemaining: TimeInterval = 0
     private var postWeaponSafetyTimeRemaining: TimeInterval = 0
+    private var pendingNovaBombClears: [PendingNovaBombClear] = []
     private lazy var flameTrailEffectNode = FlameTrailEffectNode(theme: theme)
     private var gravityWellState: GravityWellState?
     var gravityWellEffectNode: SKNode?
@@ -707,6 +708,7 @@ final class ArenaScene: SKScene {
         flameTrailSpeedBoostTimeRemaining = 0
         flameTrailInvulnerabilityTimeRemaining = 0
         clearPostWeaponSafety()
+        pendingNovaBombClears.removeAll()
         deactivateTimeDilationAura()
         audioController.stopMusic()
         lastDeathCollisionSnapshot = collision
@@ -777,6 +779,7 @@ final class ArenaScene: SKScene {
         flameTrailSpeedBoostTimeRemaining = 0
         flameTrailInvulnerabilityTimeRemaining = 0
         clearPostWeaponSafety()
+        pendingNovaBombClears.removeAll()
         flameTrailEffectNode.reset()
         deactivateGravityWell()
         aimDirectionState.reset()
@@ -930,6 +933,7 @@ final class ArenaScene: SKScene {
         spawnPickupIfNeeded(deltaTime: deltaTime, playerPosition: playerPosition)
         updateFlameTrailTimers(deltaTime: deltaTime)
         updatePostWeaponSafety(deltaTime: deltaTime)
+        updatePendingNovaBombClears(deltaTime: deltaTime)
         playerPosition = collectPickups(playerPosition: playerPosition)
         advanceEnemies(deltaTime: deltaTime, playerPosition: playerPosition)
         updateTimeDilationAura(deltaTime: deltaTime, playerPosition: playerPosition)
@@ -1007,6 +1011,7 @@ final class ArenaScene: SKScene {
             playableRect: currentPlayableRect,
             playerPosition: playerPosition,
             enemyCircles: enemyCircles,
+            pickupCircles: pickups.map(\.collisionCircle),
             configuration: pickupSpawnConfiguration
         )
 
@@ -1189,7 +1194,8 @@ final class ArenaScene: SKScene {
     ) -> Int? {
         switch effect {
         case .timeDilationAura:
-            return activateTimeDilationAura(at: playerPosition, configuration: configuration)
+            activateTimeDilationAura(at: playerPosition, configuration: configuration)
+            return nil
         case .ricochetLance:
             let destroyedCount = fireRicochetLance(from: playerPosition, configuration: configuration)
             grantPostWeaponSafety(for: .ricochetLance)
@@ -1238,7 +1244,6 @@ final class ArenaScene: SKScene {
             activatePowerWave(at: playerPosition, configuration: configuration)
         case .novaBomb(let enemyIDs):
             playNovaBomb(enemyIDs: enemyIDs)
-            grantPostWeaponSafety(for: .novaBomb)
         }
     }
 
@@ -1284,23 +1289,80 @@ final class ArenaScene: SKScene {
         configuration: StartingWeaponConfiguration
     ) {
         let targets = impactTargets(forEnemyIDs: enemyIDs)
+        var clearedEnemyIDs: Set<Int> = []
         playChainLightningEffect(
             from: playerPosition,
             through: targets,
             configuration: configuration,
-            accentColor: theme.playerAccentColor,
-            coreColor: theme.playerColor
-        ) { [weak self] enemyIDs in
-            self?.destroyEnemies(ids: enemyIDs, weaponKind: .chainLightning)
-            self?.grantPostWeaponSafety(for: .chainLightning)
-        }
+            onImpact: { [weak self] enemyIDs in
+                guard let self else {
+                    return
+                }
+
+                clearedEnemyIDs.formUnion(self.destroyEnemies(
+                    ids: enemyIDs,
+                    weaponKind: .chainLightning,
+                    finalizesWeaponClear: false
+                ))
+                self.grantPostWeaponSafety(for: .chainLightning)
+            },
+            onComplete: { [weak self] in
+                guard let self else {
+                    return
+                }
+
+                let clearPositions = targets.compactMap { target in
+                    clearedEnemyIDs.contains(target.id) ? target.position : nil
+                }
+                self.recordCompletedWeaponClear(
+                    enemyIDs: clearedEnemyIDs,
+                    weaponKind: .chainLightning,
+                    clearPositions: clearPositions
+                )
+            }
+        )
     }
 
     private func playNovaBomb(enemyIDs: Set<Int>) {
+        grantPostWeaponSafety(
+            for: .novaBomb,
+            minimumDuration: weaponEffectTiming.maximumWaveTravelDuration
+        )
         let targets = impactTargets(forEnemyIDs: enemyIDs)
-        playNovaBombEffect(targets: targets) { [weak self] enemyIDs in
-            self?.destroyEnemies(ids: enemyIDs, weaponKind: .novaBomb)
-            self?.grantPostWeaponSafety(for: .novaBomb)
+        let delay = playNovaBombEffect(targets: targets)
+
+        guard !enemyIDs.isEmpty else {
+            return
+        }
+        guard delay > 0 else {
+            destroyEnemies(ids: enemyIDs, weaponKind: .novaBomb)
+            return
+        }
+
+        pendingNovaBombClears.append(PendingNovaBombClear(
+            enemyIDs: enemyIDs,
+            timeRemaining: delay
+        ))
+    }
+
+    private func updatePendingNovaBombClears(deltaTime: TimeInterval) {
+        guard !pendingNovaBombClears.isEmpty else {
+            return
+        }
+
+        let clampedDelta = max(0, deltaTime)
+        for index in pendingNovaBombClears.indices {
+            pendingNovaBombClears[index].timeRemaining = max(
+                0,
+                pendingNovaBombClears[index].timeRemaining - clampedDelta
+            )
+        }
+
+        let completedClears = pendingNovaBombClears.filter { $0.timeRemaining == 0 }
+        pendingNovaBombClears.removeAll { $0.timeRemaining == 0 }
+        for clear in completedClears {
+            destroyEnemies(ids: clear.enemyIDs, weaponKind: .novaBomb)
+            grantPostWeaponSafety(for: .novaBomb)
         }
     }
 
@@ -1325,24 +1387,35 @@ final class ArenaScene: SKScene {
         }
     }
 
-    private func destroyEnemies(ids enemyIDs: Set<Int>, weaponKind: WeaponKind?) {
+    @discardableResult
+    private func destroyEnemies(
+        ids enemyIDs: Set<Int>,
+        weaponKind: WeaponKind?,
+        finalizesWeaponClear: Bool = true
+    ) -> Set<Int> {
         let liveEnemyIDs = Set(enemies.map(\.id))
         let enemyIDs = enemyIDs.intersection(liveEnemyIDs)
 
         guard !enemyIDs.isEmpty else {
-            return
+            return []
         }
 
         let destroyedEnemies = enemies.filter { enemyIDs.contains($0.id) }
         let clearPositions = destroyedEnemies.map(\.position)
         let splitChildren = splitterChildren(from: destroyedEnemies)
         let previousComboMultiplier = runController.comboMultiplier
-        let weaponComboEvent = runController.recordEnemyKills(count: enemyIDs.count, weaponKind: weaponKind)
-        reportGameCenterAchievementEvent(.enemyClear(
+        let weaponComboEvent = runController.recordEnemyKills(
             count: enemyIDs.count,
             weaponKind: weaponKind,
-            maxCombo: runController.maxCombo
-        ))
+            recordsWeaponClear: finalizesWeaponClear
+        )
+        if finalizesWeaponClear {
+            reportGameCenterAchievementEvent(.enemyClear(
+                count: enemyIDs.count,
+                weaponKind: weaponKind,
+                maxCombo: runController.maxCombo
+            ))
+        }
         playEnemyClearHaptics(killCount: enemyIDs.count, previousComboMultiplier: previousComboMultiplier)
         playEnemyClearAudio(killCount: enemyIDs.count, previousComboMultiplier: previousComboMultiplier)
         if let weaponComboEvent {
@@ -1365,6 +1438,35 @@ final class ArenaScene: SKScene {
         }
         removeEnemies(ids: enemyIDs)
         addSplitterChildren(splitChildren)
+        return enemyIDs
+    }
+
+    private func recordCompletedWeaponClear(
+        enemyIDs: Set<Int>,
+        weaponKind: WeaponKind,
+        clearPositions: [CGPoint]
+    ) {
+        guard !enemyIDs.isEmpty, runController.phase == .active else {
+            return
+        }
+
+        let previousComboMultiplier = runController.comboMultiplier
+        let weaponComboEvent = runController.recordWeaponClear(
+            killCount: enemyIDs.count,
+            weaponKind: weaponKind
+        )
+        reportGameCenterAchievementEvent(.enemyClear(
+            count: enemyIDs.count,
+            weaponKind: weaponKind,
+            maxCombo: runController.maxCombo
+        ))
+        if let weaponComboEvent {
+            recordWeaponComboFeedback(
+                weaponComboEvent,
+                previousComboMultiplier: previousComboMultiplier,
+                clearPositions: clearPositions
+            )
+        }
     }
 
     private func splitterChildren(from destroyedEnemies: [ArenaEnemy]) -> [ArenaEnemy] {
@@ -1439,10 +1541,19 @@ final class ArenaScene: SKScene {
         configuration: StartingWeaponConfiguration
     ) {
         activeRazorShieldConfiguration = configuration
-        razorShieldTimeRemaining = configuration.razorShieldDuration
+        razorShieldTimeRemaining = max(0, configuration.razorShieldDuration)
         hasPlayedRazorShieldWarning = false
 
         razorShieldNode?.removeFromParent()
+        razorShieldNode = nil
+
+        guard razorShieldTimeRemaining > 0 else {
+            triggerRazorShieldExpiryExplosion(at: playerPosition)
+            deactivateRazorShield(emitHaptic: true)
+            grantPostWeaponSafety(for: .razorShield)
+            return
+        }
+
         let node = SKShapeNode(circleOfRadius: configuration.razorShieldRadius)
         node.zPosition = 19
         styleRazorShieldNode(node)
@@ -1509,9 +1620,8 @@ final class ArenaScene: SKScene {
             enemies: enemies
         )
         let targets = impactTargets(forEnemyIDs: targetIDs)
-        playRazorShieldImpactEffect(from: playerPosition, targets: targets) { [weak self] enemyIDs in
-            self?.destroyEnemies(ids: enemyIDs, weaponKind: .razorShield)
-        }
+        destroyEnemies(ids: targetIDs, weaponKind: .razorShield)
+        playRazorShieldImpactEffect(from: playerPosition, targets: targets)
 
         razorShieldTimeRemaining = max(0, razorShieldTimeRemaining - max(0, deltaTime))
         playRazorShieldWarningIfNeeded()
@@ -1542,7 +1652,9 @@ final class ArenaScene: SKScene {
     }
 
     private func deactivateRazorShield(emitHaptic: Bool = false) {
-        let hadActiveShield = razorShieldNode != nil || razorShieldTimeRemaining > 0
+        let hadActiveShield = activeRazorShieldConfiguration != nil
+            || razorShieldNode != nil
+            || razorShieldTimeRemaining > 0
         razorShieldTimeRemaining = 0
         activeRazorShieldConfiguration = nil
         hasPlayedRazorShieldWarning = false
@@ -1582,9 +1694,8 @@ final class ArenaScene: SKScene {
             enemies: enemies
         )
         let targets = impactTargets(forEnemyIDs: frame.burnedEnemyIDs)
-        playFlameTrailImpactEffect(at: targets) { [weak self] enemyIDs in
-            self?.destroyEnemies(ids: enemyIDs, weaponKind: .flameTrail)
-        }
+        destroyEnemies(ids: frame.burnedEnemyIDs, weaponKind: .flameTrail)
+        playFlameTrailImpactEffect(at: targets)
         flameTrailEffectNode.apply(segments: frame.segments)
     }
 
@@ -1618,8 +1729,15 @@ final class ArenaScene: SKScene {
         flameTrailSpeedBoostTimeRemaining > 0 || flameTrailInvulnerabilityTimeRemaining > 0
     }
 
-    private func grantPostWeaponSafety(for weaponKind: WeaponKind) {
-        let duration = max(0, gameTuning.feedback.postWeaponSafetyDuration)
+    private func grantPostWeaponSafety(
+        for weaponKind: WeaponKind,
+        minimumDuration: TimeInterval = 0
+    ) {
+        let duration = max(
+            0,
+            gameTuning.feedback.postWeaponSafetyDuration,
+            minimumDuration
+        )
         guard duration > 0, runController.phase == .active else {
             return
         }
@@ -1654,11 +1772,20 @@ final class ArenaScene: SKScene {
     private func activateTimeDilationAura(
         at playerPosition: CGPoint,
         configuration: StartingWeaponConfiguration
-    ) -> Int {
+    ) {
         activeTimeDilationConfiguration = configuration
+        let duration = max(0, configuration.timeDilationDuration)
+
+        guard duration > 0 else {
+            pushTimeDilationEnemies(from: playerPosition)
+            deactivateTimeDilationAura()
+            grantPostWeaponSafety(for: .warpDash)
+            return
+        }
+
         timeDilationTimeRemaining = max(
             timeDilationTimeRemaining,
-            configuration.timeDilationDuration
+            duration
         )
         timeDilationAuraNode?.removeFromParent()
         timeDilationAuraNode = playTimeDilationAuraEffect(
@@ -1667,7 +1794,6 @@ final class ArenaScene: SKScene {
             duration: timeDilationTimeRemaining
         )
         pushTimeDilationEnemies(from: playerPosition)
-        return 0
     }
 
     private var timeDilationConfiguration: StartingWeaponConfiguration {
@@ -4353,8 +4479,11 @@ extension ArenaScene {
         finishRun(playFeedback: false)
     }
 
-    func grantPostWeaponSafetyForTesting(_ weaponKind: WeaponKind = .chainLightning) {
-        grantPostWeaponSafety(for: weaponKind)
+    func grantPostWeaponSafetyForTesting(
+        _ weaponKind: WeaponKind = .chainLightning,
+        minimumDuration: TimeInterval = 0
+    ) {
+        grantPostWeaponSafety(for: weaponKind, minimumDuration: minimumDuration)
     }
 
     func advancePostWeaponSafetyForTesting(deltaTime: TimeInterval) {
@@ -4363,6 +4492,62 @@ extension ArenaScene {
 
     func detectPlayerCollisionForTesting(playerPosition: CGPoint) {
         detectPlayerCollision(playerPosition: playerPosition)
+    }
+
+    func activateRazorShieldForTesting(configuration: StartingWeaponConfiguration) {
+        activateRazorShield(
+            at: movementController.state.position,
+            configuration: configuration
+        )
+    }
+
+    func updateRazorShieldForTesting(deltaTime: TimeInterval) {
+        updateRazorShield(
+            deltaTime: deltaTime,
+            playerPosition: movementController.state.position
+        )
+    }
+
+    func activateTimeDilationAuraForTesting(configuration: StartingWeaponConfiguration) {
+        activateTimeDilationAura(
+            at: movementController.state.position,
+            configuration: configuration
+        )
+    }
+
+    func activateFlameTrailForTesting(configuration: FlameTrailConfiguration) {
+        flameTrailState.configuration = configuration
+        flameTrailState.activate(at: movementController.state.position)
+    }
+
+    func updateFlameTrailForTesting(deltaTime: TimeInterval) {
+        updateFlameTrail(
+            deltaTime: deltaTime,
+            playerPosition: movementController.state.position
+        )
+    }
+
+    func activateNovaBombForTesting(enemyIDs: Set<Int>) {
+        playNovaBomb(enemyIDs: enemyIDs)
+    }
+
+    func updateActiveRunForTesting(deltaTime: TimeInterval) {
+        updateActiveRun(
+            deltaTime: deltaTime,
+            playerPosition: movementController.state.position
+        )
+    }
+
+    var isRazorShieldActiveForTesting: Bool {
+        razorShieldTimeRemaining > 0 || razorShieldNode != nil || activeRazorShieldConfiguration != nil
+    }
+
+    var isTimeDilationAuraActiveForTesting: Bool {
+        timeDilationTimeRemaining > 0 || timeDilationAuraNode != nil || activeTimeDilationConfiguration != nil
+    }
+
+    var isPostWeaponSafeForTesting: Bool {
+        isPostWeaponSafe
     }
 
     func addWeaponEffectNodeForTesting(_ node: SKNode) {
@@ -4728,6 +4913,11 @@ private extension ArenaScene {
         playFrozenShatterEffect(at: shatterPositions, color: theme.playerColor)
         let previousComboMultiplier = runController.comboMultiplier
         let weaponComboEvent = runController.recordEnemyKills(count: shatterIDs.count, weaponKind: .freezeBurst)
+        reportGameCenterAchievementEvent(.enemyClear(
+            count: shatterIDs.count,
+            weaponKind: .freezeBurst,
+            maxCombo: runController.maxCombo
+        ))
         playEnemyClearHaptics(killCount: shatterIDs.count, previousComboMultiplier: previousComboMultiplier)
         playEnemyClearAudio(killCount: shatterIDs.count, previousComboMultiplier: previousComboMultiplier)
         if let weaponComboEvent {
@@ -4776,6 +4966,11 @@ private extension ArenaScene {
 private struct ArenaControlHitTarget {
     let action: ArenaControlAction
     let frame: CGRect
+}
+
+private struct PendingNovaBombClear {
+    let enemyIDs: Set<Int>
+    var timeRemaining: TimeInterval
 }
 
 private struct DeveloperTuningMenu {

@@ -177,6 +177,39 @@ final class ClassicRunControllerTests: XCTestCase {
         )
     }
 
+    func testStaggeredKillsCanRecordOneAggregatedWeaponClear() {
+        var configuration = ClassicRunConfiguration()
+        configuration.baseEnemyScore = 7
+        configuration.killsPerMultiplierStep = 100
+        var controller = ClassicRunController(configuration: configuration)
+
+        controller.start()
+        controller.recordEnemyKills(count: 2, weaponKind: .shockwave)
+
+        XCTAssertNil(controller.recordEnemyKills(
+            count: 1,
+            weaponKind: .chainLightning,
+            recordsWeaponClear: false
+        ))
+        XCTAssertNil(controller.recordEnemyKills(
+            count: 1,
+            weaponKind: .chainLightning,
+            recordsWeaponClear: false
+        ))
+        XCTAssertEqual(controller.weaponComboPrimer?.family, .force)
+        XCTAssertEqual(controller.enemiesDestroyed, 4)
+        XCTAssertEqual(controller.score, 4 * configuration.baseEnemyScore)
+
+        let event = controller.recordWeaponClear(killCount: 2, weaponKind: .chainLightning)
+
+        XCTAssertEqual(event?.kind, .synergy)
+        XCTAssertEqual(event?.previousFamily, .force)
+        XCTAssertEqual(event?.currentFamily, .seek)
+        XCTAssertEqual(controller.weaponComboPrimer?.family, .seek)
+        XCTAssertEqual(controller.enemiesDestroyed, 4)
+        XCTAssertEqual(controller.score, 4 * configuration.baseEnemyScore)
+    }
+
     func testWeaponComboCanReturnEventWithoutHudEventWhenDisplayDurationIsDisabled() {
         var configuration = ClassicRunConfiguration()
         configuration.baseEnemyScore = 7

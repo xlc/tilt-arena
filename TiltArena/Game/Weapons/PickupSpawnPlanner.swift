@@ -109,6 +109,7 @@ struct PickupSpawnPlanner {
         playableRect: CGRect,
         playerPosition: CGPoint,
         enemyCircles: [CollisionCircle],
+        pickupCircles: [CollisionCircle] = [],
         configuration: PickupSpawnConfiguration = PickupSpawnConfiguration()
     ) -> [WeaponPickup] {
         guard phase == .active else {
@@ -135,17 +136,20 @@ struct PickupSpawnPlanner {
         }
 
         var pickups: [WeaponPickup] = []
+        var occupiedPickupCircles = pickupCircles
         for _ in 0..<missingPickupCount {
             guard let pickup = spawnPickup(
                 in: playableRect,
                 avoiding: playerPosition,
                 enemyCircles: enemyCircles,
+                pickupCircles: occupiedPickupCircles,
                 configuration: configuration
             ) else {
                 break
             }
 
             pickups.append(pickup)
+            occupiedPickupCircles.append(pickup.collisionCircle)
         }
 
         timeUntilNextSpawn = max(0, configuration.refillDelay)
@@ -156,6 +160,7 @@ struct PickupSpawnPlanner {
         in playableRect: CGRect,
         avoiding playerPosition: CGPoint,
         enemyCircles: [CollisionCircle],
+        pickupCircles: [CollisionCircle] = [],
         configuration: PickupSpawnConfiguration = PickupSpawnConfiguration()
     ) -> WeaponPickup? {
         let spawnRect = playableRect.insetBy(
@@ -175,6 +180,7 @@ struct PickupSpawnPlanner {
             in: spawnRect,
             avoiding: playerPosition,
             enemyCircles: enemyCircles,
+            pickupCircles: pickupCircles,
             configuration: configuration
         ) else {
             return nil
@@ -194,6 +200,7 @@ struct PickupSpawnPlanner {
         in spawnRect: CGRect,
         avoiding playerPosition: CGPoint,
         enemyCircles: [CollisionCircle],
+        pickupCircles: [CollisionCircle],
         configuration: PickupSpawnConfiguration
     ) -> CGPoint? {
         for _ in 0..<Self.candidatePositions.count {
@@ -204,6 +211,7 @@ struct PickupSpawnPlanner {
                 position,
                 avoiding: playerPosition,
                 enemyCircles: enemyCircles,
+                pickupCircles: pickupCircles,
                 configuration: configuration
             ) else {
                 continue
@@ -220,6 +228,7 @@ struct PickupSpawnPlanner {
                 position,
                 avoiding: playerPosition,
                 enemyCircles: enemyCircles,
+                pickupCircles: pickupCircles,
                 configuration: configuration
             ) else {
                 continue
@@ -235,6 +244,7 @@ struct PickupSpawnPlanner {
         _ position: CGPoint,
         avoiding playerPosition: CGPoint,
         enemyCircles: [CollisionCircle],
+        pickupCircles: [CollisionCircle] = [],
         configuration: PickupSpawnConfiguration = PickupSpawnConfiguration()
     ) -> Bool {
         let playerClearance = configuration.playerClearance + configuration.pickupRadius
@@ -242,9 +252,16 @@ struct PickupSpawnPlanner {
             return false
         }
 
-        return enemyCircles.allSatisfy { enemyCircle in
+        guard enemyCircles.allSatisfy({ enemyCircle in
             let clearance = enemyCircle.radius + configuration.pickupRadius + configuration.enemyClearance
             return ArenaGeometry.squaredDistance(from: position, to: enemyCircle.center) >= clearance * clearance
+        }) else {
+            return false
+        }
+
+        return pickupCircles.allSatisfy { pickupCircle in
+            let clearance = pickupCircle.radius + configuration.pickupRadius
+            return ArenaGeometry.squaredDistance(from: position, to: pickupCircle.center) >= clearance * clearance
         }
     }
 

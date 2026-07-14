@@ -114,6 +114,34 @@ final class PickupSpawnPlannerTests: XCTestCase {
         XCTAssertEqual(pickups.map(\.id), [1, 2, 3])
     }
 
+    func testPickupScheduleKeepsNewBatchPickupsSeparated() {
+        let configuration = PickupSpawnConfiguration(
+            maxActivePickups: 3,
+            pickupRadius: 15,
+            edgeInset: 0,
+            playerClearance: 0,
+            enemyClearance: 0
+        )
+        var planner = PickupSpawnPlanner(configuration: configuration)
+
+        let pickups = planner.update(
+            deltaTime: 0,
+            phase: .active,
+            activePickupCount: 0,
+            playableRect: CGRect(x: 0, y: 0, width: 80, height: 80),
+            playerPosition: CGPoint(x: -1_000, y: -1_000),
+            enemyCircles: [],
+            configuration: configuration
+        )
+
+        XCTAssertEqual(pickups.count, 3)
+        for index in pickups.indices {
+            for otherIndex in pickups.indices where otherIndex > index {
+                XCTAssertFalse(pickups[index].collisionCircle.intersects(pickups[otherIndex].collisionCircle))
+            }
+        }
+    }
+
     func testPickupScheduleRefillsUsedPickupAfterDelay() {
         let configuration = PickupSpawnConfiguration(
             refillDelay: 0.5,
@@ -255,6 +283,38 @@ final class PickupSpawnPlannerTests: XCTestCase {
             pickup?.position ?? .zero,
             avoiding: CGPoint(x: -1_000, y: -1_000),
             enemyCircles: enemyCircles,
+            configuration: configuration
+        ))
+    }
+
+    func testPickupPlacementAvoidsExistingPickups() throws {
+        let configuration = PickupSpawnConfiguration(
+            pickupRadius: 10,
+            edgeInset: 0,
+            playerClearance: 0,
+            enemyClearance: 0
+        )
+        var planner = PickupSpawnPlanner(configuration: configuration)
+        let rect = CGRect(x: 0, y: 0, width: 320, height: 320)
+        let existingPickupCircle = CollisionCircle(
+            center: preferredCandidatePositions(in: rect)[0],
+            radius: configuration.pickupRadius
+        )
+
+        let pickup = try XCTUnwrap(planner.spawnPickup(
+            in: rect,
+            avoiding: CGPoint(x: -1_000, y: -1_000),
+            enemyCircles: [],
+            pickupCircles: [existingPickupCircle],
+            configuration: configuration
+        ))
+
+        XCTAssertFalse(pickup.collisionCircle.intersects(existingPickupCircle))
+        XCTAssertTrue(planner.isSafePickupPosition(
+            pickup.position,
+            avoiding: CGPoint(x: -1_000, y: -1_000),
+            enemyCircles: [],
+            pickupCircles: [existingPickupCircle],
             configuration: configuration
         ))
     }

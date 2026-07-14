@@ -76,7 +76,9 @@ final class ArenaAudioController {
     var isEnabled = true {
         didSet {
             if !isEnabled {
+                effectsNode.stop()
                 stopMusic()
+                engine.stop()
             }
         }
     }

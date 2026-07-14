@@ -135,4 +135,29 @@ final class GameTuningConfigurationTests: XCTestCase {
 
         XCTAssertEqual(GameTuningStore(defaults: defaults).tuning, .defaults)
     }
+
+    func testTuningStoreClampsPersistedOverridesToCatalogBounds() throws {
+        let suiteName = "GameTuningStoreBoundsTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+        let overrides: [String: GameTuningStoredValue] = [
+            "playerMovement.visualRadius": .double(-50),
+            "startingWeapons.powerWaveFanAngleDegrees": .double(720),
+            "classic.enemySpawnConfiguration.warmup.formationLaneCount": .int(0),
+            "classic.enemySpawnConfiguration.warmup.formationSpawnInterval": .double(-2)
+        ]
+        defaults.set(
+            try JSONEncoder().encode(overrides),
+            forKey: "tiltArena.gameTuningOverrides.v1"
+        )
+
+        let tuning = GameTuningStore(defaults: defaults).tuning
+
+        XCTAssertEqual(tuning.playerMovement.visualRadius, 1)
+        XCTAssertEqual(tuning.startingWeapons.powerWaveFanAngleDegrees, 360)
+        XCTAssertEqual(tuning.classic.enemySpawnConfiguration.warmup.formationLaneCount, 1)
+        XCTAssertEqual(tuning.classic.enemySpawnConfiguration.warmup.formationSpawnInterval, 0.1)
+    }
 }

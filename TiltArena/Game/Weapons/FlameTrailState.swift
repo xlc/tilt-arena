@@ -65,24 +65,37 @@ struct FlameTrailState {
     private(set) var timeRemaining: TimeInterval = 0
     private(set) var segments: [FlameTrailSegment] = []
     private var nextSegmentID = 1
+    private var lastPlayerPosition: CGPoint?
+    private var distanceSinceLastSegment: CGFloat = 0
 
     init(configuration: FlameTrailConfiguration = FlameTrailConfiguration()) {
         self.configuration = configuration
     }
 
     mutating func activate(at position: CGPoint) {
-        reset()
+        let wasActive = timeRemaining > 0
         timeRemaining = max(0, configuration.duration)
 
         if timeRemaining > 0 {
-            appendSegment(at: position)
+            if wasActive {
+                appendSegmentsAlongMovement(
+                    from: lastPlayerPosition ?? position,
+                    to: position
+                )
+            } else {
+                appendSegment(at: position)
+                distanceSinceLastSegment = 0
+            }
         }
+        lastPlayerPosition = position
     }
 
     mutating func reset() {
         timeRemaining = 0
         segments.removeAll()
         nextSegmentID = 1
+        lastPlayerPosition = nil
+        distanceSinceLastSegment = 0
     }
 
     mutating func update(
@@ -91,15 +104,34 @@ struct FlameTrailState {
         enemies: [ArenaEnemy]
     ) -> FlameTrailFrame {
         let clampedDelta = max(0, deltaTime)
+        let previousPlayerPosition = lastPlayerPosition ?? playerPosition
+        let activeDelta = min(timeRemaining, clampedDelta)
+        let wasActive = timeRemaining > 0
         timeRemaining = max(0, timeRemaining - clampedDelta)
         expireSegments(deltaTime: clampedDelta)
 
-        if timeRemaining > 0 {
-            appendSegmentIfNeeded(at: playerPosition)
+        if wasActive {
+            let emissionPosition: CGPoint
+            if clampedDelta > 0 {
+                let activeFraction = CGFloat(activeDelta / clampedDelta)
+                emissionPosition = CGPoint(
+                    x: previousPlayerPosition.x + (playerPosition.x - previousPlayerPosition.x) * activeFraction,
+                    y: previousPlayerPosition.y + (playerPosition.y - previousPlayerPosition.y) * activeFraction
+                )
+            } else {
+                emissionPosition = playerPosition
+            }
+            appendSegmentsAlongMovement(
+                from: previousPlayerPosition,
+                to: emissionPosition
+            )
         }
+        lastPlayerPosition = playerPosition
 
-        let burnedEnemyIDs = burnTargets(enemies: enemies)
-        return FlameTrailFrame(burnedEnemyIDs: burnedEnemyIDs, segments: segments)
+        return FlameTrailFrame(
+            burnedEnemyIDs: burnTargets(enemies: enemies),
+            segments: segments
+        )
     }
 
     private mutating func expireSegments(deltaTime: TimeInterval) {
@@ -113,18 +145,47 @@ struct FlameTrailState {
         segments.removeAll { $0.timeRemaining == 0 }
     }
 
-    private mutating func appendSegmentIfNeeded(at position: CGPoint) {
-        guard let lastSegment = segments.last else {
-            appendSegment(at: position)
-            return
-        }
-
+    private mutating func appendSegmentsAlongMovement(from start: CGPoint, to end: CGPoint) {
         let spacing = max(0, configuration.segmentSpacing)
-        guard spacing == 0 || ArenaGeometry.squaredDistance(from: lastSegment.position, to: position) >= spacing * spacing else {
+        guard spacing > 0 else {
+            appendSegment(at: end)
+            distanceSinceLastSegment = 0
             return
         }
 
-        appendSegment(at: position)
+        let dx = end.x - start.x
+        let dy = end.y - start.y
+        let distance = hypot(dx, dy)
+        guard distance > 0 else {
+            return
+        }
+
+        let carriedDistance = max(
+            0,
+            distanceSinceLastSegment.truncatingRemainder(dividingBy: spacing)
+        )
+        let distanceToFirstSegment = spacing - carriedDistance
+        guard distance >= distanceToFirstSegment else {
+            distanceSinceLastSegment = carriedDistance + distance
+            return
+        }
+
+        let direction = CGVector(dx: dx / distance, dy: dy / distance)
+        let distanceAfterFirstSegment = max(0, distance - distanceToFirstSegment)
+        let emittedSegmentCount = 1 + Int((distanceAfterFirstSegment / spacing).rounded(.down))
+        let retainedSegmentCount = min(max(0, configuration.maxSegments), emittedSegmentCount)
+        let firstRetainedSegment = emittedSegmentCount - retainedSegmentCount
+
+        for segmentIndex in firstRetainedSegment..<emittedSegmentCount {
+            let stepDistance = distanceToFirstSegment + CGFloat(segmentIndex) * spacing
+            appendSegment(at: CGPoint(
+                x: start.x + direction.dx * stepDistance,
+                y: start.y + direction.dy * stepDistance
+            ))
+        }
+
+        distanceSinceLastSegment = distanceAfterFirstSegment
+            - CGFloat(emittedSegmentCount - 1) * spacing
     }
 
     private mutating func appendSegment(at position: CGPoint) {

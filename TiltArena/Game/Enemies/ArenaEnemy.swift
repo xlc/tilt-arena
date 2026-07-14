@@ -181,6 +181,9 @@ struct ArenaEnemy: Equatable, Identifiable {
         consumePlayerCollisionGrace(deltaTime: clampedTime)
 
         if consumeMovementPause(deltaTime: clampedTime) {
+            if case let .hunterDot(predictionLead, _) = behavior {
+                behavior = .hunterDot(predictionLead: predictionLead, previousTarget: target)
+            }
             return
         }
 
@@ -348,10 +351,11 @@ struct ArenaEnemy: Equatable, Identifiable {
     ) {
         let predictedTarget: CGPoint
 
-        if let previousTarget {
+        if let previousTarget, deltaTime > 0 {
+            let velocityProjectionScale = max(0, predictionLead) / deltaTime
             predictedTarget = CGPoint(
-                x: target.x + (target.x - previousTarget.x) * max(0, predictionLead),
-                y: target.y + (target.y - previousTarget.y) * max(0, predictionLead)
+                x: target.x + (target.x - previousTarget.x) * velocityProjectionScale,
+                y: target.y + (target.y - previousTarget.y) * velocityProjectionScale
             )
         } else {
             predictedTarget = target

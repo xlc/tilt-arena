@@ -53,6 +53,37 @@ final class FlameTrailStateTests: XCTestCase {
         XCTAssertEqual(state.update(deltaTime: 0.11, playerPosition: .zero, enemies: []).segments.count, 0)
     }
 
+    func testReactivationPreservesLiveSegments() {
+        var state = FlameTrailState(configuration: FlameTrailConfiguration(
+            duration: 0.2,
+            segmentLifetime: 1,
+            segmentSpacing: 10,
+            maxSegments: 10
+        ))
+        state.activate(at: .zero)
+        _ = state.update(deltaTime: 0.2, playerPosition: CGPoint(x: 10, y: 0), enemies: [])
+
+        state.activate(at: CGPoint(x: 20, y: 0))
+
+        XCTAssertEqual(state.segments.map(\.position.x), [0, 10, 20])
+        XCTAssertEqual(state.timeRemaining, 0.2)
+    }
+
+    func testInactiveReactivationDoesNotBurnAcrossTheGapToAnOldTrail() {
+        var state = FlameTrailState(configuration: FlameTrailConfiguration(
+            duration: 0.1,
+            segmentLifetime: 2,
+            segmentSpacing: 10,
+            maxSegments: 20
+        ))
+        state.activate(at: .zero)
+        _ = state.update(deltaTime: 0.1, playerPosition: CGPoint(x: 10, y: 0), enemies: [])
+
+        state.activate(at: CGPoint(x: 100, y: 0))
+
+        XCTAssertEqual(state.segments.map(\.position.x), [0, 10, 100])
+    }
+
     func testSegmentSpacingControlsWhenNewSegmentsAreRecorded() {
         var state = FlameTrailState(configuration: FlameTrailConfiguration(segmentSpacing: 14))
         state.activate(at: .zero)
@@ -65,6 +96,73 @@ final class FlameTrailStateTests: XCTestCase {
             state.update(deltaTime: 0.1, playerPosition: CGPoint(x: 14, y: 0), enemies: []).segments.count,
             2
         )
+    }
+
+    func testLargeFrameMovementFillsTrailAtConfiguredSpacing() {
+        var state = FlameTrailState(configuration: FlameTrailConfiguration(
+            duration: 1,
+            segmentLifetime: 2,
+            segmentRadius: 1,
+            segmentSpacing: 10,
+            maxSegments: 10
+        ))
+        state.activate(at: .zero)
+
+        let frame = state.update(
+            deltaTime: 0.1,
+            playerPosition: CGPoint(x: 35, y: 0),
+            enemies: [enemy(id: 1, position: CGPoint(x: 20, y: 0), radius: 1)]
+        )
+
+        XCTAssertEqual(frame.segments.map(\.position.x), [0, 10, 20, 30])
+        XCTAssertEqual(frame.burnedEnemyIDs, [1])
+    }
+
+    func testTrailCarriesResidualSpacingAroundSharpTurnWithoutCuttingCorner() {
+        var state = FlameTrailState(configuration: FlameTrailConfiguration(
+            duration: 1,
+            segmentLifetime: 2,
+            segmentSpacing: 10,
+            maxSegments: 10
+        ))
+        state.activate(at: .zero)
+
+        _ = state.update(
+            deltaTime: 0.1,
+            playerPosition: CGPoint(x: 15, y: 0),
+            enemies: []
+        )
+        let frame = state.update(
+            deltaTime: 0.1,
+            playerPosition: CGPoint(x: 15, y: 15),
+            enemies: []
+        )
+
+        XCTAssertEqual(
+            frame.segments.map(\.position),
+            [
+                .zero,
+                CGPoint(x: 10, y: 0),
+                CGPoint(x: 15, y: 5),
+                CGPoint(x: 15, y: 15)
+            ]
+        )
+    }
+
+    func testTrailStopsAtPositionReachedBeforeBurstExpiresMidFrame() {
+        var state = FlameTrailState(configuration: FlameTrailConfiguration(
+            duration: 0.15,
+            segmentLifetime: 2,
+            segmentSpacing: 5,
+            maxSegments: 10
+        ))
+        state.activate(at: .zero)
+
+        _ = state.update(deltaTime: 0.1, playerPosition: CGPoint(x: 10, y: 0), enemies: [])
+        let frame = state.update(deltaTime: 0.1, playerPosition: CGPoint(x: 20, y: 0), enemies: [])
+
+        XCTAssertEqual(frame.segments.map(\.position.x), [0, 5, 10, 15])
+        XCTAssertEqual(state.timeRemaining, 0)
     }
 
     func testMaxSegmentsCapsOldestSegments() {
@@ -84,8 +182,8 @@ final class FlameTrailStateTests: XCTestCase {
         XCTAssertEqual(state.segments.map(\.position.x), [2, 3, 4])
     }
 
-    private func enemy(id: Int, position: CGPoint) -> ArenaEnemy {
-        ArenaEnemy(id: id, position: position, radius: 8, speed: 0)
+    private func enemy(id: Int, position: CGPoint, radius: CGFloat = 8) -> ArenaEnemy {
+        ArenaEnemy(id: id, position: position, radius: radius, speed: 0)
     }
 
     private func frozenEnemy(id: Int, position: CGPoint) -> ArenaEnemy {

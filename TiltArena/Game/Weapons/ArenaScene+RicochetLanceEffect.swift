@@ -124,22 +124,22 @@ extension ArenaScene {
         delay: TimeInterval,
         onImpact: @escaping (Set<Int>) -> Void
     ) {
-        guard !targets.isEmpty else {
+        let plan = WeaponImpactPlan(targets: targets)
+        guard !plan.impactEnemyIDs.isEmpty else {
             return
         }
 
-        for target in targets {
+        for target in plan.visualTargets {
             playRicochetImpactFlash(at: target.position, delay: delay)
         }
 
         let node = SKNode()
         node.zPosition = 18
         addWeaponEffectNode(node)
-        let targetIDs = Set(targets.map(\.id))
         node.run(.sequence([
             .wait(forDuration: max(0, delay)),
             .run {
-                onImpact(targetIDs)
+                onImpact(plan.impactEnemyIDs)
             },
             .removeFromParent()
         ]))

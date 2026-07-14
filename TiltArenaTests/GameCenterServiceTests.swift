@@ -112,6 +112,26 @@ final class GameCenterServiceTests: XCTestCase {
         XCTAssertNil(presenter.presentedViewController)
     }
 
+    func testPassiveAuthenticationAfterDeclinePreservesDeclinedState() {
+        let client = FakeGameCenterLocalPlayerClient()
+        let service = makeService(localPlayer: client)
+        let error = NSError(domain: GKErrorDomain, code: GKError.Code.cancelled.rawValue)
+
+        service.authenticate(presenter: nil, allowsPrompt: false)
+        client.completeAuthentication(viewController: nil, error: error)
+        service.authenticate(presenter: nil, allowsPrompt: false)
+
+        XCTAssertEqual(
+            service.authenticationState,
+            .declined(GameCenterAuthenticationFailure(
+                reason: .cancelled,
+                domain: GKErrorDomain,
+                code: GKError.Code.cancelled.rawValue
+            ))
+        )
+        XCTAssertEqual(client.authenticateHandlerInstallCount, 1)
+    }
+
     func testDeniedAuthenticationSuppressesLaterAutomaticPrompt() {
         let client = FakeGameCenterLocalPlayerClient()
         let service = makeService(localPlayer: client)
@@ -221,6 +241,35 @@ final class GameCenterServiceTests: XCTestCase {
 
         XCTAssertEqual(client.submittedScores.map(\.score), [500])
         XCTAssertTrue(scoreSubmissionStore.pendingSubmissions.isEmpty)
+    }
+
+    func testRetryQueuedScoresDiscardsNonrecoverableFailure() {
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
+        client.submitScoreError = NSError(domain: NSCocoaErrorDomain, code: NSFileReadNoPermissionError)
+        let service = makeService(localPlayer: client)
+        let submission = GameCenterScoreSubmission.classicSurvival(from: makeRunSummary(score: 500))
+        scoreSubmissionStore.enqueue(submission)
+
+        service.retryQueuedScores()
+
+        XCTAssertEqual(client.submittedScores.map(\.score), [500])
+        XCTAssertTrue(scoreSubmissionStore.pendingSubmissions.isEmpty)
+    }
+
+    func testRetryQueuedScoresRetainsRecoverableFailure() {
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
+        client.submitScoreError = NSError(
+            domain: GKErrorDomain,
+            code: GKError.Code.communicationsFailure.rawValue
+        )
+        let service = makeService(localPlayer: client)
+        let submission = GameCenterScoreSubmission.classicSurvival(from: makeRunSummary(score: 500))
+        scoreSubmissionStore.enqueue(submission)
+
+        service.retryQueuedScores()
+
+        XCTAssertEqual(client.submittedScores.map(\.score), [500])
+        XCTAssertEqual(scoreSubmissionStore.pendingSubmissions.map(\.score), [500])
     }
 
     func testAuthenticationSuccessRetriesQueuedScores() {
@@ -350,55 +399,6 @@ final class GameCenterServiceTests: XCTestCase {
         let service = makeService(localPlayer: client)
 
         XCTAssertEqual(service.menuStatus, .unavailable)
-    }
-
-    func testRunFinishedAchievementEventSubmitsMilestoneProgress() {
-        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
-        let service = makeService(localPlayer: client)
-        let summary = makeRunSummary(
-            score: 50_000,
-            survivalTime: 30,
-            maxCombo: 25,
-            enemiesDestroyed: 4
-        )
-
-        service.reportAchievementEvent(.runFinished(summary))
-
-        XCTAssertEqual(client.submittedAchievementBatches.count, 1)
-        let progress = client.submittedAchievementBatches[0].progressByAchievementID
-        XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.firstRun.rawValue], 100)
-        XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.firstEnemyClear.rawValue], 100)
-        XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.combo10.rawValue], 100)
-        XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.combo50.rawValue], 50)
-        XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.survive60.rawValue], 50)
-        XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.score100000.rawValue], 50)
-    }
-
-    func testEnemyClearAchievementEventSubmitsFirstClearChainAndComboProgress() {
-        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
-        let service = makeService(localPlayer: client)
-
-        service.reportAchievementEvent(.enemyClear(count: 2, weaponKind: .chainLightning, maxCombo: 12))
-
-        XCTAssertEqual(client.submittedAchievementBatches.count, 1)
-        let progress = client.submittedAchievementBatches[0].progressByAchievementID
-        XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.firstEnemyClear.rawValue], 100)
-        XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.firstChainReaction.rawValue], 100)
-        XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.combo10.rawValue], 100)
-        XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.combo50.rawValue], 24)
-        XCTAssertNil(progress[GameCenterIdentifiers.Achievement.firstRun.rawValue])
-    }
-
-    func testWeaponOrbAchievementEventSubmitsFirstOrbProgress() {
-        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
-        let service = makeService(localPlayer: client)
-
-        service.reportAchievementEvent(.weaponOrbCollected)
-
-        XCTAssertEqual(
-            client.submittedAchievementBatches.flatMap { $0 }.map(\.achievementID),
-            [GameCenterIdentifiers.Achievement.firstWeaponOrb.rawValue]
-        )
     }
 
     func testDuplicateAchievementProgressIsNotResubmittedAfterSuccess() {

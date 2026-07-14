@@ -323,6 +323,63 @@ final class ArenaEnemyTests: XCTestCase {
         XCTAssertTrue(enemy.isHunterDot)
     }
 
+    func testHunterDotPredictionLeadIsFrameRateIndependent() {
+        var longerFrameEnemy = ArenaEnemy(
+            id: 1,
+            position: .zero,
+            radius: 8,
+            speed: 100,
+            behavior: .hunterDot(
+                predictionLead: 0.5,
+                previousTarget: CGPoint(x: 100, y: 90)
+            )
+        )
+        var shorterFrameEnemy = ArenaEnemy(
+            id: 2,
+            position: .zero,
+            radius: 8,
+            speed: 100,
+            behavior: .hunterDot(
+                predictionLead: 0.5,
+                previousTarget: CGPoint(x: 100, y: 95)
+            )
+        )
+
+        longerFrameEnemy.advance(toward: CGPoint(x: 100, y: 100), deltaTime: 0.1)
+        shorterFrameEnemy.advance(toward: CGPoint(x: 100, y: 100), deltaTime: 0.05)
+
+        XCTAssertEqual(
+            longerFrameEnemy.position.x / longerFrameEnemy.position.y,
+            shorterFrameEnemy.position.x / shorterFrameEnemy.position.y,
+            accuracy: 0.0001
+        )
+        XCTAssertEqual(longerFrameEnemy.position.x / longerFrameEnemy.position.y, 2.0 / 3.0, accuracy: 0.0001)
+    }
+
+    func testFrozenHunterTracksPlayerWithoutMovingToAvoidStalePredictionOnThaw() {
+        let target = CGPoint(x: 100, y: 80)
+        var enemy = ArenaEnemy(
+            id: 1,
+            position: .zero,
+            radius: 8,
+            speed: 100,
+            behavior: .hunterDot(
+                predictionLead: 0.5,
+                previousTarget: .zero
+            )
+        )
+        enemy.freeze(duration: 1)
+
+        enemy.advance(toward: target, deltaTime: 0.25)
+
+        XCTAssertEqual(enemy.position, .zero)
+        guard case let .hunterDot(_, previousTarget) = enemy.behavior else {
+            XCTFail("Expected Hunter Dot behavior.")
+            return
+        }
+        XCTAssertEqual(previousTarget, target)
+    }
+
     func testPaddleTrapBarDoesNotMoveAndExpires() {
         var enemy = ArenaEnemy(
             id: 1,

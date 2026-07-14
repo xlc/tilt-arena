@@ -24,7 +24,7 @@ final class ArenaEffectSnapshotTests: XCTestCase {
             addTrailExample(to: scene, theme: themeKind.theme)
             addTelegraphExample(to: scene, theme: themeKind.theme)
             addPickupExamples(to: scene, theme: themeKind.theme)
-            addWeaponEffectExamples(to: scene, theme: themeKind.theme)
+            addWeaponEffectExamples(to: scene)
             scene.revealWeaponEffectsForSnapshotTesting()
         }
     }
@@ -84,7 +84,7 @@ final class ArenaEffectSnapshotTests: XCTestCase {
         scene.playPickupCollectionPop(for: basePickup)
     }
 
-    private func addWeaponEffectExamples(to scene: ArenaScene, theme: ArenaTheme) {
+    private func addWeaponEffectExamples(to scene: ArenaScene) {
         scene.playChargedWeaponActivationEffect(
             kind: .novaBomb,
             at: CGPoint(x: 92, y: 210),
@@ -107,10 +107,7 @@ final class ArenaEffectSnapshotTests: XCTestCase {
                 WeaponImpactTarget(id: 1, position: CGPoint(x: 530, y: 278)),
                 WeaponImpactTarget(id: 2, position: CGPoint(x: 584, y: 242)),
                 WeaponImpactTarget(id: 3, position: CGPoint(x: 642, y: 280))
-            ],
-            accentColor: theme.playerAccentColor,
-            coreColor: theme.playerColor,
-            onImpact: { _ in }
+            ]
         )
         scene.playEnemyClearBursts(
             at: [
