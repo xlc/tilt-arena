@@ -10,12 +10,12 @@ final class ArenaHUDLayoutTests: XCTestCase {
             margin: 24
         )
 
-        XCTAssertEqual(layout.timerPosition.x, 83, accuracy: 0.0001)
-        XCTAssertEqual(layout.timerPosition.y, 369, accuracy: 0.0001)
-        XCTAssertEqual(layout.comboPosition.x, 426, accuracy: 0.0001)
-        XCTAssertEqual(layout.comboPosition.y, 45, accuracy: 0.0001)
-        XCTAssertEqual(layout.bestMarkerPosition.x, 769, accuracy: 0.0001)
-        XCTAssertEqual(layout.bestMarkerPosition.y, 369, accuracy: 0.0001)
+        XCTAssertEqual(layout.scoreCapsuleFrame, CGRect(x: 77, y: 341, width: 190, height: 28))
+        XCTAssertEqual(layout.bestCapsuleFrame, CGRect(x: 649, y: 341, width: 126, height: 28))
+        XCTAssertEqual(layout.comboCapsuleFrame, CGRect(x: 276, y: 39, width: 300, height: 30))
+        XCTAssertEqual(layout.timerPosition, CGPoint(x: 87, y: 355))
+        XCTAssertEqual(layout.comboPosition, CGPoint(x: 426, y: 54))
+        XCTAssertEqual(layout.bestMarkerPosition, CGPoint(x: 765, y: 355))
     }
 
     func testZeroSafeAreaKeepsHUDAwayFromRawEdges() {
@@ -25,8 +25,11 @@ final class ArenaHUDLayoutTests: XCTestCase {
             margin: 24
         )
 
-        XCTAssertEqual(layout.timerPosition, CGPoint(x: 24, y: 336))
-        XCTAssertEqual(layout.comboPosition, CGPoint(x: 400, y: 24))
-        XCTAssertEqual(layout.bestMarkerPosition, CGPoint(x: 776, y: 336))
+        XCTAssertEqual(layout.scoreCapsuleFrame, CGRect(x: 18, y: 308, width: 190, height: 28))
+        XCTAssertEqual(layout.bestCapsuleFrame, CGRect(x: 656, y: 308, width: 126, height: 28))
+        XCTAssertEqual(layout.comboCapsuleFrame, CGRect(x: 250, y: 18, width: 300, height: 30))
+        XCTAssertEqual(layout.timerPosition, CGPoint(x: 28, y: 322))
+        XCTAssertEqual(layout.comboPosition, CGPoint(x: 400, y: 33))
+        XCTAssertEqual(layout.bestMarkerPosition, CGPoint(x: 772, y: 322))
     }
 }

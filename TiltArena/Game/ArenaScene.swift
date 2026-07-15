@@ -379,17 +379,17 @@ final class ArenaScene: SKScene {
     }
 
     private func configureLabels() {
-        configureLabel(timerLabel, fontSize: 16, color: theme.playerColor.withAlphaComponent(0.9))
+        configureLabel(timerLabel, fontSize: 14, color: theme.playerColor.withAlphaComponent(0.94))
         timerLabel.horizontalAlignmentMode = .left
-        timerLabel.verticalAlignmentMode = .top
+        timerLabel.verticalAlignmentMode = .center
 
-        configureLabel(bestMarkerLabel, fontSize: 12, color: theme.playerColor.withAlphaComponent(0.78))
+        configureLabel(bestMarkerLabel, fontSize: 11, color: theme.playerColor.withAlphaComponent(0.82))
         bestMarkerLabel.horizontalAlignmentMode = .right
-        bestMarkerLabel.verticalAlignmentMode = .top
+        bestMarkerLabel.verticalAlignmentMode = .center
 
-        configureLabel(comboLabel, fontSize: 14, color: theme.playerAccentColor)
+        configureLabel(comboLabel, fontSize: 13, color: theme.playerAccentColor)
         comboLabel.horizontalAlignmentMode = .center
-        comboLabel.verticalAlignmentMode = .bottom
+        comboLabel.verticalAlignmentMode = .center
 
         [timerLabel, bestMarkerLabel, comboLabel].forEach { label in
             if label.parent == nil {
@@ -403,7 +403,7 @@ final class ArenaScene: SKScene {
     private func configureLabel(_ label: SKLabelNode, fontSize: CGFloat, color: SKColor) {
         label.fontSize = fontSize
         label.fontColor = color
-        label.zPosition = 50
+        label.zPosition = 140
     }
 
     private func layoutLabels() {
@@ -559,10 +559,11 @@ final class ArenaScene: SKScene {
 
     private func updateCalibrationPreview(deltaTime: TimeInterval) {
         let input = movementInput(deltaTime: deltaTime)
+        let previewBounds = currentCalibrationPreviewBounds
         let state = calibrationPreviewMovementController.update(
             input: input,
             deltaTime: deltaTime,
-            arenaBounds: currentGameplayBounds
+            arenaBounds: previewBounds
         )
 
         applyCalibrationPreviewState(state, resetTrail: false)
@@ -591,8 +592,9 @@ final class ArenaScene: SKScene {
 
     private func resetCalibrationPreviewPosition() {
         calibrationPreviewMovementController.configuration = movementController.configuration
-        var state = calibrationPreviewMovementController.reset(in: currentGameplayBounds)
-        let targetPosition = calibrationPreviewStartPosition(in: currentGameplayBounds)
+        let previewBounds = currentCalibrationPreviewBounds
+        var state = calibrationPreviewMovementController.reset(in: previewBounds)
+        let targetPosition = calibrationPreviewStartPosition(in: previewBounds)
         let offset = CGVector(
             dx: targetPosition.x - state.position.x,
             dy: targetPosition.y - state.position.y
@@ -601,29 +603,22 @@ final class ArenaScene: SKScene {
             state = calibrationPreviewMovementController.dash(
                 direction: offset,
                 distance: offset.length,
-                arenaBounds: currentGameplayBounds
+                arenaBounds: previewBounds
             )
-            state = calibrationPreviewMovementController.update(input: .zero, deltaTime: 0, arenaBounds: currentGameplayBounds)
+            state = calibrationPreviewMovementController.update(input: .zero, deltaTime: 0, arenaBounds: previewBounds)
         }
         applyCalibrationPreviewState(state, resetTrail: true)
     }
 
     private func calibrationPreviewStartPosition(in arenaBounds: CGRect) -> CGPoint {
-        let controlsWidth = min(292, max(260, arenaBounds.width * 0.38))
         let playableRect = calibrationPreviewMovementController.configuration.playableRect(in: arenaBounds)
-        let visibleMinX = max(playableRect.minX, arenaBounds.minX + controlsWidth + 48)
-        let preferredX = (visibleMinX + playableRect.maxX) / 2
-
-        return CGPoint(
-            x: min(playableRect.maxX, max(playableRect.minX, preferredX)),
-            y: playableRect.midY
-        )
+        return CGPoint(x: playableRect.midX, y: playableRect.midY)
     }
 
     private func applyCalibrationPreviewState(_ state: PlayerMovementState, resetTrail: Bool) {
         let speedFraction = state.velocity.length / max(
             1,
-            calibrationPreviewMovementController.configuration.maximumSpeed(in: currentGameplayBounds)
+            calibrationPreviewMovementController.configuration.maximumSpeed(in: currentCalibrationPreviewBounds)
         )
         calibrationPreviewPlayerNode?.apply(state: state, speedFraction: speedFraction)
 
@@ -1991,7 +1986,10 @@ final class ArenaScene: SKScene {
     }
 
     private func updateRunDisplay() {
-        timerLabel.alpha = uiState == .pause || uiState == .postRun ? 0.55 : 1
+        let hudAlpha: CGFloat = uiState == .pause ? 0.48 : 1
+        timerLabel.alpha = hudAlpha
+        bestMarkerLabel.alpha = hudAlpha
+        comboLabel.alpha = hudAlpha
 
         switch uiState {
         case .home, .modeSelect, .awards, .weaponCodex, .options, .developerTuning, .calibrationPreview:
@@ -2016,13 +2014,12 @@ final class ArenaScene: SKScene {
             bestMarkerLabel.isHidden = false
             comboLabel.isHidden = false
             timerLabel.text = "SCORE \(runController.score)  \(formatSurvivalTime(runController.survivalTime))"
-            bestMarkerLabel.text = "PAUSED"
+            bestMarkerLabel.text = "BEST \(runProfile.bestScore)"
             comboLabel.text = formatCombo()
         case .postRun:
-            timerLabel.isHidden = false
+            timerLabel.isHidden = true
             bestMarkerLabel.isHidden = true
             comboLabel.isHidden = true
-            timerLabel.text = "BEST \(runProfile.bestScore)"
         }
 
     }
@@ -2179,7 +2176,7 @@ private extension ArenaScene {
         case .preRun:
             renderPreRun()
         case .activeGameplay:
-            break
+            renderGameplayHUDChrome(includeCombo: true)
         case .pause:
             renderPause()
         case .postRun:
@@ -2187,6 +2184,34 @@ private extension ArenaScene {
         default:
             break
         }
+    }
+
+    func renderGameplayHUDChrome(includeCombo: Bool) {
+        let layout = currentHUDLayout()
+        addHUDCapsule(frame: layout.scoreCapsuleFrame, isEmphasized: false)
+        addHUDCapsule(frame: layout.bestCapsuleFrame, isEmphasized: false)
+        if includeCombo {
+            addHUDCapsule(frame: layout.comboCapsuleFrame, isEmphasized: true)
+        }
+    }
+
+    func addHUDCapsule(frame: CGRect, isEmphasized: Bool) {
+        let pauseAlpha: CGFloat = uiState == .pause ? 0.46 : 1
+        let capsule = SKShapeNode(rect: frame, cornerRadius: 6)
+        capsule.zPosition = ArenaUIZPosition.panel
+        capsule.fillColor = theme.panelFillColor.withAlphaComponent(0.82 * pauseAlpha)
+        capsule.strokeColor = (
+            isEmphasized ? theme.playerAccentColor : theme.borderColor
+        ).withAlphaComponent((isEmphasized ? 0.78 : 0.56) * pauseAlpha)
+        capsule.lineWidth = isEmphasized ? 1.3 : 1
+        uiRoot.addChild(capsule)
+
+        let accentWidth = min(38, frame.width * 0.24)
+        addDividerLine(
+            from: CGPoint(x: frame.minX + 8, y: frame.maxY),
+            to: CGPoint(x: frame.minX + 8 + accentWidth, y: frame.maxY),
+            color: theme.playerAccentColor.withAlphaComponent(0.78 * pauseAlpha)
+        )
     }
 
     func updatePersistentGameplayNodeVisibility() {
@@ -2231,30 +2256,58 @@ private extension ArenaScene {
 
     func renderHome() {
         let layout = currentLandscapeLayout()
-        let bottomButtonSize = CGSize(width: 88, height: 38)
-        addTitle("TILT ARENA", at: layout.titlePosition)
+        let bottomButtonSize = CGSize(width: 88, height: 44)
+        let identityFrame = CGRect(
+            x: layout.safeRect.minX,
+            y: layout.safeRect.maxY - 118,
+            width: min(178, layout.safeRect.width * 0.36),
+            height: 108
+        )
+        addPanel(
+            frame: identityFrame,
+            stroke: theme.borderColor.withAlphaComponent(0.7),
+            fill: theme.panelFillColor.withAlphaComponent(0.88),
+            accent: theme.playerAccentColor.withAlphaComponent(0.78)
+        )
+        addTitle(
+            "TILT ARENA",
+            at: CGPoint(x: identityFrame.minX + 14, y: identityFrame.maxY - 22)
+        )
         addSmallLabel(
             "CLASSIC SURVIVAL",
-            at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 34),
+            at: CGPoint(x: identityFrame.minX + 14, y: identityFrame.maxY - 48),
             color: theme.borderColor,
             alignment: .left
         )
-        addSmallLabel(
-            "BEST \(runProfile.bestScore)",
-            at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 56),
+        addSectionLabel(
+            "PERSONAL BEST",
+            at: CGPoint(x: identityFrame.minX + 14, y: identityFrame.maxY - 70)
+        )
+        addLabel(
+            "\(runProfile.bestScore)",
+            at: CGPoint(x: identityFrame.minX + 14, y: identityFrame.minY + 19),
+            fontSize: 26,
             color: theme.playerAccentColor,
             alignment: .left
         )
         renderGameCenterStatusMessage(
-            at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 78),
+            at: CGPoint(x: identityFrame.minX + 14, y: identityFrame.minY - 12),
             alignment: .left
         )
         addPreviewThreats(in: layout.gameplayRect)
+        let playFrame = CGRect(
+            x: layout.controlRect.maxX - 164,
+            y: layout.controlRect.minY + bottomButtonSize.height + 16,
+            width: 164,
+            height: 56
+        )
         addButton(
             "PLAY",
-            frame: layout.stackedLowerRightButtonFrame(aboveBottomControlHeight: bottomButtonSize.height),
+            frame: playFrame,
             action: .play,
-            style: .primary
+            style: .primary,
+            glyph: .play,
+            fontSize: 18
         )
         renderHomeNavigationButtons(layout: layout, buttonSize: bottomButtonSize)
         #if DEBUG
@@ -2272,37 +2325,42 @@ private extension ArenaScene {
             "MODES",
             frame: layout.bottomButtonFrame(index: 0, count: 5, buttonSize: buttonSize),
             action: .openModes,
-            style: .secondary
+            style: .secondary,
+            glyph: .radar
         )
         addButton(
             "AWARDS",
             frame: layout.bottomButtonFrame(index: 1, count: 5, buttonSize: buttonSize),
             action: .openAwards,
-            style: .secondary
+            style: .secondary,
+            glyph: .award
         )
         addButton(
             "WEAPONS",
             frame: layout.bottomButtonFrame(index: 2, count: 5, buttonSize: buttonSize),
             action: .openWeaponCodex,
-            style: .secondary
+            style: .secondary,
+            glyph: .weapon
         )
         addButton(
             "RANKS",
             frame: layout.bottomButtonFrame(index: 3, count: 5, buttonSize: buttonSize),
             action: .openClassicLeaderboard,
-            style: .secondary
+            style: .secondary,
+            glyph: .ranks
         )
         addButton(
             "OPTIONS",
             frame: layout.bottomButtonFrame(index: 4, count: 5, buttonSize: buttonSize),
             action: .openOptions,
-            style: .secondary
+            style: .secondary,
+            glyph: .settings
         )
     }
 
     func renderModeSelect() {
         let layout = currentLandscapeLayout()
-        let contentFrame = addMenuChrome(title: "MODES", layout: layout)
+        let contentFrame = addMenuChrome(title: "SELECT MODE", layout: layout)
 
         let rows = ArenaMenuContent.modeRows(profile: runProfile, selectedMode: selectedMode)
         let detailWidth = min(168, contentFrame.width * 0.34)
@@ -2375,7 +2433,7 @@ private extension ArenaScene {
 
     func renderWeaponCodex() {
         let layout = currentLandscapeLayout()
-        let contentFrame = addMenuChrome(title: "WEAPONS", layout: layout)
+        let contentFrame = addMenuChrome(title: "WEAPON CODEX", layout: layout)
         let rows = ArenaMenuContent.weaponCodexRows(profile: runProfile)
 
         let columnCount = 3
@@ -2410,25 +2468,35 @@ private extension ArenaScene {
         let layout = currentLandscapeLayout()
         let contentFrame = addMenuChrome(title: "OPTIONS", layout: layout)
 
-        let columnGap: CGFloat = 18
-        let columnWidth = max(0, (contentFrame.width - columnGap) / 2)
-        let left = CGRect(
+        let columnGap: CGFloat = 8
+        let controlWidth = max(184, contentFrame.width * 0.42)
+        let feedbackWidth = max(112, contentFrame.width * 0.24)
+        let displayWidth = max(0, contentFrame.width - controlWidth - feedbackWidth - columnGap * 2)
+        let controlFrame = CGRect(
             x: contentFrame.minX,
             y: contentFrame.minY,
-            width: columnWidth,
+            width: controlWidth,
             height: contentFrame.height
         )
-        let right = CGRect(
-            x: contentFrame.maxX - columnWidth,
+        let feedbackFrame = CGRect(
+            x: controlFrame.maxX + columnGap,
             y: contentFrame.minY,
-            width: columnWidth,
+            width: feedbackWidth,
             height: contentFrame.height
         )
-        addPanel(frame: left)
-        addPanel(frame: right)
+        let displayFrame = CGRect(
+            x: feedbackFrame.maxX + columnGap,
+            y: contentFrame.minY,
+            width: displayWidth,
+            height: contentFrame.height
+        )
+        addPanel(frame: controlFrame, accent: theme.playerAccentColor.withAlphaComponent(0.58))
+        addPanel(frame: feedbackFrame)
+        addPanel(frame: displayFrame)
 
-        renderTiltOptions(in: left)
-        renderLocalOptions(in: right)
+        renderTiltOptions(in: controlFrame)
+        renderFeedbackOptions(in: feedbackFrame)
+        renderDisplayDataOptions(in: displayFrame)
     }
 
     func renderDeveloperTuning() {
@@ -2827,9 +2895,24 @@ private extension ArenaScene {
         )
         addCalibrationHeader(in: controlsFrame)
         renderCalibrationControls(in: controlsFrame)
+        let previewBounds = currentCalibrationPreviewBounds
+        addLabel(
+            "LIVE TILT",
+            at: CGPoint(x: previewBounds.maxX - 12, y: previewBounds.maxY - 24),
+            fontSize: 10,
+            color: theme.playerAccentColor,
+            alignment: .right
+        )
+        addLabel(
+            "MOVE DEVICE TO TEST",
+            at: CGPoint(x: previewBounds.maxX - 12, y: previewBounds.maxY - 42),
+            fontSize: 9,
+            color: theme.playerColor.withAlphaComponent(0.82),
+            alignment: .right
+        )
         addSmallLabel(
             calibrationText,
-            at: CGPoint(x: layout.safeRect.maxX - 12, y: layout.safeRect.minY + 20),
+            at: CGPoint(x: previewBounds.maxX - 12, y: previewBounds.minY + 16),
             color: theme.borderColor,
             alignment: .right
         )
@@ -2846,6 +2929,7 @@ private extension ArenaScene {
         )
         previewArena.zPosition = ArenaUIZPosition.preview
         worldNode.addChild(previewArena)
+        worldNode.addChild(makeCalibrationRadarGuide(in: currentCalibrationPreviewBounds))
 
         let previewTrail = PlayerTrailNode(theme: theme)
         previewTrail.zPosition = ArenaUIZPosition.content
@@ -2860,16 +2944,62 @@ private extension ArenaScene {
         worldNode.addChild(previewPlayer)
         calibrationPreviewPlayerNode = previewPlayer
 
-        let state = calibrationPreviewMovementController.clampToArena(currentGameplayBounds)
+        let state = calibrationPreviewMovementController.clampToArena(currentCalibrationPreviewBounds)
         applyCalibrationPreviewState(state, resetTrail: true)
     }
 
-    func calibrationControlsFrame(layout: ArenaLandscapeUILayout) -> CGRect {
-        let controlsWidth = min(278, max(252, layout.safeRect.width * 0.36))
-        let controlsHeight = max(0, min(210, layout.safeRect.height - 28))
+    var currentCalibrationPreviewBounds: CGRect {
+        let layout = currentLandscapeLayout()
+        let controlsFrame = calibrationControlsFrame(layout: layout)
+        let minX = controlsFrame.maxX + 14
         return CGRect(
-            x: layout.safeRect.minX + 14,
-            y: layout.safeRect.maxY - controlsHeight - 14,
+            x: minX,
+            y: layout.gameplayRect.minY,
+            width: max(0, layout.gameplayRect.maxX - minX),
+            height: layout.gameplayRect.height
+        )
+    }
+
+    func makeCalibrationRadarGuide(in bounds: CGRect) -> SKNode {
+        let root = SKNode()
+        root.zPosition = ArenaUIZPosition.preview
+        let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        let radius = min(bounds.width, bounds.height) * 0.37
+
+        for scale in [CGFloat(0.34), 0.68, 1] {
+            let ring = SKShapeNode(circleOfRadius: radius * scale)
+            ring.position = center
+            ring.strokeColor = theme.playerAccentColor.withAlphaComponent(scale == 1 ? 0.54 : 0.22)
+            ring.fillColor = .clear
+            ring.lineWidth = scale == 1 ? 1.4 : 0.7
+            root.addChild(ring)
+        }
+
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: center.x - radius - 10, y: center.y))
+        path.addLine(to: CGPoint(x: center.x + radius + 10, y: center.y))
+        path.move(to: CGPoint(x: center.x, y: center.y - radius - 10))
+        path.addLine(to: CGPoint(x: center.x, y: center.y + radius + 10))
+        let crosshair = SKShapeNode(path: path)
+        crosshair.strokeColor = theme.borderColor.withAlphaComponent(0.42)
+        crosshair.lineWidth = 0.8
+        root.addChild(crosshair)
+
+        let neutral = SKShapeNode(circleOfRadius: 6)
+        neutral.position = center
+        neutral.fillColor = theme.pickupAmber.withAlphaComponent(0.16)
+        neutral.strokeColor = theme.pickupAmber.withAlphaComponent(0.86)
+        neutral.lineWidth = 1.5
+        root.addChild(neutral)
+        return root
+    }
+
+    func calibrationControlsFrame(layout: ArenaLandscapeUILayout) -> CGRect {
+        let controlsWidth = min(226, max(202, layout.safeRect.width * 0.4))
+        let controlsHeight = max(0, min(216, layout.safeRect.height - 20))
+        return CGRect(
+            x: layout.safeRect.minX + 10,
+            y: layout.safeRect.maxY - controlsHeight - 10,
             width: controlsWidth,
             height: controlsHeight
         )
@@ -2892,104 +3022,147 @@ private extension ArenaScene {
 
     func renderCalibrationControls(in frame: CGRect) {
         let settings = tiltSettingsStore.settings
-        addSectionLabel("NEUTRAL", at: CGPoint(x: frame.minX + 14, y: frame.maxY - 62))
+        let inset: CGFloat = 12
         addButton(
-            "SET",
-            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 100, width: 82, height: 34),
+            "SET NEUTRAL",
+            frame: CGRect(x: frame.minX + inset, y: frame.maxY - 92, width: frame.width - inset * 2, height: 36),
             action: .calibrate,
-            style: .primary
+            style: .primary,
+            glyph: .radar,
+            fontSize: 12
         )
         addSmallLabel(
             "SENSITIVITY \(String(format: "%.1f", settings.clampedSensitivity))",
-            at: CGPoint(x: frame.minX + 112, y: frame.maxY - 66),
+            at: CGPoint(x: frame.minX + inset, y: frame.maxY - 108),
             color: theme.borderColor,
             alignment: .left
         )
+        let stepperWidth: CGFloat = 40
         addButton(
             "-",
-            frame: CGRect(x: frame.minX + 112, y: frame.maxY - 112, width: 44, height: 30),
+            frame: CGRect(x: frame.minX + inset, y: frame.maxY - 142, width: stepperWidth, height: 26),
             action: .sensitivityDown,
             style: .secondary
         )
         addButton(
             "+",
-            frame: CGRect(x: frame.minX + 168, y: frame.maxY - 112, width: 44, height: 30),
+            frame: CGRect(x: frame.maxX - inset - stepperWidth, y: frame.maxY - 142, width: stepperWidth, height: 26),
             action: .sensitivityUp,
             style: .secondary
         )
+        addProgressBar(
+            frame: CGRect(
+                x: frame.minX + inset + stepperWidth + 7,
+                y: frame.maxY - 130,
+                width: max(0, frame.width - inset * 2 - stepperWidth * 2 - 14),
+                height: 4
+            ),
+            fraction: (
+                settings.clampedSensitivity - TiltControlSettings.minimumSensitivity
+            ) / (
+                TiltControlSettings.maximumSensitivity - TiltControlSettings.minimumSensitivity
+            )
+        )
 
-        addSectionLabel("PRESET", at: CGPoint(x: frame.minX + 14, y: frame.maxY - 128))
-        let presetY = frame.maxY - 164
+        addSectionLabel("PRESET", at: CGPoint(x: frame.minX + inset, y: frame.maxY - 154))
+        let presetY = frame.maxY - 188
         for (index, preset) in [TiltCalibrationPreset.standard, .flatTable, .reclined].enumerated() {
-            let presetSpacing: CGFloat = 8
-            let presetWidth = (frame.width - 28 - presetSpacing * 2) / 3
+            let presetSpacing: CGFloat = 5
+            let presetWidth = (frame.width - inset * 2 - presetSpacing * 2) / 3
             let buttonFrame = CGRect(
-                x: frame.minX + 14 + CGFloat(index) * (presetWidth + presetSpacing),
+                x: frame.minX + inset + CGFloat(index) * (presetWidth + presetSpacing),
                 y: presetY,
                 width: presetWidth,
-                height: 30
+                height: 28
             )
+            let isSelected = settings.calibration.preset == preset
             addButton(
                 presetTitle(preset),
                 frame: buttonFrame,
                 action: .preset(preset),
-                style: settings.calibration.preset == preset ? .primary : .secondary
+                style: isSelected ? .primary : .secondary,
+                fontSize: 9
             )
+            if isSelected {
+                addSelectionIndicator(in: buttonFrame)
+            }
         }
 
         renderTiltReadout(in: CGRect(
-            x: frame.minX + 14,
-            y: frame.minY + 8,
-            width: frame.width - 28,
-            height: 24
+            x: frame.minX + inset,
+            y: frame.minY + 2,
+            width: frame.width - inset * 2,
+            height: 16
         ))
     }
 
     func renderTiltOptions(in frame: CGRect) {
-        addSectionLabel("TILT CONTROL", at: CGPoint(x: frame.minX + 14, y: frame.maxY - 22))
+        let inset: CGFloat = 10
+        addSectionLabel("CONTROL", at: CGPoint(x: frame.minX + inset, y: frame.maxY - 18))
         addButton(
             "CALIBRATE",
-            frame: CGRect(x: frame.minX + 14, y: frame.maxY - 64, width: 112, height: 34),
+            frame: CGRect(x: frame.minX + inset, y: frame.maxY - 58, width: frame.width - inset * 2, height: 32),
             action: .openCalibrationPreview,
-            style: .primary
+            style: .primary,
+            glyph: .radar,
+            fontSize: 12
         )
         let settings = tiltSettingsStore.settings
         addSmallLabel(
-            "SENS \(String(format: "%.1f", settings.clampedSensitivity))",
-            at: CGPoint(x: frame.minX + 142, y: frame.maxY - 36),
+            "SENSITIVITY \(String(format: "%.1f", settings.clampedSensitivity))",
+            at: CGPoint(x: frame.minX + inset, y: frame.maxY - 74),
             color: theme.borderColor,
             alignment: .left
         )
+        let stepperWidth: CGFloat = 42
         addButton(
             "-",
-            frame: CGRect(x: frame.minX + 142, y: frame.maxY - 82, width: 40, height: 30),
+            frame: CGRect(x: frame.minX + inset, y: frame.maxY - 112, width: stepperWidth, height: 28),
             action: .sensitivityDown,
             style: .secondary
         )
         addButton(
             "+",
-            frame: CGRect(x: frame.minX + 192, y: frame.maxY - 82, width: 40, height: 30),
+            frame: CGRect(x: frame.maxX - inset - stepperWidth, y: frame.maxY - 112, width: stepperWidth, height: 28),
             action: .sensitivityUp,
             style: .secondary
         )
+        addProgressBar(
+            frame: CGRect(
+                x: frame.minX + inset + stepperWidth + 8,
+                y: frame.maxY - 99,
+                width: max(0, frame.width - inset * 2 - stepperWidth * 2 - 16),
+                height: 4
+            ),
+            fraction: (
+                settings.clampedSensitivity - TiltControlSettings.minimumSensitivity
+            ) / (
+                TiltControlSettings.maximumSensitivity - TiltControlSettings.minimumSensitivity
+            )
+        )
 
-        addSectionLabel("PRESET", at: CGPoint(x: frame.minX + 14, y: frame.minY + 70))
-        let presetY = frame.minY + 22
-        let presetSpacing: CGFloat = 8
-        let presetWidth = min(74, max(44, (frame.width - 28 - presetSpacing * 2) / 3))
+        addSectionLabel("PRESET", at: CGPoint(x: frame.minX + inset, y: frame.minY + 36))
+        let presetY = frame.minY + 7
+        let presetSpacing: CGFloat = 5
+        let presetWidth = max(0, (frame.width - inset * 2 - presetSpacing * 2) / 3)
         for (index, preset) in [TiltCalibrationPreset.standard, .flatTable, .reclined].enumerated() {
             let buttonFrame = CGRect(
-                x: frame.minX + 14 + CGFloat(index) * (presetWidth + presetSpacing),
+                x: frame.minX + inset + CGFloat(index) * (presetWidth + presetSpacing),
                 y: presetY,
                 width: presetWidth,
-                height: 34
+                height: 26
             )
+            let isSelected = settings.calibration.preset == preset
             addButton(
                 presetTitle(preset),
                 frame: buttonFrame,
                 action: .preset(preset),
-                style: settings.calibration.preset == preset ? .primary : .secondary
+                style: isSelected ? .primary : .secondary,
+                fontSize: 9
             )
+            if isSelected {
+                addSelectionIndicator(in: buttonFrame)
+            }
         }
     }
 
@@ -3025,193 +3198,232 @@ private extension ArenaScene {
         updateTiltReadoutDisplay()
     }
 
-    func renderLocalOptions(in frame: CGRect) {
-        let contentMinX = frame.minX + 14
-        let contentWidth = max(0, frame.width - 28)
-        let rowSpacing: CGFloat = 10
-        let pairedButtonWidth = max(0, (contentWidth - rowSpacing) / 2)
-
-        addSectionLabel("FEEDBACK", at: CGPoint(x: contentMinX, y: frame.maxY - 22))
-        renderLocalToggleOptions(
-            contentMinX: contentMinX,
-            topRowY: frame.maxY - 64,
-            pairedButtonWidth: pairedButtonWidth,
-            rowSpacing: rowSpacing
-        )
-        renderThemeOptions(
-            contentMinX: contentMinX,
-            contentWidth: contentWidth,
-            themeRowY: frame.minY + 52,
-            rowSpacing: rowSpacing
-        )
-        renderLocalActionOptions(
-            contentMinX: contentMinX,
-            bottomRowY: frame.minY + 14,
-            pairedButtonWidth: pairedButtonWidth,
-            rowSpacing: rowSpacing
-        )
-    }
-
-    func renderLocalToggleOptions(
-        contentMinX: CGFloat,
-        topRowY: CGFloat,
-        pairedButtonWidth: CGFloat,
-        rowSpacing: CGFloat
-    ) {
+    func renderFeedbackOptions(in frame: CGRect) {
+        let inset: CGFloat = 10
+        addSectionLabel("FEEDBACK", at: CGPoint(x: frame.minX + inset, y: frame.maxY - 18))
         addToggle(
             title: "AUDIO",
             isOn: localOptions.audioEnabled,
-            frame: CGRect(x: contentMinX, y: topRowY, width: pairedButtonWidth, height: 34),
+            frame: CGRect(x: frame.minX + inset, y: frame.maxY - 72, width: frame.width - inset * 2, height: 40),
             action: .toggleAudio
         )
         addToggle(
             title: "HAPTICS",
             isOn: localOptions.hapticsEnabled,
-            frame: CGRect(
-                x: contentMinX + pairedButtonWidth + rowSpacing,
-                y: topRowY,
-                width: pairedButtonWidth,
-                height: 34
-            ),
+            frame: CGRect(x: frame.minX + inset, y: frame.maxY - 122, width: frame.width - inset * 2, height: 40),
             action: .toggleHaptics
         )
     }
 
-    func renderThemeOptions(
-        contentMinX: CGFloat,
-        contentWidth: CGFloat,
-        themeRowY: CGFloat,
-        rowSpacing: CGFloat
-    ) {
+    func renderDisplayDataOptions(in frame: CGRect) {
+        let inset: CGFloat = 10
+        let contentWidth = max(0, frame.width - inset * 2)
+        let rowSpacing: CGFloat = 6
+        addSectionLabel("DISPLAY & DATA", at: CGPoint(x: frame.minX + inset, y: frame.maxY - 18))
         let themeKinds = ArenaThemeKind.allCases
         let themeButtonWidth = max(
             0,
             (contentWidth - CGFloat(max(0, themeKinds.count - 1)) * rowSpacing) / CGFloat(themeKinds.count)
         )
         for (index, themeKind) in themeKinds.enumerated() {
+            let buttonFrame = CGRect(
+                x: frame.minX + inset + CGFloat(index) * (themeButtonWidth + rowSpacing),
+                y: frame.maxY - 68,
+                width: themeButtonWidth,
+                height: 34
+            )
+            let isSelected = localOptions.themeKind == themeKind
             addButton(
                 themeKind.shortTitle,
-                frame: CGRect(
-                    x: contentMinX + CGFloat(index) * (themeButtonWidth + rowSpacing),
-                    y: themeRowY,
-                    width: themeButtonWidth,
-                    height: 32
-                ),
+                frame: buttonFrame,
                 action: .selectTheme(themeKind),
-                style: localOptions.themeKind == themeKind ? .primary : .secondary
+                style: isSelected ? .primary : .secondary,
+                fontSize: 10
             )
+            if isSelected {
+                addSelectionIndicator(in: buttonFrame)
+            }
         }
-    }
-
-    func renderLocalActionOptions(
-        contentMinX: CGFloat,
-        bottomRowY: CGFloat,
-        pairedButtonWidth: CGFloat,
-        rowSpacing: CGFloat
-    ) {
         addButton(
-            "LOGS",
-            frame: CGRect(x: contentMinX, y: bottomRowY, width: pairedButtonWidth, height: 30),
+            "EXPORT LOGS",
+            frame: CGRect(x: frame.minX + inset, y: frame.maxY - 110, width: contentWidth, height: 32),
             action: .exportDiagnostics,
-            style: .secondary
+            style: .secondary,
+            fontSize: 10
         )
         addButton(
-            resetDataArmed ? "CONFIRM" : "RESET",
-            frame: CGRect(
-                x: contentMinX + pairedButtonWidth + rowSpacing,
-                y: bottomRowY,
-                width: pairedButtonWidth,
-                height: 30
-            ),
+            resetDataArmed ? "CONFIRM RESET" : "RESET PROFILE",
+            frame: CGRect(x: frame.minX + inset, y: frame.minY + 8, width: contentWidth, height: 32),
             action: .resetData,
-            style: .danger
+            style: .danger,
+            fontSize: 10
         )
     }
 
     func renderPreRun() {
         let layout = currentLandscapeLayout()
+        renderGameplayHUDChrome(includeCombo: false)
         addButton(
             "CAL",
-            frame: CGRect(x: layout.safeRect.maxX - 112, y: layout.safeRect.maxY - 40, width: 48, height: 36),
+            frame: CGRect(x: layout.safeRect.maxX - 112, y: layout.safeRect.maxY - 78, width: 48, height: 34),
             action: .openCalibrationPreview,
             style: .secondary
         )
         addButton(
             "OPT",
-            frame: CGRect(x: layout.safeRect.maxX - 54, y: layout.safeRect.maxY - 40, width: 54, height: 36),
+            frame: CGRect(x: layout.safeRect.maxX - 54, y: layout.safeRect.maxY - 78, width: 54, height: 34),
             action: .openOptions,
             style: .secondary
         )
         addReadyStartCircle(at: readyStartPoint)
-        addLabel(
+        addStatusChip(
             "HOLD 3s TO START",
-            at: CGPoint(x: layout.safeRect.midX, y: layout.safeRect.midY - 92),
-            fontSize: 15,
-            color: theme.playerColor,
-            alignment: .center
+            frame: CGRect(x: layout.safeRect.midX - 82, y: layout.safeRect.minY, width: 164, height: 28),
+            color: theme.playerAccentColor
         )
-        addSmallLabel(
+        addStatusChip(
             selectedMode.displayName,
-            at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.minY + 16),
-            color: theme.borderColor,
-            alignment: .left
+            frame: CGRect(x: layout.safeRect.minX, y: layout.safeRect.minY, width: 112, height: 28),
+            color: theme.playerAccentColor,
+            glyph: .radar
         )
-        addSmallLabel(
+        addStatusChip(
             calibrationText,
-            at: CGPoint(x: layout.safeRect.maxX, y: layout.safeRect.minY + 16),
-            color: theme.borderColor,
-            alignment: .right
+            frame: CGRect(x: layout.safeRect.maxX - 170, y: layout.safeRect.minY, width: 170, height: 28),
+            color: theme.borderColor
         )
         updateReadyProgressDisplay(readyHoldController.state)
     }
 
+    func addStatusChip(
+        _ text: String,
+        frame: CGRect,
+        color: SKColor,
+        glyph: ArenaControlGlyph? = nil
+    ) {
+        let chip = SKShapeNode(rect: frame, cornerRadius: 6)
+        chip.zPosition = ArenaUIZPosition.control
+        chip.fillColor = theme.panelFillColor.withAlphaComponent(0.8)
+        chip.strokeColor = color.withAlphaComponent(0.58)
+        chip.lineWidth = 1
+        uiRoot.addChild(chip)
+        if let glyph {
+            addControlGlyph(
+                glyph,
+                at: CGPoint(x: frame.minX + 14, y: frame.midY),
+                radius: 6,
+                color: color
+            )
+        }
+        addLabel(
+            text,
+            at: CGPoint(x: frame.midX + (glyph == nil ? 0 : 7), y: frame.midY),
+            fontSize: 10,
+            color: color,
+            alignment: .center
+        )
+    }
+
     func renderPause() {
         let layout = currentLandscapeLayout()
-        addScrim(alpha: 0.58)
+        renderGameplayHUDChrome(includeCombo: true)
+        addScrim(alpha: 0.66)
+        let panelWidth = min(286, layout.safeRect.width * 0.58)
+        let panelHeight = min(204, layout.safeRect.height - 20)
+        let panelFrame = CGRect(
+            x: layout.safeRect.midX - panelWidth / 2,
+            y: layout.safeRect.midY - panelHeight / 2,
+            width: panelWidth,
+            height: panelHeight
+        )
+        addPanel(
+            frame: panelFrame,
+            stroke: theme.playerAccentColor.withAlphaComponent(0.74),
+            fill: theme.panelFillColor.withAlphaComponent(0.96),
+            accent: theme.playerAccentColor.withAlphaComponent(0.9)
+        )
         addLabel(
             "PAUSED",
-            at: CGPoint(x: layout.safeRect.midX, y: layout.safeRect.midY + 54),
-            fontSize: 26,
+            at: CGPoint(x: panelFrame.midX, y: panelFrame.maxY - 28),
+            fontSize: 24,
             color: theme.playerColor,
             alignment: .center
         )
+        addDividerLine(
+            from: CGPoint(x: panelFrame.minX + 14, y: panelFrame.maxY - 52),
+            to: CGPoint(x: panelFrame.maxX - 14, y: panelFrame.maxY - 52),
+            color: theme.playerAccentColor.withAlphaComponent(0.58)
+        )
+        let contentMinX = panelFrame.minX + 14
+        let contentWidth = panelFrame.width - 28
         addButton(
             "RESUME",
-            frame: CGRect(x: layout.safeRect.midX - 82, y: layout.safeRect.midY - 20, width: 164, height: 50),
+            frame: CGRect(x: contentMinX, y: panelFrame.maxY - 102, width: contentWidth, height: 42),
             action: .resume,
-            style: .primary
+            style: .primary,
+            glyph: .play,
+            fontSize: 16
         )
+        let utilityGap: CGFloat = 8
+        let utilityWidth = (contentWidth - utilityGap) / 2
         addButton(
             "CALIBRATE",
-            frame: CGRect(x: layout.safeRect.maxX - 150, y: layout.safeRect.midY + 12, width: 150, height: 38),
+            frame: CGRect(x: contentMinX, y: panelFrame.maxY - 144, width: utilityWidth, height: 34),
             action: .openCalibrationPreview,
-            style: .secondary
+            style: .secondary,
+            glyph: .radar,
+            fontSize: 10
         )
         addButton(
             "OPTIONS",
-            frame: CGRect(x: layout.safeRect.maxX - 150, y: layout.safeRect.midY - 38, width: 150, height: 38),
+            frame: CGRect(
+                x: contentMinX + utilityWidth + utilityGap,
+                y: panelFrame.maxY - 144,
+                width: utilityWidth,
+                height: 34
+            ),
             action: .openOptions,
-            style: .secondary
+            style: .secondary,
+            glyph: .settings,
+            fontSize: 10
         )
         #if DEBUG
         addButton(
             "DEV",
-            frame: CGRect(x: layout.safeRect.maxX - 150, y: layout.safeRect.midY - 88, width: 150, height: 38),
+            frame: CGRect(
+                x: contentMinX + utilityWidth + utilityGap,
+                y: panelFrame.minY + 12,
+                width: utilityWidth,
+                height: 32
+            ),
             action: .openDeveloperTuning,
             style: .secondary
         )
+        let endRunWidth = utilityWidth
+        #else
+        let endRunWidth = contentWidth
         #endif
         addButton(
             "END RUN",
-            frame: CGRect(x: layout.safeRect.minX, y: layout.safeRect.minY, width: 132, height: 36),
+            frame: CGRect(
+                x: contentMinX,
+                y: panelFrame.minY + 12,
+                width: endRunWidth,
+                height: 32
+            ),
             action: .endRun,
-            style: .danger
+            style: .danger,
+            fontSize: 11
         )
     }
 
     func renderPostRun() {
         let layout = currentLandscapeLayout()
-        addScrim(alpha: 0.62)
+        addScrim(alpha: 0.72)
+        addCornerAccents(
+            frame: layout.safeRect,
+            color: theme.playerAccentColor.withAlphaComponent(0.72)
+        )
         let summary = runController.finalizedSummary
 
         renderPostRunScore(summary: summary, layout: layout)
@@ -3238,65 +3450,90 @@ private extension ArenaScene {
 
     func renderPostRunScore(summary: RunSummary?, layout: ArenaLandscapeUILayout) {
         addLabel(
-            "GAME OVER",
-            at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 52),
-            fontSize: 24,
+            "RUN OVER",
+            at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 34),
+            fontSize: 28,
             color: theme.enemyColor,
             alignment: .left
         )
         addLabel(
             "\(summary?.score ?? runController.score)",
-            at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 86),
-            fontSize: 30,
+            at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 88),
+            fontSize: 48,
             color: theme.playerColor,
             alignment: .left
         )
-        addSmallLabel(
+        addStatusChip(
             summary?.score ?? 0 > previousBestScore ? "NEW BEST" : "BEST \(runProfile.bestScore)",
-            at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 112),
-            color: theme.playerAccentColor,
-            alignment: .left
+            frame: CGRect(
+                x: layout.safeRect.minX,
+                y: layout.safeRect.maxY - 150,
+                width: 144,
+                height: 26
+            ),
+            color: theme.playerAccentColor
         )
         renderGameCenterStatusMessage(
-            at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 136),
+            at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 164),
             alignment: .left
         )
     }
 
     func renderPostRunHighlights(summary: RunSummary?, in frame: CGRect) {
-        addPanel(frame: frame)
-        let highlights = ArenaMenuContent.postRunHighlights(
+        addPanel(
+            frame: frame,
+            stroke: theme.playerAccentColor.withAlphaComponent(0.54),
+            accent: theme.playerAccentColor.withAlphaComponent(0.72)
+        )
+        let highlights = Array(ArenaMenuContent.postRunHighlights(
             summary: summary,
             profile: runProfile,
             previousBestScore: previousBestScore,
             progressionResult: lastProgressionResult
-        )
+        ).dropFirst())
         let compact = frame.height < 150
-        let topPadding: CGFloat = compact ? 22 : 28
-        let bottomPadding: CGFloat = compact ? 14 : 18
+        let topPadding: CGFloat = compact ? 16 : 22
+        let bottomPadding: CGFloat = compact ? 10 : 14
         let availableHeight = max(0, frame.height - topPadding - bottomPadding)
         let rowSpacing = highlights.count > 1
             ? min(26, max(compact ? 14 : 18, availableHeight / CGFloat(highlights.count - 1)))
             : 0
 
         for (index, text) in highlights.enumerated() {
+            let marker = SKShapeNode(circleOfRadius: 2.5)
+            marker.position = CGPoint(
+                x: frame.minX + 14,
+                y: frame.maxY - topPadding - CGFloat(index) * rowSpacing
+            )
+            marker.zPosition = ArenaUIZPosition.label
+            marker.fillColor = index == 1 ? theme.pickupAmber : theme.playerAccentColor
+            marker.strokeColor = .clear
+            uiRoot.addChild(marker)
             addLabel(
                 text,
-                at: CGPoint(x: frame.minX + 14, y: frame.maxY - topPadding - CGFloat(index) * rowSpacing),
+                at: CGPoint(x: frame.minX + 26, y: frame.maxY - topPadding - CGFloat(index) * rowSpacing),
                 fontSize: compact ? 10 : 12,
-                color: index == 0 ? theme.playerAccentColor : theme.borderColor,
+                color: index == 1 ? theme.pickupAmber : theme.borderColor,
                 alignment: .left
             )
         }
     }
 
     func renderPostRunButtons(layout: ArenaLandscapeUILayout) {
-        let primaryFrame = layout.lowerRightButtonFrame
+        let primaryWidth = min(190, layout.controlRect.width * 0.42)
+        let primaryFrame = CGRect(
+            x: layout.controlRect.maxX - primaryWidth,
+            y: layout.controlRect.minY,
+            width: primaryWidth,
+            height: 48
+        )
         addButton(
             "PLAY AGAIN",
             frame: primaryFrame,
             action: .playAgain,
-            style: .primary
+            style: .primary,
+            glyph: .play,
+            fontSize: 15
         )
         let navSpacing: CGFloat = 10
         let navAvailableWidth = max(0, primaryFrame.minX - layout.controlRect.minX - 20)
@@ -3307,7 +3544,9 @@ private extension ArenaScene {
             "MODES",
             frame: CGRect(x: navStartX, y: layout.controlRect.minY, width: buttonSize.width, height: buttonSize.height),
             action: .openModes,
-            style: .secondary
+            style: .secondary,
+            glyph: .radar,
+            fontSize: 9
         )
         addButton(
             "RANKS",
@@ -3318,7 +3557,9 @@ private extension ArenaScene {
                 height: buttonSize.height
             ),
             action: .openClassicLeaderboard,
-            style: .secondary
+            style: .secondary,
+            glyph: .ranks,
+            fontSize: 9
         )
         addButton(
             "HOME",
@@ -3329,7 +3570,9 @@ private extension ArenaScene {
                 height: buttonSize.height
             ),
             action: .home,
-            style: .secondary
+            style: .secondary,
+            glyph: .home,
+            fontSize: 9
         )
     }
 
@@ -3747,14 +3990,22 @@ private extension ArenaScene {
         readyProgressRing = progress
 
         let label = SKLabelNode(fontNamed: "Menlo-Bold")
-        label.fontSize = 18
+        label.fontSize = 11
         label.fontColor = theme.playerColor
         label.horizontalAlignmentMode = .center
         label.verticalAlignmentMode = .center
-        label.position = point
+        label.position = CGPoint(x: point.x, y: point.y - 30)
         label.zPosition = ArenaUIZPosition.label
         uiRoot.addChild(label)
         readyStatusLabel = label
+
+        addLabel(
+            "HOLD TO LAUNCH",
+            at: CGPoint(x: point.x, y: point.y + 30),
+            fontSize: 10,
+            color: theme.playerAccentColor,
+            alignment: .center
+        )
 
         for angle in stride(from: 0.0, to: Double.pi * 2, by: Double.pi / 2) {
             let tick = SKShapeNode(rectOf: CGSize(width: 3, height: 12), cornerRadius: 1)
@@ -3777,9 +4028,9 @@ private extension ArenaScene {
 
         if state.isInsideCircle {
             let remaining = max(0, readyHoldController.configuration.requiredDuration - state.elapsed)
-            readyStatusLabel?.text = String(format: "%.1f", remaining)
+            readyStatusLabel?.text = String(format: "HOLD %.1fs", remaining)
         } else {
-            readyStatusLabel?.text = "CENTER"
+            readyStatusLabel?.text = "CENTER CRAFT"
         }
     }
 
@@ -3891,6 +4142,11 @@ private extension ArenaScene {
             to: CGPoint(x: layout.safeRect.maxX - 14, y: layout.safeRect.maxY - 62),
             color: theme.panelStrokeColor.withAlphaComponent(0.72)
         )
+        addDividerLine(
+            from: CGPoint(x: layout.safeRect.minX + 68, y: layout.safeRect.maxY - 62),
+            to: CGPoint(x: layout.safeRect.minX + 148, y: layout.safeRect.maxY - 62),
+            color: theme.playerAccentColor.withAlphaComponent(0.9)
+        )
 
         return menuContentFrame(layout: layout)
     }
@@ -3911,6 +4167,10 @@ private extension ArenaScene {
         backdrop.strokeColor = theme.panelStrokeColor.withAlphaComponent(0.65)
         backdrop.lineWidth = 1.2
         uiRoot.addChild(backdrop)
+        addCornerAccents(
+            frame: layout.safeRect.insetBy(dx: 2, dy: 2),
+            color: theme.playerAccentColor.withAlphaComponent(0.76)
+        )
     }
 
     func renderSelectedModeSummary(in frame: CGRect) {
@@ -3918,8 +4178,12 @@ private extension ArenaScene {
             return
         }
 
-        addPanel(frame: frame, stroke: theme.playerAccentColor.withAlphaComponent(0.62))
-        addSectionLabel("SELECTED MODE", at: CGPoint(x: frame.minX + 14, y: frame.maxY - 24))
+        addPanel(
+            frame: frame,
+            stroke: theme.playerAccentColor.withAlphaComponent(0.62),
+            accent: theme.playerAccentColor.withAlphaComponent(0.85)
+        )
+        addSectionLabel("MISSION BRIEF", at: CGPoint(x: frame.minX + 14, y: frame.maxY - 24))
         addLabel(
             row.title,
             at: CGPoint(x: frame.minX + 14, y: frame.maxY - 54),
@@ -3950,7 +4214,11 @@ private extension ArenaScene {
     }
 
     func renderActiveUnlockBanner(in frame: CGRect) {
-        addPanel(frame: frame, stroke: theme.playerAccentColor.withAlphaComponent(0.55))
+        addPanel(
+            frame: frame,
+            stroke: theme.playerAccentColor.withAlphaComponent(0.55),
+            accent: theme.playerAccentColor.withAlphaComponent(0.72)
+        )
         addSectionLabel("NEXT UNLOCK", at: CGPoint(x: frame.minX + 14, y: frame.midY + 7))
         addLabel(
             ArenaMenuContent.activeUnlockText(profile: runProfile),
@@ -3963,32 +4231,64 @@ private extension ArenaScene {
 
     func addModeRow(_ row: ArenaModeRow, frame: CGRect) {
         let selected = row.kind == selectedMode
-        let detailFontSize: CGFloat = frame.width < 340 ? 10 : 12
+        let detailFontSize: CGFloat = frame.width < 340 ? 9 : 11
+        let roleColor: SKColor
+        let glyph: ArenaControlGlyph
+        switch row.kind {
+        case .classic:
+            roleColor = theme.playerAccentColor
+            glyph = .radar
+        case .redline:
+            roleColor = theme.enemyColor
+            glyph = .ranks
+        case .daily:
+            roleColor = theme.pickupAmber
+            glyph = .award
+        }
         addPanel(
             frame: frame,
-            stroke: selected ? theme.playerAccentColor.withAlphaComponent(0.85) : theme.borderColor.withAlphaComponent(0.35),
-            fill: selected ? theme.playerAccentColor.withAlphaComponent(0.09) : theme.backgroundColor.withAlphaComponent(0.55)
+            stroke: selected ? roleColor.withAlphaComponent(0.9) : theme.borderColor.withAlphaComponent(0.35),
+            fill: selected ? roleColor.withAlphaComponent(0.1) : theme.backgroundColor.withAlphaComponent(0.55),
+            accent: selected ? roleColor.withAlphaComponent(0.9) : nil
+        )
+        addControlGlyph(
+            glyph,
+            at: CGPoint(x: frame.minX + 20, y: frame.midY),
+            radius: 8,
+            color: row.isAvailable ? roleColor : theme.borderColor.withAlphaComponent(0.55)
         )
         addLabel(
             row.title,
-            at: CGPoint(x: frame.minX + 14, y: frame.maxY - 16),
+            at: CGPoint(x: frame.minX + 38, y: frame.maxY - 16),
             fontSize: 15,
             color: row.isAvailable ? theme.playerColor : theme.borderColor.withAlphaComponent(0.75),
             alignment: .left
         )
         addLabel(
-            row.subtitle,
-            at: CGPoint(x: frame.minX + 14, y: frame.minY + 12),
+            truncatedMenuText(
+                row.subtitle,
+                fontSize: detailFontSize,
+                width: max(42, frame.width * 0.34)
+            ),
+            at: CGPoint(x: frame.minX + 38, y: frame.minY + 12),
             fontSize: detailFontSize,
             color: theme.borderColor,
             alignment: .left
         )
         addSmallLabel(
             row.statusText,
-            at: CGPoint(x: frame.maxX - 14, y: frame.maxY - 16),
-            color: row.isAvailable ? theme.playerAccentColor : theme.borderColor,
+            at: CGPoint(x: frame.maxX - (selected ? 30 : 14), y: frame.maxY - 16),
+            color: row.isAvailable ? roleColor : theme.borderColor,
             alignment: .right
         )
+        if selected {
+            addControlGlyph(
+                .check,
+                at: CGPoint(x: frame.maxX - 15, y: frame.maxY - 16),
+                radius: 5,
+                color: roleColor
+            )
+        }
         addLabel(
             row.progressText,
             at: CGPoint(x: frame.maxX - 14, y: frame.minY + 12),
@@ -4000,25 +4300,38 @@ private extension ArenaScene {
     }
 
     func addAwardRow(_ row: ArenaAwardRow, frame: CGRect) {
-        addPanel(frame: frame, stroke: row.isComplete ? theme.playerAccentColor : theme.borderColor.withAlphaComponent(0.35))
-        let fontSize: CGFloat = frame.width < 170 ? 10 : 12
+        let accentColor = row.isComplete ? theme.playerAccentColor : theme.pickupAmber
+        addPanel(
+            frame: frame,
+            stroke: accentColor.withAlphaComponent(row.isComplete ? 0.86 : 0.55),
+            fill: accentColor.withAlphaComponent(row.isComplete ? 0.06 : 0.04),
+            accent: row.isComplete ? accentColor.withAlphaComponent(0.72) : nil
+        )
+        let fontSize: CGFloat = frame.width < 170 ? 9 : 11
+        addControlGlyph(
+            row.isComplete ? .check : .award,
+            at: CGPoint(x: frame.minX + 14, y: frame.maxY - 17),
+            radius: 6,
+            color: accentColor
+        )
         addLabel(
             row.title,
-            at: CGPoint(x: frame.minX + 12, y: frame.maxY - 17),
+            at: CGPoint(x: frame.minX + 28, y: frame.maxY - 17),
             fontSize: fontSize,
             color: row.isComplete ? theme.playerAccentColor : theme.playerColor,
             alignment: .left
         )
         addLabel(
             row.progressText,
-            at: CGPoint(x: frame.maxX - 12, y: frame.maxY - 17),
+            at: CGPoint(x: frame.maxX - 12, y: frame.minY + 20),
             fontSize: fontSize,
             color: theme.borderColor,
             alignment: .right
         )
         addProgressBar(
             frame: CGRect(x: frame.minX + 12, y: frame.minY + 9, width: frame.width - 24, height: 5),
-            fraction: row.progressFraction
+            fraction: row.progressFraction,
+            color: accentColor
         )
     }
 
@@ -4032,15 +4345,15 @@ private extension ArenaScene {
         addPanel(frame: frame, stroke: strokeColor, fill: fillColor)
 
         let compact = frame.height < 42
-        let iconRadius = min(compact ? 8 : 10, max(6, frame.height * 0.22))
-        let iconPosition = CGPoint(x: frame.minX + 14, y: frame.maxY - (compact ? 10 : 13))
+        let iconRadius = min(compact ? 9 : 12, max(7, frame.height * 0.27))
+        let iconPosition = CGPoint(x: frame.minX + 15, y: frame.midY)
         addWeaponCodexIcon(kind: row.kind, position: iconPosition, radius: iconRadius, isUnlocked: row.isUnlocked)
 
         let titleX = iconPosition.x + iconRadius + 8
         let titleWidth = max(30, frame.maxX - titleX - 48)
         addLabel(
             truncatedMenuText(row.title, fontSize: compact ? 7.4 : 8.4, width: titleWidth),
-            at: CGPoint(x: titleX, y: iconPosition.y),
+            at: CGPoint(x: titleX, y: frame.maxY - (compact ? 9 : 11)),
             fontSize: compact ? 7.4 : 8.4,
             color: row.isUnlocked ? theme.playerColor : theme.borderColor.withAlphaComponent(0.78),
             alignment: .left
@@ -4048,23 +4361,23 @@ private extension ArenaScene {
 
         addLabel(
             row.statusText,
-            at: CGPoint(x: frame.maxX - 8, y: iconPosition.y),
+            at: CGPoint(x: frame.maxX - 8, y: frame.maxY - (compact ? 9 : 11)),
             fontSize: compact ? 5.8 : 6.6,
             color: row.isUnlocked ? theme.playerAccentColor : theme.borderColor.withAlphaComponent(0.72),
             alignment: .right
         )
 
         addLabel(
-            truncatedMenuText(row.description.uppercased(), fontSize: compact ? 5.8 : 6.6, width: frame.width - 18),
-            at: CGPoint(x: frame.minX + 9, y: frame.midY - (compact ? 1 : 2)),
+            truncatedMenuText(row.description.uppercased(), fontSize: compact ? 5.8 : 6.6, width: frame.maxX - titleX - 8),
+            at: CGPoint(x: titleX, y: frame.midY - 1),
             fontSize: compact ? 5.8 : 6.6,
             color: theme.playerColor.withAlphaComponent(row.isUnlocked ? 0.78 : 0.48),
             alignment: .left
         )
 
         addLabel(
-            truncatedMenuText(row.unlockText, fontSize: compact ? 5.8 : 6.4, width: frame.width - 18),
-            at: CGPoint(x: frame.minX + 9, y: frame.minY + (compact ? 8 : 10)),
+            truncatedMenuText(row.unlockText, fontSize: compact ? 5.8 : 6.4, width: frame.maxX - titleX - 8),
+            at: CGPoint(x: titleX, y: frame.minY + (compact ? 7 : 9)),
             fontSize: compact ? 5.8 : 6.4,
             color: theme.playerAccentColor.withAlphaComponent(row.isUnlocked ? 0.82 : 0.52),
             alignment: .left
@@ -4077,7 +4390,7 @@ private extension ArenaScene {
         radius: CGFloat,
         isUnlocked: Bool
     ) {
-        let color = theme.playerAccentColor
+        let color = weaponAccentColor(for: kind)
         let ring = SKShapeNode(circleOfRadius: radius)
         ring.position = position
         ring.zPosition = ArenaUIZPosition.content
@@ -4095,13 +4408,42 @@ private extension ArenaScene {
         uiRoot.addChild(icon)
     }
 
+    func weaponAccentColor(for kind: WeaponKind) -> SKColor {
+        switch kind {
+        case .shockwave, .flameTrail, .powerWave, .novaBomb:
+            return theme.pickupAmber
+        case .seekerSwarm, .chainLightning, .ricochetLance:
+            return theme.pickupBlue
+        case .freezeBurst, .gravityWell, .warpDash:
+            return theme.pickupViolet
+        case .razorShield:
+            return theme.playerAccentColor
+        }
+    }
+
     func addToggle(title: String, isOn: Bool, frame: CGRect, action: ArenaControlAction) {
         addButton(
             "\(title) \(isOn ? "ON" : "OFF")",
             frame: frame,
             action: action,
-            style: isOn ? .primary : .secondary
+            style: isOn ? .primary : .secondary,
+            fontSize: 10
         )
+        if isOn {
+            addSelectionIndicator(in: frame)
+        }
+    }
+
+    func addSelectionIndicator(in frame: CGRect) {
+        let position = CGPoint(x: frame.maxX - 11, y: frame.maxY - 10)
+        let ring = SKShapeNode(circleOfRadius: 6)
+        ring.position = position
+        ring.zPosition = ArenaUIZPosition.controlFill
+        ring.fillColor = theme.panelFillColor.withAlphaComponent(0.92)
+        ring.strokeColor = theme.playerAccentColor
+        ring.lineWidth = 1
+        uiRoot.addChild(ring)
+        addControlGlyph(.check, at: position, radius: 3.5, color: theme.playerAccentColor)
     }
 
     func addBackButton(frame: CGRect) {
@@ -4124,7 +4466,8 @@ private extension ArenaScene {
     func addPanel(
         frame: CGRect,
         stroke: SKColor? = nil,
-        fill: SKColor? = nil
+        fill: SKColor? = nil,
+        accent: SKColor? = nil
     ) {
         let panel = SKShapeNode(rect: frame, cornerRadius: 8)
         panel.zPosition = ArenaUIZPosition.panel
@@ -4132,9 +4475,31 @@ private extension ArenaScene {
         panel.strokeColor = stroke ?? theme.panelStrokeColor
         panel.lineWidth = 1
         uiRoot.addChild(panel)
+
+        if let accent {
+            addCornerAccents(frame: frame, color: accent)
+        }
     }
 
-    func addProgressBar(frame: CGRect, fraction: Double) {
+    func addCornerAccents(frame: CGRect, color: SKColor) {
+        let length = min(12, min(frame.width, frame.height) * 0.22)
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: frame.minX + 3, y: frame.maxY - length - 3))
+        path.addLine(to: CGPoint(x: frame.minX + 3, y: frame.maxY - 3))
+        path.addLine(to: CGPoint(x: frame.minX + length + 3, y: frame.maxY - 3))
+        path.move(to: CGPoint(x: frame.maxX - length - 3, y: frame.minY + 3))
+        path.addLine(to: CGPoint(x: frame.maxX - 3, y: frame.minY + 3))
+        path.addLine(to: CGPoint(x: frame.maxX - 3, y: frame.minY + length + 3))
+
+        let accents = SKShapeNode(path: path)
+        accents.zPosition = ArenaUIZPosition.controlFill
+        accents.strokeColor = color
+        accents.lineWidth = 1.4
+        accents.lineCap = .square
+        uiRoot.addChild(accents)
+    }
+
+    func addProgressBar(frame: CGRect, fraction: Double, color: SKColor? = nil) {
         let background = SKShapeNode(rect: frame, cornerRadius: 2)
         background.zPosition = ArenaUIZPosition.control
         background.fillColor = theme.borderColor.withAlphaComponent(0.18)
@@ -4151,7 +4516,7 @@ private extension ArenaScene {
             cornerRadius: 2
         )
         fill.zPosition = ArenaUIZPosition.controlFill
-        fill.fillColor = theme.playerAccentColor.withAlphaComponent(0.85)
+        fill.fillColor = (color ?? theme.playerAccentColor).withAlphaComponent(0.9)
         fill.strokeColor = .clear
         uiRoot.addChild(fill)
     }
@@ -4171,7 +4536,9 @@ private extension ArenaScene {
         _ title: String,
         frame: CGRect,
         action: ArenaControlAction,
-        style: ArenaButtonStyle
+        style: ArenaButtonStyle,
+        glyph: ArenaControlGlyph? = nil,
+        fontSize: CGFloat? = nil
     ) {
         let fill: SKColor
         let stroke: SKColor
@@ -4196,17 +4563,126 @@ private extension ArenaScene {
         button.zPosition = ArenaUIZPosition.control
         button.fillColor = fill
         button.strokeColor = stroke
-        button.lineWidth = 1
+        button.lineWidth = style == .primary ? 1.4 : 1
+        button.glowWidth = theme.kind == .darkTacticalRadar && style == .primary ? 0.45 : 0
         uiRoot.addChild(button)
+
+        if style == .primary || style == .danger {
+            addCornerAccents(frame: frame, color: stroke.withAlphaComponent(0.86))
+        }
+
+        let compactGlyphLayout = glyph != nil && frame.width < 112
+        let resolvedFontSize = fontSize ?? (glyph == nil ? 14 : (compactGlyphLayout ? 10 : 16))
+        let labelX = glyph == nil ? frame.midX : frame.midX + (compactGlyphLayout ? 8 : 10)
+
+        if let glyph {
+            addControlGlyph(
+                glyph,
+                at: CGPoint(
+                    x: frame.minX + (compactGlyphLayout ? 14 : 24),
+                    y: frame.midY
+                ),
+                radius: compactGlyphLayout ? 7 : 10,
+                color: text
+            )
+        }
 
         addLabel(
             title,
-            at: CGPoint(x: frame.midX, y: frame.midY - 1),
-            fontSize: 14,
+            at: CGPoint(x: labelX, y: frame.midY - 1),
+            fontSize: resolvedFontSize,
             color: text,
             alignment: .center
         )
         uiHitTargets.append(ArenaControlHitTarget(action: action, frame: frame))
+    }
+
+    func addControlGlyph(
+        _ glyph: ArenaControlGlyph,
+        at position: CGPoint,
+        radius: CGFloat,
+        color: SKColor
+    ) {
+        let root = SKNode()
+        root.position = position
+        root.zPosition = ArenaUIZPosition.label
+        uiRoot.addChild(root)
+
+        let path = CGMutablePath()
+        switch glyph {
+        case .play:
+            path.move(to: CGPoint(x: -radius * 0.55, y: -radius * 0.8))
+            path.addLine(to: CGPoint(x: radius * 0.8, y: 0))
+            path.addLine(to: CGPoint(x: -radius * 0.55, y: radius * 0.8))
+            path.closeSubpath()
+        case .radar:
+            for scale in [CGFloat(0.45), 0.9] {
+                path.addEllipse(in: CGRect(
+                    x: -radius * scale,
+                    y: -radius * scale,
+                    width: radius * scale * 2,
+                    height: radius * scale * 2
+                ))
+            }
+            path.move(to: CGPoint(x: 0, y: 0))
+            path.addLine(to: CGPoint(x: radius * 0.74, y: radius * 0.5))
+        case .award:
+            for index in 0..<10 {
+                let angle = -CGFloat.pi / 2 + CGFloat(index) * CGFloat.pi / 5
+                let pointRadius = index.isMultiple(of: 2) ? radius : radius * 0.42
+                let point = CGPoint(x: cos(angle) * pointRadius, y: sin(angle) * pointRadius)
+                if index == 0 {
+                    path.move(to: point)
+                } else {
+                    path.addLine(to: point)
+                }
+            }
+            path.closeSubpath()
+        case .weapon:
+            path.addEllipse(in: CGRect(x: -radius * 0.72, y: -radius * 0.72, width: radius * 1.44, height: radius * 1.44))
+            path.move(to: CGPoint(x: -radius, y: 0))
+            path.addLine(to: CGPoint(x: radius, y: 0))
+            path.move(to: CGPoint(x: 0, y: -radius))
+            path.addLine(to: CGPoint(x: 0, y: radius))
+        case .ranks:
+            for offset in [-radius * 0.42, radius * 0.2] {
+                path.move(to: CGPoint(x: -radius * 0.8, y: offset - radius * 0.2))
+                path.addLine(to: CGPoint(x: 0, y: offset + radius * 0.38))
+                path.addLine(to: CGPoint(x: radius * 0.8, y: offset - radius * 0.2))
+            }
+        case .settings:
+            for index in 0..<6 {
+                let angle = CGFloat(index) * CGFloat.pi / 3
+                let point = CGPoint(x: cos(angle) * radius, y: sin(angle) * radius)
+                if index == 0 {
+                    path.move(to: point)
+                } else {
+                    path.addLine(to: point)
+                }
+            }
+            path.closeSubpath()
+            path.addEllipse(in: CGRect(x: -radius * 0.28, y: -radius * 0.28, width: radius * 0.56, height: radius * 0.56))
+        case .home:
+            path.move(to: CGPoint(x: -radius, y: -radius * 0.05))
+            path.addLine(to: CGPoint(x: 0, y: radius * 0.86))
+            path.addLine(to: CGPoint(x: radius, y: -radius * 0.05))
+            path.move(to: CGPoint(x: -radius * 0.72, y: 0))
+            path.addLine(to: CGPoint(x: -radius * 0.72, y: -radius * 0.82))
+            path.addLine(to: CGPoint(x: radius * 0.72, y: -radius * 0.82))
+            path.addLine(to: CGPoint(x: radius * 0.72, y: 0))
+        case .check:
+            path.move(to: CGPoint(x: -radius * 0.82, y: 0))
+            path.addLine(to: CGPoint(x: -radius * 0.2, y: -radius * 0.62))
+            path.addLine(to: CGPoint(x: radius * 0.9, y: radius * 0.68))
+        }
+
+        let node = SKShapeNode(path: path)
+        node.strokeColor = color
+        node.fillColor = glyph == .play || glyph == .award ? color.withAlphaComponent(0.9) : .clear
+        node.lineWidth = max(1, radius * 0.15)
+        node.lineCap = .round
+        node.lineJoin = .round
+        root.addChild(node)
     }
 
     func addTitle(_ text: String, at position: CGPoint) {
@@ -5025,6 +5501,17 @@ private enum ArenaButtonStyle {
     case primary
     case secondary
     case danger
+}
+
+private enum ArenaControlGlyph: Equatable {
+    case play
+    case radar
+    case award
+    case weapon
+    case ranks
+    case settings
+    case home
+    case check
 }
 
 private enum ArenaUIZPosition {
