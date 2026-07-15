@@ -319,6 +319,7 @@ final class EnemySpawnDirectorPaddleTrapTests: XCTestCase {
 
     private func paddleTrapTestConfiguration() -> EnemySpawnConfiguration {
         var configuration = EnemySpawnConfiguration()
+        configuration.patternIntroductionSpacing = 0
         configuration.playerSafetyRadius = 20
         configuration.paddleTrapTelegraphDuration = 1
         configuration.paddleTrapMinimumSpacing = 64

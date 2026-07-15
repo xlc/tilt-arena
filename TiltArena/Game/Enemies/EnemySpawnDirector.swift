@@ -34,7 +34,6 @@ struct EnemySpawnDirector {
         let pickupCircles: [CollisionCircle]
         let activeEnemies: [ArenaEnemy]
     }
-
     static let candidateSideCount = 4
     static let candidateLaneCount = 7
 
@@ -52,14 +51,14 @@ struct EnemySpawnDirector {
     var nextPaddleTrapOrientationIndex = 0
     var nextPaddleTrapID = 1
     var timeUntilNextChaser: TimeInterval = 0
-    private var timeUntilNextFormation: TimeInterval = 0
+    var timeUntilNextFormation: TimeInterval = 0
     var timeUntilNextSplitter: TimeInterval = 0
     var timeUntilNextArrowRush: TimeInterval = 0
     var timeUntilNextMineDot: TimeInterval = 0
     var timeUntilNextHunterDot: TimeInterval = 0
     var timeUntilNextPaddleTrap: TimeInterval = 0
+    var enabledSpawnPatterns: Set<SpawnPattern> = []
     var pendingSpawns: [Int: PendingEnemySpawn] = [:]
-
     var pendingEnemyCount: Int {
         pendingSpawns.values.reduce(0) { $0 + $1.enemies.count }
     }
@@ -123,7 +122,7 @@ struct EnemySpawnDirector {
         timeUntilNextMineDot = 0
         timeUntilNextHunterDot = 0
         timeUntilNextPaddleTrap = 0
-        pendingSpawns.removeAll()
+        resetSpawnSchedule()
         applySequenceSeed(sequenceSeed)
     }
 
@@ -271,14 +270,17 @@ struct EnemySpawnDirector {
         context: SpawnContext,
         frame: inout EnemySpawnFrame
     ) {
-        guard context.deltaTime > 0, let formationSpawnInterval = context.tuning.formationSpawnInterval else {
-            timeUntilNextFormation = 0
+        guard context.deltaTime > 0 else { return }
+        guard let formationSpawnInterval = context.tuning.formationSpawnInterval else {
+            disablePattern(.formation, timer: \.timeUntilNextFormation)
             return
         }
 
         guard formationSpawnInterval > 0 else {
+            disablePattern(.formation, timer: \.timeUntilNextFormation)
             return
         }
+        primeTimer(for: .formation, interval: formationSpawnInterval, timer: \.timeUntilNextFormation)
 
         guard pendingTelegraphSlotCount < configuration.maxPendingEnemyTelegraphs else {
             timeUntilNextFormation = max(timeUntilNextFormation, formationSpawnInterval)

@@ -305,6 +305,7 @@ final class EnemySpawnDirectorHunterDotTests: XCTestCase {
 
     private func hunterDotTestConfiguration() -> EnemySpawnConfiguration {
         var configuration = EnemySpawnConfiguration()
+        configuration.patternIntroductionSpacing = 0
         configuration.playerSafetyRadius = 20
         configuration.hunterDotTelegraphDuration = 0.75
         configuration.warmup = disabledPhaseTuning(maxActiveEnemies: 20)

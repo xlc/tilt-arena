@@ -162,6 +162,7 @@ final class EnemySpawnDirectorSplitterTests: XCTestCase {
             maxActiveSplitters: 1
         )
         var configuration = EnemySpawnConfiguration()
+        configuration.patternIntroductionSpacing = 0
         configuration.playerSafetyRadius = 20
         configuration.splitterRadiusScale = 1.75
         configuration.warmup = disabledPhaseTuning(maxActiveEnemies: 10)

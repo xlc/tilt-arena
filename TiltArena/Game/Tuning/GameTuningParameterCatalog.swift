@@ -156,6 +156,7 @@ enum GameTuningParameterCatalog {
         specs.append(double("\(sourcePrefix).spawnWarningDuration", group, "spawn warning", keyPath.appending(path: \.spawnWarningDuration), 0.05, 0, nil, 2))
         specs.append(double("\(sourcePrefix).spawnPlayerCollisionGraceDuration", group, "spawn safe time", keyPath.appending(path: \.spawnPlayerCollisionGraceDuration), 0.05, 0, nil, 2))
         specs.append(int("\(sourcePrefix).maxPendingSpawnWarnings", group, "max spawn warnings", keyPath.appending(path: \.maxPendingSpawnWarnings), 1, 0, nil))
+        specs.append(double("\(sourcePrefix).patternIntroductionSpacing", group, "pattern intro spacing", keyPath.appending(path: \.patternIntroductionSpacing), 0.25, 0, nil, 2))
         specs.append(cgFloat("\(sourcePrefix).splitterRadiusScale", group, "splitter radius scale", keyPath.appending(path: \.splitterRadiusScale), 0.05, 1, nil, 2))
         specs.append(cgFloat("\(sourcePrefix).splitterChildRadiusScale", group, "splitter child radius scale", keyPath.appending(path: \.splitterChildRadiusScale), 0.05, 0.1, nil, 2))
         specs.append(cgFloat("\(sourcePrefix).splitterChildSpeedScale", group, "splitter child speed scale", keyPath.appending(path: \.splitterChildSpeedScale), 0.05, 0, nil, 2))

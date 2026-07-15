@@ -6,16 +6,20 @@ extension EnemySpawnDirector {
         context: SpawnContext,
         frame: inout EnemySpawnFrame
     ) {
-        guard context.deltaTime > 0, let hunterDotSpawnInterval = context.tuning.hunterDotSpawnInterval else {
-            timeUntilNextHunterDot = 0
+        guard context.deltaTime > 0 else { return }
+        guard let hunterDotSpawnInterval = context.tuning.hunterDotSpawnInterval else {
+            disablePattern(.hunterDot, timer: \.timeUntilNextHunterDot)
             return
         }
 
         guard hunterDotSpawnInterval > 0,
               context.tuning.maxActiveHunterDots > 0,
               context.tuning.hunterDotSpeed > 0 else {
+            disablePattern(.hunterDot, timer: \.timeUntilNextHunterDot)
             return
         }
+
+        primeTimer(for: .hunterDot, interval: hunterDotSpawnInterval, timer: \.timeUntilNextHunterDot)
 
         guard pendingTelegraphSlotCount < configuration.maxPendingEnemyTelegraphs else {
             timeUntilNextHunterDot = max(timeUntilNextHunterDot, hunterDotSpawnInterval)

@@ -28,8 +28,9 @@ extension EnemySpawnDirector {
         context: SpawnContext,
         frame: inout EnemySpawnFrame
     ) {
-        guard context.deltaTime > 0, let paddleTrapSpawnInterval = context.tuning.paddleTrapSpawnInterval else {
-            timeUntilNextPaddleTrap = 0
+        guard context.deltaTime > 0 else { return }
+        guard let paddleTrapSpawnInterval = context.tuning.paddleTrapSpawnInterval else {
+            disablePattern(.paddleTrap, timer: \.timeUntilNextPaddleTrap)
             return
         }
 
@@ -39,8 +40,11 @@ extension EnemySpawnDirector {
               context.tuning.paddleTrapLifetime > 0,
               componentCount > 0,
               context.tuning.paddleTrapDotSpeed > 0 else {
+            disablePattern(.paddleTrap, timer: \.timeUntilNextPaddleTrap)
             return
         }
+
+        primeTimer(for: .paddleTrap, interval: paddleTrapSpawnInterval, timer: \.timeUntilNextPaddleTrap)
 
         guard pendingTelegraphSlotCount < configuration.maxPendingEnemyTelegraphs else {
             timeUntilNextPaddleTrap = max(timeUntilNextPaddleTrap, paddleTrapSpawnInterval)

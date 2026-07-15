@@ -12,14 +12,18 @@ extension EnemySpawnDirector {
         context: SpawnContext,
         frame: inout EnemySpawnFrame
     ) {
-        guard context.deltaTime > 0, let mineDotSpawnInterval = context.tuning.mineDotSpawnInterval else {
-            timeUntilNextMineDot = 0
+        guard context.deltaTime > 0 else { return }
+        guard let mineDotSpawnInterval = context.tuning.mineDotSpawnInterval else {
+            disablePattern(.mineDot, timer: \.timeUntilNextMineDot)
             return
         }
 
         guard mineDotSpawnInterval > 0, context.tuning.maxActiveMineDots > 0 else {
+            disablePattern(.mineDot, timer: \.timeUntilNextMineDot)
             return
         }
+
+        primeTimer(for: .mineDot, interval: mineDotSpawnInterval, timer: \.timeUntilNextMineDot)
 
         guard pendingTelegraphSlotCount < configuration.maxPendingEnemyTelegraphs else {
             timeUntilNextMineDot = max(timeUntilNextMineDot, mineDotSpawnInterval)

@@ -7,15 +7,19 @@ extension EnemySpawnDirector {
         context: SpawnContext,
         frame: inout EnemySpawnFrame
     ) {
-        guard context.deltaTime > 0, let arrowRushSpawnInterval = context.tuning.arrowRushSpawnInterval else {
-            timeUntilNextArrowRush = 0
+        guard context.deltaTime > 0 else { return }
+        guard let arrowRushSpawnInterval = context.tuning.arrowRushSpawnInterval else {
+            disablePattern(.arrowRush, timer: \.timeUntilNextArrowRush)
             return
         }
 
         let configuredEnemyCount = max(0, context.tuning.arrowRushEnemyCount)
         guard arrowRushSpawnInterval > 0, configuredEnemyCount > 0 else {
+            disablePattern(.arrowRush, timer: \.timeUntilNextArrowRush)
             return
         }
+
+        primeTimer(for: .arrowRush, interval: arrowRushSpawnInterval, timer: \.timeUntilNextArrowRush)
 
         let requiredEnemyCount = requiredArrowRushEnemyCount(configuredEnemyCount: configuredEnemyCount)
 

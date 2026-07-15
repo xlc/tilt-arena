@@ -58,6 +58,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
         XCTAssertEqual(configuration.spawnWarningDuration, 0.45, accuracy: 0.0001)
         XCTAssertEqual(configuration.spawnPlayerCollisionGraceDuration, 0.5, accuracy: 0.0001)
         XCTAssertEqual(configuration.maxPendingSpawnWarnings, 4)
+        XCTAssertEqual(configuration.patternIntroductionSpacing, 1.5, accuracy: 0.0001)
     }
 
     func testEnemySurvivalSpeedMultiplierStartsSlowAndGainsTaperOff() {
@@ -517,6 +518,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
 
     private func formationTestConfiguration() -> EnemySpawnConfiguration {
         var configuration = EnemySpawnConfiguration()
+        configuration.patternIntroductionSpacing = 0
         configuration.formationTelegraphDuration = 1
         configuration.minimumFormationEnemyCount = 2
         configuration.pressure = EnemyPhaseTuning(
@@ -548,6 +550,7 @@ final class EnemySpawnDirectorTests: XCTestCase {
 
     private func arrowRushTestConfiguration() -> EnemySpawnConfiguration {
         var configuration = EnemySpawnConfiguration()
+        configuration.patternIntroductionSpacing = 0
         configuration.playerSafetyRadius = 20
         configuration.formationTelegraphDuration = 1
         configuration.arrowRushTelegraphDuration = 0.85

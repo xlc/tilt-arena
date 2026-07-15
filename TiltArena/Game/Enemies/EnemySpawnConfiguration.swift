@@ -74,6 +74,8 @@ struct EnemySpawnConfiguration: Equatable {
     var spawnWarningDuration: TimeInterval = 0.45
     var spawnPlayerCollisionGraceDuration: TimeInterval = 0.5
     var maxPendingSpawnWarnings = 4
+    // Staggers the first appearance of newly enabled patterns at phase boundaries.
+    var patternIntroductionSpacing: TimeInterval = 1.5
     var splitterRadiusScale: CGFloat = 1.85
     var splitterChildRadiusScale: CGFloat = 0.85
     var splitterChildSpeedScale: CGFloat = 0.82

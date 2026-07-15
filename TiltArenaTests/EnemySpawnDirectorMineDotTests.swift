@@ -280,6 +280,7 @@ final class EnemySpawnDirectorMineDotTests: XCTestCase {
 
     private func mineDotTestConfiguration() -> EnemySpawnConfiguration {
         var configuration = EnemySpawnConfiguration()
+        configuration.patternIntroductionSpacing = 0
         configuration.playerSafetyRadius = 20
         configuration.mineDotTelegraphDuration = 0.9
         configuration.mineDotMinimumSpacing = 52
