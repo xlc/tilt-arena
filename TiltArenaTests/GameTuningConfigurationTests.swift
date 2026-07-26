@@ -189,7 +189,7 @@ final class GameTuningConfigurationTests: XCTestCase {
 
         XCTAssertEqual(tuning.playerMovement.visualRadius, 1)
         XCTAssertEqual(tuning.startingWeapons.powerWaveFanAngleDegrees, 360)
-        XCTAssertEqual(tuning.classic.enemySpawnConfiguration.warmup.formationLaneCount, 1)
+        XCTAssertEqual(tuning.classic.enemySpawnConfiguration.warmup.formationLaneCount, 3)
         XCTAssertEqual(tuning.classic.enemySpawnConfiguration.warmup.formationSpawnInterval, 0.1)
     }
 }

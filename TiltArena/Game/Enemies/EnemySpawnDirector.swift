@@ -323,7 +323,7 @@ struct EnemySpawnDirector {
         availableSlots: Int
     ) -> PendingEnemySpawn? {
         let direction = nextFormationDirection()
-        let laneCount = max(3, tuning.formationLaneCount)
+        let laneCount = tuning.formationLaneCount
         let gapLaneIndex = escapeLaneIndex(
             for: playerPosition,
             direction: direction,

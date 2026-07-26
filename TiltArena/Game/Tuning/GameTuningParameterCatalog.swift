@@ -239,7 +239,7 @@ enum GameTuningParameterCatalog {
         specs.append(int("\(phasePrefix).maxActiveEnemies", group, "max active enemies", keyPath.appending(path: \.maxActiveEnemies), 5, 0, nil))
         specs.append(optionalDouble("\(phasePrefix).formationSpawnInterval", group, "formation interval", keyPath.appending(path: \.formationSpawnInterval), 0.5, 0.1, nil, 2))
         specs.append(cgFloat("\(phasePrefix).formationSpeed", group, "formation speed", keyPath.appending(path: \.formationSpeed), 2, 0, nil, 1))
-        specs.append(int("\(phasePrefix).formationLaneCount", group, "formation lanes", keyPath.appending(path: \.formationLaneCount), 1, 1, nil))
+        specs.append(int("\(phasePrefix).formationLaneCount", group, "formation lanes", keyPath.appending(path: \.formationLaneCount), 1, 3, nil))
         specs.append(optionalDouble("\(phasePrefix).arrowRushSpawnInterval", group, "arrow interval", keyPath.appending(path: \.arrowRushSpawnInterval), 0.5, 0.1, nil, 2))
         specs.append(cgFloat("\(phasePrefix).arrowRushSpeed", group, "arrow speed", keyPath.appending(path: \.arrowRushSpeed), 2, 0, nil, 1))
         specs.append(int("\(phasePrefix).arrowRushEnemyCount", group, "arrow count", keyPath.appending(path: \.arrowRushEnemyCount), 1, 0, nil))
