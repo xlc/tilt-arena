@@ -23,6 +23,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 
     func sceneWillResignActive(_ scene: UIScene) {
+        (window?.rootViewController as? GameViewController)?.pauseActiveRunIfNeeded()
         AppDiagnostics.logger(.app).info("app.inactive")
     }
 

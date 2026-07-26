@@ -274,6 +274,10 @@ final class ArenaScene: SKScene {
         rebuildUI()
     }
 
+    func pauseActiveRunIfNeeded() {
+        pauseRun()
+    }
+
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard !touches.isEmpty else {
             return
@@ -5186,6 +5190,10 @@ extension ArenaScene {
 
     var isRunGameOverForTesting: Bool {
         runController.phase == .gameOver
+    }
+
+    var isRunPausedForTesting: Bool {
+        runController.phase == .paused
     }
 
     var lastDeathCollisionSnapshotForTesting: DeathCollisionSnapshot? {

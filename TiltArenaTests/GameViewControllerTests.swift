@@ -117,6 +117,21 @@ final class GameViewControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testForegroundInterruptionPausesActiveRun() {
+        let spriteView = SafeAreaTestSKView(frame: CGRect(x: 0, y: 0, width: 852, height: 393))
+        let controller = GameViewController()
+        controller.view = spriteView
+        let scene = ArenaScene(size: spriteView.bounds.size)
+        spriteView.presentScene(scene)
+        scene.prepareActiveRunForTesting()
+
+        controller.pauseActiveRunIfNeeded()
+
+        XCTAssertTrue(scene.isRunPausedForTesting)
+        XCTAssertTrue(scene.isWeaponEffectPlaybackPausedForTesting)
+    }
+
+    @MainActor
     func testEndingRunClearsPendingWeaponEffectsUntilNextRun() {
         let scene = ArenaScene(size: CGSize(width: 852, height: 393))
         scene.prepareActiveRunForTesting()

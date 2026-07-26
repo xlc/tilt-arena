@@ -112,6 +112,10 @@ final class GameViewController: UIViewController {
         ((view as? SKView)?.scene as? ArenaScene)?.refreshGameCenterMenuStatus()
     }
 
+    func pauseActiveRunIfNeeded() {
+        ((viewIfLoaded as? SKView)?.scene as? ArenaScene)?.pauseActiveRunIfNeeded()
+    }
+
     private func installGameCenterStatusObserver() {
         NotificationCenter.default.addObserver(
             self,
