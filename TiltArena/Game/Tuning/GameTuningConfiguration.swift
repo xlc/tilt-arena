@@ -220,7 +220,7 @@ struct GameTuningParameterSpec {
             return "Enemies"
         }
         if id.hasPrefix("startingWeapons.") {
-            return Self.weaponSubgroup(for: id)
+            return group
         }
         if id.hasPrefix("playerMovement.") {
             return "Movement"
@@ -266,38 +266,6 @@ struct GameTuningParameterSpec {
 
     func matchesDefault(in tuning: GameTuningConfiguration, baseline: GameTuningConfiguration = .defaults) -> Bool {
         sourceValue(in: tuning) == sourceValue(in: baseline)
-    }
-
-    private static func weaponSubgroup(for id: String) -> String {
-        if id.hasPrefix("startingWeapons.shockwave") {
-            return "Shockwave"
-        }
-        if id.hasPrefix("startingWeapons.seeker") {
-            return "Seeker"
-        }
-        if id.hasPrefix("startingWeapons.razorShield") {
-            return "Razor Shield"
-        }
-        if id.hasPrefix("startingWeapons.freeze") {
-            return "Freeze Burst"
-        }
-        if id.hasPrefix("startingWeapons.gravityWell") {
-            return "Gravity Well"
-        }
-        if id.hasPrefix("startingWeapons.chainLightning") {
-            return "Chain Lightning"
-        }
-        if id.hasPrefix("startingWeapons.timeDilation") {
-            return "Time Dilation"
-        }
-        if id.hasPrefix("startingWeapons.powerWave") {
-            return "Power Wave"
-        }
-        if id.hasPrefix("startingWeapons.ricochetLance") {
-            return "Ricochet Lance"
-        }
-
-        return "Weapons"
     }
 }
 

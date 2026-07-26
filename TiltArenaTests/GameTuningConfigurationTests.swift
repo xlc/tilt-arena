@@ -82,8 +82,40 @@ final class GameTuningConfigurationTests: XCTestCase {
         XCTAssertTrue(classicSubgroups.contains("Enemies"))
         XCTAssertTrue(classicSubgroups.contains("Warmup"))
         XCTAssertTrue(classicSubgroups.contains("Pickups"))
-        XCTAssertTrue(weaponSubgroups.contains("Shockwave"))
-        XCTAssertFalse(weaponSubgroups.contains("Nova Bomb"))
+        XCTAssertEqual(weaponSubgroups, [
+            "Shockwave",
+            "Seeker Swarm",
+            "Razor Shield",
+            "Freeze Burst",
+            "Gravity Well",
+            "Chain Lightning",
+            "Time Dilation",
+            "Power Wave",
+            "Ricochet Lance",
+            "Nova Bomb"
+        ])
+        XCTAssertEqual(
+            GameTuningParameterCatalog.parameters(in: "Weapons", subgroup: "Ricochet Lance").map(\.id),
+            [
+                "startingWeapons.ricochetLanceBeamWidth",
+                "startingWeapons.ricochetLanceMaximumBounces",
+                "startingWeapons.ricochetLanceHoldDuration"
+            ]
+        )
+        XCTAssertEqual(
+            GameTuningParameterCatalog.parameters(in: "Weapons", subgroup: "Nova Bomb").map(\.id),
+            ["startingWeapons.novaBombTargetFraction"]
+        )
+    }
+
+    func testPrecisionWeaponParametersCanBeAdjustedThroughCatalog() {
+        var tuning = GameTuningConfiguration.defaults
+
+        tuning.adjustParameter(id: "startingWeapons.ricochetLanceMaximumBounces", direction: .increase)
+        tuning.adjustParameter(id: "startingWeapons.novaBombTargetFraction", direction: .increase)
+
+        XCTAssertEqual(tuning.startingWeapons.ricochetLanceMaximumBounces, 2)
+        XCTAssertEqual(tuning.startingWeapons.novaBombTargetFraction, 0.55, accuracy: 0.0001)
     }
 
     func testChangedOnlyCatalogFiltersToChangedParameters() {

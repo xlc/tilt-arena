@@ -5,8 +5,7 @@ import XCTest
 @MainActor
 final class ArenaSceneEnemyLifecycleTests: XCTestCase {
     func testGravityWellDestroysPickupLocationEnemyOnActivation() {
-        let scene = ArenaScene(size: CGSize(width: 320, height: 240))
-        scene.prepareActiveRunForTesting()
+        let scene = makeActiveScene()
         let pickupPosition = CGPoint(x: 80, y: 90)
         let centerEnemy = ArenaEnemy(id: 100, position: pickupPosition, radius: 10, speed: 0)
         let outerEnemy = ArenaEnemy(
@@ -28,8 +27,7 @@ final class ArenaSceneEnemyLifecycleTests: XCTestCase {
     }
 
     func testSeekerSwarmLeavesTargetLiveBeforeImpact() {
-        let scene = ArenaScene(size: CGSize(width: 320, height: 240))
-        scene.prepareActiveRunForTesting()
+        let scene = makeActiveScene()
         let target = ArenaEnemy(
             id: 100,
             position: CGPoint(x: 160, y: 120),
@@ -45,8 +43,7 @@ final class ArenaSceneEnemyLifecycleTests: XCTestCase {
     }
 
     func testSeekerExplosionUsesStoredImpactLocationAfterOriginalTargetDies() {
-        let scene = ArenaScene(size: CGSize(width: 320, height: 240))
-        scene.prepareActiveRunForTesting()
+        let scene = makeActiveScene()
         let target = ArenaEnemy(
             id: 100,
             position: CGPoint(x: 160, y: 120),
@@ -75,8 +72,7 @@ final class ArenaSceneEnemyLifecycleTests: XCTestCase {
     }
 
     func testPostWeaponSafetyTemporarilySuppressesEnemyCollision() {
-        let scene = ArenaScene(size: CGSize(width: 320, height: 240))
-        scene.prepareActiveRunForTesting()
+        let scene = makeActiveScene()
         let playerPosition = scene.playerPositionForTesting
         let enemy = ArenaEnemy(id: 200, position: playerPosition, radius: 10, speed: 0)
 
@@ -92,9 +88,147 @@ final class ArenaSceneEnemyLifecycleTests: XCTestCase {
         XCTAssertTrue(scene.isRunGameOverForTesting)
     }
 
+    func testSweptCollisionCatchesEnemyCrossingPlayerBetweenFrameEndpoints() throws {
+        let scene = makeActiveScene()
+        let playerPosition = scene.playerPositionForTesting
+        let enemy = ArenaEnemy(
+            id: 205,
+            position: CGPoint(x: playerPosition.x + 20, y: playerPosition.y),
+            radius: 4,
+            speed: 0
+        )
+        scene.addEnemyForTesting(enemy)
+
+        scene.detectPlayerCollisionForTesting(
+            playerPosition: playerPosition,
+            previousPlayerPosition: playerPosition,
+            previousDamageableEnemyPositions: [
+                enemy.id: CGPoint(x: playerPosition.x - 20, y: playerPosition.y)
+            ]
+        )
+
+        XCTAssertTrue(scene.isRunGameOverForTesting)
+        let collision = try XCTUnwrap(scene.lastDeathCollisionSnapshotForTesting)
+        XCTAssertEqual(collision.playerPosition.x, playerPosition.x, accuracy: 0.0001)
+        XCTAssertEqual(
+            abs(collision.enemyPosition.x - playerPosition.x),
+            ClassicRunConfiguration().playerHitRadius + enemy.radius,
+            accuracy: 0.0001
+        )
+    }
+
+    func testSweptCollisionDoesNotRetroactivelyKillAcrossProtectedMovement() {
+        let scene = makeActiveScene()
+        let playerPosition = scene.playerPositionForTesting
+        let enemy = ArenaEnemy(
+            id: 207,
+            position: CGPoint(x: playerPosition.x + 20, y: playerPosition.y),
+            radius: 4,
+            speed: 0
+        )
+        scene.addEnemyForTesting(enemy)
+
+        scene.detectPlayerCollisionForTesting(
+            playerPosition: playerPosition,
+            previousPlayerPosition: playerPosition,
+            previousDamageableEnemyPositions: [
+                enemy.id: CGPoint(x: playerPosition.x - 20, y: playerPosition.y)
+            ],
+            allowsSweptCollision: false
+        )
+
+        XCTAssertFalse(scene.isRunGameOverForTesting)
+    }
+
+    func testSweptCollisionDoesNotRetroactivelyKillAcrossEnemySpawnGrace() {
+        let scene = makeActiveScene()
+        let playerPosition = scene.playerPositionForTesting
+        let enemy = ArenaEnemy(
+            id: 208,
+            position: CGPoint(x: playerPosition.x + 20, y: playerPosition.y),
+            radius: 4,
+            speed: 0
+        )
+        scene.addEnemyForTesting(enemy)
+
+        scene.detectPlayerCollisionForTesting(
+            playerPosition: playerPosition,
+            previousPlayerPosition: playerPosition,
+            previousDamageableEnemyPositions: [:]
+        )
+
+        XCTAssertFalse(scene.isRunGameOverForTesting)
+    }
+
+    func testEnemyLeavingSpawnGraceCanStillHitAtFrameEndpoint() {
+        let scene = makeActiveScene()
+        let playerPosition = scene.playerPositionForTesting
+        let enemy = ArenaEnemy(id: 209, position: playerPosition, radius: 4, speed: 0)
+        scene.addEnemyForTesting(enemy)
+
+        scene.detectPlayerCollisionForTesting(
+            playerPosition: playerPosition,
+            previousPlayerPosition: playerPosition,
+            previousDamageableEnemyPositions: [:]
+        )
+
+        XCTAssertTrue(scene.isRunGameOverForTesting)
+    }
+
+    func testFrozenEnemyCanBeShatteredBeforeThawWindow() {
+        let scene = makeActiveScene()
+        let frozenEnemy = ArenaEnemy(
+            id: 206,
+            position: scene.playerPositionForTesting,
+            radius: 4,
+            speed: 0,
+            frozenTimeRemaining: 4
+        )
+        scene.addEnemyForTesting(frozenEnemy)
+
+        scene.shatterFrozenContactEnemiesForTesting()
+
+        XCTAssertTrue(scene.enemyIDsForTesting.isEmpty)
+        XCTAssertFalse(scene.isRunGameOverForTesting)
+    }
+
+    func testControlAndArenaClearsSuppressSplitterChildren() {
+        for weaponKind in [WeaponKind.freezeBurst, .gravityWell, .novaBomb] {
+            let scene = makeActiveScene()
+            let splitter = ArenaEnemy(
+                id: 207,
+                position: CGPoint(x: 80, y: 80),
+                radius: 8,
+                speed: 70,
+                behavior: .splitter
+            )
+            scene.addEnemyForTesting(splitter)
+
+            scene.destroyEnemiesForTesting(ids: [splitter.id], weaponKind: weaponKind)
+
+            XCTAssertTrue(scene.enemyIDsForTesting.isEmpty, "\(weaponKind) should fully clear splitters")
+        }
+    }
+
+    func testDirectDamageStillTriggersSplitterChildren() {
+        let scene = makeActiveScene()
+        let splitter = ArenaEnemy(
+            id: 208,
+            position: CGPoint(x: 80, y: 80),
+            radius: 8,
+            speed: 70,
+            behavior: .splitter
+        )
+        scene.addEnemyForTesting(splitter)
+
+        scene.destroyEnemiesForTesting(ids: [splitter.id], weaponKind: .shockwave)
+
+        XCTAssertEqual(scene.enemyIDsForTesting.count, 2)
+        XCTAssertFalse(scene.enemyIDsForTesting.contains(splitter.id))
+    }
+
     func testPostWeaponSafetyHonorsMinimumEffectTravelDuration() {
-        let scene = ArenaScene(size: CGSize(width: 320, height: 240))
-        scene.prepareActiveRunForTesting()
+        let scene = makeActiveScene()
         let playerPosition = scene.playerPositionForTesting
         let enemy = ArenaEnemy(id: 201, position: playerPosition, radius: 10, speed: 0)
 
@@ -112,8 +246,7 @@ final class ArenaSceneEnemyLifecycleTests: XCTestCase {
     }
 
     func testNovaClearResolvesBeforeCollisionWhenDroppedFrameCrossesDeadline() {
-        let scene = ArenaScene(size: CGSize(width: 320, height: 240))
-        scene.prepareActiveRunForTesting()
+        let scene = makeActiveScene()
         let playerPosition = scene.playerPositionForTesting
         let enemy = ArenaEnemy(id: 204, position: playerPosition, radius: 10, speed: 0)
 
@@ -128,8 +261,7 @@ final class ArenaSceneEnemyLifecycleTests: XCTestCase {
     }
 
     func testRazorShieldResolvesContactBeforeEnemyCanDamagePlayerOrQueueDuplicateBolts() {
-        let scene = ArenaScene(size: CGSize(width: 320, height: 240))
-        scene.prepareActiveRunForTesting()
+        let scene = makeActiveScene()
         let playerPosition = scene.playerPositionForTesting
         let enemy = ArenaEnemy(id: 201, position: playerPosition, radius: 10, speed: 0)
         let configuration = StartingWeaponConfiguration(
@@ -152,8 +284,7 @@ final class ArenaSceneEnemyLifecycleTests: XCTestCase {
     }
 
     func testZeroDurationRazorShieldCompletesImmediatelyWithExplosionSafety() {
-        let scene = ArenaScene(size: CGSize(width: 320, height: 240))
-        scene.prepareActiveRunForTesting()
+        let scene = makeActiveScene()
         let playerPosition = scene.playerPositionForTesting
         let enemy = ArenaEnemy(id: 202, position: playerPosition, radius: 10, speed: 0)
         let configuration = StartingWeaponConfiguration(
@@ -174,8 +305,7 @@ final class ArenaSceneEnemyLifecycleTests: XCTestCase {
     }
 
     func testZeroDurationTimeDilationCompletesWithoutLeavingAuraState() {
-        let scene = ArenaScene(size: CGSize(width: 320, height: 240))
-        scene.prepareActiveRunForTesting()
+        let scene = makeActiveScene()
         let configuration = StartingWeaponConfiguration(timeDilationDuration: 0)
 
         scene.activateTimeDilationAuraForTesting(configuration: configuration)
@@ -185,8 +315,7 @@ final class ArenaSceneEnemyLifecycleTests: XCTestCase {
     }
 
     func testFlameTrailResolvesBurnBeforeEnemyCanDamagePlayerOrQueueDuplicateBursts() {
-        let scene = ArenaScene(size: CGSize(width: 320, height: 240))
-        scene.prepareActiveRunForTesting()
+        let scene = makeActiveScene()
         let playerPosition = scene.playerPositionForTesting
         let enemy = ArenaEnemy(id: 203, position: playerPosition, radius: 10, speed: 0)
         let configuration = FlameTrailConfiguration(
@@ -211,5 +340,11 @@ final class ArenaSceneEnemyLifecycleTests: XCTestCase {
         scene.updateFlameTrailForTesting(deltaTime: 1.0 / 60.0)
 
         XCTAssertEqual(scene.weaponEffectNodeCountForTesting, effectNodeCountAfterBurn)
+    }
+
+    private func makeActiveScene() -> ArenaScene {
+        let scene = ArenaScene(size: CGSize(width: 320, height: 240))
+        scene.prepareActiveRunForTesting()
+        return scene
     }
 }

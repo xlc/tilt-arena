@@ -13,7 +13,7 @@ final class WeaponApplicationCoordinatorTests: XCTestCase {
             enemy(id: 2, position: CGPoint(x: 20, y: 0)),
             enemy(id: 3, position: CGPoint(x: 60, y: 0))
         ]
-        var rng = SeededGenerator(seed: 1)
+        var rng = RunRandomNumberGenerator(seed: 1)
 
         let application = coordinator.application(
             kind: .seekerSwarm,
@@ -41,7 +41,7 @@ final class WeaponApplicationCoordinatorTests: XCTestCase {
             enemy(id: 3, position: CGPoint(x: 60, y: 0)),
             enemy(id: 4, position: CGPoint(x: 80, y: 0))
         ]
-        var rng = SeededGenerator(seed: 1)
+        var rng = RunRandomNumberGenerator(seed: 1)
 
         let application = coordinator.application(
             kind: .seekerSwarm,
@@ -64,7 +64,7 @@ final class WeaponApplicationCoordinatorTests: XCTestCase {
             enemy(id: 1, position: CGPoint(x: 20, y: 0)),
             enemy(id: 2, position: CGPoint(x: 80, y: 0))
         ]
-        var rng = SeededGenerator(seed: 1)
+        var rng = RunRandomNumberGenerator(seed: 1)
 
         let application = coordinator.application(
             kind: .shockwave,
@@ -87,7 +87,7 @@ final class WeaponApplicationCoordinatorTests: XCTestCase {
             enemy(id: 1, position: CGPoint(x: 20, y: 0)),
             enemy(id: 2, position: CGPoint(x: 80, y: 0))
         ]
-        var rng = SeededGenerator(seed: 1)
+        var rng = RunRandomNumberGenerator(seed: 1)
 
         let application = coordinator.application(
             kind: .gravityWell,
@@ -104,8 +104,8 @@ final class WeaponApplicationCoordinatorTests: XCTestCase {
     func testNovaBombUsesInjectedGeneratorForPlanAndLog() {
         let coordinator = WeaponApplicationCoordinator()
         let enemies = (1...12).map { enemy(id: $0, position: .zero) }
-        var firstGenerator = SeededGenerator(seed: 7)
-        var secondGenerator = SeededGenerator(seed: 7)
+        var firstGenerator = RunRandomNumberGenerator(seed: 7)
+        var secondGenerator = RunRandomNumberGenerator(seed: 7)
 
         let firstApplication = coordinator.application(
             kind: .novaBomb,
@@ -133,7 +133,7 @@ final class WeaponApplicationCoordinatorTests: XCTestCase {
     func testTimeDilationAuraDefersSceneSpecificResolution() {
         let coordinator = WeaponApplicationCoordinator()
         let enemies = [enemy(id: 1, position: CGPoint(x: 10, y: 0))]
-        var rng = SeededGenerator(seed: 1)
+        var rng = RunRandomNumberGenerator(seed: 1)
 
         let application = coordinator.application(
             kind: .warpDash,
@@ -149,7 +149,7 @@ final class WeaponApplicationCoordinatorTests: XCTestCase {
     func testRicochetLanceDefersSceneSpecificResolution() {
         let coordinator = WeaponApplicationCoordinator()
         let enemies = [enemy(id: 1, position: CGPoint(x: 10, y: 0))]
-        var rng = SeededGenerator(seed: 1)
+        var rng = RunRandomNumberGenerator(seed: 1)
 
         let application = coordinator.application(
             kind: .ricochetLance,
@@ -164,18 +164,5 @@ final class WeaponApplicationCoordinatorTests: XCTestCase {
 
     private func enemy(id: Int, position: CGPoint) -> ArenaEnemy {
         ArenaEnemy(id: id, position: position, radius: 8, speed: 0)
-    }
-}
-
-private struct SeededGenerator: RandomNumberGenerator {
-    private var state: UInt64
-
-    init(seed: UInt64) {
-        state = seed
-    }
-
-    mutating func next() -> UInt64 {
-        state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
-        return state
     }
 }

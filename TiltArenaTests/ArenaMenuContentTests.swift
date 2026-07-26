@@ -71,7 +71,6 @@ final class ArenaMenuContentTests: XCTestCase {
         XCTAssertEqual(rows.first?.title, "SHOCKWAVE")
         XCTAssertEqual(rows.first?.statusText, "UNLOCKED")
         XCTAssertEqual(rows.first?.unlockText, "STARTER")
-        XCTAssertEqual(rows.first?.description, "A panic ring with perfect timing.")
 
         let freezeBurst = rows.first { $0.kind == .freezeBurst }
         XCTAssertEqual(freezeBurst?.statusText, "UNLOCKED")
@@ -80,7 +79,16 @@ final class ArenaMenuContentTests: XCTestCase {
         let gravityWell = rows.first { $0.kind == .gravityWell }
         XCTAssertEqual(gravityWell?.statusText, "LOCKED")
         XCTAssertEqual(gravityWell?.unlockText, "50/100 KILLS")
-        XCTAssertEqual(gravityWell?.description, "The arena takes one deep breath.")
+
+        for row in rows {
+            XCTAssertFalse(row.description.isEmpty, "Missing description for \(row.kind)")
+            XCTAssertLessThanOrEqual(row.description.count, 40, "Description is too long for \(row.kind)")
+        }
+
+        let descriptions = Dictionary(uniqueKeysWithValues: rows.map { ($0.kind, $0.description) })
+        XCTAssertEqual(descriptions[.freezeBurst], "Freeze, then touch to shatter.")
+        XCTAssertEqual(descriptions[.ricochetLance], "Beam bounces off arena walls.")
+        XCTAssertEqual(descriptions[.novaBomb], "Random 50%; charge clears more.")
     }
 
     func testPostRunHighlightsReportNewAwardsAndNextUnlock() {
@@ -105,7 +113,7 @@ final class ArenaMenuContentTests: XCTestCase {
         XCTAssertEqual(highlights.first, "NEW BEST")
         XCTAssertTrue(highlights.contains("WEAPON SHOCKWAVE"))
         XCTAssertTrue(highlights.contains("UNLOCK FREEZE BURST"))
-        XCTAssertTrue(highlights.contains("AWARDS COMBO SPARK, FREEZE SHATTER"))
+        XCTAssertTrue(highlights.contains("AWARDS COMBO SPARK, ENEMY SWEEP"))
         XCTAssertEqual(highlights.last, "NEXT GRAVITY WELL 50/100 KILLS")
     }
 }

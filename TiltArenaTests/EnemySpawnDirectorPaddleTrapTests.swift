@@ -39,12 +39,12 @@ final class EnemySpawnDirectorPaddleTrapTests: XCTestCase {
         XCTAssertEqual(chaos.paddleTrapSpawnInterval, 16.5)
         XCTAssertEqual(chaos.maxActivePaddleTraps, 1)
         XCTAssertEqual(chaos.paddleTrapLifetime, 7, accuracy: 0.0001)
-        XCTAssertEqual(chaos.paddleTrapBarEnemyCount, 4)
+        XCTAssertEqual(chaos.paddleTrapBarEnemyCount, 3)
         XCTAssertEqual(chaos.paddleTrapDotSpeed, 172, accuracy: 0.0001)
         XCTAssertEqual(survivalHell.paddleTrapSpawnInterval, 12)
         XCTAssertEqual(survivalHell.maxActivePaddleTraps, 2)
         XCTAssertEqual(survivalHell.paddleTrapLifetime, 8, accuracy: 0.0001)
-        XCTAssertEqual(survivalHell.paddleTrapBarEnemyCount, 5)
+        XCTAssertEqual(survivalHell.paddleTrapBarEnemyCount, 4)
         XCTAssertEqual(survivalHell.paddleTrapDotSpeed, 214, accuracy: 0.0001)
     }
 
@@ -98,6 +98,51 @@ final class EnemySpawnDirectorPaddleTrapTests: XCTestCase {
         XCTAssertEqual(hypot(velocity.dx, velocity.dy), 145, accuracy: 0.0001)
         XCTAssertNil(dot.formationID)
         XCTAssertFalse(dot.isLinearPatternEnemy)
+    }
+
+    func testDefaultPaddleSafetyCanPlaceTrapInPhoneSizedArena() throws {
+        var configuration = EnemySpawnConfiguration()
+        configuration.patternIntroductionSpacing = 0
+        configuration.chaos.chaserSpawnInterval = 0
+        configuration.chaos.formationSpawnInterval = nil
+        configuration.chaos.arrowRushSpawnInterval = nil
+        configuration.chaos.mineDotSpawnInterval = nil
+        configuration.chaos.hunterDotSpawnInterval = nil
+        configuration.chaos.splitterSpawnInterval = nil
+        var director = EnemySpawnDirector(configuration: configuration)
+        let playableRect = CGRect(x: 67, y: 8, width: 718, height: 377)
+        let playerPosition = CGPoint(x: playableRect.midX, y: playableRect.midY)
+
+        let telegraphFrame = director.update(
+            deltaTime: 0.1,
+            survivalTime: 90,
+            activeEnemies: [],
+            playableRect: playableRect,
+            playerPosition: playerPosition,
+            pickupCircles: []
+        )
+        let spawnFrame = director.update(
+            deltaTime: configuration.paddleTrapTelegraphDuration,
+            survivalTime: 91,
+            activeEnemies: [],
+            playableRect: playableRect,
+            playerPosition: playerPosition,
+            pickupCircles: []
+        )
+
+        XCTAssertEqual(telegraphFrame.telegraphsToShow.count, 1)
+        XCTAssertEqual(spawnFrame.newEnemies.count, 7)
+        let minimumPlayerDistance = try XCTUnwrap(
+            spawnFrame.newEnemies.map { distance(from: $0.position, to: playerPosition) }.min()
+        )
+        XCTAssertGreaterThanOrEqual(
+            minimumPlayerDistance,
+            configuration.paddleTrapPlayerSafetyRadius + configuration.enemyRadius
+        )
+        XCTAssertLessThan(
+            minimumPlayerDistance,
+            configuration.playerSafetyRadius + configuration.enemyRadius
+        )
     }
 
     func testPendingPaddleTrapComponentsCountAgainstActiveCap() {
@@ -186,6 +231,7 @@ final class EnemySpawnDirectorPaddleTrapTests: XCTestCase {
     func testPaddleTrapPlacementAvoidsPlayerPickupsAndActiveEnemies() {
         var configuration = paddleTrapTestConfiguration()
         configuration.playerSafetyRadius = 30
+        configuration.paddleTrapPlayerSafetyRadius = 30
         var director = EnemySpawnDirector(configuration: configuration)
         let playableRect = CGRect(x: 0, y: 0, width: 300, height: 300)
         let playerPosition = CGPoint(x: 117, y: 117)
@@ -321,6 +367,7 @@ final class EnemySpawnDirectorPaddleTrapTests: XCTestCase {
         var configuration = EnemySpawnConfiguration()
         configuration.patternIntroductionSpacing = 0
         configuration.playerSafetyRadius = 20
+        configuration.paddleTrapPlayerSafetyRadius = 20
         configuration.paddleTrapTelegraphDuration = 1
         configuration.paddleTrapMinimumSpacing = 64
         configuration.warmup = disabledPhaseTuning(maxActiveEnemies: 20)
@@ -390,7 +437,7 @@ final class EnemySpawnDirectorPaddleTrapTests: XCTestCase {
             position: CGPoint(x: 20, y: 20),
             radius: 8,
             speed: 0,
-            behavior: .paddleTrapBar(trapID: 99, remainingLifetime: 7)
+            behavior: .paddleTrapBar(trapID: 99, orientation: .horizontal, remainingLifetime: 7)
         )
     }
 

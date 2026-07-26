@@ -2,17 +2,13 @@ import CoreGraphics
 import Foundation
 
 extension EnemySpawnDirector {
-    private enum PaddleTrapOrientation {
-        case horizontal
-        case vertical
-    }
-
     private enum PaddleTrapGrid {
         static let columnCount = 3
         static let rowCount = 3
     }
 
     private struct PaddleTrapLayout {
+        let orientation: PaddleTrapOrientation
         let barPositions: [CGPoint]
         let dotPosition: CGPoint
         let dotVelocity: CGVector
@@ -153,7 +149,11 @@ extension EnemySpawnDirector {
                 position: position,
                 radius: configuration.enemyRadius,
                 speed: 0,
-                behavior: .paddleTrapBar(trapID: trapID, remainingLifetime: tuning.paddleTrapLifetime)
+                behavior: .paddleTrapBar(
+                    trapID: trapID,
+                    orientation: layout.orientation,
+                    remainingLifetime: tuning.paddleTrapLifetime
+                )
             )
             enemy.startPlayerCollisionGrace(duration: configuration.spawnPlayerCollisionGraceDuration)
             return enemy
@@ -252,44 +252,44 @@ extension EnemySpawnDirector {
             halfGap: halfGap
         )
 
+        let dotBounds: CGRect
+        let dotVelocity: CGVector
+        let bounceSegment: EnemyTelegraphSegment
         switch orientation {
         case .horizontal:
-            let dotBounds = CGRect(
+            dotBounds = CGRect(
                 x: center.x - halfSpan,
                 y: center.y - innerHalfGap,
                 width: halfSpan * 2,
                 height: innerHalfGap * 2
             )
-            let bounceSegment = EnemyTelegraphSegment(
+            dotVelocity = CGVector(dx: speed, dy: speed)
+            bounceSegment = EnemyTelegraphSegment(
                 start: CGPoint(x: center.x, y: dotBounds.minY),
                 end: CGPoint(x: center.x, y: dotBounds.maxY)
             )
-            return PaddleTrapLayout(
-                barPositions: bars.first + bars.second,
-                dotPosition: center,
-                dotVelocity: CGVector(dx: speed, dy: speed),
-                dotBounds: dotBounds,
-                telegraphSegments: paddleTrapTelegraphSegments(bars: bars, bounceSegment: bounceSegment)
-            )
         case .vertical:
-            let dotBounds = CGRect(
+            dotBounds = CGRect(
                 x: center.x - innerHalfGap,
                 y: center.y - halfSpan,
                 width: innerHalfGap * 2,
                 height: halfSpan * 2
             )
-            let bounceSegment = EnemyTelegraphSegment(
+            dotVelocity = CGVector(dx: speed, dy: -speed)
+            bounceSegment = EnemyTelegraphSegment(
                 start: CGPoint(x: dotBounds.minX, y: center.y),
                 end: CGPoint(x: dotBounds.maxX, y: center.y)
             )
-            return PaddleTrapLayout(
-                barPositions: bars.first + bars.second,
-                dotPosition: center,
-                dotVelocity: CGVector(dx: speed, dy: -speed),
-                dotBounds: dotBounds,
-                telegraphSegments: paddleTrapTelegraphSegments(bars: bars, bounceSegment: bounceSegment)
-            )
         }
+
+        return PaddleTrapLayout(
+            orientation: orientation,
+            barPositions: bars.first + bars.second,
+            dotPosition: center,
+            dotVelocity: dotVelocity,
+            dotBounds: dotBounds,
+            telegraphSegments: paddleTrapTelegraphSegments(bars: bars, bounceSegment: bounceSegment)
+        )
     }
 
     private func paddleTrapBars(
@@ -341,7 +341,12 @@ extension EnemySpawnDirector {
 
         for position in layout.componentPositions {
             guard spawnRect.contains(position),
-                  isSafeSpawn(position, avoiding: playerPosition, pickupCircles: pickupCircles),
+                  isSafeSpawn(
+                      position,
+                      avoiding: playerPosition,
+                      pickupCircles: pickupCircles,
+                      playerSafetyRadius: configuration.paddleTrapPlayerSafetyRadius
+                  ),
                   isClearOfActiveEnemies(position, activeEnemies: activeEnemies),
                   isClearOfPendingPaddleTraps(position, pendingTrapPositions: pendingTrapPositions) else {
                 return false

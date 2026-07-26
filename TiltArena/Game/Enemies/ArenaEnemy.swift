@@ -1,16 +1,62 @@
 import CoreGraphics
 import Foundation
 
+enum PaddleTrapOrientation: Equatable {
+    case horizontal
+    case vertical
+}
+
+enum EnemyKind: Equatable {
+    case chaser
+    case formation
+    case arrowRush
+    case mine
+    case hunter
+    case paddleBar
+    case paddlePuck
+    case splitter
+    case splitterChild
+}
+
 enum EnemyBehavior: Equatable {
     case chaser
     case formationLine(velocity: CGVector, formationID: Int)
     case arrowRush(velocity: CGVector)
     case mineDot
     case hunterDot(predictionLead: CGFloat, previousTarget: CGPoint?)
-    case paddleTrapBar(trapID: Int, remainingLifetime: TimeInterval)
+    case paddleTrapBar(
+        trapID: Int,
+        orientation: PaddleTrapOrientation,
+        remainingLifetime: TimeInterval
+    )
     case paddleTrapDot(trapID: Int, velocity: CGVector, bounds: CGRect, remainingLifetime: TimeInterval)
     case splitter
     case splitterChild
+}
+
+extension EnemyBehavior {
+    var kind: EnemyKind {
+        switch self {
+        case .chaser:
+            return .chaser
+        case .formationLine:
+            return .formation
+        case .arrowRush:
+            return .arrowRush
+        case .mineDot:
+            return .mine
+        case .hunterDot:
+            return .hunter
+        case .paddleTrapBar:
+            return .paddleBar
+        case .paddleTrapDot:
+            return .paddlePuck
+        case .splitter:
+            return .splitter
+        case .splitterChild:
+            return .splitterChild
+        }
+    }
 }
 
 struct ArenaEnemy: Equatable, Identifiable {
@@ -80,7 +126,7 @@ struct ArenaEnemy: Equatable, Identifiable {
 
     var paddleTrapID: Int? {
         switch behavior {
-        case let .paddleTrapBar(trapID, _), let .paddleTrapDot(trapID, _, _, _):
+        case let .paddleTrapBar(trapID, _, _), let .paddleTrapDot(trapID, _, _, _):
             return trapID
         case .chaser, .formationLine, .arrowRush, .mineDot, .hunterDot, .splitter, .splitterChild:
             return nil
@@ -89,7 +135,7 @@ struct ArenaEnemy: Equatable, Identifiable {
 
     var isExpired: Bool {
         switch behavior {
-        case let .paddleTrapBar(_, remainingLifetime), let .paddleTrapDot(_, _, _, remainingLifetime):
+        case let .paddleTrapBar(_, _, remainingLifetime), let .paddleTrapDot(_, _, _, remainingLifetime):
             return remainingLifetime <= 0
         case .chaser, .formationLine, .arrowRush, .mineDot, .hunterDot, .splitter, .splitterChild:
             return false
@@ -179,6 +225,7 @@ struct ArenaEnemy: Equatable, Identifiable {
         let clampedDelta = CGFloat(clampedTime)
 
         consumePlayerCollisionGrace(deltaTime: clampedTime)
+        advancePaddleTrapLifetime(deltaTime: clampedTime)
 
         if consumeMovementPause(deltaTime: clampedTime) {
             if case let .hunterDot(predictionLead, _) = behavior {
@@ -215,8 +262,8 @@ struct ArenaEnemy: Equatable, Identifiable {
                 speedMultiplier: movementMultiplier
             )
             recordMovementTime(clampedTime)
-        case let .paddleTrapBar(trapID, remainingLifetime):
-            behavior = .paddleTrapBar(trapID: trapID, remainingLifetime: remainingLifetime - clampedTime)
+        case .paddleTrapBar:
+            return
         case let .paddleTrapDot(trapID, velocity, bounds, remainingLifetime):
             advancePaddleTrapDot(
                 trapID: trapID,
@@ -236,6 +283,26 @@ struct ArenaEnemy: Equatable, Identifiable {
         }
 
         playerCollisionGraceTimeRemaining = max(0, playerCollisionGraceTimeRemaining - deltaTime)
+    }
+
+    private mutating func advancePaddleTrapLifetime(deltaTime: TimeInterval) {
+        switch behavior {
+        case let .paddleTrapBar(trapID, orientation, remainingLifetime):
+            behavior = .paddleTrapBar(
+                trapID: trapID,
+                orientation: orientation,
+                remainingLifetime: remainingLifetime - deltaTime
+            )
+        case let .paddleTrapDot(trapID, velocity, bounds, remainingLifetime):
+            behavior = .paddleTrapDot(
+                trapID: trapID,
+                velocity: velocity,
+                bounds: bounds,
+                remainingLifetime: remainingLifetime - deltaTime
+            )
+        case .chaser, .formationLine, .arrowRush, .mineDot, .hunterDot, .splitter, .splitterChild:
+            return
+        }
     }
 
     private mutating func consumeMovementPause(deltaTime: TimeInterval) -> Bool {
@@ -400,7 +467,7 @@ struct ArenaEnemy: Equatable, Identifiable {
             trapID: trapID,
             velocity: nextVelocity,
             bounds: bounds,
-            remainingLifetime: remainingLifetime - TimeInterval(deltaTime)
+            remainingLifetime: remainingLifetime
         )
     }
 }

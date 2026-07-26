@@ -386,7 +386,7 @@ final class ArenaEnemyTests: XCTestCase {
             position: CGPoint(x: 80, y: 120),
             radius: 8,
             speed: 0,
-            behavior: .paddleTrapBar(trapID: 7, remainingLifetime: 2)
+            behavior: .paddleTrapBar(trapID: 7, orientation: .horizontal, remainingLifetime: 2)
         )
 
         enemy.advance(toward: CGPoint(x: 300, y: 300), deltaTime: 1.5)
@@ -435,6 +435,39 @@ final class ArenaEnemyTests: XCTestCase {
         XCTAssertEqual(velocity.dx, -4, accuracy: 0.0001)
         XCTAssertEqual(velocity.dy, -4, accuracy: 0.0001)
         XCTAssertEqual(remainingLifetime, 1.5, accuracy: 0.0001)
+    }
+
+    func testFrozenPaddleTrapStillExpiresOnWallClockTime() {
+        var bar = ArenaEnemy(
+            id: 1,
+            position: .zero,
+            radius: 4,
+            speed: 0,
+            behavior: .paddleTrapBar(trapID: 7, orientation: .horizontal, remainingLifetime: 1),
+            frozenTimeRemaining: 3
+        )
+        var dot = ArenaEnemy(
+            id: 2,
+            position: .zero,
+            radius: 4,
+            speed: 100,
+            behavior: .paddleTrapDot(
+                trapID: 7,
+                velocity: CGVector(dx: 100, dy: 0),
+                bounds: CGRect(x: 0, y: 0, width: 100, height: 100),
+                remainingLifetime: 1
+            ),
+            frozenTimeRemaining: 3
+        )
+
+        bar.advance(toward: .zero, deltaTime: 1)
+        dot.advance(toward: .zero, deltaTime: 1)
+
+        XCTAssertTrue(bar.isExpired)
+        XCTAssertTrue(dot.isExpired)
+        XCTAssertEqual(dot.position, .zero)
+        XCTAssertTrue(bar.isFrozen)
+        XCTAssertTrue(dot.isFrozen)
     }
 
     func testCircleCollisionUsesCombinedRadii() {

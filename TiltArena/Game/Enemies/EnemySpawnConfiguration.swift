@@ -62,6 +62,93 @@ struct EnemyPhaseTuning: Equatable {
     var maxActiveSplitters: Int = 0
 }
 
+extension EnemyPhaseTuning {
+    func interpolated(toward next: EnemyPhaseTuning?, progress: CGFloat) -> EnemyPhaseTuning {
+        var tuning = self
+        tuning.interpolateChaserAndLinearPatterns(toward: next, progress: progress)
+        tuning.interpolatePlacedAndPursuitPatterns(toward: next, progress: progress)
+        tuning.interpolatePaddleAndSplitterPatterns(toward: next, progress: progress)
+        return tuning
+    }
+
+    private mutating func interpolateChaserAndLinearPatterns(
+        toward next: EnemyPhaseTuning?,
+        progress: CGFloat
+    ) {
+        chaserSpawnInterval = interpolate(chaserSpawnInterval, next?.chaserSpawnInterval, progress)
+        chaserSpeed = interpolate(chaserSpeed, next?.chaserSpeed, progress)
+        maxActiveEnemies = interpolateCount(maxActiveEnemies, next?.maxActiveEnemies, progress)
+        formationSpawnInterval = interpolateOptional(formationSpawnInterval, next?.formationSpawnInterval, progress)
+        formationSpeed = interpolate(formationSpeed, next?.formationSpeed, progress)
+        formationLaneCount = max(3, formationLaneCount)
+        arrowRushSpawnInterval = interpolateOptional(arrowRushSpawnInterval, next?.arrowRushSpawnInterval, progress)
+        arrowRushSpeed = interpolate(arrowRushSpeed, next?.arrowRushSpeed, progress)
+        arrowRushEnemyCount = interpolateCount(arrowRushEnemyCount, next?.arrowRushEnemyCount, progress)
+    }
+
+    private mutating func interpolatePlacedAndPursuitPatterns(
+        toward next: EnemyPhaseTuning?,
+        progress: CGFloat
+    ) {
+        mineDotSpawnInterval = interpolateOptional(mineDotSpawnInterval, next?.mineDotSpawnInterval, progress)
+        maxActiveMineDots = interpolateCount(maxActiveMineDots, next?.maxActiveMineDots, progress)
+        hunterDotSpawnInterval = interpolateOptional(hunterDotSpawnInterval, next?.hunterDotSpawnInterval, progress)
+        hunterDotSpeed = interpolate(hunterDotSpeed, next?.hunterDotSpeed, progress)
+        hunterDotPredictionLead = interpolate(hunterDotPredictionLead, next?.hunterDotPredictionLead, progress)
+        maxActiveHunterDots = interpolateCount(maxActiveHunterDots, next?.maxActiveHunterDots, progress)
+    }
+
+    private mutating func interpolatePaddleAndSplitterPatterns(
+        toward next: EnemyPhaseTuning?,
+        progress: CGFloat
+    ) {
+        paddleTrapSpawnInterval = interpolateOptional(
+            paddleTrapSpawnInterval,
+            next?.paddleTrapSpawnInterval,
+            progress
+        )
+        maxActivePaddleTraps = interpolateCount(maxActivePaddleTraps, next?.maxActivePaddleTraps, progress)
+        paddleTrapLifetime = interpolate(paddleTrapLifetime, next?.paddleTrapLifetime, progress)
+        paddleTrapBarEnemyCount = interpolateCount(
+            paddleTrapBarEnemyCount,
+            next?.paddleTrapBarEnemyCount,
+            progress
+        )
+        paddleTrapDotSpeed = interpolate(paddleTrapDotSpeed, next?.paddleTrapDotSpeed, progress)
+        splitterSpawnInterval = interpolateOptional(splitterSpawnInterval, next?.splitterSpawnInterval, progress)
+        splitterSpeed = interpolate(splitterSpeed, next?.splitterSpeed, progress)
+        maxActiveSplitters = interpolateCount(maxActiveSplitters, next?.maxActiveSplitters, progress)
+    }
+
+    private func interpolate(
+        _ start: TimeInterval,
+        _ end: TimeInterval?,
+        _ progress: CGFloat
+    ) -> TimeInterval {
+        start + ((end ?? start) - start) * TimeInterval(progress)
+    }
+
+    private func interpolate(_ start: CGFloat, _ end: CGFloat?, _ progress: CGFloat) -> CGFloat {
+        start + ((end ?? start) - start) * progress
+    }
+
+    private func interpolateOptional(
+        _ start: TimeInterval?,
+        _ end: TimeInterval?,
+        _ progress: CGFloat
+    ) -> TimeInterval? {
+        guard let start else {
+            return nil
+        }
+
+        return interpolate(start, end, progress)
+    }
+
+    private func interpolateCount(_ start: Int, _ end: Int?, _ progress: CGFloat) -> Int {
+        max(0, Int(round(interpolate(CGFloat(start), end.map(CGFloat.init), progress))))
+    }
+}
+
 struct EnemySpawnConfiguration: Equatable {
     var enemyRadius: CGFloat = 4
     var enemySurvivalSpeedStartMultiplier: CGFloat = 0.82
@@ -69,6 +156,15 @@ struct EnemySpawnConfiguration: Equatable {
     var maximumEnemySurvivalSpeedMultiplier: CGFloat = 1.35
     var enemySpeedRampPerSecond: CGFloat = 0.024
     var maximumEnemySpeedMultiplier: CGFloat = 1.9
+    // Archetype-specific speed ceilings keep ordinary pursuit threats avoidable while
+    // allowing strongly telegraphed, fixed-path threats to briefly outrun the player.
+    var chaserPlayerSpeedRatio: CGFloat = 0.78
+    var formationPlayerSpeedRatio: CGFloat = 0.95
+    var arrowRushPlayerSpeedRatio: CGFloat = 1.2
+    var hunterDotPlayerSpeedRatio: CGFloat = 0.9
+    var paddleTrapDotPlayerSpeedRatio: CGFloat = 1.05
+    var splitterPlayerSpeedRatio: CGFloat = 0.65
+    var splitterChildPlayerSpeedRatio: CGFloat = 0.82
     var playerSafetyRadius: CGFloat = 120
     var pickupClearance: CGFloat = 8
     var spawnWarningDuration: TimeInterval = 0.45
@@ -76,9 +172,17 @@ struct EnemySpawnConfiguration: Equatable {
     var maxPendingSpawnWarnings = 4
     // Staggers the first appearance of newly enabled patterns at phase boundaries.
     var patternIntroductionSpacing: TimeInterval = 1.5
+    // Mode rules use these gates to teach one new pattern at a time. They default
+    // to zero so isolated/custom spawn configurations retain their existing behavior.
+    var formationMinimumSurvivalTime: TimeInterval = 0
+    var splitterMinimumSurvivalTime: TimeInterval = 0
+    var arrowRushMinimumSurvivalTime: TimeInterval = 0
+    var mineDotMinimumSurvivalTime: TimeInterval = 0
+    var hunterDotMinimumSurvivalTime: TimeInterval = 0
+    var paddleTrapMinimumSurvivalTime: TimeInterval = 0
     var splitterRadiusScale: CGFloat = 1.85
     var splitterChildRadiusScale: CGFloat = 0.85
-    var splitterChildSpeedScale: CGFloat = 0.82
+    var splitterChildSpeedScale: CGFloat = 1.25
     var splitterChildSpawnOffset: CGFloat = 18
     var splitterChildGraceDuration: TimeInterval = 0.75
     var splitterChildPlayerSafetyRadius: CGFloat = 42
@@ -93,7 +197,7 @@ struct EnemySpawnConfiguration: Equatable {
     var minimumArrowRushEnemyCount = 2
     var mineDotTelegraphDuration: TimeInterval = 0.9
     var mineDotTelegraphRadius: CGFloat = 24
-    var mineDotPickupGuardDistance: CGFloat = 44
+    var mineDotPickupGuardDistance: CGFloat = 22
     var mineDotCandidateInset: CGFloat = 48
     var mineDotMinimumSpacing: CGFloat = 52
     var hunterDotTelegraphDuration: TimeInterval = 0.75
@@ -102,6 +206,7 @@ struct EnemySpawnConfiguration: Equatable {
     var paddleTrapBarGap: CGFloat = 96
     var paddleTrapCandidateInset: CGFloat = 84
     var paddleTrapMinimumSpacing: CGFloat = 64
+    var paddleTrapPlayerSafetyRadius: CGFloat = 64
     var maxPendingEnemyTelegraphs = 2
     var cullingOutset: CGFloat = 72
     var warmup = EnemyPhaseTuning(
@@ -142,7 +247,7 @@ struct EnemySpawnConfiguration: Equatable {
         paddleTrapSpawnInterval: 16.5,
         maxActivePaddleTraps: 1,
         paddleTrapLifetime: 7,
-        paddleTrapBarEnemyCount: 4,
+        paddleTrapBarEnemyCount: 3,
         paddleTrapDotSpeed: 172,
         splitterSpawnInterval: 10.5,
         splitterSpeed: 82,
@@ -167,7 +272,7 @@ struct EnemySpawnConfiguration: Equatable {
         paddleTrapSpawnInterval: 12,
         maxActivePaddleTraps: 2,
         paddleTrapLifetime: 8,
-        paddleTrapBarEnemyCount: 5,
+        paddleTrapBarEnemyCount: 4,
         paddleTrapDotSpeed: 214,
         splitterSpawnInterval: 7.8,
         splitterSpeed: 104,
@@ -182,6 +287,31 @@ struct EnemySpawnConfiguration: Equatable {
         return startMultiplier + (maximumMultiplier - startMultiplier) * CGFloat(progress)
     }
 
+    func maximumSpeed(for kind: EnemyKind, playerMaximumSpeed: CGFloat) -> CGFloat {
+        let ratio: CGFloat
+
+        switch kind {
+        case .chaser:
+            ratio = chaserPlayerSpeedRatio
+        case .formation:
+            ratio = formationPlayerSpeedRatio
+        case .arrowRush:
+            ratio = arrowRushPlayerSpeedRatio
+        case .mine, .paddleBar:
+            return 0
+        case .hunter:
+            ratio = hunterDotPlayerSpeedRatio
+        case .paddlePuck:
+            ratio = paddleTrapDotPlayerSpeedRatio
+        case .splitter:
+            ratio = splitterPlayerSpeedRatio
+        case .splitterChild:
+            ratio = splitterChildPlayerSpeedRatio
+        }
+
+        return max(0, playerMaximumSpeed) * max(0, ratio)
+    }
+
     func tuning(at survivalTime: TimeInterval) -> EnemyPhaseTuning {
         let phase = EnemyDifficultyPhase.phase(at: survivalTime)
         let anchors = phaseAnchors
@@ -190,75 +320,32 @@ struct EnemySpawnConfiguration: Equatable {
         let next = currentIndex + 1 < anchors.count ? anchors[currentIndex + 1] : nil
         let progress = interpolationProgress(survivalTime: survivalTime, current: current, next: next)
 
-        return EnemyPhaseTuning(
-            chaserSpawnInterval: interpolate(current.tuning.chaserSpawnInterval, next?.tuning.chaserSpawnInterval, progress),
-            chaserSpeed: interpolate(current.tuning.chaserSpeed, next?.tuning.chaserSpeed, progress),
-            maxActiveEnemies: interpolateCount(current.tuning.maxActiveEnemies, next?.tuning.maxActiveEnemies, progress),
-            formationSpawnInterval: interpolateOptional(
-                current.tuning.formationSpawnInterval,
-                next?.tuning.formationSpawnInterval,
-                progress
-            ),
-            formationSpeed: interpolate(current.tuning.formationSpeed, next?.tuning.formationSpeed, progress),
-            formationLaneCount: max(3, current.tuning.formationLaneCount),
-            arrowRushSpawnInterval: interpolateOptional(
-                current.tuning.arrowRushSpawnInterval,
-                next?.tuning.arrowRushSpawnInterval,
-                progress
-            ),
-            arrowRushSpeed: interpolate(current.tuning.arrowRushSpeed, next?.tuning.arrowRushSpeed, progress),
-            arrowRushEnemyCount: interpolateCount(current.tuning.arrowRushEnemyCount, next?.tuning.arrowRushEnemyCount, progress),
-            mineDotSpawnInterval: interpolateOptional(
-                current.tuning.mineDotSpawnInterval,
-                next?.tuning.mineDotSpawnInterval,
-                progress
-            ),
-            maxActiveMineDots: interpolateCount(current.tuning.maxActiveMineDots, next?.tuning.maxActiveMineDots, progress),
-            hunterDotSpawnInterval: interpolateOptional(
-                current.tuning.hunterDotSpawnInterval,
-                next?.tuning.hunterDotSpawnInterval,
-                progress
-            ),
-            hunterDotSpeed: interpolate(current.tuning.hunterDotSpeed, next?.tuning.hunterDotSpeed, progress),
-            hunterDotPredictionLead: interpolate(
-                current.tuning.hunterDotPredictionLead,
-                next?.tuning.hunterDotPredictionLead,
-                progress
-            ),
-            maxActiveHunterDots: interpolateCount(
-                current.tuning.maxActiveHunterDots,
-                next?.tuning.maxActiveHunterDots,
-                progress
-            ),
-            paddleTrapSpawnInterval: interpolateOptional(
-                current.tuning.paddleTrapSpawnInterval,
-                next?.tuning.paddleTrapSpawnInterval,
-                progress
-            ),
-            maxActivePaddleTraps: interpolateCount(
-                current.tuning.maxActivePaddleTraps,
-                next?.tuning.maxActivePaddleTraps,
-                progress
-            ),
-            paddleTrapLifetime: interpolate(current.tuning.paddleTrapLifetime, next?.tuning.paddleTrapLifetime, progress),
-            paddleTrapBarEnemyCount: interpolateCount(
-                current.tuning.paddleTrapBarEnemyCount,
-                next?.tuning.paddleTrapBarEnemyCount,
-                progress
-            ),
-            paddleTrapDotSpeed: interpolate(current.tuning.paddleTrapDotSpeed, next?.tuning.paddleTrapDotSpeed, progress),
-            splitterSpawnInterval: interpolateOptional(
-                current.tuning.splitterSpawnInterval,
-                next?.tuning.splitterSpawnInterval,
-                progress
-            ),
-            splitterSpeed: interpolate(current.tuning.splitterSpeed, next?.tuning.splitterSpeed, progress),
-            maxActiveSplitters: interpolateCount(
-                current.tuning.maxActiveSplitters,
-                next?.tuning.maxActiveSplitters,
-                progress
-            )
+        var tuning = current.tuning.interpolated(
+            toward: next?.tuning,
+            progress: progress
         )
+
+        let time = max(0, survivalTime)
+        if time < max(0, formationMinimumSurvivalTime) {
+            tuning.formationSpawnInterval = nil
+        }
+        if time < max(0, splitterMinimumSurvivalTime) {
+            tuning.splitterSpawnInterval = nil
+        }
+        if time < max(0, arrowRushMinimumSurvivalTime) {
+            tuning.arrowRushSpawnInterval = nil
+        }
+        if time < max(0, mineDotMinimumSurvivalTime) {
+            tuning.mineDotSpawnInterval = nil
+        }
+        if time < max(0, hunterDotMinimumSurvivalTime) {
+            tuning.hunterDotSpawnInterval = nil
+        }
+        if time < max(0, paddleTrapMinimumSurvivalTime) {
+            tuning.paddleTrapSpawnInterval = nil
+        }
+
+        return tuning
     }
 
     private var phaseAnchors: [(phase: EnemyDifficultyPhase, tuning: EnemyPhaseTuning)] {
@@ -286,26 +373,6 @@ struct EnemySpawnConfiguration: Equatable {
 
         let rawProgress = (max(0, survivalTime) - current.phase.startTime) / span
         return CGFloat(min(1, max(0, rawProgress)))
-    }
-
-    private func interpolate(_ start: TimeInterval, _ end: TimeInterval?, _ progress: CGFloat) -> TimeInterval {
-        start + ((end ?? start) - start) * TimeInterval(progress)
-    }
-
-    private func interpolate(_ start: CGFloat, _ end: CGFloat?, _ progress: CGFloat) -> CGFloat {
-        start + ((end ?? start) - start) * progress
-    }
-
-    private func interpolateOptional(_ start: TimeInterval?, _ end: TimeInterval?, _ progress: CGFloat) -> TimeInterval? {
-        guard let start else {
-            return nil
-        }
-
-        return interpolate(start, end, progress)
-    }
-
-    private func interpolateCount(_ start: Int, _ end: Int?, _ progress: CGFloat) -> Int {
-        max(0, Int(round(interpolate(CGFloat(start), end.map(CGFloat.init), progress))))
     }
 }
 

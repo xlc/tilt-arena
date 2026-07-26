@@ -1,6 +1,7 @@
 import Foundation
 
 enum ArenaAwardID: String, CaseIterable, Codable, Equatable {
+    // Raw values are persisted in RunProfile. Keep these legacy IDs stable when display names evolve.
     case comboSpark
     case scoreCrest
     case freezeShatter
@@ -15,9 +16,9 @@ enum ArenaAwardID: String, CaseIterable, Codable, Equatable {
         case .scoreCrest:
             return "Score Crest"
         case .freezeShatter:
-            return "Freeze Shatter"
+            return "Enemy Sweep"
         case .dangerGrab:
-            return "Danger Grab"
+            return "Arena Regular"
         case .weaponMaster:
             return "Weapon Master"
         case .survivor:

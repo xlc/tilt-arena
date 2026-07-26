@@ -36,7 +36,6 @@ struct EnemySpawnDirector {
     }
     static let candidateSideCount = 4
     static let candidateLaneCount = 7
-
     var configuration: EnemySpawnConfiguration
     var nextEnemyID = 1
     private(set) var nextFormationID = 1
@@ -198,10 +197,11 @@ struct EnemySpawnDirector {
         _ position: CGPoint,
         avoiding playerPosition: CGPoint,
         pickupCircles: [CollisionCircle] = [],
-        enemyRadius: CGFloat? = nil
+        enemyRadius: CGFloat? = nil,
+        playerSafetyRadius: CGFloat? = nil
     ) -> Bool {
         let spawnRadius = enemyRadius ?? configuration.enemyRadius
-        let playerClearance = configuration.playerSafetyRadius + spawnRadius
+        let playerClearance = (playerSafetyRadius ?? configuration.playerSafetyRadius) + spawnRadius
         guard ArenaGeometry.squaredDistance(from: position, to: playerPosition) >= playerClearance * playerClearance else {
             return false
         }

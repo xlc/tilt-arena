@@ -55,18 +55,29 @@ final class StartingWeaponResolverTests: XCTestCase {
         XCTAssertGreaterThan(configuration.powerWaveFanAngleDegrees, 0)
         XCTAssertLessThanOrEqual(configuration.powerWaveFanAngleDegrees, 360)
         XCTAssertGreaterThan(configuration.ricochetLanceBeamWidth, 0)
-        XCTAssertEqual(configuration.ricochetLanceMaximumBounces, 0)
+        XCTAssertEqual(configuration.ricochetLanceMaximumBounces, 1)
         XCTAssertGreaterThan(configuration.ricochetLanceHoldDuration, 0)
         XCTAssertEqual(configuration.novaBombTargetFraction, 0.5)
     }
 
-    func testChargedWeaponConfigurationAppliesMeaningfulUpgrade() {
+    func testBaseWeaponConfigurationPreservesEveryConfiguredValue() {
+        let base = StartingWeaponConfiguration(
+            shockwaveRadius: 103,
+            seekerTargetLimit: 7,
+            ricochetLanceMaximumBounces: 3,
+            novaBombTargetFraction: 0.4
+        )
+
+        XCTAssertEqual(base.applying(chargeTier: .base), base)
+    }
+
+    func testChargedWeaponConfigurationAppliesMeaningfulUpgradeFromConfiguredBase() {
         let base = StartingWeaponConfiguration(
             shockwaveRadius: 100,
             seekerTargetLimit: 4,
             chainLightningTargetLimit: 6,
-            ricochetLanceMaximumBounces: 0,
-            novaBombTargetFraction: 0.5
+            ricochetLanceMaximumBounces: 3,
+            novaBombTargetFraction: 0.4
         )
 
         let charged = base.applying(chargeTier: .charged)
@@ -78,10 +89,61 @@ final class StartingWeaponResolverTests: XCTestCase {
         XCTAssertGreaterThan(overcharged.seekerTargetLimit, charged.seekerTargetLimit)
         XCTAssertGreaterThan(charged.chainLightningTargetLimit, base.chainLightningTargetLimit)
         XCTAssertGreaterThan(overcharged.chainLightningTargetLimit, charged.chainLightningTargetLimit)
-        XCTAssertEqual(charged.ricochetLanceMaximumBounces, 1)
-        XCTAssertEqual(overcharged.ricochetLanceMaximumBounces, 2)
-        XCTAssertEqual(charged.novaBombTargetFraction, 0.75)
-        XCTAssertEqual(overcharged.novaBombTargetFraction, 1)
+        XCTAssertEqual(charged.ricochetLanceMaximumBounces, 4)
+        XCTAssertEqual(overcharged.ricochetLanceMaximumBounces, 5)
+        XCTAssertEqual(charged.novaBombTargetFraction, 0.65, accuracy: 0.0001)
+        XCTAssertEqual(overcharged.novaBombTargetFraction, 0.9, accuracy: 0.0001)
+    }
+
+    func testChargedNovaBombTargetFractionIsCappedAtOne() {
+        let base = StartingWeaponConfiguration(novaBombTargetFraction: 0.8)
+
+        XCTAssertEqual(base.applying(chargeTier: .charged).novaBombTargetFraction, 1)
+        XCTAssertEqual(base.applying(chargeTier: .overcharged).novaBombTargetFraction, 1)
+    }
+
+    func testRazorShieldMergePreservesStrongestCoverage() {
+        let current = StartingWeaponConfiguration(
+            razorShieldRadius: 64,
+            razorShieldDuration: 1,
+            razorShieldExplosionRadius: 20
+        )
+        let incoming = StartingWeaponConfiguration(
+            razorShieldRadius: 12,
+            razorShieldDuration: 8,
+            razorShieldExplosionRadius: 80
+        )
+
+        let merged = current.mergingRazorShield(with: incoming)
+
+        XCTAssertEqual(merged.razorShieldRadius, current.razorShieldRadius)
+        XCTAssertEqual(merged.razorShieldDuration, incoming.razorShieldDuration)
+        XCTAssertEqual(merged.razorShieldExplosionRadius, incoming.razorShieldExplosionRadius)
+    }
+
+    func testTimeDilationMergePreservesStrongestControl() {
+        let current = StartingWeaponConfiguration(
+            timeDilationRadius: 180,
+            timeDilationDuration: 1,
+            timeDilationMaximumSlowFactor: 9,
+            timeDilationPushRadius: 20,
+            timeDilationMaximumPushDistance: 40
+        )
+        let incoming = StartingWeaponConfiguration(
+            timeDilationRadius: 40,
+            timeDilationDuration: 8,
+            timeDilationMaximumSlowFactor: 2,
+            timeDilationPushRadius: 60,
+            timeDilationMaximumPushDistance: 200
+        )
+
+        let merged = current.mergingTimeDilation(with: incoming)
+
+        XCTAssertEqual(merged.timeDilationRadius, current.timeDilationRadius)
+        XCTAssertEqual(merged.timeDilationDuration, incoming.timeDilationDuration)
+        XCTAssertEqual(merged.timeDilationMaximumSlowFactor, current.timeDilationMaximumSlowFactor)
+        XCTAssertEqual(merged.timeDilationPushRadius, incoming.timeDilationPushRadius)
+        XCTAssertEqual(merged.timeDilationMaximumPushDistance, incoming.timeDilationMaximumPushDistance)
     }
 
     func testShockwaveClearsEnemiesInsideRadius() {

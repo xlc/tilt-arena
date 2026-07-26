@@ -72,7 +72,7 @@ struct StartingWeaponConfiguration: Equatable {
     // Forgiving beam thickness used for collision along the traced path.
     var ricochetLanceBeamWidth: CGFloat = 18
     // Maximum wall bounces after the first segment.
-    var ricochetLanceMaximumBounces: Int = 0
+    var ricochetLanceMaximumBounces: Int = 1
     // Time the traced beam remains active/visible.
     var ricochetLanceHoldDuration: TimeInterval = 0.5
     // Fraction of available enemies selected.
@@ -82,8 +82,6 @@ struct StartingWeaponConfiguration: Equatable {
 extension StartingWeaponConfiguration {
     func applying(chargeTier: WeaponPickupChargeTier) -> StartingWeaponConfiguration {
         var configuration = self
-        configuration.ricochetLanceMaximumBounces = max(0, chargeTier.rawValue)
-        configuration.novaBombTargetFraction = Self.novaBombTargetFraction(for: chargeTier)
 
         guard chargeTier > .base else {
             return configuration
@@ -113,19 +111,40 @@ extension StartingWeaponConfiguration {
         configuration.powerWaveRange *= rangeScale
         configuration.powerWaveFanAngleDegrees = min(360, configuration.powerWaveFanAngleDegrees + level * 6)
         configuration.ricochetLanceBeamWidth *= compactRangeScale
+        configuration.ricochetLanceMaximumBounces += chargeTier.rawValue
+        configuration.novaBombTargetFraction = min(
+            1,
+            configuration.novaBombTargetFraction + Double(chargeTier.rawValue) * 0.25
+        )
 
         return configuration
     }
 
-    private static func novaBombTargetFraction(for chargeTier: WeaponPickupChargeTier) -> Double {
-        switch chargeTier {
-        case .base:
-            return 0.5
-        case .charged:
-            return 0.75
-        case .overcharged:
-            return 1
-        }
+    func mergingRazorShield(with other: StartingWeaponConfiguration) -> StartingWeaponConfiguration {
+        var merged = self
+        merged.razorShieldRadius = max(razorShieldRadius, other.razorShieldRadius)
+        merged.razorShieldDuration = max(razorShieldDuration, other.razorShieldDuration)
+        merged.razorShieldExplosionRadius = max(
+            razorShieldExplosionRadius,
+            other.razorShieldExplosionRadius
+        )
+        return merged
+    }
+
+    func mergingTimeDilation(with other: StartingWeaponConfiguration) -> StartingWeaponConfiguration {
+        var merged = self
+        merged.timeDilationRadius = max(timeDilationRadius, other.timeDilationRadius)
+        merged.timeDilationDuration = max(timeDilationDuration, other.timeDilationDuration)
+        merged.timeDilationMaximumSlowFactor = max(
+            timeDilationMaximumSlowFactor,
+            other.timeDilationMaximumSlowFactor
+        )
+        merged.timeDilationPushRadius = max(timeDilationPushRadius, other.timeDilationPushRadius)
+        merged.timeDilationMaximumPushDistance = max(
+            timeDilationMaximumPushDistance,
+            other.timeDilationMaximumPushDistance
+        )
+        return merged
     }
 }
 

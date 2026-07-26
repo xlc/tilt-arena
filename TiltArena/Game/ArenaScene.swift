@@ -75,6 +75,7 @@ final class ArenaScene: SKScene {
     private var spawnDirector = EnemySpawnDirector()
     private var pickupSpawnConfiguration = PickupSpawnConfiguration()
     private var pickupPlanner = PickupSpawnPlanner()
+    private var weaponRandomNumberGenerator = RunRandomNumberGenerator(seed: 0)
     var weaponResolver = StartingWeaponResolver()
     var weaponEffectTiming = WeaponEffectTiming()
     private var enemies: [ArenaEnemy] = []
@@ -533,11 +534,16 @@ final class ArenaScene: SKScene {
             return
         }
 
+        let previousPlayerPosition = movementController.state.position
         let input = movementInput(deltaTime: deltaTime)
         aimDirectionState.record(input: input)
         let state = updatePlayerMovement(input: input, deltaTime: deltaTime)
         applyPlayerState(state, resetTrail: false)
-        updateActiveRun(deltaTime: deltaTime, playerPosition: state.position)
+        updateActiveRun(
+            deltaTime: deltaTime,
+            playerPosition: state.position,
+            previousPlayerPosition: previousPlayerPosition
+        )
     }
 
     private func updatePlayerMovement(input: CGVector, deltaTime: TimeInterval) -> PlayerMovementState {
@@ -652,7 +658,8 @@ final class ArenaScene: SKScene {
         hapticsController.prepare()
         show(.activeGameplay)
         AppDiagnostics.logger(.run).notice("run.started", metadata: [
-            "mode": "\(selectedMode.rawValue)"
+            "mode": "\(selectedMode.rawValue)",
+            "seed": "\(weaponRandomNumberGenerator.initialSeed)"
         ])
     }
 
@@ -749,21 +756,23 @@ final class ArenaScene: SKScene {
     }
 
     private func resetGameplayObjects() {
-        let modeSettings = applySelectedModeRunSettings()
+        applySelectedModeTuning()
+        let runSequenceSeed = ArenaModeRules.sequenceSeed(for: selectedMode) ?? Int.random(in: 0...Int.max)
+        weaponRandomNumberGenerator = RunRandomNumberGenerator(seed: runSequenceSeed)
         enemies.removeAll()
         enemyNodes.values.forEach { $0.removeFromParent() }
         enemyNodes.removeAll()
         enemyTelegraphNodes.values.forEach { $0.removeFromParent() }
         enemyTelegraphNodes.removeAll()
         formationEnemyIDs.removeAll()
-        spawnDirector.reset(sequenceSeed: modeSettings.sequenceSeed)
+        spawnDirector.reset(sequenceSeed: runSequenceSeed)
 
         pickups.removeAll()
         pickupNodes.values.forEach { $0.removeFromParent() }
         pickupNodes.removeAll()
         pickupPlanner.reset(
             configuration: pickupSpawnConfiguration,
-            sequenceSeed: modeSettings.sequenceSeed
+            sequenceSeed: runSequenceSeed
         )
         clearWeaponEffectNodes(paused: false)
         deactivateRazorShield()
@@ -794,7 +803,7 @@ final class ArenaScene: SKScene {
         weaponEffectTiming = gameTuning.weaponEffectTiming
         flameTrailState.configuration = gameTuning.flameTrail
         deathReplayTrace.duration = gameTuning.feedback.deathReplayDuration
-        _ = applySelectedModeRunSettings()
+        applySelectedModeTuning()
 
         if rebuildPlayerVisuals {
             playerNode?.removeFromParent()
@@ -828,8 +837,7 @@ final class ArenaScene: SKScene {
         }
     }
 
-    private func applySelectedModeRunSettings() -> ArenaModeRunSettings {
-        let settings = ArenaModeRules.runSettings(for: selectedMode, profile: runProfile)
+    private func applySelectedModeTuning() {
         let modeTuning = gameTuning.modeTuning(for: selectedMode)
         var tunedPickupConfiguration = modeTuning.pickupSpawnConfiguration
         tunedPickupConfiguration.weaponKindCycle = ArenaProgressionRules.filteredWeaponCycle(
@@ -839,11 +847,6 @@ final class ArenaScene: SKScene {
 
         spawnDirector.configuration = modeTuning.enemySpawnConfiguration
         pickupSpawnConfiguration = tunedPickupConfiguration
-        return ArenaModeRunSettings(
-            enemySpawnConfiguration: modeTuning.enemySpawnConfiguration,
-            pickupSpawnConfiguration: tunedPickupConfiguration,
-            sequenceSeed: settings.sequenceSeed
-        )
     }
 
     private func resetPlayerFeedback() {
@@ -918,8 +921,13 @@ final class ArenaScene: SKScene {
         }
     }
 
-    private func updateActiveRun(deltaTime: TimeInterval, playerPosition initialPlayerPosition: CGPoint) {
+    private func updateActiveRun(
+        deltaTime: TimeInterval,
+        playerPosition initialPlayerPosition: CGPoint,
+        previousPlayerPosition: CGPoint
+    ) {
         var playerPosition = initialPlayerPosition
+        let wasPlayerCollisionProtected = isPlayerCollisionProtected
 
         runController.update(deltaTime: deltaTime)
         deathReplayTrace.record(time: runController.survivalTime, position: playerPosition)
@@ -930,6 +938,11 @@ final class ArenaScene: SKScene {
         updatePostWeaponSafety(deltaTime: deltaTime)
         updatePendingNovaBombClears(deltaTime: deltaTime)
         playerPosition = collectPickups(playerPosition: playerPosition)
+        let previousDamageableEnemyPositions = Dictionary(
+            uniqueKeysWithValues: enemies.lazy
+                .filter(\.canDamagePlayer)
+                .map { ($0.id, $0.position) }
+        )
         advanceEnemies(deltaTime: deltaTime, playerPosition: playerPosition)
         updateTimeDilationAura(deltaTime: deltaTime, playerPosition: playerPosition)
         updateGravityWell(deltaTime: deltaTime)
@@ -941,7 +954,12 @@ final class ArenaScene: SKScene {
         updateRazorShield(deltaTime: deltaTime, playerPosition: playerPosition)
         shatterFrozenContactEnemies(playerPosition: playerPosition)
         updateFlameTrail(deltaTime: deltaTime, playerPosition: playerPosition)
-        detectPlayerCollision(playerPosition: playerPosition)
+        detectPlayerCollision(
+            playerPosition: playerPosition,
+            previousPlayerPosition: previousPlayerPosition,
+            previousDamageableEnemyPositions: previousDamageableEnemyPositions,
+            allowsSweptCollision: !wasPlayerCollisionProtected
+        )
         updateRunDisplay()
     }
 
@@ -1054,9 +1072,13 @@ final class ArenaScene: SKScene {
         let runSpeedMultiplier = spawnDirector.configuration.enemySurvivalSpeedMultiplier(
             at: runController.survivalTime
         )
-        let maximumEnemySpeed = movementController.configuration.maximumSpeed(in: currentGameplayBounds)
+        let playerMaximumSpeed = movementController.configuration.maximumSpeed(in: currentGameplayBounds)
 
         for index in enemies.indices {
+            let maximumEnemySpeed = spawnDirector.configuration.maximumSpeed(
+                for: enemies[index].behavior.kind,
+                playerMaximumSpeed: playerMaximumSpeed
+            )
             enemies[index].advance(
                 toward: playerPosition,
                 deltaTime: deltaTime,
@@ -1147,14 +1169,13 @@ final class ArenaScene: SKScene {
     }
 
     private func applyWeapon(_ pickup: WeaponPickup, playerPosition: CGPoint) {
-        var rng = SystemRandomNumberGenerator()
         let chargedConfiguration = weaponResolver.configuration.applying(chargeTier: pickup.chargeTier)
         let chargedResolver = StartingWeaponResolver(configuration: chargedConfiguration)
         let application = WeaponApplicationCoordinator(resolver: chargedResolver).application(
             kind: pickup.kind,
             playerPosition: playerPosition,
             enemies: enemies,
-            using: &rng
+            using: &weaponRandomNumberGenerator
         )
         var log = application.log
 
@@ -1397,7 +1418,7 @@ final class ArenaScene: SKScene {
 
         let destroyedEnemies = enemies.filter { enemyIDs.contains($0.id) }
         let clearPositions = destroyedEnemies.map(\.position)
-        let splitChildren = splitterChildren(from: destroyedEnemies)
+        let splitChildren = splitterChildren(from: destroyedEnemies, destroyedBy: weaponKind)
         let previousComboMultiplier = runController.comboMultiplier
         let weaponComboEvent = runController.recordEnemyKills(
             count: enemyIDs.count,
@@ -1464,7 +1485,17 @@ final class ArenaScene: SKScene {
         }
     }
 
-    private func splitterChildren(from destroyedEnemies: [ArenaEnemy]) -> [ArenaEnemy] {
+    private func splitterChildren(
+        from destroyedEnemies: [ArenaEnemy],
+        destroyedBy weaponKind: WeaponKind?
+    ) -> [ArenaEnemy] {
+        switch weaponKind {
+        case .gravityWell, .novaBomb, .freezeBurst:
+            return []
+        default:
+            break
+        }
+
         let playerPosition = movementController.state.position
         return destroyedEnemies.flatMap { enemy in
             spawnDirector.splitChildren(
@@ -1535,8 +1566,13 @@ final class ArenaScene: SKScene {
         at playerPosition: CGPoint,
         configuration: StartingWeaponConfiguration
     ) {
-        activeRazorShieldConfiguration = configuration
-        razorShieldTimeRemaining = max(0, configuration.razorShieldDuration)
+        let resolvedConfiguration = activeRazorShieldConfiguration?
+            .mergingRazorShield(with: configuration) ?? configuration
+        activeRazorShieldConfiguration = resolvedConfiguration
+        razorShieldTimeRemaining = max(
+            razorShieldTimeRemaining,
+            max(0, configuration.razorShieldDuration)
+        )
         hasPlayedRazorShieldWarning = false
 
         razorShieldNode?.removeFromParent()
@@ -1549,7 +1585,7 @@ final class ArenaScene: SKScene {
             return
         }
 
-        let node = SKShapeNode(circleOfRadius: configuration.razorShieldRadius)
+        let node = SKShapeNode(circleOfRadius: resolvedConfiguration.razorShieldRadius)
         node.zPosition = 19
         styleRazorShieldNode(node)
         addWeaponEffectNode(node)
@@ -1768,24 +1804,23 @@ final class ArenaScene: SKScene {
         at playerPosition: CGPoint,
         configuration: StartingWeaponConfiguration
     ) {
-        activeTimeDilationConfiguration = configuration
+        let resolvedConfiguration = activeTimeDilationConfiguration?
+            .mergingTimeDilation(with: configuration) ?? configuration
+        activeTimeDilationConfiguration = resolvedConfiguration
         let duration = max(0, configuration.timeDilationDuration)
+        timeDilationTimeRemaining = max(timeDilationTimeRemaining, duration)
 
-        guard duration > 0 else {
+        guard timeDilationTimeRemaining > 0 else {
             pushTimeDilationEnemies(from: playerPosition)
             deactivateTimeDilationAura()
             grantPostWeaponSafety(for: .warpDash)
             return
         }
 
-        timeDilationTimeRemaining = max(
-            timeDilationTimeRemaining,
-            duration
-        )
         timeDilationAuraNode?.removeFromParent()
         timeDilationAuraNode = playTimeDilationAuraEffect(
             at: playerPosition,
-            radius: configuration.timeDilationRadius,
+            radius: resolvedConfiguration.timeDilationRadius,
             duration: timeDilationTimeRemaining
         )
         pushTimeDilationEnemies(from: playerPosition)
@@ -1892,7 +1927,12 @@ final class ArenaScene: SKScene {
         return targets.count
     }
 
-    private func detectPlayerCollision(playerPosition: CGPoint) {
+    private func detectPlayerCollision(
+        playerPosition: CGPoint,
+        previousPlayerPosition: CGPoint? = nil,
+        previousDamageableEnemyPositions: [Int: CGPoint] = [:],
+        allowsSweptCollision: Bool = true
+    ) {
         guard !isPlayerCollisionProtected else {
             return
         }
@@ -1901,20 +1941,71 @@ final class ArenaScene: SKScene {
             center: playerPosition,
             radius: runController.configuration.playerHitRadius
         )
+        let motion = PlayerCollisionMotion(
+            playerCircle: playerCircle,
+            playerStart: previousPlayerPosition ?? playerPosition,
+            previousDamageableEnemyPositions: previousDamageableEnemyPositions,
+            allowsSweptCollision: allowsSweptCollision
+        )
+        let collision = enemies.compactMap { collisionCandidate(for: $0, motion: motion) }
+            .min { $0.impactTime < $1.impactTime }
 
-        guard let collidingEnemy = enemies.first(where: {
-            $0.canDamagePlayer
-                && playerCircle.intersects($0.collisionCircle)
-        }) else {
+        guard let collision else {
             return
         }
 
         finishRun(
-            collision: DeathCollisionSnapshot(
-                playerPosition: playerPosition,
-                enemyPosition: collidingEnemy.position,
-                enemyRadius: collidingEnemy.radius
+            collision: collision.snapshot
+        )
+    }
+
+    private func collisionCandidate(
+        for enemy: ArenaEnemy,
+        motion: PlayerCollisionMotion
+    ) -> PlayerCollisionCandidate? {
+        guard enemy.canDamagePlayer else {
+            return nil
+        }
+
+        let enemyStart = motion.previousDamageableEnemyPositions[enemy.id]
+        let impactTime: CGFloat?
+        if motion.allowsSweptCollision,
+           let enemyStart {
+            impactTime = motion.playerCircle.firstIntersectionTimeDuringMovement(
+                from: motion.playerStart,
+                with: enemy.collisionCircle,
+                movingFrom: enemyStart
             )
+        } else {
+            impactTime = motion.playerCircle.intersects(enemy.collisionCircle) ? 1 : nil
+        }
+
+        guard let impactTime else {
+            return nil
+        }
+
+        return PlayerCollisionCandidate(
+            impactTime: impactTime,
+            snapshot: DeathCollisionSnapshot(
+                playerPosition: Self.interpolatedPosition(
+                    from: motion.playerStart,
+                    to: motion.playerCircle.center,
+                    time: impactTime
+                ),
+                enemyPosition: Self.interpolatedPosition(
+                    from: enemyStart ?? enemy.position,
+                    to: enemy.position,
+                    time: impactTime
+                ),
+                enemyRadius: enemy.radius
+            )
+        )
+    }
+
+    private static func interpolatedPosition(from start: CGPoint, to end: CGPoint, time: CGFloat) -> CGPoint {
+        CGPoint(
+            x: start.x + (end.x - start.x) * time,
+            y: start.y + (end.y - start.y) * time
         )
     }
 
@@ -4970,6 +5061,20 @@ extension ArenaScene {
         detectPlayerCollision(playerPosition: playerPosition)
     }
 
+    func detectPlayerCollisionForTesting(
+        playerPosition: CGPoint,
+        previousPlayerPosition: CGPoint,
+        previousDamageableEnemyPositions: [Int: CGPoint],
+        allowsSweptCollision: Bool = true
+    ) {
+        detectPlayerCollision(
+            playerPosition: playerPosition,
+            previousPlayerPosition: previousPlayerPosition,
+            previousDamageableEnemyPositions: previousDamageableEnemyPositions,
+            allowsSweptCollision: allowsSweptCollision
+        )
+    }
+
     func activateRazorShieldForTesting(configuration: StartingWeaponConfiguration) {
         activateRazorShield(
             at: movementController.state.position,
@@ -5010,7 +5115,8 @@ extension ArenaScene {
     func updateActiveRunForTesting(deltaTime: TimeInterval) {
         updateActiveRun(
             deltaTime: deltaTime,
-            playerPosition: movementController.state.position
+            playerPosition: movementController.state.position,
+            previousPlayerPosition: movementController.state.position
         )
     }
 
@@ -5036,6 +5142,14 @@ extension ArenaScene {
 
     func removeEnemyForTesting(id enemyID: Int) {
         removeEnemies(ids: [enemyID])
+    }
+
+    func destroyEnemiesForTesting(ids enemyIDs: Set<Int>, weaponKind: WeaponKind) {
+        destroyEnemies(ids: enemyIDs, weaponKind: weaponKind)
+    }
+
+    func shatterFrozenContactEnemiesForTesting() {
+        shatterFrozenContactEnemies(playerPosition: movementController.state.position)
     }
 
     func playSeekerSwarmForTesting(enemyIDs: Set<Int>, from playerPosition: CGPoint) {
@@ -5072,6 +5186,10 @@ extension ArenaScene {
 
     var isRunGameOverForTesting: Bool {
         runController.phase == .gameOver
+    }
+
+    var lastDeathCollisionSnapshotForTesting: DeathCollisionSnapshot? {
+        lastDeathCollisionSnapshot
     }
 
     var isWeaponEffectPlaybackPausedForTesting: Bool {
@@ -5384,7 +5502,7 @@ private extension ArenaScene {
             return
         }
         let shatteredEnemies = enemies.filter { shatterIDs.contains($0.id) }
-        let splitChildren = splitterChildren(from: shatteredEnemies)
+        let splitChildren = splitterChildren(from: shatteredEnemies, destroyedBy: .freezeBurst)
         let shatterPositions = shatteredEnemies.map(\.position)
         playFrozenShatterEffect(at: shatterPositions, color: theme.playerColor)
         let previousComboMultiplier = runController.comboMultiplier
@@ -5435,7 +5553,7 @@ private extension ArenaScene {
     }
 
     func canShatterOnContact(_ enemy: ArenaEnemy) -> Bool {
-        enemy.isThawing
+        enemy.isShatterableFrozen
     }
 }
 
@@ -5447,6 +5565,18 @@ private struct ArenaControlHitTarget {
 private struct PendingNovaBombClear {
     let enemyIDs: Set<Int>
     var timeRemaining: TimeInterval
+}
+
+private struct PlayerCollisionCandidate {
+    let impactTime: CGFloat
+    let snapshot: DeathCollisionSnapshot
+}
+
+private struct PlayerCollisionMotion {
+    let playerCircle: CollisionCircle
+    let playerStart: CGPoint
+    let previousDamageableEnemyPositions: [Int: CGPoint]
+    let allowsSweptCollision: Bool
 }
 
 private struct DeveloperTuningMenu {

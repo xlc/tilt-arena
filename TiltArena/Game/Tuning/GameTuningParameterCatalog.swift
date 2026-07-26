@@ -151,12 +151,14 @@ enum GameTuningParameterCatalog {
         specs.append(cgFloat("\(sourcePrefix).maximumEnemySurvivalSpeedMultiplier", group, "enemy survival speed max", keyPath.appending(path: \.maximumEnemySurvivalSpeedMultiplier), 0.02, 0, nil, 2))
         specs.append(cgFloat("\(sourcePrefix).enemySpeedRampPerSecond", group, "enemy speed ramp", keyPath.appending(path: \.enemySpeedRampPerSecond), 0.001, 0, nil, 3))
         specs.append(cgFloat("\(sourcePrefix).maximumEnemySpeedMultiplier", group, "enemy max speed multiplier", keyPath.appending(path: \.maximumEnemySpeedMultiplier), 0.05, 1, nil, 2))
+        appendEnemySpeedCeilingParameters(sourcePrefix, group, keyPath, to: &specs)
         specs.append(cgFloat("\(sourcePrefix).playerSafetyRadius", group, "player safety radius", keyPath.appending(path: \.playerSafetyRadius), 4, 0, nil, 1))
         specs.append(cgFloat("\(sourcePrefix).pickupClearance", group, "pickup clearance", keyPath.appending(path: \.pickupClearance), 1, 0, nil, 1))
         specs.append(double("\(sourcePrefix).spawnWarningDuration", group, "spawn warning", keyPath.appending(path: \.spawnWarningDuration), 0.05, 0, nil, 2))
         specs.append(double("\(sourcePrefix).spawnPlayerCollisionGraceDuration", group, "spawn safe time", keyPath.appending(path: \.spawnPlayerCollisionGraceDuration), 0.05, 0, nil, 2))
         specs.append(int("\(sourcePrefix).maxPendingSpawnWarnings", group, "max spawn warnings", keyPath.appending(path: \.maxPendingSpawnWarnings), 1, 0, nil))
         specs.append(double("\(sourcePrefix).patternIntroductionSpacing", group, "pattern intro spacing", keyPath.appending(path: \.patternIntroductionSpacing), 0.25, 0, nil, 2))
+        appendPatternIntroductionParameters(sourcePrefix, group, keyPath, to: &specs)
         specs.append(cgFloat("\(sourcePrefix).splitterRadiusScale", group, "splitter radius scale", keyPath.appending(path: \.splitterRadiusScale), 0.05, 1, nil, 2))
         specs.append(cgFloat("\(sourcePrefix).splitterChildRadiusScale", group, "splitter child radius scale", keyPath.appending(path: \.splitterChildRadiusScale), 0.05, 0.1, nil, 2))
         specs.append(cgFloat("\(sourcePrefix).splitterChildSpeedScale", group, "splitter child speed scale", keyPath.appending(path: \.splitterChildSpeedScale), 0.05, 0, nil, 2))
@@ -183,6 +185,7 @@ enum GameTuningParameterCatalog {
         specs.append(cgFloat("\(sourcePrefix).paddleTrapBarGap", group, "paddle bar gap", keyPath.appending(path: \.paddleTrapBarGap), 2, 0, nil, 1))
         specs.append(cgFloat("\(sourcePrefix).paddleTrapCandidateInset", group, "paddle candidate inset", keyPath.appending(path: \.paddleTrapCandidateInset), 2, 0, nil, 1))
         specs.append(cgFloat("\(sourcePrefix).paddleTrapMinimumSpacing", group, "paddle spacing", keyPath.appending(path: \.paddleTrapMinimumSpacing), 2, 0, nil, 1))
+        specs.append(cgFloat("\(sourcePrefix).paddleTrapPlayerSafetyRadius", group, "paddle player safety", keyPath.appending(path: \.paddleTrapPlayerSafetyRadius), 2, 0, nil, 1))
         specs.append(int("\(sourcePrefix).maxPendingEnemyTelegraphs", group, "max pending telegraphs", keyPath.appending(path: \.maxPendingEnemyTelegraphs), 1, 0, nil))
         specs.append(cgFloat("\(sourcePrefix).cullingOutset", group, "culling outset", keyPath.appending(path: \.cullingOutset), 4, 0, nil, 1))
 
@@ -190,6 +193,35 @@ enum GameTuningParameterCatalog {
         appendPhaseParameters("Pressure", sourcePrefix, keyPath.appending(path: \.pressure), to: &specs)
         appendPhaseParameters("Chaos", sourcePrefix, keyPath.appending(path: \.chaos), to: &specs)
         appendPhaseParameters("Hell", sourcePrefix, keyPath.appending(path: \.survivalHell), to: &specs)
+    }
+
+    private static func appendEnemySpeedCeilingParameters(
+        _ sourcePrefix: String,
+        _ group: String,
+        _ keyPath: WritableKeyPath<GameTuningConfiguration, EnemySpawnConfiguration>,
+        to specs: inout [GameTuningParameterSpec]
+    ) {
+        specs.append(cgFloat("\(sourcePrefix).chaserPlayerSpeedRatio", group, "chaser player speed ratio", keyPath.appending(path: \.chaserPlayerSpeedRatio), 0.05, 0, nil, 2))
+        specs.append(cgFloat("\(sourcePrefix).formationPlayerSpeedRatio", group, "formation player speed ratio", keyPath.appending(path: \.formationPlayerSpeedRatio), 0.05, 0, nil, 2))
+        specs.append(cgFloat("\(sourcePrefix).arrowRushPlayerSpeedRatio", group, "arrow player speed ratio", keyPath.appending(path: \.arrowRushPlayerSpeedRatio), 0.05, 0, nil, 2))
+        specs.append(cgFloat("\(sourcePrefix).hunterDotPlayerSpeedRatio", group, "hunter player speed ratio", keyPath.appending(path: \.hunterDotPlayerSpeedRatio), 0.05, 0, nil, 2))
+        specs.append(cgFloat("\(sourcePrefix).paddleTrapDotPlayerSpeedRatio", group, "paddle dot player speed ratio", keyPath.appending(path: \.paddleTrapDotPlayerSpeedRatio), 0.05, 0, nil, 2))
+        specs.append(cgFloat("\(sourcePrefix).splitterPlayerSpeedRatio", group, "splitter player speed ratio", keyPath.appending(path: \.splitterPlayerSpeedRatio), 0.05, 0, nil, 2))
+        specs.append(cgFloat("\(sourcePrefix).splitterChildPlayerSpeedRatio", group, "splitter child player speed ratio", keyPath.appending(path: \.splitterChildPlayerSpeedRatio), 0.05, 0, nil, 2))
+    }
+
+    private static func appendPatternIntroductionParameters(
+        _ sourcePrefix: String,
+        _ group: String,
+        _ keyPath: WritableKeyPath<GameTuningConfiguration, EnemySpawnConfiguration>,
+        to specs: inout [GameTuningParameterSpec]
+    ) {
+        specs.append(double("\(sourcePrefix).formationMinimumSurvivalTime", group, "formation introduction", keyPath.appending(path: \.formationMinimumSurvivalTime), 5, 0, nil, 1))
+        specs.append(double("\(sourcePrefix).splitterMinimumSurvivalTime", group, "splitter introduction", keyPath.appending(path: \.splitterMinimumSurvivalTime), 5, 0, nil, 1))
+        specs.append(double("\(sourcePrefix).arrowRushMinimumSurvivalTime", group, "arrow introduction", keyPath.appending(path: \.arrowRushMinimumSurvivalTime), 5, 0, nil, 1))
+        specs.append(double("\(sourcePrefix).mineDotMinimumSurvivalTime", group, "mine introduction", keyPath.appending(path: \.mineDotMinimumSurvivalTime), 5, 0, nil, 1))
+        specs.append(double("\(sourcePrefix).hunterDotMinimumSurvivalTime", group, "hunter introduction", keyPath.appending(path: \.hunterDotMinimumSurvivalTime), 5, 0, nil, 1))
+        specs.append(double("\(sourcePrefix).paddleTrapMinimumSurvivalTime", group, "paddle introduction", keyPath.appending(path: \.paddleTrapMinimumSurvivalTime), 5, 0, nil, 1))
     }
 
     private static func appendPhaseParameters(
@@ -251,33 +283,33 @@ enum GameTuningParameterCatalog {
     }
 
     private static func appendStartingWeaponClearParameters(to specs: inout [GameTuningParameterSpec]) {
-        specs.append(cgFloat("startingWeapons.shockwaveRadius", "Weapons", "shockwave radius", \.startingWeapons.shockwaveRadius, 4, 0, nil, 1))
-        specs.append(double("startingWeapons.shockwaveExpansionDuration", "Weapons", "shockwave expand", \.startingWeapons.shockwaveExpansionDuration, 0.05, 0, nil, 2))
-        specs.append(double("startingWeapons.shockwaveHoldDuration", "Weapons", "shockwave hold", \.startingWeapons.shockwaveHoldDuration, 0.05, 0, nil, 2))
-        specs.append(int("startingWeapons.seekerTargetLimit", "Weapons", "seeker target limit", \.startingWeapons.seekerTargetLimit, 1, 0, nil))
-        specs.append(cgFloat("startingWeapons.seekerExplosionRadius", "Weapons", "seeker explosion", \.startingWeapons.seekerExplosionRadius, 2, 0, nil, 1))
-        specs.append(double("startingWeapons.seekerExplosionHoldDuration", "Weapons", "seeker hold", \.startingWeapons.seekerExplosionHoldDuration, 0.05, 0, nil, 2))
-        specs.append(cgFloat("startingWeapons.seekerTravelSpeed", "Weapons", "seeker travel speed", \.startingWeapons.seekerTravelSpeed, 20, 1, nil, 1))
-        specs.append(cgFloat("startingWeapons.razorShieldRadius", "Weapons", "shield radius", \.startingWeapons.razorShieldRadius, 2, 0, nil, 1))
-        specs.append(double("startingWeapons.razorShieldDuration", "Weapons", "shield duration", \.startingWeapons.razorShieldDuration, 0.25, 0, nil, 2))
-        specs.append(cgFloat("startingWeapons.razorShieldExplosionRadius", "Weapons", "shield explosion", \.startingWeapons.razorShieldExplosionRadius, 2, 0, nil, 1))
-        specs.append(cgFloat("startingWeapons.freezeBurstRadius", "Weapons", "freeze radius", \.startingWeapons.freezeBurstRadius, 4, 0, nil, 1))
-        specs.append(double("startingWeapons.freezeExpansionDuration", "Weapons", "freeze expansion", \.startingWeapons.freezeExpansionDuration, 0.05, 0, nil, 2))
-        specs.append(double("startingWeapons.freezeDuration", "Weapons", "freeze duration", \.startingWeapons.freezeDuration, 0.25, 0, nil, 2))
-        specs.append(double("startingWeapons.freezeThawGraceDuration", "Weapons", "freeze thaw grace", \.startingWeapons.freezeThawGraceDuration, 0.05, 0, nil, 2))
+        specs.append(cgFloat("startingWeapons.shockwaveRadius", WeaponKind.shockwave.displayName, "shockwave radius", \.startingWeapons.shockwaveRadius, 4, 0, nil, 1))
+        specs.append(double("startingWeapons.shockwaveExpansionDuration", WeaponKind.shockwave.displayName, "shockwave expand", \.startingWeapons.shockwaveExpansionDuration, 0.05, 0, nil, 2))
+        specs.append(double("startingWeapons.shockwaveHoldDuration", WeaponKind.shockwave.displayName, "shockwave hold", \.startingWeapons.shockwaveHoldDuration, 0.05, 0, nil, 2))
+        specs.append(int("startingWeapons.seekerTargetLimit", WeaponKind.seekerSwarm.displayName, "seeker target limit", \.startingWeapons.seekerTargetLimit, 1, 0, nil))
+        specs.append(cgFloat("startingWeapons.seekerExplosionRadius", WeaponKind.seekerSwarm.displayName, "seeker explosion", \.startingWeapons.seekerExplosionRadius, 2, 0, nil, 1))
+        specs.append(double("startingWeapons.seekerExplosionHoldDuration", WeaponKind.seekerSwarm.displayName, "seeker hold", \.startingWeapons.seekerExplosionHoldDuration, 0.05, 0, nil, 2))
+        specs.append(cgFloat("startingWeapons.seekerTravelSpeed", WeaponKind.seekerSwarm.displayName, "seeker travel speed", \.startingWeapons.seekerTravelSpeed, 20, 1, nil, 1))
+        specs.append(cgFloat("startingWeapons.razorShieldRadius", WeaponKind.razorShield.displayName, "shield radius", \.startingWeapons.razorShieldRadius, 2, 0, nil, 1))
+        specs.append(double("startingWeapons.razorShieldDuration", WeaponKind.razorShield.displayName, "shield duration", \.startingWeapons.razorShieldDuration, 0.25, 0, nil, 2))
+        specs.append(cgFloat("startingWeapons.razorShieldExplosionRadius", WeaponKind.razorShield.displayName, "shield explosion", \.startingWeapons.razorShieldExplosionRadius, 2, 0, nil, 1))
+        specs.append(cgFloat("startingWeapons.freezeBurstRadius", WeaponKind.freezeBurst.displayName, "freeze radius", \.startingWeapons.freezeBurstRadius, 4, 0, nil, 1))
+        specs.append(double("startingWeapons.freezeExpansionDuration", WeaponKind.freezeBurst.displayName, "freeze expansion", \.startingWeapons.freezeExpansionDuration, 0.05, 0, nil, 2))
+        specs.append(double("startingWeapons.freezeDuration", WeaponKind.freezeBurst.displayName, "freeze duration", \.startingWeapons.freezeDuration, 0.25, 0, nil, 2))
+        specs.append(double("startingWeapons.freezeThawGraceDuration", WeaponKind.freezeBurst.displayName, "freeze thaw grace", \.startingWeapons.freezeThawGraceDuration, 0.05, 0, nil, 2))
     }
 
     private static func appendStartingWeaponControlParameters(to specs: inout [GameTuningParameterSpec]) {
-        specs.append(cgFloat("startingWeapons.gravityWellRadius", "Weapons", "gravity radius", \.startingWeapons.gravityWellRadius, 4, 0, nil, 1))
-        specs.append(double("startingWeapons.gravityWellActivationDelay", "Weapons", "gravity delay", \.startingWeapons.gravityWellActivationDelay, 0.05, 0, nil, 2))
-        specs.append(double("startingWeapons.gravityWellPullDuration", "Weapons", "gravity pull duration", \.startingWeapons.gravityWellPullDuration, 0.05, 0.05, nil, 2))
-        specs.append(cgFloat("startingWeapons.gravityWellClearRadius", "Weapons", "gravity clear radius", \.startingWeapons.gravityWellClearRadius, 2, 0, nil, 1))
-        specs.append(cgFloat("startingWeapons.chainLightningInitialRange", "Weapons", "chain initial range", \.startingWeapons.chainLightningInitialRange, 4, 0, nil, 1))
-        specs.append(cgFloat("startingWeapons.chainLightningJumpRange", "Weapons", "chain jump range", \.startingWeapons.chainLightningJumpRange, 4, 0, nil, 1))
-        specs.append(int("startingWeapons.chainLightningTargetLimit", "Weapons", "chain target limit", \.startingWeapons.chainLightningTargetLimit, 1, 0, nil))
+        specs.append(cgFloat("startingWeapons.gravityWellRadius", WeaponKind.gravityWell.displayName, "gravity radius", \.startingWeapons.gravityWellRadius, 4, 0, nil, 1))
+        specs.append(double("startingWeapons.gravityWellActivationDelay", WeaponKind.gravityWell.displayName, "gravity delay", \.startingWeapons.gravityWellActivationDelay, 0.05, 0, nil, 2))
+        specs.append(double("startingWeapons.gravityWellPullDuration", WeaponKind.gravityWell.displayName, "gravity pull duration", \.startingWeapons.gravityWellPullDuration, 0.05, 0.05, nil, 2))
+        specs.append(cgFloat("startingWeapons.gravityWellClearRadius", WeaponKind.gravityWell.displayName, "gravity clear radius", \.startingWeapons.gravityWellClearRadius, 2, 0, nil, 1))
+        specs.append(cgFloat("startingWeapons.chainLightningInitialRange", WeaponKind.chainLightning.displayName, "chain initial range", \.startingWeapons.chainLightningInitialRange, 4, 0, nil, 1))
+        specs.append(cgFloat("startingWeapons.chainLightningJumpRange", WeaponKind.chainLightning.displayName, "chain jump range", \.startingWeapons.chainLightningJumpRange, 4, 0, nil, 1))
+        specs.append(int("startingWeapons.chainLightningTargetLimit", WeaponKind.chainLightning.displayName, "chain target limit", \.startingWeapons.chainLightningTargetLimit, 1, 0, nil))
         specs.append(cgFloat(
             "startingWeapons.timeDilationRadius",
-            "Weapons",
+            WeaponKind.warpDash.displayName,
             "time dilation radius",
             \.startingWeapons.timeDilationRadius,
             4,
@@ -287,7 +319,7 @@ enum GameTuningParameterCatalog {
         ))
         specs.append(double(
             "startingWeapons.timeDilationDuration",
-            "Weapons",
+            WeaponKind.warpDash.displayName,
             "time dilation duration",
             \.startingWeapons.timeDilationDuration,
             0.05,
@@ -295,18 +327,20 @@ enum GameTuningParameterCatalog {
             nil,
             2
         ))
-        specs.append(cgFloat("startingWeapons.timeDilationMaximumSlowFactor", "Weapons", "time max slow", \.startingWeapons.timeDilationMaximumSlowFactor, 0.5, 1, nil, 1))
-        specs.append(cgFloat("startingWeapons.timeDilationPushRadius", "Weapons", "time push radius", \.startingWeapons.timeDilationPushRadius, 2, 0, nil, 1))
-        specs.append(cgFloat("startingWeapons.timeDilationMaximumPushDistance", "Weapons", "time push distance", \.startingWeapons.timeDilationMaximumPushDistance, 2, 0, nil, 1))
+        specs.append(cgFloat("startingWeapons.timeDilationMaximumSlowFactor", WeaponKind.warpDash.displayName, "time max slow", \.startingWeapons.timeDilationMaximumSlowFactor, 0.5, 1, nil, 1))
+        specs.append(cgFloat("startingWeapons.timeDilationPushRadius", WeaponKind.warpDash.displayName, "time push radius", \.startingWeapons.timeDilationPushRadius, 2, 0, nil, 1))
+        specs.append(cgFloat("startingWeapons.timeDilationMaximumPushDistance", WeaponKind.warpDash.displayName, "time push distance", \.startingWeapons.timeDilationMaximumPushDistance, 2, 0, nil, 1))
     }
 
     private static func appendStartingWeaponPrecisionParameters(to specs: inout [GameTuningParameterSpec]) {
-        specs.append(double("startingWeapons.powerWaveChargeDuration", "Weapons", "power wave charge", \.startingWeapons.powerWaveChargeDuration, 0.05, 0, nil, 2))
-        specs.append(cgFloat("startingWeapons.powerWaveRange", "Weapons", "power wave range", \.startingWeapons.powerWaveRange, 4, 0, nil, 1))
-        specs.append(cgFloat("startingWeapons.powerWaveFanAngleDegrees", "Weapons", "power wave angle", \.startingWeapons.powerWaveFanAngleDegrees, 2, 0, 360, 1))
-        specs.append(double("startingWeapons.powerWaveExpansionDuration", "Weapons", "power wave expand", \.startingWeapons.powerWaveExpansionDuration, 0.02, 0, nil, 2))
-        specs.append(cgFloat("startingWeapons.ricochetLanceBeamWidth", "Weapons", "ricochet width", \.startingWeapons.ricochetLanceBeamWidth, 1, 0, nil, 1))
-        specs.append(double("startingWeapons.ricochetLanceHoldDuration", "Weapons", "ricochet hold", \.startingWeapons.ricochetLanceHoldDuration, 0.05, 0, nil, 2))
+        specs.append(double("startingWeapons.powerWaveChargeDuration", WeaponKind.powerWave.displayName, "power wave charge", \.startingWeapons.powerWaveChargeDuration, 0.05, 0, nil, 2))
+        specs.append(cgFloat("startingWeapons.powerWaveRange", WeaponKind.powerWave.displayName, "power wave range", \.startingWeapons.powerWaveRange, 4, 0, nil, 1))
+        specs.append(cgFloat("startingWeapons.powerWaveFanAngleDegrees", WeaponKind.powerWave.displayName, "power wave angle", \.startingWeapons.powerWaveFanAngleDegrees, 2, 0, 360, 1))
+        specs.append(double("startingWeapons.powerWaveExpansionDuration", WeaponKind.powerWave.displayName, "power wave expand", \.startingWeapons.powerWaveExpansionDuration, 0.02, 0, nil, 2))
+        specs.append(cgFloat("startingWeapons.ricochetLanceBeamWidth", WeaponKind.ricochetLance.displayName, "ricochet width", \.startingWeapons.ricochetLanceBeamWidth, 1, 0, nil, 1))
+        specs.append(int("startingWeapons.ricochetLanceMaximumBounces", WeaponKind.ricochetLance.displayName, "ricochet bounces", \.startingWeapons.ricochetLanceMaximumBounces, 1, 0, nil))
+        specs.append(double("startingWeapons.ricochetLanceHoldDuration", WeaponKind.ricochetLance.displayName, "ricochet hold", \.startingWeapons.ricochetLanceHoldDuration, 0.05, 0, nil, 2))
+        specs.append(double("startingWeapons.novaBombTargetFraction", WeaponKind.novaBomb.displayName, "nova target fraction", \.startingWeapons.novaBombTargetFraction, 0.05, 0, 1, 2))
     }
 
     private static func appendWeaponEffectParameters(to specs: inout [GameTuningParameterSpec]) {

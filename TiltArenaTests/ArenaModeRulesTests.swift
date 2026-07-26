@@ -104,8 +104,8 @@ final class ArenaModeRulesTests: XCTestCase {
     func testRedlineEscalatesSpecialThreatsMoreAggressivelyThanClassic() throws {
         let classic = ArenaModeRules.runSettings(for: .classic).enemySpawnConfiguration
         let redline = ArenaModeRules.runSettings(for: .redline).enemySpawnConfiguration
-        let classicChaos = classic.tuning(at: 90)
-        let redlineChaos = redline.tuning(at: 90)
+        let classicChaos = classic.tuning(at: 120)
+        let redlineChaos = redline.tuning(at: 120)
         let classicHell = classic.tuning(at: 180)
         let redlineHell = redline.tuning(at: 180)
 
@@ -135,6 +135,59 @@ final class ArenaModeRulesTests: XCTestCase {
         XCTAssertGreaterThan(redlineHell.maxActiveSplitters, classicHell.maxActiveSplitters)
     }
 
+    func testClassicIntroducesOnePatternAtATime() {
+        let configuration = ArenaModeRules.runSettings(for: .classic).enemySpawnConfiguration
+
+        XCTAssertNil(configuration.tuning(at: 29.9).formationSpawnInterval)
+        XCTAssertNotNil(configuration.tuning(at: 30).formationSpawnInterval)
+        XCTAssertNil(configuration.tuning(at: 49.9).splitterSpawnInterval)
+        XCTAssertNotNil(configuration.tuning(at: 50).splitterSpawnInterval)
+        XCTAssertNil(configuration.tuning(at: 69.9).mineDotSpawnInterval)
+        XCTAssertNotNil(configuration.tuning(at: 70).mineDotSpawnInterval)
+        XCTAssertNil(configuration.tuning(at: 94.9).arrowRushSpawnInterval)
+        XCTAssertNotNil(configuration.tuning(at: 95).arrowRushSpawnInterval)
+        XCTAssertNil(configuration.tuning(at: 119.9).hunterDotSpawnInterval)
+        XCTAssertNotNil(configuration.tuning(at: 120).hunterDotSpawnInterval)
+        XCTAssertNil(configuration.tuning(at: 149.9).paddleTrapSpawnInterval)
+        XCTAssertNotNil(configuration.tuning(at: 150).paddleTrapSpawnInterval)
+    }
+
+    func testEnemySpeedCeilingsPreserveArchetypeRoles() {
+        let configuration = ArenaModeRules.runSettings(for: .classic).enemySpawnConfiguration
+        let playerMaximumSpeed: CGFloat = 260
+
+        XCTAssertLessThan(
+            configuration.maximumSpeed(for: .chaser, playerMaximumSpeed: playerMaximumSpeed),
+            playerMaximumSpeed
+        )
+        XCTAssertLessThan(
+            configuration.maximumSpeed(for: .hunter, playerMaximumSpeed: playerMaximumSpeed),
+            playerMaximumSpeed
+        )
+        XCTAssertGreaterThan(
+            configuration.maximumSpeed(for: .arrowRush, playerMaximumSpeed: playerMaximumSpeed),
+            playerMaximumSpeed
+        )
+    }
+
+    func testExactPhaseBoundariesReturnConfiguredAnchors() {
+        let configuration = EnemySpawnConfiguration()
+        let anchors: [(phase: EnemyDifficultyPhase, tuning: EnemyPhaseTuning)] = [
+            (.warmup, configuration.warmup),
+            (.pressure, configuration.pressure),
+            (.chaos, configuration.chaos),
+            (.survivalHell, configuration.survivalHell)
+        ]
+
+        for anchor in anchors {
+            XCTAssertEqual(
+                configuration.tuning(at: anchor.phase.startTime),
+                anchor.tuning,
+                "\(anchor.phase) boundary did not preserve its configured tuning"
+            )
+        }
+    }
+
     func testDailyUsesClassicBalanceWithStableLocalDaySeed() throws {
         let calendar = utcCalendar()
         let firstDate = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 5, day: 21)))
@@ -152,6 +205,12 @@ final class ArenaModeRulesTests: XCTestCase {
         let sameDay = ArenaModeRules.runSettings(for: .daily, date: sameDayLater, calendar: calendar)
         let nextDay = ArenaModeRules.runSettings(for: .daily, date: nextDate, calendar: calendar)
 
+        XCTAssertNil(ArenaModeRules.sequenceSeed(for: .classic, date: firstDate, calendar: calendar))
+        XCTAssertNil(ArenaModeRules.sequenceSeed(for: .redline, date: firstDate, calendar: calendar))
+        XCTAssertEqual(
+            ArenaModeRules.sequenceSeed(for: .daily, date: firstDate, calendar: calendar),
+            first.sequenceSeed
+        )
         XCTAssertEqual(first.enemySpawnConfiguration, classic.enemySpawnConfiguration)
         XCTAssertEqual(first.pickupSpawnConfiguration, classic.pickupSpawnConfiguration)
         XCTAssertEqual(first.sequenceSeed, sameDay.sequenceSeed)

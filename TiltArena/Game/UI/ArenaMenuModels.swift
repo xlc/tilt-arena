@@ -27,17 +27,17 @@ struct WeaponCodexRow: Equatable {
 
 struct ArenaMenuContent {
     private static let weaponDescriptions: [WeaponKind: String] = [
-        .shockwave: "A panic ring with perfect timing.",
-        .seekerSwarm: "Tiny hunters with a mean streak.",
-        .razorShield: "Turns close contact into clean cuts.",
-        .freezeBurst: "Stops the rush, then lets it shatter.",
-        .gravityWell: "The arena takes one deep breath.",
-        .chainLightning: "One spark starts a bad idea.",
-        .flameTrail: "Draw a hot line through trouble.",
-        .warpDash: "Borrow a second from chaos.",
-        .powerWave: "A charged shove with attitude.",
-        .ricochetLance: "One bright angle, several regrets.",
-        .novaBomb: "The big screen reset."
+        .shockwave: "Growing ring clears threats.",
+        .seekerSwarm: "Nearest targets; impact bursts.",
+        .razorShield: "Orbiting blades, then burst.",
+        .freezeBurst: "Freeze, then touch to shatter.",
+        .gravityWell: "Pulls inward; clears center.",
+        .chainLightning: "Strike jumps between threats.",
+        .flameTrail: "Boost, guard, damaging trail.",
+        .warpDash: "Slows and pushes nearby foes.",
+        .powerWave: "Charge, aim, clear a wide cone.",
+        .ricochetLance: "Beam bounces off arena walls.",
+        .novaBomb: "Random 50%; charge clears more."
     ]
 
     static func modeRows(profile: RunProfile, selectedMode: ArenaModeKind) -> [ArenaModeRow] {
