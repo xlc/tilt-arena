@@ -69,4 +69,17 @@ struct ArenaTheme {
         pickupViolet: SKColor(red: 0.55, green: 0.36, blue: 1.00, alpha: 1.00),
         flameTrailFillColor: SKColor(red: 1.00, green: 0.54, blue: 0.18, alpha: 0.26)
     )
+
+    func weaponComboColor(for family: WeaponComboFamily) -> SKColor {
+        switch family {
+        case .force:
+            return pickupAmber
+        case .seek:
+            return pickupBlue
+        case .control:
+            return pickupViolet
+        case .defense:
+            return playerAccentColor
+        }
+    }
 }

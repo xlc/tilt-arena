@@ -2,6 +2,8 @@ import SpriteKit
 
 @MainActor
 final class PlayerCraftNode: SKNode {
+    private let comboArcNode = SKShapeNode()
+    private let weaponPrimerArcNode = SKShapeNode()
     private let outlineNode: SKShapeNode
     private let bodyNode: SKShapeNode
     private let coreNode: SKShapeNode
@@ -18,7 +20,11 @@ final class PlayerCraftNode: SKNode {
 
         zPosition = 20
 
+        configureProgressArc(comboArcNode, lineWidth: 1.4, glowWidth: 0.8)
+        configureProgressArc(weaponPrimerArcNode, lineWidth: 1.1, glowWidth: 0.6)
         applyTheme(theme)
+        addChild(comboArcNode)
+        addChild(weaponPrimerArcNode)
         addChild(outlineNode)
         addChild(bodyNode)
         addChild(coreNode)
@@ -30,6 +36,8 @@ final class PlayerCraftNode: SKNode {
     }
 
     func applyTheme(_ theme: ArenaTheme) {
+        comboArcNode.strokeColor = theme.playerAccentColor.withAlphaComponent(0.88)
+
         outlineNode.fillColor = .clear
         outlineNode.strokeColor = theme.backgroundColor.withAlphaComponent(0.88)
         outlineNode.lineWidth = 2.6
@@ -54,6 +62,44 @@ final class PlayerCraftNode: SKNode {
         engineNode.glowWidth = 0.85
     }
 
+    func applyComboEffect(
+        comboProgress: CGFloat,
+        comboMultiplier: Int,
+        weaponPrimerProgress: CGFloat,
+        weaponPrimerFamily: WeaponComboFamily?,
+        theme: ArenaTheme,
+        isPaused: Bool
+    ) {
+        updateProgressArc(
+            comboArcNode,
+            radius: visualRadius * 1.62,
+            progress: comboProgress
+        )
+        comboArcNode.lineWidth = min(
+            2.8,
+            1.25 + CGFloat(max(1, comboMultiplier) - 1) * 0.3
+        )
+        comboArcNode.glowWidth = min(
+            2.2,
+            0.65 + CGFloat(max(1, comboMultiplier) - 1) * 0.28
+        )
+
+        updateProgressArc(
+            weaponPrimerArcNode,
+            radius: visualRadius * 2.04,
+            progress: weaponPrimerProgress
+        )
+        if let weaponPrimerFamily {
+            weaponPrimerArcNode.strokeColor = theme
+                .weaponComboColor(for: weaponPrimerFamily)
+                .withAlphaComponent(0.78)
+        }
+
+        let effectAlpha: CGFloat = isPaused ? 0.38 : 1
+        comboArcNode.alpha = effectAlpha
+        weaponPrimerArcNode.alpha = effectAlpha
+    }
+
     func apply(state: PlayerMovementState, speedFraction rawSpeedFraction: CGFloat) {
         position = state.position
         let speedFraction = min(1, max(0, rawSpeedFraction))
@@ -65,6 +111,46 @@ final class PlayerCraftNode: SKNode {
         }
 
         zRotation = atan2(state.velocity.dy, state.velocity.dx) - (.pi / 2)
+    }
+
+    private func configureProgressArc(
+        _ node: SKShapeNode,
+        lineWidth: CGFloat,
+        glowWidth: CGFloat
+    ) {
+        node.zPosition = -1
+        node.fillColor = .clear
+        node.lineCap = .round
+        node.lineWidth = lineWidth
+        node.glowWidth = glowWidth
+        node.isHidden = true
+    }
+
+    private func updateProgressArc(
+        _ node: SKShapeNode,
+        radius: CGFloat,
+        progress rawProgress: CGFloat
+    ) {
+        let progress = min(1, max(0, rawProgress))
+        node.isHidden = progress == 0
+        guard progress > 0 else {
+            return
+        }
+
+        node.path = Self.makeProgressArc(radius: radius, progress: progress)
+    }
+
+    private static func makeProgressArc(radius: CGFloat, progress: CGFloat) -> CGPath {
+        let path = CGMutablePath()
+        let startAngle = CGFloat.pi / 2
+        path.addArc(
+            center: .zero,
+            radius: radius,
+            startAngle: startAngle,
+            endAngle: startAngle + 2 * .pi * progress,
+            clockwise: false
+        )
+        return path
     }
 
     private static func makeBodyPath(radius: CGFloat) -> CGPath {

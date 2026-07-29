@@ -37,6 +37,15 @@ final class ArenaThemeTests: XCTestCase {
         XCTAssertGreaterThan(background.blue, 0.92)
     }
 
+    func testWeaponComboFamiliesUseThemeRoleColors() {
+        let theme = ArenaTheme.darkTacticalRadar
+
+        XCTAssertEqual(theme.weaponComboColor(for: .force), theme.pickupAmber)
+        XCTAssertEqual(theme.weaponComboColor(for: .seek), theme.pickupBlue)
+        XCTAssertEqual(theme.weaponComboColor(for: .control), theme.pickupViolet)
+        XCTAssertEqual(theme.weaponComboColor(for: .defense), theme.playerAccentColor)
+    }
+
     private func components(of color: SKColor) -> ColorComponents {
         var red: CGFloat = 0
         var green: CGFloat = 0

@@ -61,7 +61,12 @@ final class ArenaScreenSnapshotTests: XCTestCase {
     }
 
     func testDarkActiveGameplayScreen() throws {
-        try assertScreenSnapshot(state: .activeGameplay, themeKind: .darkTacticalRadar, testName: #function)
+        try assertScreenSnapshot(
+            state: .activeGameplay,
+            themeKind: .darkTacticalRadar,
+            precision: 0.999,
+            testName: #function
+        )
     }
 
     func testDarkPauseScreen() throws {
@@ -75,12 +80,13 @@ final class ArenaScreenSnapshotTests: XCTestCase {
     private func assertScreenSnapshot(
         state: ArenaUISceneState,
         themeKind: ArenaThemeKind,
+        precision: Float = 0.99,
         testName: String,
         line: UInt = #line
     ) throws {
         assertSnapshot(
             of: try makeScreenImage(state: state, themeKind: themeKind),
-            as: .image(precision: 0.99),
+            as: .image(precision: precision),
             file: #filePath,
             testName: testName,
             line: line

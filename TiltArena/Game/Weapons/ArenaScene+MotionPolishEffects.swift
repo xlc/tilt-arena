@@ -119,10 +119,10 @@ extension ArenaScene {
         let isCascade = event.kind == .cascade
         let cappedPositions = Array(positions.prefix(isCascade ? 12 : 8))
         let center = weaponComboEffectCenter(for: positions)
-        let color = weaponComboEffectColor(for: event.currentFamily)
+        let color = theme.weaponComboColor(for: event.currentFamily)
         let secondaryColor = isCascade
             ? theme.playerColor
-            : weaponComboEffectColor(for: event.previousFamily)
+            : theme.weaponComboColor(for: event.previousFamily)
         let radius: CGFloat = isCascade ? 31 : 24
 
         playWeaponComboConnectors(
@@ -252,19 +252,6 @@ private extension ArenaScene {
         }
         let count = CGFloat(positions.count)
         return CGPoint(x: total.x / count, y: total.y / count)
-    }
-
-    func weaponComboEffectColor(for family: WeaponComboFamily) -> SKColor {
-        switch family {
-        case .force:
-            return theme.pickupAmber
-        case .seek:
-            return theme.pickupBlue
-        case .control:
-            return theme.pickupViolet
-        case .defense:
-            return theme.playerAccentColor
-        }
     }
 
     func playWeaponComboConnectors(

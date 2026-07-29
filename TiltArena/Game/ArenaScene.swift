@@ -106,16 +106,13 @@ final class ArenaScene: SKScene {
     private var timeDilationAuraNode: SKNode?
     private var powerWaveState = PowerWaveState()
     var powerWaveChargeNode: SKNode?
-    private let timerLabel = SKLabelNode(fontNamed: "Menlo-Bold")
-    private let bestMarkerLabel = SKLabelNode(fontNamed: "Menlo")
-    private let comboLabel = SKLabelNode(fontNamed: "Menlo-Bold")
 #if DEBUG
     private let debugStatsLabel = SKLabelNode(fontNamed: "Menlo")
     private var debugStatsElapsed: TimeInterval = 0
     private var debugStatsLogElapsed: TimeInterval = 0
     private var debugStatsFrameCount = 0
 #endif
-    private let hudMargin: CGFloat = 24
+    private let uiMargin: CGFloat = 24
     private var uiHitTargets: [ArenaControlHitTarget] = []
     private var calibrationPreviewMovementController = PlayerMovementController()
     private var calibrationPreviewPlayerNode: PlayerCraftNode?
@@ -172,11 +169,9 @@ final class ArenaScene: SKScene {
         rebuildArena()
         configureWeaponEffectsRoot()
         if flameTrailEffectNode.parent == nil { addChild(flameTrailEffectNode) }
-        configureLabels()
         configureUIRoot()
         configureDebugStats()
         placePlayer(resetPosition: true)
-        updateRunDisplay()
         rebuildUI()
         tiltInputController.start()
         AppDiagnostics.logger(.scene).notice("scene.presented", metadata: [
@@ -195,7 +190,6 @@ final class ArenaScene: SKScene {
         } else if uiState == .calibrationPreview {
             resetCalibrationPreviewPosition()
         }
-        layoutLabels()
         layoutDebugStats()
         rebuildUI()
         AppDiagnostics.logger(.scene).debug("scene.resized", metadata: [
@@ -250,7 +244,6 @@ final class ArenaScene: SKScene {
         if uiState == .calibrationPreview {
             resetCalibrationPreviewPosition()
         }
-        updateRunDisplay()
         rebuildUI()
     }
 
@@ -261,7 +254,6 @@ final class ArenaScene: SKScene {
         if uiState == .calibrationPreview {
             resetCalibrationPreviewPosition()
         }
-        layoutLabels()
         layoutDebugStats()
         rebuildUI()
     }
@@ -383,45 +375,10 @@ final class ArenaScene: SKScene {
         }
     }
 
-    private func configureLabels() {
-        configureLabel(timerLabel, fontSize: 14, color: theme.playerColor.withAlphaComponent(0.94))
-        timerLabel.horizontalAlignmentMode = .left
-        timerLabel.verticalAlignmentMode = .center
-
-        configureLabel(bestMarkerLabel, fontSize: 11, color: theme.playerColor.withAlphaComponent(0.82))
-        bestMarkerLabel.horizontalAlignmentMode = .right
-        bestMarkerLabel.verticalAlignmentMode = .center
-
-        configureLabel(comboLabel, fontSize: 13, color: theme.playerAccentColor)
-        comboLabel.horizontalAlignmentMode = .center
-        comboLabel.verticalAlignmentMode = .center
-
-        [timerLabel, bestMarkerLabel, comboLabel].forEach { label in
-            if label.parent == nil {
-                addChild(label)
-            }
-        }
-
-        layoutLabels()
-    }
-
-    private func configureLabel(_ label: SKLabelNode, fontSize: CGFloat, color: SKColor) {
-        label.fontSize = fontSize
-        label.fontColor = color
-        label.zPosition = 140
-    }
-
-    private func layoutLabels() {
-        let layout = currentHUDLayout()
-
-        timerLabel.position = layout.timerPosition
-        bestMarkerLabel.position = layout.bestMarkerPosition
-        comboLabel.position = layout.comboPosition
-    }
-
     private func configureDebugStats() {
         #if DEBUG
-        configureLabel(debugStatsLabel, fontSize: 12, color: theme.borderColor)
+        debugStatsLabel.fontSize = 12
+        debugStatsLabel.fontColor = theme.borderColor
         debugStatsLabel.zPosition = 95
         debugStatsLabel.horizontalAlignmentMode = .left
         debugStatsLabel.verticalAlignmentMode = .bottom
@@ -475,19 +432,11 @@ final class ArenaScene: SKScene {
     }
     #endif
 
-    private func currentHUDLayout() -> ArenaHUDLayout {
-        ArenaHUDLayout(
-            sceneSize: size,
-            safeAreaInsets: view?.safeAreaInsets ?? .zero,
-            margin: hudMargin
-        )
-    }
-
     private func currentLandscapeLayout() -> ArenaLandscapeUILayout {
         ArenaLandscapeUILayout(
             sceneSize: size,
             safeAreaInsets: view?.safeAreaInsets ?? .zero,
-            margin: hudMargin
+            margin: uiMargin
         )
     }
 
@@ -756,7 +705,6 @@ final class ArenaScene: SKScene {
         resetGameplayObjects()
         placePlayer(resetPosition: true)
         resetPlayerFeedback()
-        updateRunDisplay()
     }
 
     private func resetGameplayObjects() {
@@ -861,7 +809,6 @@ final class ArenaScene: SKScene {
 
     private func applyThemeChange() {
         backgroundColor = theme.backgroundColor
-        configureLabels()
         configureDebugStats()
         rebuildArena()
         refreshGameplayNodesForTheme()
@@ -964,7 +911,7 @@ final class ArenaScene: SKScene {
             previousDamageableEnemyPositions: previousDamageableEnemyPositions,
             allowsSweptCollision: !wasPlayerCollisionProtected
         )
-        updateRunDisplay()
+        updatePlayerComboEffect()
     }
 
     private func spawnEnemiesIfNeeded(deltaTime: TimeInterval, playerPosition: CGPoint) {
@@ -2080,78 +2027,41 @@ final class ArenaScene: SKScene {
         view?.layer.add(group, forKey: "arena.screenShake")
     }
 
-    private func updateRunDisplay() {
-        let hudAlpha: CGFloat = uiState == .pause ? 0.48 : 1
-        timerLabel.alpha = hudAlpha
-        bestMarkerLabel.alpha = hudAlpha
-        comboLabel.alpha = hudAlpha
-
-        switch uiState {
-        case .home, .modeSelect, .awards, .weaponCodex, .options, .developerTuning, .calibrationPreview:
-            timerLabel.isHidden = true
-            bestMarkerLabel.isHidden = true
-            comboLabel.isHidden = true
-        case .preRun:
-            timerLabel.isHidden = false
-            bestMarkerLabel.isHidden = false
-            comboLabel.isHidden = true
-            timerLabel.text = "BEST \(runProfile.bestScore)"
-            bestMarkerLabel.text = "\(selectedMode.displayName) READY"
-        case .activeGameplay:
-            timerLabel.isHidden = false
-            bestMarkerLabel.isHidden = false
-            comboLabel.isHidden = false
-            timerLabel.text = "SCORE \(runController.score)  \(formatSurvivalTime(runController.survivalTime))"
-            bestMarkerLabel.text = "BEST \(runProfile.bestScore)"
-            comboLabel.text = formatCombo()
-        case .pause:
-            timerLabel.isHidden = false
-            bestMarkerLabel.isHidden = false
-            comboLabel.isHidden = false
-            timerLabel.text = "SCORE \(runController.score)  \(formatSurvivalTime(runController.survivalTime))"
-            bestMarkerLabel.text = "BEST \(runProfile.bestScore)"
-            comboLabel.text = formatCombo()
-        case .postRun:
-            timerLabel.isHidden = true
-            bestMarkerLabel.isHidden = true
-            comboLabel.isHidden = true
-        }
-
-    }
-
     private func formatSurvivalTime(_ time: TimeInterval) -> String {
         String(format: "%.1fs", time)
     }
 
-    private func formatCombo() -> String {
-        let weaponComboText = formatWeaponCombo()
-        guard runController.currentCombo > 0 else {
-            return weaponComboText
-        }
-
-        let comboText = String(
-            format: "COMBO %d  x%d  %.1fs",
-            runController.currentCombo,
-            runController.comboMultiplier,
-            runController.comboTimeRemaining
+    private func updatePlayerComboEffect() {
+        let showsComboEffect = uiState == .activeGameplay || uiState == .pause
+        let weaponPrimer = showsComboEffect ? runController.weaponComboPrimer : nil
+        let comboProgress = showsComboEffect
+            ? normalizedEffectProgress(
+                remaining: runController.comboTimeRemaining,
+                duration: runController.configuration.comboWindow
+            )
+            : 0
+        playerNode?.applyComboEffect(
+            comboProgress: comboProgress,
+            comboMultiplier: runController.comboMultiplier,
+            weaponPrimerProgress: normalizedEffectProgress(
+                remaining: weaponPrimer?.timeRemaining ?? 0,
+                duration: runController.configuration.weaponComboWindow
+            ),
+            weaponPrimerFamily: weaponPrimer?.family,
+            theme: theme,
+            isPaused: uiState == .pause
         )
-        guard !weaponComboText.isEmpty else {
-            return comboText
-        }
-
-        return "\(comboText)  \(weaponComboText)"
     }
 
-    private func formatWeaponCombo() -> String {
-        if let event = runController.weaponComboEvent {
-            return event.kind.hudLabel
+    private func normalizedEffectProgress(
+        remaining: TimeInterval,
+        duration: TimeInterval
+    ) -> CGFloat {
+        guard duration > 0 else {
+            return 0
         }
 
-        guard let primer = runController.weaponComboPrimer else {
-            return ""
-        }
-
-        return String(format: "%@ %.1fs", primer.family.hudLabel, primer.timeRemaining)
+        return CGFloat(min(1, max(0, remaining / duration)))
     }
 
     private func persistFinalRunIfNeeded() {
@@ -2183,7 +2093,6 @@ private extension ArenaScene {
 
         uiState = state
         syncOrientationLock()
-        updateRunDisplay()
         rebuildUI()
     }
 
@@ -2232,7 +2141,7 @@ private extension ArenaScene {
 
         renderCurrentUI()
 
-        updateRunDisplay()
+        updatePlayerComboEffect()
     }
 
     func renderCurrentUI() {
@@ -2271,7 +2180,7 @@ private extension ArenaScene {
         case .preRun:
             renderPreRun()
         case .activeGameplay:
-            renderGameplayHUDChrome(includeCombo: true)
+            break
         case .pause:
             renderPause()
         case .postRun:
@@ -2281,31 +2190,54 @@ private extension ArenaScene {
         }
     }
 
-    func renderGameplayHUDChrome(includeCombo: Bool) {
-        let layout = currentHUDLayout()
-        addHUDCapsule(frame: layout.scoreCapsuleFrame, isEmphasized: false)
-        addHUDCapsule(frame: layout.bestCapsuleFrame, isEmphasized: false)
-        if includeCombo {
-            addHUDCapsule(frame: layout.comboCapsuleFrame, isEmphasized: true)
-        }
+    func renderPreRunSummary(in safeRect: CGRect) {
+        let height: CGFloat = 28
+        let bestFrame = CGRect(
+            x: safeRect.minX - 6,
+            y: safeRect.maxY - height,
+            width: min(190, safeRect.width * 0.42),
+            height: height
+        )
+        let readyWidth = min(126, safeRect.width * 0.3)
+        let readyFrame = CGRect(
+            x: safeRect.maxX - readyWidth + 6,
+            y: safeRect.maxY - height,
+            width: readyWidth,
+            height: height
+        )
+        addPreRunSummaryCapsule(frame: bestFrame)
+        addPreRunSummaryCapsule(frame: readyFrame)
+        let bestLabel = makeLabel(
+            "BEST \(runProfile.bestScore)",
+            at: CGPoint(x: bestFrame.minX + 10, y: bestFrame.midY),
+            fontSize: 14,
+            color: theme.playerColor.withAlphaComponent(0.94),
+            alignment: .left
+        )
+        bestLabel.fontName = "Menlo-Bold"
+        uiRoot.addChild(bestLabel)
+        addLabel(
+            "\(selectedMode.displayName) READY",
+            at: CGPoint(x: readyFrame.maxX - 10, y: readyFrame.midY),
+            fontSize: 11,
+            color: theme.playerColor.withAlphaComponent(0.82),
+            alignment: .right
+        )
     }
 
-    func addHUDCapsule(frame: CGRect, isEmphasized: Bool) {
-        let pauseAlpha: CGFloat = uiState == .pause ? 0.46 : 1
+    func addPreRunSummaryCapsule(frame: CGRect) {
         let capsule = SKShapeNode(rect: frame, cornerRadius: 6)
         capsule.zPosition = ArenaUIZPosition.panel
-        capsule.fillColor = theme.panelFillColor.withAlphaComponent(0.82 * pauseAlpha)
-        capsule.strokeColor = (
-            isEmphasized ? theme.playerAccentColor : theme.borderColor
-        ).withAlphaComponent((isEmphasized ? 0.78 : 0.56) * pauseAlpha)
-        capsule.lineWidth = isEmphasized ? 1.3 : 1
+        capsule.fillColor = theme.panelFillColor.withAlphaComponent(0.82)
+        capsule.strokeColor = theme.borderColor.withAlphaComponent(0.56)
+        capsule.lineWidth = 1
         uiRoot.addChild(capsule)
 
         let accentWidth = min(38, frame.width * 0.24)
         addDividerLine(
             from: CGPoint(x: frame.minX + 8, y: frame.maxY),
             to: CGPoint(x: frame.minX + 8 + accentWidth, y: frame.maxY),
-            color: theme.playerAccentColor.withAlphaComponent(0.78 * pauseAlpha)
+            color: theme.playerAccentColor.withAlphaComponent(0.78)
         )
     }
 
@@ -3357,7 +3289,7 @@ private extension ArenaScene {
 
     func renderPreRun() {
         let layout = currentLandscapeLayout()
-        renderGameplayHUDChrome(includeCombo: false)
+        renderPreRunSummary(in: layout.safeRect)
         addButton(
             "CAL",
             frame: CGRect(x: layout.safeRect.maxX - 112, y: layout.safeRect.maxY - 78, width: 48, height: 34),
@@ -3421,22 +3353,30 @@ private extension ArenaScene {
 
     func renderPause() {
         let layout = currentLandscapeLayout()
-        renderGameplayHUDChrome(includeCombo: true)
         addScrim(alpha: 0.66)
-        let panelWidth = min(286, layout.safeRect.width * 0.58)
-        let panelHeight = min(204, layout.safeRect.height - 20)
-        let panelFrame = CGRect(
-            x: layout.safeRect.midX - panelWidth / 2,
-            y: layout.safeRect.midY - panelHeight / 2,
-            width: panelWidth,
-            height: panelHeight
-        )
+        let panelFrame = pausePanelFrame(in: layout.safeRect)
         addPanel(
             frame: panelFrame,
             stroke: theme.playerAccentColor.withAlphaComponent(0.74),
             fill: theme.panelFillColor.withAlphaComponent(0.96),
             accent: theme.playerAccentColor.withAlphaComponent(0.9)
         )
+        renderPauseHeader(in: panelFrame)
+        renderPauseControls(in: panelFrame)
+    }
+
+    func pausePanelFrame(in safeRect: CGRect) -> CGRect {
+        let panelWidth = min(286, safeRect.width * 0.58)
+        let panelHeight = min(204, safeRect.height - 20)
+        return CGRect(
+            x: safeRect.midX - panelWidth / 2,
+            y: safeRect.midY - panelHeight / 2,
+            width: panelWidth,
+            height: panelHeight
+        )
+    }
+
+    func renderPauseHeader(in panelFrame: CGRect) {
         addLabel(
             "PAUSED",
             at: CGPoint(x: panelFrame.midX, y: panelFrame.maxY - 28),
@@ -3444,16 +3384,28 @@ private extension ArenaScene {
             color: theme.playerColor,
             alignment: .center
         )
+        let runSummary = "SCORE \(runController.score)   \(formatSurvivalTime(runController.survivalTime))"
+            + "   BEST \(runProfile.bestScore)"
+        addLabel(
+            runSummary,
+            at: CGPoint(x: panelFrame.midX, y: panelFrame.maxY - 52),
+            fontSize: 9,
+            color: theme.borderColor,
+            alignment: .center
+        )
         addDividerLine(
-            from: CGPoint(x: panelFrame.minX + 14, y: panelFrame.maxY - 52),
-            to: CGPoint(x: panelFrame.maxX - 14, y: panelFrame.maxY - 52),
+            from: CGPoint(x: panelFrame.minX + 14, y: panelFrame.maxY - 66),
+            to: CGPoint(x: panelFrame.maxX - 14, y: panelFrame.maxY - 66),
             color: theme.playerAccentColor.withAlphaComponent(0.58)
         )
+    }
+
+    func renderPauseControls(in panelFrame: CGRect) {
         let contentMinX = panelFrame.minX + 14
         let contentWidth = panelFrame.width - 28
         addButton(
             "RESUME",
-            frame: CGRect(x: contentMinX, y: panelFrame.maxY - 102, width: contentWidth, height: 42),
+            frame: CGRect(x: contentMinX, y: panelFrame.maxY - 108, width: contentWidth, height: 42),
             action: .resume,
             style: .primary,
             glyph: .play,
@@ -3463,7 +3415,7 @@ private extension ArenaScene {
         let utilityWidth = (contentWidth - utilityGap) / 2
         addButton(
             "CALIBRATE",
-            frame: CGRect(x: contentMinX, y: panelFrame.maxY - 144, width: utilityWidth, height: 34),
+            frame: CGRect(x: contentMinX, y: panelFrame.maxY - 150, width: utilityWidth, height: 34),
             action: .openCalibrationPreview,
             style: .secondary,
             glyph: .radar,
@@ -3473,7 +3425,7 @@ private extension ArenaScene {
             "OPTIONS",
             frame: CGRect(
                 x: contentMinX + utilityWidth + utilityGap,
-                y: panelFrame.maxY - 144,
+                y: panelFrame.maxY - 150,
                 width: utilityWidth,
                 height: 34
             ),
@@ -3482,6 +3434,14 @@ private extension ArenaScene {
             glyph: .settings,
             fontSize: 10
         )
+        renderPauseFooter(in: panelFrame)
+    }
+
+    func renderPauseFooter(in panelFrame: CGRect) {
+        let contentMinX = panelFrame.minX + 14
+        let contentWidth = panelFrame.width - 28
+        let utilityGap: CGFloat = 8
+        let utilityWidth = (contentWidth - utilityGap) / 2
         #if DEBUG
         addButton(
             "DEV",
@@ -3893,7 +3853,6 @@ private extension ArenaScene {
         applyGameTuning(rebuildPlayerVisuals: didChangePlayerRadius)
         developerTuningCopyConfirmation = nil
         rebuildArena()
-        layoutLabels()
         rebuildUI()
     }
 
@@ -3917,7 +3876,6 @@ private extension ArenaScene {
         developerTuningCopyConfirmation = "RESET"
         applyGameTuning(rebuildPlayerVisuals: true)
         rebuildArena()
-        layoutLabels()
         rebuildUI()
         AppDiagnostics.logger(.app).notice("dev.tuning_reset")
     }

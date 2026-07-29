@@ -158,7 +158,6 @@ final class ClassicRunControllerTests: XCTestCase {
         configuration.baseEnemyScore = 7
         configuration.killsPerMultiplierStep = 100
         configuration.comboWindow = 1.1
-        configuration.weaponComboEventDisplayDuration = 0.6
         var controller = ClassicRunController(configuration: configuration)
 
         controller.start()
@@ -169,7 +168,6 @@ final class ClassicRunControllerTests: XCTestCase {
         XCTAssertEqual(event?.previousFamily, .force)
         XCTAssertEqual(event?.currentFamily, .seek)
         XCTAssertEqual(controller.score, 4 * configuration.baseEnemyScore)
-        XCTAssertEqual(controller.weaponComboEvent, event)
         XCTAssertEqual(
             controller.comboTimeRemaining,
             configuration.comboWindow,
@@ -208,22 +206,6 @@ final class ClassicRunControllerTests: XCTestCase {
         XCTAssertEqual(controller.weaponComboPrimer?.family, .seek)
         XCTAssertEqual(controller.enemiesDestroyed, 4)
         XCTAssertEqual(controller.score, 4 * configuration.baseEnemyScore)
-    }
-
-    func testWeaponComboCanReturnEventWithoutHudEventWhenDisplayDurationIsDisabled() {
-        var configuration = ClassicRunConfiguration()
-        configuration.baseEnemyScore = 7
-        configuration.killsPerMultiplierStep = 100
-        configuration.weaponComboEventDisplayDuration = 0
-        var controller = ClassicRunController(configuration: configuration)
-
-        controller.start()
-        controller.recordEnemyKills(count: 2, weaponKind: .shockwave)
-        let event = controller.recordEnemyKills(count: 2, weaponKind: .seekerSwarm)
-
-        XCTAssertEqual(event?.kind, .synergy)
-        XCTAssertEqual(controller.score, 4 * configuration.baseEnemyScore)
-        XCTAssertNil(controller.weaponComboEvent)
     }
 
     func testWeaponComboDoesNotBonusSameFamilyOrSmallFollowupClear() {
@@ -265,28 +247,24 @@ final class ClassicRunControllerTests: XCTestCase {
         )
     }
 
-    func testWeaponComboPrimerAndEventExpireDuringActiveUpdate() {
+    func testWeaponComboPrimerExpiresDuringActiveUpdate() {
         var configuration = ClassicRunConfiguration()
         configuration.weaponComboWindow = 2.5
-        configuration.weaponComboEventDisplayDuration = 0.75
         var controller = ClassicRunController(configuration: configuration)
 
         controller.start()
         controller.recordEnemyKills(count: 2, weaponKind: .shockwave)
         controller.recordEnemyKills(count: 2, weaponKind: .seekerSwarm)
-        controller.update(deltaTime: configuration.weaponComboEventDisplayDuration / 2)
+        controller.update(deltaTime: 1)
 
-        XCTAssertNotNil(controller.weaponComboEvent)
-        controller.update(deltaTime: configuration.weaponComboEventDisplayDuration / 2)
-        XCTAssertNil(controller.weaponComboEvent)
         XCTAssertEqual(controller.weaponComboPrimer?.family, .seek)
         XCTAssertEqual(
             controller.weaponComboPrimer?.timeRemaining ?? 0,
-            configuration.weaponComboWindow - configuration.weaponComboEventDisplayDuration,
+            1.5,
             accuracy: 0.0001
         )
 
-        controller.update(deltaTime: configuration.weaponComboWindow)
+        controller.update(deltaTime: 1.5)
         XCTAssertNil(controller.weaponComboPrimer)
     }
 

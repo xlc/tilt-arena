@@ -5,19 +5,6 @@ enum WeaponComboFamily: String, Equatable {
     case seek
     case control
     case defense
-
-    var hudLabel: String {
-        switch self {
-        case .force:
-            return "FORCE"
-        case .seek:
-            return "SEEK"
-        case .control:
-            return "CONTROL"
-        case .defense:
-            return "GUARD"
-        }
-    }
 }
 
 extension WeaponKind {
@@ -43,15 +30,6 @@ struct WeaponComboPrimer: Equatable {
 enum WeaponComboEventKind: String, Equatable {
     case synergy
     case cascade
-
-    var hudLabel: String {
-        switch self {
-        case .synergy:
-            return "WEAPON"
-        case .cascade:
-            return "CASCADE"
-        }
-    }
 }
 
 struct WeaponComboEvent: Equatable {

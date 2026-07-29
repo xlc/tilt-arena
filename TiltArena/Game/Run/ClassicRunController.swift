@@ -20,7 +20,6 @@ struct ClassicRunConfiguration: Equatable {
     var survivalBonusEnemySqrtDivisor: Double = 10
     var weaponComboWindow: TimeInterval = 6
     var weaponComboMinimumKillCount = 2
-    var weaponComboEventDisplayDuration: TimeInterval = 1
 
     var playerHitRadius: CGFloat {
         playerVisualRadius * playerHitRadiusScale
@@ -87,8 +86,6 @@ struct ClassicRunController {
     private(set) var comboTimeRemaining: TimeInterval = 0
     private(set) var bestWeapon: WeaponKind?
     private(set) var finalizedSummary: RunSummary?
-    private(set) var weaponComboEvent: WeaponComboEvent?
-    private var weaponComboEventTimeRemaining: TimeInterval = 0
     private var creditedSurvivalBonusIntervals = 0
     private var survivalBonusRemainder: Double = 0
     private var creditedItemPickupIDs: Set<Int> = []
@@ -148,7 +145,7 @@ struct ClassicRunController {
         let clampedDelta = max(0, deltaTime)
         survivalTime += clampedDelta
         updateComboTimer(deltaTime: clampedDelta)
-        updateWeaponCombo(deltaTime: clampedDelta)
+        weaponComboState.update(deltaTime: clampedDelta)
         applySurvivalBonusIfNeeded()
     }
 
@@ -220,8 +217,6 @@ struct ClassicRunController {
         comboTimeRemaining = 0
         bestWeapon = nil
         finalizedSummary = nil
-        weaponComboEvent = nil
-        weaponComboEventTimeRemaining = 0
         creditedSurvivalBonusIntervals = 0
         survivalBonusRemainder = 0
         creditedItemPickupIDs.removeAll()
@@ -239,20 +234,6 @@ struct ClassicRunController {
 
         if comboTimeRemaining == 0 {
             currentCombo = 0
-        }
-    }
-
-    private mutating func updateWeaponCombo(deltaTime: TimeInterval) {
-        weaponComboState.update(deltaTime: deltaTime)
-
-        guard weaponComboEventTimeRemaining > 0 else {
-            weaponComboEvent = nil
-            return
-        }
-
-        weaponComboEventTimeRemaining = max(0, weaponComboEventTimeRemaining - max(0, deltaTime))
-        if weaponComboEventTimeRemaining == 0 {
-            weaponComboEvent = nil
         }
     }
 
@@ -301,17 +282,11 @@ struct ClassicRunController {
             return nil
         }
 
-        guard let event = weaponComboState.recordWeaponClear(
+        return weaponComboState.recordWeaponClear(
             kind: weaponKind,
             killCount: killCount,
             configuration: configuration
-        ) else {
-            return nil
-        }
-
-        weaponComboEventTimeRemaining = max(0, configuration.weaponComboEventDisplayDuration)
-        weaponComboEvent = weaponComboEventTimeRemaining > 0 ? event : nil
-        return event
+        )
     }
 
     private mutating func recordWeaponKills(_ killCount: Int, weaponKind: WeaponKind?) {
