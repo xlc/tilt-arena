@@ -6,8 +6,15 @@ extension ArenaScene {
         radius: CGFloat? = nil,
         duration: TimeInterval? = nil
     ) {
-        let radius = radius ?? weaponResolver.configuration.freezeBurstRadius
-        let duration = max(0.05, duration ?? weaponEffectTiming.waveDuration(radius: radius))
+        let radius = WeaponRuntimeSafetyLimits.distance(
+            radius ?? weaponResolver.configuration.freezeBurstRadius
+        )
+        let duration = max(
+            0.05,
+            WeaponRuntimeSafetyLimits.duration(
+                duration ?? weaponEffectTiming.waveDuration(radius: radius)
+            )
+        )
         let ring = makeEffectRing(
             radius: radius,
             strokeColor: theme.pickupBlue.withAlphaComponent(0.66),

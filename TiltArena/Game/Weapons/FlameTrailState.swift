@@ -22,17 +22,34 @@ struct FlameTrailConfiguration: Equatable {
 }
 
 extension FlameTrailConfiguration {
+    func sanitizedForRuntime() -> FlameTrailConfiguration {
+        var configuration = self
+        configuration.duration = WeaponRuntimeSafetyLimits.duration(duration)
+        configuration.segmentLifetime = WeaponRuntimeSafetyLimits.duration(segmentLifetime)
+        configuration.segmentRadius = WeaponRuntimeSafetyLimits.distance(segmentRadius)
+        configuration.segmentSpacing = WeaponRuntimeSafetyLimits.distance(segmentSpacing)
+        configuration.maxSegments = min(
+            FlameTrailState.maximumSegmentCount,
+            max(0, maxSegments)
+        )
+        configuration.invulnerabilityDuration = WeaponRuntimeSafetyLimits.duration(invulnerabilityDuration)
+        configuration.speedMultiplier = speedMultiplier.isFinite
+            ? min(WeaponRuntimeSafetyLimits.maximumSpeedMultiplier, max(0, speedMultiplier))
+            : 0
+        return configuration
+    }
+
     func applying(chargeTier: WeaponPickupChargeTier) -> FlameTrailConfiguration {
+        var configuration = sanitizedForRuntime()
         guard chargeTier > .base else {
-            return self
+            return configuration
         }
 
         let level = CGFloat(chargeTier.rawValue)
-        var configuration = self
         configuration.segmentLifetime *= 1 + level * 0.12
         configuration.segmentRadius *= 1 + level * 0.10
         configuration.maxSegments += chargeTier.rawValue * 6
-        return configuration
+        return configuration.sanitizedForRuntime()
     }
 }
 
@@ -61,7 +78,13 @@ struct FlameTrailFrame: Equatable {
 }
 
 struct FlameTrailState {
-    var configuration = FlameTrailConfiguration()
+    static let maximumSegmentCount = 256
+
+    private var runtimeConfiguration: FlameTrailConfiguration
+    var configuration: FlameTrailConfiguration {
+        get { runtimeConfiguration }
+        set { runtimeConfiguration = newValue.sanitizedForRuntime() }
+    }
     private(set) var timeRemaining: TimeInterval = 0
     private(set) var segments: [FlameTrailSegment] = []
     private var nextSegmentID = 1
@@ -69,12 +92,16 @@ struct FlameTrailState {
     private var distanceSinceLastSegment: CGFloat = 0
 
     init(configuration: FlameTrailConfiguration = FlameTrailConfiguration()) {
-        self.configuration = configuration
+        runtimeConfiguration = configuration.sanitizedForRuntime()
     }
 
     mutating func activate(at position: CGPoint) {
+        guard position.isFinite else {
+            timeRemaining = 0
+            return
+        }
         let wasActive = timeRemaining > 0
-        timeRemaining = max(0, configuration.duration)
+        timeRemaining = configuration.duration
 
         if timeRemaining > 0 {
             if wasActive {
@@ -103,7 +130,11 @@ struct FlameTrailState {
         playerPosition: CGPoint,
         enemies: [ArenaEnemy]
     ) -> FlameTrailFrame {
-        let clampedDelta = max(0, deltaTime)
+        trimSegmentsToLimit()
+        let clampedDelta = deltaTime.isFinite ? max(0, deltaTime) : 0
+        let playerPosition = playerPosition.isFinite
+            ? playerPosition
+            : lastPlayerPosition ?? .zero
         let previousPlayerPosition = lastPlayerPosition ?? playerPosition
         let activeDelta = min(timeRemaining, clampedDelta)
         let wasActive = timeRemaining > 0
@@ -140,13 +171,18 @@ struct FlameTrailState {
         }
 
         for index in segments.indices {
-            segments[index].timeRemaining = max(0, segments[index].timeRemaining - deltaTime)
+            let remaining = WeaponRuntimeSafetyLimits.duration(segments[index].timeRemaining)
+            segments[index].timeRemaining = max(0, remaining - deltaTime)
         }
         segments.removeAll { $0.timeRemaining == 0 }
     }
 
     private mutating func appendSegmentsAlongMovement(from start: CGPoint, to end: CGPoint) {
-        let spacing = max(0, configuration.segmentSpacing)
+        guard start.isFinite, end.isFinite, configuration.maxSegments > 0 else {
+            distanceSinceLastSegment = 0
+            return
+        }
+        let spacing = configuration.segmentSpacing
         guard spacing > 0 else {
             appendSegment(at: end)
             distanceSinceLastSegment = 0
@@ -156,10 +192,13 @@ struct FlameTrailState {
         let dx = end.x - start.x
         let dy = end.y - start.y
         let distance = hypot(dx, dy)
-        guard distance > 0 else {
+        guard distance.isFinite, distance > 0 else {
             return
         }
 
+        if !distanceSinceLastSegment.isFinite {
+            distanceSinceLastSegment = 0
+        }
         let carriedDistance = max(
             0,
             distanceSinceLastSegment.truncatingRemainder(dividingBy: spacing)
@@ -172,24 +211,34 @@ struct FlameTrailState {
 
         let direction = CGVector(dx: dx / distance, dy: dy / distance)
         let distanceAfterFirstSegment = max(0, distance - distanceToFirstSegment)
-        let emittedSegmentCount = 1 + Int((distanceAfterFirstSegment / spacing).rounded(.down))
-        let retainedSegmentCount = min(max(0, configuration.maxSegments), emittedSegmentCount)
-        let firstRetainedSegment = emittedSegmentCount - retainedSegmentCount
+        let additionalSegmentCount = min(
+            CGFloat(configuration.maxSegments - 1),
+            floor(distanceAfterFirstSegment / spacing)
+        )
+        let retainedSegmentCount = 1 + Int(additionalSegmentCount)
+        let residualDistance = distanceAfterFirstSegment.truncatingRemainder(dividingBy: spacing)
+        let lastStepDistance = distanceToFirstSegment + distanceAfterFirstSegment - residualDistance
+        let firstStepDistance = max(
+            0,
+            lastStepDistance - CGFloat(retainedSegmentCount - 1) * spacing
+        )
 
-        for segmentIndex in firstRetainedSegment..<emittedSegmentCount {
-            let stepDistance = distanceToFirstSegment + CGFloat(segmentIndex) * spacing
+        for segmentIndex in 0..<retainedSegmentCount {
+            let stepDistance = firstStepDistance + CGFloat(segmentIndex) * spacing
             appendSegment(at: CGPoint(
                 x: start.x + direction.dx * stepDistance,
                 y: start.y + direction.dy * stepDistance
             ))
         }
 
-        distanceSinceLastSegment = distanceAfterFirstSegment
-            - CGFloat(emittedSegmentCount - 1) * spacing
+        distanceSinceLastSegment = residualDistance
     }
 
     private mutating func appendSegment(at position: CGPoint) {
-        let lifetime = max(0, configuration.segmentLifetime)
+        guard position.isFinite else {
+            return
+        }
+        let lifetime = configuration.segmentLifetime
         guard lifetime > 0, configuration.maxSegments > 0 else {
             return
         }
@@ -197,11 +246,11 @@ struct FlameTrailState {
         segments.append(FlameTrailSegment(
             id: nextSegmentID,
             position: position,
-            radius: max(0, configuration.segmentRadius),
+            radius: configuration.segmentRadius,
             timeRemaining: lifetime,
             lifetime: lifetime
         ))
-        nextSegmentID += 1
+        nextSegmentID = nextSegmentID == Int.max ? 1 : nextSegmentID + 1
 
         if segments.count > configuration.maxSegments {
             segments.removeFirst(segments.count - configuration.maxSegments)
@@ -220,6 +269,13 @@ struct FlameTrailState {
                 }
                 .map(\.id)
         )
+    }
+
+    private mutating func trimSegmentsToLimit() {
+        let excessCount = segments.count - configuration.maxSegments
+        if excessCount > 0 {
+            segments.removeFirst(excessCount)
+        }
     }
 
 }

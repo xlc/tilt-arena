@@ -60,6 +60,22 @@ final class GameCenterServiceTests: XCTestCase {
         XCTAssertEqual(service.authenticationState, .authenticated)
     }
 
+    func testAuthenticationTimeoutLeavesMenuRetryableAndAcceptsLateAccountUpdate() {
+        let client = FakeGameCenterLocalPlayerClient()
+        let service = makeService(localPlayer: client, authenticationTimeout: 0)
+
+        service.authenticate(presenter: nil)
+
+        XCTAssertEqual(service.authenticationState, .needsUserAuthentication)
+        XCTAssertEqual(service.menuStatus, .signInRequired)
+
+        client.isAuthenticated = true
+        client.completeAuthentication(viewController: nil, error: nil)
+
+        XCTAssertEqual(service.authenticationState, .authenticated)
+        XCTAssertEqual(service.menuStatus, .ready)
+    }
+
     func testPromptIsPresentedWhenAllowed() {
         let client = FakeGameCenterLocalPlayerClient()
         let presenter = FakeGameCenterAuthenticationPresenter()
@@ -166,6 +182,27 @@ final class GameCenterServiceTests: XCTestCase {
         XCTAssertEqual(service.authenticationState, .needsUserAuthentication)
         XCTAssertEqual(client.authenticateHandlerInstallCount, 2)
         XCTAssertTrue(presenter.presentedViewController === viewController)
+    }
+
+    func testStaleAuthenticationHandlerCannotOverwriteNewRetryAttempt() {
+        let client = FakeGameCenterLocalPlayerClient()
+        let service = makeService(localPlayer: client)
+
+        service.authenticate(presenter: nil)
+        service.retryAuthentication(presenter: nil)
+
+        client.completeAuthentication(
+            usingHandlerAt: 0,
+            viewController: nil,
+            error: NSError(domain: GKErrorDomain, code: GKError.Code.cancelled.rawValue)
+        )
+
+        XCTAssertEqual(service.authenticationState, .authenticating)
+
+        client.isAuthenticated = true
+        client.completeAuthentication(usingHandlerAt: 1, viewController: nil, error: nil)
+
+        XCTAssertEqual(service.authenticationState, .authenticated)
     }
 
     func testFailedAuthenticationRecordsFailure() {
@@ -315,6 +352,25 @@ final class GameCenterServiceTests: XCTestCase {
         XCTAssertTrue(scoreSubmissionStore.pendingSubmissions.isEmpty)
     }
 
+    func testRetryQueuedScoresTimeoutReleasesInFlightGateAndRetainsSubmission() {
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
+        client.defersScoreSubmissions = true
+        let service = makeService(localPlayer: client, submissionTimeout: 0)
+        let submission = GameCenterScoreSubmission.classicSurvival(from: makeRunSummary(score: 850))
+        scoreSubmissionStore.enqueue(submission)
+
+        service.retryQueuedScores()
+
+        XCTAssertEqual(service.menuStatus, .ready)
+        XCTAssertEqual(scoreSubmissionStore.pendingSubmissions.map(\.score), [850])
+
+        service.retryQueuedScores()
+
+        XCTAssertEqual(client.submittedScores.map(\.score), [850, 850])
+        client.completeNextScoreSubmission()
+        XCTAssertEqual(scoreSubmissionStore.pendingSubmissions.map(\.score), [850])
+    }
+
     func testNonClassicRunScoreIsNotSubmittedOrQueued() {
         let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
         let service = makeService(localPlayer: client)
@@ -449,6 +505,25 @@ final class GameCenterServiceTests: XCTestCase {
         XCTAssertTrue(achievementProgressStore.pendingProgress.isEmpty)
     }
 
+    func testRetryQueuedAchievementsTimeoutReleasesInFlightGateAndRetainsProgress() {
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: false)
+        let service = makeService(localPlayer: client, submissionTimeout: 0)
+        service.reportAchievementEvent(.weaponOrbCollected)
+        client.isAuthenticated = true
+        client.defersAchievementReports = true
+
+        service.retryQueuedAchievements()
+
+        XCTAssertEqual(service.menuStatus, .ready)
+        XCTAssertEqual(achievementProgressStore.pendingProgress.count, 1)
+
+        service.retryQueuedAchievements()
+
+        XCTAssertEqual(client.submittedAchievementBatches.count, 2)
+        client.completeNextAchievementReport()
+        XCTAssertEqual(achievementProgressStore.pendingProgress.count, 1)
+    }
+
     func testRecoverableAchievementSubmissionFailureQueuesProgress() {
         let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
         client.reportAchievementsError = NSError(domain: GKErrorDomain, code: GKError.Code.communicationsFailure.rawValue)
@@ -487,13 +562,17 @@ final class GameCenterServiceTests: XCTestCase {
 
     private func makeService(
         localPlayer: FakeGameCenterLocalPlayerClient,
-        leaderboardFactory: GameCenterLeaderboardFactory = FakeLeaderboardFactory()
+        leaderboardFactory: GameCenterLeaderboardFactory = FakeLeaderboardFactory(),
+        authenticationTimeout: TimeInterval = 20,
+        submissionTimeout: TimeInterval = 30
     ) -> GameCenterService {
         GameCenterService(
             localPlayer: localPlayer,
             scoreSubmissionStore: scoreSubmissionStore,
             achievementProgressStore: achievementProgressStore,
-            leaderboardFactory: leaderboardFactory
+            leaderboardFactory: leaderboardFactory,
+            authenticationTimeout: authenticationTimeout,
+            submissionTimeout: submissionTimeout
         )
     }
 
@@ -565,10 +644,9 @@ private final class FakeGameCenterLocalPlayerClient: GameCenterLocalPlayerClient
     private(set) var submittedAchievementBatches: [[SubmittedGameCenterAchievement]] = []
     private var pendingScoreCompletions: [@MainActor (Error?) -> Void] = []
     private var pendingAchievementCompletions: [@MainActor (Error?) -> Void] = []
+    private var authenticationHandlers: [@MainActor (UIViewController?, Error?) -> Void] = []
 
     var didInstallAuthenticateHandler: Bool { authenticateHandlerInstallCount > 0 }
-
-    private var handler: ((UIViewController?, Error?) -> Void)?
 
     init(isAvailable: Bool = true, isAuthenticated: Bool = false) {
         self.isAvailable = isAvailable
@@ -579,11 +657,19 @@ private final class FakeGameCenterLocalPlayerClient: GameCenterLocalPlayerClient
         _ handler: @escaping @MainActor (_ viewController: UIViewController?, _ error: Error?) -> Void
     ) {
         authenticateHandlerInstallCount += 1
-        self.handler = handler
+        authenticationHandlers.append(handler)
     }
 
     func completeAuthentication(viewController: UIViewController?, error: Error?) {
-        handler?(viewController, error)
+        authenticationHandlers.last?(viewController, error)
+    }
+
+    func completeAuthentication(
+        usingHandlerAt index: Int,
+        viewController: UIViewController?,
+        error: Error?
+    ) {
+        authenticationHandlers[index](viewController, error)
     }
 
     func submitScore(

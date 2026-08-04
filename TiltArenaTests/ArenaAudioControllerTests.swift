@@ -35,4 +35,12 @@ final class ArenaAudioControllerTests: XCTestCase {
         XCTAssertNil(limiter.cueIfAllowed(for: .enemyClear(count: 1), at: 2.04))
         XCTAssertNotNil(limiter.cueIfAllowed(for: .enemyClear(count: 8), at: 2.04))
     }
+
+    func testPlaybackLimiterRejectsNonFiniteTimeWithoutPoisoningCooldownState() {
+        var limiter = ArenaAudioPlaybackLimiter()
+
+        XCTAssertNil(limiter.cueIfAllowed(for: .enemyClear(count: 1), at: .nan))
+        XCTAssertNotNil(limiter.cueIfAllowed(for: .enemyClear(count: 1), at: 1))
+        XCTAssertNil(limiter.cueIfAllowed(for: .enemyClear(count: 1), at: 1.01))
+    }
 }

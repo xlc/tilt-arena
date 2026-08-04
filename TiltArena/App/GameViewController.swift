@@ -14,6 +14,7 @@ final class GameViewController: UIViewController {
     private var loadingOverlayInstalledAt: CFTimeInterval?
     private var loadingOverlayView: UIView?
     private var isHidingLoadingOverlay = false
+    private var diagnosticsExportTask: Task<Void, Never>?
 
     override func loadView() {
         view = SKView(frame: .zero)
@@ -354,18 +355,32 @@ extension GameViewController: ArenaSceneDiagnosticsDelegate {
         _ scene: ArenaScene,
         snapshot: DiagnosticGameplaySnapshot
     ) {
-        do {
-            let bundleURL = try AppDiagnostics.makeExportBundle(gameplay: snapshot)
-            let activityController = UIActivityViewController(
-                activityItems: [bundleURL],
-                applicationActivities: nil
-            )
-            AppDiagnostics.logger(.app).notice("diagnostics.export.presented", metadata: [
-                "bundle": "\(bundleURL.lastPathComponent)"
-            ])
-            present(activityController, animated: true)
-        } catch {
-            AppDiagnostics.logger(.app).error("diagnostics.export.failed", error: error)
+        guard diagnosticsExportTask == nil else {
+            return
+        }
+
+        diagnosticsExportTask = Task { [weak self] in
+            defer { self?.diagnosticsExportTask = nil }
+
+            do {
+                let bundleURL = try await Task.detached(priority: .userInitiated) {
+                    try AppDiagnostics.makeExportBundle(gameplay: snapshot)
+                }.value
+                try Task.checkCancellation()
+
+                let activityController = UIActivityViewController(
+                    activityItems: [bundleURL],
+                    applicationActivities: nil
+                )
+                AppDiagnostics.logger(.app).notice("diagnostics.export.presented", metadata: [
+                    "bundle": "\(bundleURL.lastPathComponent)"
+                ])
+                self?.present(activityController, animated: true)
+            } catch is CancellationError {
+                return
+            } catch {
+                AppDiagnostics.logger(.app).error("diagnostics.export.failed", error: error)
+            }
         }
     }
 }

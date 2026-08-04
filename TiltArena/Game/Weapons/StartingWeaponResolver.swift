@@ -79,9 +79,90 @@ struct StartingWeaponConfiguration: Equatable {
     var novaBombTargetFraction: Double = 0.5
 }
 
+enum WeaponRuntimeSafetyLimits {
+    // Tuning may be edited and persisted. Keep invalid/extreme values from
+    // creating effectively permanent states or unbounded per-activation work.
+    static let maximumDuration: TimeInterval = 60
+    static let maximumDistance: CGFloat = 10_000
+    static let maximumSpeed: CGFloat = 10_000
+    static let maximumTargetCount = 64
+    static let maximumRicochetBounceCount = 16
+    static let maximumSlowFactor: CGFloat = 100
+    static let maximumSpeedMultiplier: CGFloat = 100
+
+    static func duration(_ value: TimeInterval) -> TimeInterval {
+        guard value.isFinite else { return 0 }
+        return min(maximumDuration, max(0, value))
+    }
+
+    static func distance(_ value: CGFloat) -> CGFloat {
+        guard value.isFinite else { return 0 }
+        return min(maximumDistance, max(0, value))
+    }
+
+    static func speed(_ value: CGFloat) -> CGFloat {
+        guard value.isFinite else { return 0 }
+        return min(maximumSpeed, max(0, value))
+    }
+
+    static func count(_ value: Int) -> Int {
+        min(maximumTargetCount, max(0, value))
+    }
+}
+
 extension StartingWeaponConfiguration {
-    func applying(chargeTier: WeaponPickupChargeTier) -> StartingWeaponConfiguration {
+    func sanitizedForRuntime() -> StartingWeaponConfiguration {
         var configuration = self
+        configuration.shockwaveRadius = WeaponRuntimeSafetyLimits.distance(shockwaveRadius)
+        configuration.shockwaveExpansionDuration = WeaponRuntimeSafetyLimits.duration(shockwaveExpansionDuration)
+        configuration.shockwaveHoldDuration = WeaponRuntimeSafetyLimits.duration(shockwaveHoldDuration)
+        configuration.seekerTargetLimit = WeaponRuntimeSafetyLimits.count(seekerTargetLimit)
+        configuration.seekerExplosionRadius = WeaponRuntimeSafetyLimits.distance(seekerExplosionRadius)
+        configuration.seekerExplosionHoldDuration = WeaponRuntimeSafetyLimits.duration(seekerExplosionHoldDuration)
+        configuration.seekerTravelSpeed = WeaponRuntimeSafetyLimits.speed(seekerTravelSpeed)
+        configuration.razorShieldRadius = WeaponRuntimeSafetyLimits.distance(razorShieldRadius)
+        configuration.razorShieldDuration = WeaponRuntimeSafetyLimits.duration(razorShieldDuration)
+        configuration.razorShieldExplosionRadius = WeaponRuntimeSafetyLimits.distance(razorShieldExplosionRadius)
+        configuration.freezeBurstRadius = WeaponRuntimeSafetyLimits.distance(freezeBurstRadius)
+        configuration.freezeExpansionDuration = WeaponRuntimeSafetyLimits.duration(freezeExpansionDuration)
+        configuration.freezeDuration = WeaponRuntimeSafetyLimits.duration(freezeDuration)
+        configuration.freezeThawGraceDuration = WeaponRuntimeSafetyLimits.duration(freezeThawGraceDuration)
+        configuration.gravityWellRadius = WeaponRuntimeSafetyLimits.distance(gravityWellRadius)
+        configuration.gravityWellActivationDelay = WeaponRuntimeSafetyLimits.duration(gravityWellActivationDelay)
+        configuration.gravityWellPullDuration = WeaponRuntimeSafetyLimits.duration(gravityWellPullDuration)
+        configuration.gravityWellClearRadius = WeaponRuntimeSafetyLimits.distance(gravityWellClearRadius)
+        configuration.chainLightningInitialRange = WeaponRuntimeSafetyLimits.distance(chainLightningInitialRange)
+        configuration.chainLightningJumpRange = WeaponRuntimeSafetyLimits.distance(chainLightningJumpRange)
+        configuration.chainLightningTargetLimit = WeaponRuntimeSafetyLimits.count(chainLightningTargetLimit)
+        configuration.timeDilationRadius = WeaponRuntimeSafetyLimits.distance(timeDilationRadius)
+        configuration.timeDilationDuration = WeaponRuntimeSafetyLimits.duration(timeDilationDuration)
+        configuration.timeDilationMaximumSlowFactor = timeDilationMaximumSlowFactor.isFinite
+            ? min(WeaponRuntimeSafetyLimits.maximumSlowFactor, max(1, timeDilationMaximumSlowFactor))
+            : 1
+        configuration.timeDilationPushRadius = WeaponRuntimeSafetyLimits.distance(timeDilationPushRadius)
+        configuration.timeDilationMaximumPushDistance = WeaponRuntimeSafetyLimits.distance(
+            timeDilationMaximumPushDistance
+        )
+        configuration.powerWaveChargeDuration = WeaponRuntimeSafetyLimits.duration(powerWaveChargeDuration)
+        configuration.powerWaveRange = WeaponRuntimeSafetyLimits.distance(powerWaveRange)
+        configuration.powerWaveFanAngleDegrees = powerWaveFanAngleDegrees.isFinite
+            ? min(360, max(0, powerWaveFanAngleDegrees))
+            : 0
+        configuration.powerWaveExpansionDuration = WeaponRuntimeSafetyLimits.duration(powerWaveExpansionDuration)
+        configuration.ricochetLanceBeamWidth = WeaponRuntimeSafetyLimits.distance(ricochetLanceBeamWidth)
+        configuration.ricochetLanceMaximumBounces = min(
+            WeaponRuntimeSafetyLimits.maximumRicochetBounceCount,
+            max(0, ricochetLanceMaximumBounces)
+        )
+        configuration.ricochetLanceHoldDuration = WeaponRuntimeSafetyLimits.duration(ricochetLanceHoldDuration)
+        configuration.novaBombTargetFraction = novaBombTargetFraction.isFinite
+            ? min(1, max(0, novaBombTargetFraction))
+            : 0
+        return configuration
+    }
+
+    func applying(chargeTier: WeaponPickupChargeTier) -> StartingWeaponConfiguration {
+        var configuration = sanitizedForRuntime()
 
         guard chargeTier > .base else {
             return configuration
@@ -117,7 +198,7 @@ extension StartingWeaponConfiguration {
             configuration.novaBombTargetFraction + Double(chargeTier.rawValue) * 0.25
         )
 
-        return configuration
+        return configuration.sanitizedForRuntime()
     }
 
     func mergingRazorShield(with other: StartingWeaponConfiguration) -> StartingWeaponConfiguration {
@@ -128,7 +209,7 @@ extension StartingWeaponConfiguration {
             razorShieldExplosionRadius,
             other.razorShieldExplosionRadius
         )
-        return merged
+        return merged.sanitizedForRuntime()
     }
 
     func mergingTimeDilation(with other: StartingWeaponConfiguration) -> StartingWeaponConfiguration {
@@ -144,7 +225,7 @@ extension StartingWeaponConfiguration {
             timeDilationMaximumPushDistance,
             other.timeDilationMaximumPushDistance
         )
-        return merged
+        return merged.sanitizedForRuntime()
     }
 }
 
@@ -163,6 +244,18 @@ struct WeaponEffectTiming: Equatable {
     var minimumTravelDuration: TimeInterval = 0.08
     var maximumProjectileTravelDuration: TimeInterval = 0.42
     var maximumWaveTravelDuration: TimeInterval = 0.72
+
+    func sanitizedForRuntime() -> WeaponEffectTiming {
+        var timing = self
+        timing.projectileSpeed = WeaponRuntimeSafetyLimits.speed(projectileSpeed)
+        timing.waveSpeed = WeaponRuntimeSafetyLimits.speed(waveSpeed)
+        timing.minimumTravelDuration = WeaponRuntimeSafetyLimits.duration(minimumTravelDuration)
+        timing.maximumProjectileTravelDuration = WeaponRuntimeSafetyLimits.duration(
+            maximumProjectileTravelDuration
+        )
+        timing.maximumWaveTravelDuration = WeaponRuntimeSafetyLimits.duration(maximumWaveTravelDuration)
+        return timing
+    }
 
     func projectileDuration(from origin: CGPoint, to target: CGPoint) -> TimeInterval {
         duration(
@@ -199,12 +292,20 @@ struct WeaponEffectTiming: Equatable {
     }
 
     private func duration(distance: CGFloat, speed: CGFloat, maximumDuration: TimeInterval) -> TimeInterval {
-        guard distance > 0, speed > 0 else {
-            return minimumTravelDuration
+        let minimumDuration = WeaponRuntimeSafetyLimits.duration(minimumTravelDuration)
+        let maximumDuration = max(
+            minimumDuration,
+            WeaponRuntimeSafetyLimits.duration(maximumDuration)
+        )
+        guard distance.isFinite, speed.isFinite, distance > 0, speed > 0 else {
+            return minimumDuration
         }
 
         let rawDuration = TimeInterval(distance / speed)
-        return min(maximumDuration, max(minimumTravelDuration, rawDuration))
+        guard rawDuration.isFinite else {
+            return maximumDuration
+        }
+        return min(maximumDuration, max(minimumDuration, rawDuration))
     }
 
     private func distance(from origin: CGPoint, to target: CGPoint) -> CGFloat {
@@ -213,7 +314,16 @@ struct WeaponEffectTiming: Equatable {
 }
 
 struct StartingWeaponResolver {
-    var configuration = StartingWeaponConfiguration()
+    private var runtimeConfiguration: StartingWeaponConfiguration
+
+    var configuration: StartingWeaponConfiguration {
+        get { runtimeConfiguration }
+        set { runtimeConfiguration = newValue.sanitizedForRuntime() }
+    }
+
+    init(configuration: StartingWeaponConfiguration = StartingWeaponConfiguration()) {
+        runtimeConfiguration = configuration.sanitizedForRuntime()
+    }
 
     func resolve(kind: WeaponKind, playerPosition: CGPoint, enemies: [ArenaEnemy]) -> WeaponResolution {
         switch kind {

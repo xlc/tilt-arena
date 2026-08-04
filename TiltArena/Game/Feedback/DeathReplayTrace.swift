@@ -7,6 +7,9 @@ struct DeathReplaySample: Equatable {
 }
 
 struct DeathReplayTrace: Equatable {
+    private static let maximumDuration: TimeInterval = 10
+    private static let maximumSampleCount = 1_200
+
     var duration: TimeInterval = 2
     private(set) var samples: [DeathReplaySample] = []
 
@@ -19,12 +22,29 @@ struct DeathReplayTrace: Equatable {
     }
 
     mutating func record(time: TimeInterval, position: CGPoint) {
+        guard time.isFinite, position.x.isFinite, position.y.isFinite else {
+            return
+        }
+        if let latestTime = samples.last?.time, time < latestTime {
+            samples.removeAll(keepingCapacity: true)
+        }
+
         samples.append(DeathReplaySample(time: time, position: position))
         prune(through: time)
+        if samples.count > Self.maximumSampleCount {
+            samples.removeFirst(samples.count - Self.maximumSampleCount)
+        }
     }
 
     mutating func prune(through currentTime: TimeInterval) {
-        let minimumTime = currentTime - max(0, duration)
+        guard currentTime.isFinite else {
+            return
+        }
+
+        let effectiveDuration = duration.isFinite
+            ? min(Self.maximumDuration, max(0, duration))
+            : 0
+        let minimumTime = currentTime - effectiveDuration
         samples.removeAll { $0.time < minimumTime }
     }
 }

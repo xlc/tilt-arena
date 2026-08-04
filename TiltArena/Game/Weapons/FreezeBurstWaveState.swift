@@ -24,10 +24,10 @@ struct FreezeBurstWaveState: Equatable {
         thawGraceDuration: TimeInterval = StartingWeaponConfiguration().freezeThawGraceDuration
     ) {
         self.center = center
-        self.maximumRadius = maximumRadius
-        self.duration = duration
-        self.freezeDuration = freezeDuration
-        self.thawGraceDuration = thawGraceDuration
+        self.maximumRadius = WeaponRuntimeSafetyLimits.distance(maximumRadius)
+        self.duration = WeaponRuntimeSafetyLimits.duration(duration)
+        self.freezeDuration = WeaponRuntimeSafetyLimits.duration(freezeDuration)
+        self.thawGraceDuration = WeaponRuntimeSafetyLimits.duration(thawGraceDuration)
     }
 
     var isComplete: Bool {
@@ -48,7 +48,8 @@ struct FreezeBurstWaveState: Equatable {
         if clampedDuration == 0 {
             elapsedTime = 1
         } else {
-            elapsedTime = min(clampedDuration, elapsedTime + max(0, deltaTime))
+            let deltaTime = deltaTime.isFinite ? max(0, deltaTime) : 0
+            elapsedTime = min(clampedDuration, elapsedTime + deltaTime)
         }
         let radius = currentRadius
         let freezeCircle = CollisionCircle(center: center, radius: radius)

@@ -342,6 +342,34 @@ final class ArenaSceneEnemyLifecycleTests: XCTestCase {
         XCTAssertEqual(scene.weaponEffectNodeCountForTesting, effectNodeCountAfterBurn)
     }
 
+    func testNonFiniteFrameTimeDoesNotPoisonLaterGameplayUpdates() {
+        let scene = makeActiveScene()
+
+        scene.update(1)
+        scene.update(.nan)
+        scene.update(2)
+        scene.update(2 + 1.0 / 60.0)
+
+        XCTAssertEqual(scene.runSurvivalTimeForTesting, 1.0 / 60.0, accuracy: 0.0001)
+    }
+
+    func testDeathTransitionCompletesAfterSceneActionsAreRemoved() {
+        let scene = makeActiveScene()
+
+        scene.finishRunWithFeedbackForTesting()
+        XCTAssertEqual(scene.uiStateForTesting, .activeGameplay)
+        XCTAssertTrue(scene.isResolvingDeathForTesting)
+
+        scene.removeAllActions()
+        scene.update(1)
+        for frame in 1...4 {
+            scene.update(1 + Double(frame) / 15.0)
+        }
+
+        XCTAssertEqual(scene.uiStateForTesting, .postRun)
+        XCTAssertFalse(scene.isResolvingDeathForTesting)
+    }
+
     private func makeActiveScene() -> ArenaScene {
         let scene = ArenaScene(size: CGSize(width: 320, height: 240))
         scene.prepareActiveRunForTesting()

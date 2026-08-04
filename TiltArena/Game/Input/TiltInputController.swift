@@ -94,6 +94,7 @@ final class TiltInputController {
             return nil
         }
 
-        return TiltGravityVector(x: gravity.x, y: gravity.y)
+        let vector = TiltGravityVector(x: gravity.x, y: gravity.y)
+        return vector.isFinite ? vector : nil
     }
 }

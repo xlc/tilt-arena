@@ -42,9 +42,12 @@ struct PickupSpawnConfiguration: Equatable {
     var weaponKindCycle: [WeaponKind] = PickupSpawnConfiguration.defaultWeaponKindCycle
 
     func chargeTier(for timeOnScreen: TimeInterval) -> WeaponPickupChargeTier {
-        let age = max(0, timeOnScreen)
-        let chargedDelay = max(0, chargedPickupDelay)
-        let overchargedDelay = max(chargedDelay, overchargedPickupDelay)
+        let age = WeaponRuntimeSafetyLimits.duration(timeOnScreen)
+        let chargedDelay = WeaponRuntimeSafetyLimits.duration(chargedPickupDelay)
+        let overchargedDelay = max(
+            chargedDelay,
+            WeaponRuntimeSafetyLimits.duration(overchargedPickupDelay)
+        )
 
         if age >= overchargedDelay {
             return .overcharged
@@ -56,9 +59,27 @@ struct PickupSpawnConfiguration: Equatable {
 
         return .base
     }
+
+    func sanitizedForRuntime() -> PickupSpawnConfiguration {
+        var configuration = self
+        configuration.refillDelay = WeaponRuntimeSafetyLimits.duration(refillDelay)
+        configuration.chargedPickupDelay = WeaponRuntimeSafetyLimits.duration(chargedPickupDelay)
+        configuration.overchargedPickupDelay = WeaponRuntimeSafetyLimits.duration(overchargedPickupDelay)
+        configuration.maxActivePickups = min(
+            PickupSpawnPlanner.maximumActivePickupCount,
+            max(0, maxActivePickups)
+        )
+        configuration.pickupRadius = WeaponRuntimeSafetyLimits.distance(pickupRadius)
+        configuration.edgeInset = WeaponRuntimeSafetyLimits.distance(edgeInset)
+        configuration.playerClearance = WeaponRuntimeSafetyLimits.distance(playerClearance)
+        configuration.enemyClearance = WeaponRuntimeSafetyLimits.distance(enemyClearance)
+        return configuration
+    }
 }
 
 struct PickupSpawnPlanner {
+    static let maximumActivePickupCount = 16
+
     private static let spawnTimerEpsilon: TimeInterval = 0.000_001
     private static let candidatePositions: [(x: CGFloat, y: CGFloat)] = [
         (0.50, 0.28),
@@ -112,6 +133,7 @@ struct PickupSpawnPlanner {
         pickupCircles: [CollisionCircle] = [],
         configuration: PickupSpawnConfiguration = PickupSpawnConfiguration()
     ) -> [WeaponPickup] {
+        let configuration = configuration.sanitizedForRuntime()
         guard phase == .active else {
             return []
         }
@@ -120,13 +142,20 @@ struct PickupSpawnPlanner {
             return []
         }
 
+        let activePickupCount = min(
+            configuration.maxActivePickups,
+            max(0, activePickupCount)
+        )
         let missingPickupCount = configuration.maxActivePickups - activePickupCount
         guard missingPickupCount > 0 else {
             timeUntilNextSpawn = max(0, configuration.refillDelay)
             return []
         }
 
-        timeUntilNextSpawn -= max(0, deltaTime)
+        if !timeUntilNextSpawn.isFinite {
+            timeUntilNextSpawn = 0
+        }
+        timeUntilNextSpawn -= deltaTime.isFinite ? max(0, deltaTime) : 0
         if abs(timeUntilNextSpawn) <= Self.spawnTimerEpsilon {
             timeUntilNextSpawn = 0
         }
@@ -143,7 +172,7 @@ struct PickupSpawnPlanner {
                 avoiding: playerPosition,
                 enemyCircles: enemyCircles,
                 pickupCircles: occupiedPickupCircles,
-                configuration: configuration
+                runtimeConfiguration: configuration
             ) else {
                 break
             }
@@ -163,6 +192,26 @@ struct PickupSpawnPlanner {
         pickupCircles: [CollisionCircle] = [],
         configuration: PickupSpawnConfiguration = PickupSpawnConfiguration()
     ) -> WeaponPickup? {
+        let configuration = configuration.sanitizedForRuntime()
+        return spawnPickup(
+            in: playableRect,
+            avoiding: playerPosition,
+            enemyCircles: enemyCircles,
+            pickupCircles: pickupCircles,
+            runtimeConfiguration: configuration
+        )
+    }
+
+    private mutating func spawnPickup(
+        in playableRect: CGRect,
+        avoiding playerPosition: CGPoint,
+        enemyCircles: [CollisionCircle],
+        pickupCircles: [CollisionCircle],
+        runtimeConfiguration configuration: PickupSpawnConfiguration
+    ) -> WeaponPickup? {
+        guard playableRect.isFinite, playerPosition.isFinite else {
+            return nil
+        }
         let spawnRect = playableRect.insetBy(
             dx: min(configuration.edgeInset, playableRect.width / 4),
             dy: min(configuration.edgeInset, playableRect.height / 4)
@@ -192,7 +241,7 @@ struct PickupSpawnPlanner {
             position: position,
             radius: configuration.pickupRadius
         )
-        nextPickupID += 1
+        nextPickupID = nextPickupID == Int.max ? 1 : nextPickupID + 1
         return pickup
     }
 
@@ -205,14 +254,14 @@ struct PickupSpawnPlanner {
     ) -> CGPoint? {
         for _ in 0..<Self.candidatePositions.count {
             let position = candidatePosition(in: spawnRect, index: nextCandidateIndex)
-            nextCandidateIndex += 1
+            nextCandidateIndex = (nextCandidateIndex + 1) % Self.candidatePositions.count
 
             guard isSafePickupPosition(
                 position,
                 avoiding: playerPosition,
                 enemyCircles: enemyCircles,
                 pickupCircles: pickupCircles,
-                configuration: configuration
+                runtimeConfiguration: configuration
             ) else {
                 continue
             }
@@ -222,14 +271,14 @@ struct PickupSpawnPlanner {
 
         for _ in 0..<Self.fallbackCandidateCount {
             let position = fallbackCandidatePosition(in: spawnRect, index: nextFallbackCandidateIndex)
-            nextFallbackCandidateIndex += 1
+            nextFallbackCandidateIndex = (nextFallbackCandidateIndex + 1) % Self.fallbackCandidateCount
 
             guard isSafePickupPosition(
                 position,
                 avoiding: playerPosition,
                 enemyCircles: enemyCircles,
                 pickupCircles: pickupCircles,
-                configuration: configuration
+                runtimeConfiguration: configuration
             ) else {
                 continue
             }
@@ -247,6 +296,26 @@ struct PickupSpawnPlanner {
         pickupCircles: [CollisionCircle] = [],
         configuration: PickupSpawnConfiguration = PickupSpawnConfiguration()
     ) -> Bool {
+        let configuration = configuration.sanitizedForRuntime()
+        return isSafePickupPosition(
+            position,
+            avoiding: playerPosition,
+            enemyCircles: enemyCircles,
+            pickupCircles: pickupCircles,
+            runtimeConfiguration: configuration
+        )
+    }
+
+    private func isSafePickupPosition(
+        _ position: CGPoint,
+        avoiding playerPosition: CGPoint,
+        enemyCircles: [CollisionCircle],
+        pickupCircles: [CollisionCircle],
+        runtimeConfiguration configuration: PickupSpawnConfiguration
+    ) -> Bool {
+        guard position.isFinite, playerPosition.isFinite else {
+            return false
+        }
         let playerClearance = configuration.playerClearance + configuration.pickupRadius
         guard ArenaGeometry.squaredDistance(from: position, to: playerPosition) >= playerClearance * playerClearance else {
             return false
@@ -267,7 +336,7 @@ struct PickupSpawnPlanner {
 
     private mutating func nextKind(configuration: PickupSpawnConfiguration) -> WeaponKind {
         let kind = configuration.weaponKindCycle[nextKindIndex % configuration.weaponKindCycle.count]
-        nextKindIndex += 1
+        nextKindIndex = (nextKindIndex + 1) % configuration.weaponKindCycle.count
         return kind
     }
 

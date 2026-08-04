@@ -21,13 +21,14 @@ enum RicochetLancePath {
         enemies: [ArenaEnemy],
         configuration: StartingWeaponConfiguration = StartingWeaponConfiguration()
     ) -> RicochetLanceResult {
+        let configuration = configuration.sanitizedForRuntime()
         let segments = segments(
             origin: origin,
             direction: direction,
             playableRect: playableRect,
             maximumBounces: configuration.ricochetLanceMaximumBounces
         )
-        let beamRadius = max(0, configuration.ricochetLanceBeamWidth) / 2
+        let beamRadius = configuration.ricochetLanceBeamWidth / 2
         let destroyedEnemyIDs = Set(
             enemies
                 .filter { enemy in
@@ -54,14 +55,21 @@ enum RicochetLancePath {
         playableRect: CGRect,
         maximumBounces: Int
     ) -> [RicochetLanceSegment] {
-        guard playableRect.width > 0, playableRect.height > 0 else {
+        guard playableRect.isFinite,
+              playableRect.width > 0,
+              playableRect.height > 0,
+              origin.isFinite else {
             return []
         }
 
         var start = clamped(origin, to: playableRect)
         var direction = resolvedDirection(rawDirection)
-        var remainingSegments = max(0, maximumBounces) + 1
-        var remainingBounces = max(0, maximumBounces)
+        let maximumBounces = min(
+            WeaponRuntimeSafetyLimits.maximumRicochetBounceCount,
+            max(0, maximumBounces)
+        )
+        var remainingSegments = maximumBounces + 1
+        var remainingBounces = maximumBounces
         var segments: [RicochetLanceSegment] = []
 
         while remainingSegments > 0 {
@@ -113,7 +121,7 @@ enum RicochetLancePath {
     }
 
     private static func resolvedDirection(_ direction: CGVector) -> CGVector {
-        direction.length > 0 ? direction.normalized : CGVector(dx: 0, dy: 1)
+        direction.normalized(or: CGVector(dx: 0, dy: 1))
     }
 
     private static func clamped(_ point: CGPoint, to rect: CGRect) -> CGPoint {
@@ -188,6 +196,9 @@ enum RicochetLancePath {
     }
 
     private static func distanceSquared(from point: CGPoint, to segment: RicochetLanceSegment) -> CGFloat {
+        guard point.isFinite, segment.start.isFinite, segment.end.isFinite else {
+            return .infinity
+        }
         let dx = segment.end.x - segment.start.x
         let dy = segment.end.y - segment.start.y
         let lengthSquared = dx * dx + dy * dy
@@ -214,4 +225,5 @@ enum RicochetLancePath {
         let reflectX: Bool
         let reflectY: Bool
     }
+
 }

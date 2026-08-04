@@ -162,4 +162,66 @@ final class PlayerMovementControllerTests: XCTestCase {
             startState
         )
     }
+
+    func testNonFiniteInputAndTimingCannotPoisonMovementState() {
+        let arenaSize = CGSize(width: 390, height: 844)
+        var controller = PlayerMovementController()
+        let startState = controller.reset(in: arenaSize)
+
+        var state = controller.update(
+            input: CGVector(dx: CGFloat.nan, dy: CGFloat.infinity),
+            deltaTime: 0.1,
+            arenaSize: arenaSize
+        )
+        XCTAssertEqual(state, startState)
+
+        state = controller.update(
+            input: CGVector(dx: 1, dy: 0),
+            deltaTime: .nan,
+            arenaSize: arenaSize
+        )
+        XCTAssertEqual(state.position, startState.position)
+        XCTAssertTrue(state.velocity.isFinite)
+
+        state = controller.update(
+            input: CGVector(dx: 1, dy: 0),
+            deltaTime: 0.1,
+            arenaSize: arenaSize
+        )
+        XCTAssertGreaterThan(state.position.x, startState.position.x)
+        XCTAssertTrue(state.position.x.isFinite)
+        XCTAssertTrue(state.position.y.isFinite)
+    }
+
+    func testHugeFiniteSpeedMultiplierCannotOverflowMovementState() {
+        let arenaBounds = CGRect(x: 0, y: 0, width: 390, height: 844)
+        var controller = PlayerMovementController()
+        _ = controller.reset(in: arenaBounds)
+
+        var state = controller.update(
+            input: CGVector(dx: 1, dy: 1),
+            deltaTime: 1,
+            arenaBounds: arenaBounds,
+            speedMultiplier: CGFloat.greatestFiniteMagnitude
+        )
+
+        XCTAssertTrue(state.position.x.isFinite)
+        XCTAssertTrue(state.position.y.isFinite)
+        XCTAssertTrue(state.velocity.isFinite)
+        XCTAssertTrue(state.velocity.length.isFinite)
+        XCTAssertLessThanOrEqual(state.velocity.length, PlayerMovementController.maximumSafeSpeed)
+
+        state = controller.updateWithFixedSpeed(
+            input: CGVector(dx: 1, dy: 1),
+            deltaTime: 1,
+            arenaBounds: arenaBounds,
+            speedMultiplier: CGFloat.greatestFiniteMagnitude
+        )
+
+        XCTAssertTrue(state.position.x.isFinite)
+        XCTAssertTrue(state.position.y.isFinite)
+        XCTAssertTrue(state.velocity.isFinite)
+        XCTAssertTrue(state.velocity.length.isFinite)
+        XCTAssertLessThanOrEqual(state.velocity.length, PlayerMovementController.maximumSafeSpeed)
+    }
 }

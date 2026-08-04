@@ -2,7 +2,7 @@ import SpriteKit
 
 extension ArenaScene {
     func playFrozenShatterEffect(at positions: [CGPoint], color: SKColor) {
-        for position in positions {
+        for position in WeaponImpactPlan.evenlySampled(positions) {
             let ring = SKShapeNode(circleOfRadius: 16)
             ring.position = position
             ring.strokeColor = color.withAlphaComponent(0.66)

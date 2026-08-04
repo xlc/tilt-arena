@@ -4,7 +4,7 @@ import Logging
 @MainActor
 enum AppDiagnostics {
     nonisolated static let subsystem = "com.xlc.TiltArena"
-    private static let sessionID = UUID().uuidString
+    nonisolated private static let sessionID = UUID().uuidString
     private static var isBootstrapped = false
 
     static func bootstrap(store: DiagnosticLogStore = .shared) {
@@ -32,7 +32,7 @@ enum AppDiagnostics {
         Logger(label: "\(subsystem).\(category.rawValue)")
     }
 
-    static func makeExportBundle(gameplay: DiagnosticGameplaySnapshot?) throws -> URL {
+    nonisolated static func makeExportBundle(gameplay: DiagnosticGameplaySnapshot?) throws -> URL {
         let generatedAt = Date()
         let metadata = DiagnosticExportMetadataFactory.make(
             generatedAt: generatedAt,
@@ -45,7 +45,7 @@ enum AppDiagnostics {
         return try builder.makeBundle(metadata: metadata)
     }
 
-    private static func exportDirectoryURL() -> URL {
+    nonisolated private static func exportDirectoryURL() -> URL {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("DiagnosticsExports", isDirectory: true)
     }

@@ -3,6 +3,21 @@ import XCTest
 @testable import TiltArena
 
 final class ArenaThemeTests: XCTestCase {
+    @MainActor
+    func testRendererRejectsNonfiniteAndExtremeGeometryWithoutGeneratingNodes() {
+        let renderer = ArenaThemeRenderer(theme: .darkTacticalRadar)
+
+        let nonfinite = renderer.makeArenaBackground(
+            size: CGSize(width: CGFloat.infinity, height: 640)
+        )
+        let extreme = renderer.makeArenaBackground(
+            size: CGSize(width: 1_000_000, height: 1_000_000)
+        )
+
+        XCTAssertTrue(nonfinite.children.isEmpty)
+        XCTAssertTrue(extreme.children.isEmpty)
+    }
+
     func testThemeKindOrderAndTitlesAreStable() {
         XCTAssertEqual(ArenaThemeKind.allCases, [.darkTacticalRadar, .whitePrecisionBoard])
         XCTAssertEqual(ArenaThemeKind.darkTacticalRadar.shortTitle, "DARK")

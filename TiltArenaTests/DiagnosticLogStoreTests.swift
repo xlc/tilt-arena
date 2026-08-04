@@ -40,6 +40,7 @@ final class DiagnosticLogStoreTests: XCTestCase {
             function: "test()",
             line: 42
         ))
+        store.flushPendingWrites()
 
         let contents = try String(contentsOf: store.currentLogFileURL, encoding: .utf8)
         let lines = contents.split(separator: "\n")

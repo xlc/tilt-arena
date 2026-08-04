@@ -35,7 +35,12 @@ struct WeaponPickup: Equatable, Identifiable {
     }
 
     mutating func advanceCharge(deltaTime: TimeInterval, configuration: PickupSpawnConfiguration) {
-        timeOnScreen += max(0, deltaTime)
+        let currentTime = timeOnScreen.isFinite ? max(0, timeOnScreen) : 0
+        let deltaTime = deltaTime.isFinite ? max(0, deltaTime) : 0
+        timeOnScreen = min(
+            WeaponRuntimeSafetyLimits.maximumDuration,
+            currentTime + deltaTime
+        )
         chargeTier = configuration.chargeTier(for: timeOnScreen)
     }
 }

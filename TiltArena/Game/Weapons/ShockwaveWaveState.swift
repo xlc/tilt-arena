@@ -24,9 +24,9 @@ struct ShockwaveWaveState: Equatable {
         holdDuration: TimeInterval
     ) {
         self.center = center
-        self.maximumRadius = maximumRadius
-        self.expansionDuration = expansionDuration
-        self.holdDuration = holdDuration
+        self.maximumRadius = WeaponRuntimeSafetyLimits.distance(maximumRadius)
+        self.expansionDuration = WeaponRuntimeSafetyLimits.duration(expansionDuration)
+        self.holdDuration = WeaponRuntimeSafetyLimits.duration(holdDuration)
     }
 
     var isComplete: Bool {
@@ -42,7 +42,8 @@ struct ShockwaveWaveState: Equatable {
             )
         }
 
-        elapsedTime = min(totalDuration, elapsedTime + max(0, deltaTime))
+        let deltaTime = deltaTime.isFinite ? max(0, deltaTime) : 0
+        elapsedTime = min(totalDuration, elapsedTime + deltaTime)
         if totalDuration == 0 {
             elapsedTime = .leastNonzeroMagnitude
         }

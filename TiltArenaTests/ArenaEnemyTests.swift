@@ -3,6 +3,38 @@ import XCTest
 @testable import TiltArena
 
 final class ArenaEnemyTests: XCTestCase {
+    func testNonfiniteFreezeAndDeltaDoNotLeaveEnemyPermanentlyStopped() {
+        var enemy = ArenaEnemy(id: 1, position: .zero, radius: 8, speed: 100)
+
+        enemy.freeze(duration: .infinity)
+        enemy.advance(toward: CGPoint(x: 100, y: 0), deltaTime: .infinity)
+        enemy.advance(toward: CGPoint(x: 100, y: 0), deltaTime: 0.1)
+
+        XCTAssertFalse(enemy.isFrozen)
+        XCTAssertEqual(enemy.position.x, 10, accuracy: 0.0001)
+        XCTAssertTrue(enemy.position.y.isFinite)
+    }
+
+    func testPaddleDotIgnoresNonfiniteVelocityWithoutPoisoningPosition() {
+        var enemy = ArenaEnemy(
+            id: 1,
+            position: CGPoint(x: 5, y: 5),
+            radius: 4,
+            speed: 1,
+            behavior: .paddleTrapDot(
+                trapID: 1,
+                velocity: CGVector(dx: CGFloat.infinity, dy: 1),
+                bounds: CGRect(x: 0, y: 0, width: 10, height: 10),
+                remainingLifetime: 2
+            )
+        )
+
+        enemy.advance(toward: CGPoint.zero, deltaTime: 0.1)
+
+        XCTAssertEqual(enemy.position, CGPoint(x: 5, y: 5))
+        XCTAssertTrue(enemy.position.x.isFinite && enemy.position.y.isFinite)
+    }
+
     func testEnemyMovesTowardPlayerWithoutOvershooting() {
         var enemy = ArenaEnemy(id: 1, position: CGPoint(x: 0, y: 0), radius: 8, speed: 100)
 

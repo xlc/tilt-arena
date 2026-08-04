@@ -24,6 +24,10 @@ enum TiltCalibrationPreset: String, CaseIterable, Codable {
 struct TiltGravityVector: Codable, Equatable {
     var x: Double
     var y: Double
+
+    var isFinite: Bool {
+        x.isFinite && y.isFinite
+    }
 }
 
 struct TiltCalibration: Codable, Equatable {
@@ -53,6 +57,10 @@ struct TiltControlSettings: Codable, Equatable {
     )
 
     var clampedSensitivity: Double {
-        min(Self.maximumSensitivity, max(Self.minimumSensitivity, sensitivity))
+        guard sensitivity.isFinite else {
+            return Self.defaultSensitivity
+        }
+
+        return min(Self.maximumSensitivity, max(Self.minimumSensitivity, sensitivity))
     }
 }

@@ -2,6 +2,27 @@ import XCTest
 @testable import TiltArena
 
 final class StartingWeaponResolverTests: XCTestCase {
+    func testRuntimeConfigurationSanitizesExtremeAndNonfiniteValuesOnAssignment() {
+        var resolver = StartingWeaponResolver()
+
+        resolver.configuration = StartingWeaponConfiguration(
+            shockwaveRadius: .infinity,
+            shockwaveExpansionDuration: .infinity,
+            seekerTargetLimit: .max,
+            ricochetLanceMaximumBounces: .max,
+            ricochetLanceHoldDuration: .infinity
+        )
+
+        XCTAssertEqual(resolver.configuration.shockwaveRadius, 0)
+        XCTAssertEqual(resolver.configuration.shockwaveExpansionDuration, 0)
+        XCTAssertEqual(resolver.configuration.seekerTargetLimit, WeaponRuntimeSafetyLimits.maximumTargetCount)
+        XCTAssertEqual(
+            resolver.configuration.ricochetLanceMaximumBounces,
+            WeaponRuntimeSafetyLimits.maximumRicochetBounceCount
+        )
+        XCTAssertEqual(resolver.configuration.ricochetLanceHoldDuration, 0)
+    }
+
     func testDefaultShockwaveTuningKeepsWaveReadableAndLargerThanShieldBurst() {
         let configuration = StartingWeaponConfiguration()
 

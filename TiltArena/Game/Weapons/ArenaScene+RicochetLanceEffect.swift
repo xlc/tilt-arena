@@ -7,7 +7,7 @@ extension ArenaScene {
         configuration: StartingWeaponConfiguration? = nil,
         onImpact: @escaping (Set<Int>) -> Void
     ) {
-        let configuration = configuration ?? weaponResolver.configuration
+        let configuration = (configuration ?? weaponResolver.configuration).sanitizedForRuntime()
         guard !segments.isEmpty else {
             runRicochetImpactBatch(targets, delay: 0, onImpact: onImpact)
             return
@@ -97,10 +97,14 @@ extension ArenaScene {
     }
 
     private func ricochetSegmentDuration(_ segment: RicochetLanceSegment) -> TimeInterval {
+        let timing = weaponEffectTiming
         let distance = hypot(segment.end.x - segment.start.x, segment.end.y - segment.start.y)
+        guard distance.isFinite else {
+            return max(0.045, timing.minimumTravelDuration)
+        }
         return min(
             0.18,
-            max(0.045, TimeInterval(distance / max(1, weaponEffectTiming.waveSpeed)))
+            max(0.045, TimeInterval(distance / max(1, timing.waveSpeed)))
         )
     }
 
@@ -109,11 +113,14 @@ extension ArenaScene {
         duration: TimeInterval,
         configuration: StartingWeaponConfiguration
     ) -> SKAction {
-        .sequence([
+        let delay = WeaponRuntimeSafetyLimits.duration(delay)
+        let duration = WeaponRuntimeSafetyLimits.duration(duration)
+        let holdDuration = configuration.ricochetLanceHoldDuration
+        return .sequence([
             .wait(forDuration: delay),
             .fadeAlpha(to: 1, duration: 0.025),
             .wait(forDuration: duration),
-            .wait(forDuration: max(0, configuration.ricochetLanceHoldDuration)),
+            .wait(forDuration: holdDuration),
             .fadeOut(withDuration: 0.16),
             .removeFromParent()
         ])

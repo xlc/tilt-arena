@@ -43,4 +43,54 @@ final class ReadyStartHoldControllerTests: XCTestCase {
         XCTAssertFalse(state.didComplete)
         XCTAssertEqual(state.elapsed, 0)
     }
+
+    func testExtremeFiniteConfigurationIsBoundedAndCompletes() {
+        let configuration = ReadyStartHoldConfiguration(
+            requiredDuration: 1e308,
+            startCircleRadius: CGFloat.greatestFiniteMagnitude
+        )
+        var controller = ReadyStartHoldController(configuration: configuration)
+        let startPoint = CGPoint(x: 100, y: 100)
+
+        let state = controller.update(
+            playerPosition: startPoint,
+            startPoint: startPoint,
+            deltaTime: 1e308
+        )
+
+        XCTAssertEqual(state.elapsed, ReadyStartHoldConfiguration.maximumRequiredDuration)
+        XCTAssertTrue(state.didComplete)
+        XCTAssertEqual(
+            state.progressFraction(requiredDuration: configuration.requiredDuration),
+            1
+        )
+        XCTAssertEqual(
+            configuration.effectiveStartCircleRadius,
+            ReadyStartHoldConfiguration.maximumStartCircleRadius
+        )
+    }
+
+    func testNonFiniteInputAndConfigurationCannotPoisonHoldState() {
+        let configuration = ReadyStartHoldConfiguration(
+            requiredDuration: .nan,
+            startCircleRadius: CGFloat.nan
+        )
+        var controller = ReadyStartHoldController(configuration: configuration)
+        let startPoint = CGPoint(x: 100, y: 100)
+
+        var state = controller.update(
+            playerPosition: CGPoint(x: CGFloat.nan, y: 100),
+            startPoint: startPoint,
+            deltaTime: .nan
+        )
+        XCTAssertEqual(state, ReadyStartHoldState())
+
+        state = controller.update(
+            playerPosition: startPoint,
+            startPoint: startPoint,
+            deltaTime: 3
+        )
+        XCTAssertTrue(state.didComplete)
+        XCTAssertTrue(state.elapsed.isFinite)
+    }
 }

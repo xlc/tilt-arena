@@ -21,11 +21,11 @@ struct GravityWellState {
     ) {
         self.center = center
         self.enemyIDs = enemyIDs
-        self.pullRadius = pullRadius
-        self.pullDuration = pullDuration
-        self.clearRadius = clearRadius
-        self.activationDelayRemaining = max(0, activationDelayRemaining)
-        self.timeRemaining = max(0, timeRemaining)
+        self.pullRadius = WeaponRuntimeSafetyLimits.distance(pullRadius)
+        self.pullDuration = WeaponRuntimeSafetyLimits.duration(pullDuration)
+        self.clearRadius = WeaponRuntimeSafetyLimits.distance(clearRadius)
+        self.activationDelayRemaining = WeaponRuntimeSafetyLimits.duration(activationDelayRemaining)
+        self.timeRemaining = WeaponRuntimeSafetyLimits.duration(timeRemaining)
     }
 
     var totalTimeRemaining: TimeInterval {
@@ -37,7 +37,7 @@ struct GravityWellState {
     }
 
     mutating func consumePullDelta(deltaTime: TimeInterval) -> TimeInterval {
-        var remainingDelta = max(0, deltaTime)
+        var remainingDelta = deltaTime.isFinite ? max(0, deltaTime) : 0
 
         if activationDelayRemaining > 0 {
             let delayDelta = min(activationDelayRemaining, remainingDelta)

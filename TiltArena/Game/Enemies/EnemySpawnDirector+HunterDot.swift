@@ -21,7 +21,7 @@ extension EnemySpawnDirector {
 
         primeTimer(for: .hunterDot, interval: hunterDotSpawnInterval, timer: \.timeUntilNextHunterDot)
 
-        guard pendingTelegraphSlotCount < configuration.maxPendingEnemyTelegraphs else {
+        guard pendingTelegraphSlotCount < pendingTelegraphCapacity else {
             timeUntilNextHunterDot = max(timeUntilNextHunterDot, hunterDotSpawnInterval)
             return
         }
@@ -92,7 +92,7 @@ extension EnemySpawnDirector {
             nextTelegraphID += 1
 
             return PendingEnemySpawn(
-                timeRemaining: configuration.hunterDotTelegraphDuration,
+                timeRemaining: telegraphDuration(configuration.hunterDotTelegraphDuration),
                 requiredEnemyCount: 1,
                 enemies: [enemy],
                 telegraph: telegraph,

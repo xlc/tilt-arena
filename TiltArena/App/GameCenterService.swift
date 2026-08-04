@@ -138,6 +138,65 @@ struct GameCenterAuthenticationFailure: Equatable {
 }
 
 @MainActor
+private final class GameCenterOperationWatchdog {
+    private var task: Task<Void, Never>?
+    private(set) var requestID: UUID?
+
+    func begin() -> UUID {
+        cancel()
+        let requestID = UUID()
+        self.requestID = requestID
+        return requestID
+    }
+
+    func isCurrent(_ requestID: UUID) -> Bool {
+        self.requestID == requestID
+    }
+
+    @discardableResult
+    func complete(_ requestID: UUID) -> Bool {
+        guard isCurrent(requestID) else {
+            return false
+        }
+
+        cancel()
+        return true
+    }
+
+    func arm(
+        requestID: UUID,
+        after timeout: TimeInterval,
+        operation: @escaping @MainActor @Sendable () -> Void
+    ) {
+        guard isCurrent(requestID) else {
+            return
+        }
+        guard timeout > 0 else {
+            operation()
+            return
+        }
+
+        task = Task { @MainActor in
+            do {
+                try await Task.sleep(for: .seconds(timeout))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else {
+                return
+            }
+            operation()
+        }
+    }
+
+    func cancel() {
+        requestID = nil
+        task?.cancel()
+        task = nil
+    }
+}
+
+@MainActor
 final class GameCenterService {
     static let shared = GameCenterService()
 
@@ -152,6 +211,12 @@ final class GameCenterService {
     private var canPresentAuthenticationPrompt = false
     private var isRetryingQueuedScores = false
     private var isRetryingQueuedAchievements = false
+    private let authenticationTimeout: TimeInterval
+    private let submissionTimeout: TimeInterval
+    private var authenticationHandlerID: UUID?
+    private let authenticationWatchdog = GameCenterOperationWatchdog()
+    private let scoreRetryWatchdog = GameCenterOperationWatchdog()
+    private let achievementRetryWatchdog = GameCenterOperationWatchdog()
 
     private(set) var authenticationState: GameCenterAuthenticationState = .notStarted
 
@@ -185,13 +250,17 @@ final class GameCenterService {
         scoreSubmissionStore: GameCenterScoreSubmissionStore = GameCenterScoreSubmissionStore(),
         achievementProgressStore: GameCenterAchievementProgressStore = GameCenterAchievementProgressStore(),
         leaderboardFactory: GameCenterLeaderboardFactory = GameKitLeaderboardFactory(),
-        logger: Logger = AppDiagnostics.logger(.gameCenter)
+        logger: Logger = AppDiagnostics.logger(.gameCenter),
+        authenticationTimeout: TimeInterval = 20,
+        submissionTimeout: TimeInterval = 30
     ) {
         self.localPlayer = localPlayer
         self.scoreSubmissionStore = scoreSubmissionStore
         self.achievementProgressStore = achievementProgressStore
         self.leaderboardFactory = leaderboardFactory
         self.logger = logger
+        self.authenticationTimeout = Self.normalizedTimeout(authenticationTimeout, fallback: 20)
+        self.submissionTimeout = Self.normalizedTimeout(submissionTimeout, fallback: 30)
     }
 
     func authenticate(
@@ -199,12 +268,14 @@ final class GameCenterService {
         allowsPrompt: Bool = true
     ) {
         guard localPlayer.isAvailable else {
+            authenticationWatchdog.cancel()
             updateState(.unsupported)
             logger.info("game_center.auth_unsupported")
             return
         }
 
         if localPlayer.isAuthenticated {
+            authenticationWatchdog.cancel()
             updateState(.authenticated)
             logger.notice("game_center.authenticated")
             retryQueuedSubmissions()
@@ -226,16 +297,23 @@ final class GameCenterService {
         updateState(.authenticating)
         logger.info("game_center.auth_started")
 
+        let attemptID = authenticationWatchdog.begin()
+        authenticationHandlerID = attemptID
         hasInstalledAuthenticationHandler = true
         localPlayer.setAuthenticateHandler { [weak self] viewController, error in
             self?.handleAuthenticationCallback(
+                handlerID: attemptID,
                 viewController: viewController,
                 error: error
             )
         }
+        authenticationWatchdog.arm(requestID: attemptID, after: authenticationTimeout) { [weak self] in
+            self?.handleAuthenticationTimeout(attemptID: attemptID)
+        }
     }
 
     func retryAuthentication(presenter: GameCenterAuthenticationPresenting?) {
+        authenticationWatchdog.cancel()
         shouldSuppressAutomaticPrompt = false
         hasInstalledAuthenticationHandler = false
         authenticate(presenter: presenter, allowsPrompt: true)
@@ -364,8 +442,13 @@ final class GameCenterService {
         logger.info("game_center.achievement_retry_started", metadata: [
             "pendingCount": "\(progress.count)"
         ])
+        let requestID = achievementRetryWatchdog.begin()
         localPlayer.reportAchievements(progress) { [weak self] error in
             guard let self else {
+                return
+            }
+            guard self.achievementRetryWatchdog.complete(requestID) else {
+                self.logger.debug("game_center.achievement_retry_late_completion_ignored")
                 return
             }
 
@@ -392,12 +475,23 @@ final class GameCenterService {
                 "remainingCount": "\(self.achievementProgressStore.pendingProgress.count)"
             ])
         }
+        achievementRetryWatchdog.arm(requestID: requestID, after: submissionTimeout) { [weak self] in
+            self?.handleAchievementRetryTimeout(requestID: requestID, progress: progress)
+        }
     }
 
     private func handleAuthenticationCallback(
+        handlerID: UUID,
         viewController: UIViewController?,
         error: Error?
     ) {
+        guard authenticationHandlerID == handlerID else {
+            logger.debug("game_center.auth_stale_callback_ignored")
+            return
+        }
+
+        authenticationWatchdog.cancel()
+
         if let error {
             handleAuthenticationError(error)
             return
@@ -621,12 +715,17 @@ final class GameCenterService {
         }
 
         let submission = submissions[index]
+        let requestID = scoreRetryWatchdog.begin()
         localPlayer.submitScore(
             submission.score,
             context: submission.context,
             leaderboardIDs: [submission.leaderboardID]
         ) { [weak self] error in
             guard let self else {
+                return
+            }
+            guard self.scoreRetryWatchdog.complete(requestID) else {
+                self.logger.debug("game_center.score_retry_late_completion_ignored")
                 return
             }
 
@@ -653,6 +752,17 @@ final class GameCenterService {
                 completedQueueKeys: updatedCompletedQueueKeys
             )
         }
+        scoreRetryWatchdog.arm(requestID: requestID, after: submissionTimeout) { [weak self] in
+            self?.handleScoreRetryTimeout(requestID: requestID, submission: submission)
+        }
+    }
+
+    private static func normalizedTimeout(_ timeout: TimeInterval, fallback: TimeInterval) -> TimeInterval {
+        guard timeout.isFinite else {
+            return fallback
+        }
+
+        return max(0, timeout)
     }
 
     private func shouldQueueRecoverableFailure(_ error: Error) -> Bool {
@@ -698,6 +808,52 @@ final class GameCenterService {
         ]
         metadata.merge(additionalMetadata) { _, new in new }
         return metadata
+    }
+}
+
+private extension GameCenterService {
+    func handleAuthenticationTimeout(attemptID: UUID) {
+        guard authenticationWatchdog.isCurrent(attemptID), authenticationState == .authenticating else {
+            return
+        }
+
+        authenticationWatchdog.cancel()
+        updateState(.needsUserAuthentication)
+        logger.warning("game_center.auth_timed_out")
+    }
+
+    func handleScoreRetryTimeout(
+        requestID: UUID,
+        submission: GameCenterScoreSubmission
+    ) {
+        guard scoreRetryWatchdog.isCurrent(requestID), isRetryingQueuedScores else {
+            return
+        }
+
+        scoreRetryWatchdog.cancel()
+        isRetryingQueuedScores = false
+        notifyMenuStatusChanged()
+        logger.warning(
+            "game_center.score_retry_timed_out",
+            metadata: scoreSubmissionMetadata(submission)
+        )
+    }
+
+    func handleAchievementRetryTimeout(
+        requestID: UUID,
+        progress: [GameCenterAchievementProgress]
+    ) {
+        guard achievementRetryWatchdog.isCurrent(requestID), isRetryingQueuedAchievements else {
+            return
+        }
+
+        achievementRetryWatchdog.cancel()
+        isRetryingQueuedAchievements = false
+        notifyMenuStatusChanged()
+        logger.warning(
+            "game_center.achievement_retry_timed_out",
+            metadata: achievementProgressMetadata(progress)
+        )
     }
 }
 

@@ -29,6 +29,7 @@ struct PowerWaveState: Equatable {
     }
 
     mutating func activate(configuration: StartingWeaponConfiguration) {
+        let configuration = configuration.sanitizedForRuntime()
         isCharging = true
         activeConfiguration = configuration
         chargeTimeRemaining = max(0, configuration.powerWaveChargeDuration)
@@ -50,7 +51,7 @@ struct PowerWaveState: Equatable {
         enemies: [ArenaEnemy],
         configuration: StartingWeaponConfiguration
     ) -> PowerWaveFrame {
-        var remainingDelta = max(0, deltaTime)
+        var remainingDelta = deltaTime.isFinite ? max(0, deltaTime) : 0
         var release: PowerWaveRelease?
         let resolvedConfiguration = activeConfiguration ?? configuration
 
@@ -130,17 +131,18 @@ struct PowerWaveWaveState: Equatable {
         expansionDuration: TimeInterval,
         playableRect: CGRect
     ) {
-        self.center = center
-        self.direction = direction.length > 0 ? direction.normalized : CGVector(dx: 0, dy: 1)
-        self.maximumRange = max(0, maximumRange)
-        self.fanAngleRadians = min(360, max(0, fanAngleDegrees)) * .pi / 180
-        let clampedDuration = max(0.001, expansionDuration)
-        travelSpeed = max(0, maximumRange) / CGFloat(clampedDuration)
+        self.center = center.isFinite ? center : .zero
+        self.direction = direction.normalized(or: CGVector(dx: 0, dy: 1))
+        self.maximumRange = WeaponRuntimeSafetyLimits.distance(maximumRange)
+        let fanAngleDegrees = fanAngleDegrees.isFinite ? min(360, max(0, fanAngleDegrees)) : 0
+        self.fanAngleRadians = fanAngleDegrees * .pi / 180
+        let clampedDuration = max(0.001, WeaponRuntimeSafetyLimits.duration(expansionDuration))
+        travelSpeed = self.maximumRange / CGFloat(clampedDuration)
         travelDistance = Self.resolvedTravelDistance(
-            from: center,
+            from: self.center,
             direction: self.direction,
             playableRect: playableRect,
-            waveDepth: max(0, maximumRange)
+            waveDepth: self.maximumRange
         )
     }
 
@@ -157,7 +159,7 @@ struct PowerWaveWaveState: Equatable {
             )
         }
 
-        elapsedTime += max(0, deltaTime)
+        elapsedTime += deltaTime.isFinite ? max(0, deltaTime) : 0
 
         let radius = currentRadius
         let newlyDestroyedEnemyIDs = Set(
@@ -183,7 +185,10 @@ struct PowerWaveWaveState: Equatable {
     }
 
     private func intersectsFan(_ enemy: ArenaEnemy, radius: CGFloat) -> Bool {
-        guard radius > 0 else {
+        guard radius.isFinite,
+              radius > 0,
+              enemy.position.isFinite,
+              enemy.radius.isFinite else {
             return false
         }
 
@@ -221,8 +226,11 @@ struct PowerWaveWaveState: Equatable {
         playableRect: CGRect,
         waveDepth: CGFloat
     ) -> CGFloat {
-        guard playableRect.width > 0, playableRect.height > 0 else {
-            return max(0, waveDepth)
+        guard center.isFinite,
+              playableRect.isFinite,
+              playableRect.width > 0,
+              playableRect.height > 0 else {
+            return WeaponRuntimeSafetyLimits.distance(waveDepth)
         }
 
         let corners = [
@@ -238,6 +246,9 @@ struct PowerWaveWaveState: Equatable {
             }
             .max() ?? 0
 
-        return max(0, farthestProjection) + max(0, waveDepth)
+        return WeaponRuntimeSafetyLimits.distance(
+            max(0, farthestProjection) + max(0, waveDepth)
+        )
     }
+
 }

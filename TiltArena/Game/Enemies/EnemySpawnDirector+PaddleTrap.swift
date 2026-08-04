@@ -42,7 +42,7 @@ extension EnemySpawnDirector {
 
         primeTimer(for: .paddleTrap, interval: paddleTrapSpawnInterval, timer: \.timeUntilNextPaddleTrap)
 
-        guard pendingTelegraphSlotCount < configuration.maxPendingEnemyTelegraphs else {
+        guard pendingTelegraphSlotCount < pendingTelegraphCapacity else {
             timeUntilNextPaddleTrap = max(timeUntilNextPaddleTrap, paddleTrapSpawnInterval)
             return
         }
@@ -152,7 +152,7 @@ extension EnemySpawnDirector {
                 behavior: .paddleTrapBar(
                     trapID: trapID,
                     orientation: layout.orientation,
-                    remainingLifetime: tuning.paddleTrapLifetime
+                    remainingLifetime: EnemySpawnSafetyLimits.statusDuration(tuning.paddleTrapLifetime)
                 )
             )
             enemy.startPlayerCollisionGrace(duration: configuration.spawnPlayerCollisionGraceDuration)
@@ -167,7 +167,7 @@ extension EnemySpawnDirector {
                 trapID: trapID,
                 velocity: layout.dotVelocity,
                 bounds: layout.dotBounds,
-                remainingLifetime: tuning.paddleTrapLifetime
+                remainingLifetime: EnemySpawnSafetyLimits.statusDuration(tuning.paddleTrapLifetime)
             )
         ))
 
@@ -176,7 +176,7 @@ extension EnemySpawnDirector {
         nextPaddleTrapID += 1
 
         return PendingEnemySpawn(
-            timeRemaining: configuration.paddleTrapTelegraphDuration,
+            timeRemaining: telegraphDuration(configuration.paddleTrapTelegraphDuration),
             requiredEnemyCount: enemies.count,
             enemies: enemies,
             telegraph: EnemyTelegraph(id: telegraphID, segments: layout.telegraphSegments),

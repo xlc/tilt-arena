@@ -60,12 +60,17 @@ struct WeaponComboState: Equatable {
     }
 
     mutating func update(deltaTime: TimeInterval) {
+        if !primerTimeRemaining.isFinite {
+            reset()
+            return
+        }
         guard primerTimeRemaining > 0 else {
             reset()
             return
         }
 
-        primerTimeRemaining = max(0, primerTimeRemaining - max(0, deltaTime))
+        let deltaTime = deltaTime.isFinite ? max(0, deltaTime) : 0
+        primerTimeRemaining = max(0, primerTimeRemaining - deltaTime)
         if primerTimeRemaining == 0 {
             reset()
         }
@@ -112,6 +117,6 @@ struct WeaponComboState: Equatable {
 
     private mutating func prime(_ family: WeaponComboFamily, window: TimeInterval) {
         primedFamily = family
-        primerTimeRemaining = max(0, window)
+        primerTimeRemaining = WeaponRuntimeSafetyLimits.duration(window)
     }
 }

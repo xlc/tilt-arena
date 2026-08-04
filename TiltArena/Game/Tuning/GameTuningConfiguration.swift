@@ -363,8 +363,14 @@ enum GameTuningParameterValue {
             }
         case let .int(keyPath, step, minValue, maxValue):
             let currentValue = tuning[keyPath: keyPath]
+            let stepMagnitude = step == Int.min ? Int.max : abs(step)
+            let adjustment = direction == .increase ? stepMagnitude : -stepMagnitude
+            let (nextValue, overflowed) = currentValue.addingReportingOverflow(adjustment)
+            let saturatedValue = overflowed
+                ? (direction == .increase ? maxValue ?? Int.max : minValue)
+                : nextValue
             tuning[keyPath: keyPath] = Self.clamp(
-                currentValue + step * (direction == .increase ? 1 : -1),
+                saturatedValue,
                 min: minValue,
                 max: maxValue
             )

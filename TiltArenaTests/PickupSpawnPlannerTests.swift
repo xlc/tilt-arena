@@ -2,6 +2,51 @@ import XCTest
 @testable import TiltArena
 
 final class PickupSpawnPlannerTests: XCTestCase {
+    func testPickupChargeRecoversFromNonfiniteAgeAndDelta() {
+        let configuration = PickupSpawnConfiguration(
+            chargedPickupDelay: 2,
+            overchargedPickupDelay: 5
+        )
+        var pickup = WeaponPickup(
+            id: 1,
+            kind: .shockwave,
+            position: .zero,
+            radius: 8,
+            timeOnScreen: .nan
+        )
+
+        pickup.advanceCharge(deltaTime: .infinity, configuration: configuration)
+        XCTAssertEqual(pickup.timeOnScreen, 0)
+        XCTAssertEqual(pickup.chargeTier, .base)
+
+        pickup.advanceCharge(deltaTime: 2, configuration: configuration)
+        XCTAssertEqual(pickup.chargeTier, .charged)
+    }
+
+    func testExtremeActivePickupCountIsCappedPerFrame() {
+        let configuration = PickupSpawnConfiguration(
+            maxActivePickups: .max,
+            pickupRadius: 0,
+            edgeInset: 0,
+            playerClearance: 0,
+            enemyClearance: 0
+        )
+        var planner = PickupSpawnPlanner(configuration: configuration)
+
+        let pickups = planner.update(
+            deltaTime: .infinity,
+            phase: .active,
+            activePickupCount: 0,
+            playableRect: CGRect(x: 0, y: 0, width: 320, height: 640),
+            playerPosition: CGPoint(x: -1_000, y: -1_000),
+            enemyCircles: [],
+            configuration: configuration
+        )
+
+        XCTAssertEqual(pickups.count, PickupSpawnPlanner.maximumActivePickupCount)
+        XCTAssertTrue(pickups.allSatisfy { $0.position.x.isFinite && $0.position.y.isFinite })
+    }
+
     func testDefaultPickupRadiusKeepsWeaponOrbsCompact() {
         let configuration = PickupSpawnConfiguration()
 

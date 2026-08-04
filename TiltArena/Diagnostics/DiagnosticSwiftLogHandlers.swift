@@ -49,7 +49,7 @@ struct DiagnosticJSONLLogHandler: LogHandler {
             line: event.line
         )
 
-        try? store.append(record)
+        store.enqueue(record)
     }
 }
 

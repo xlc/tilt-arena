@@ -2,6 +2,7 @@ import CoreGraphics
 import XCTest
 @testable import TiltArena
 
+@MainActor
 final class WeaponImpactPlanTests: XCTestCase {
     func testCapsAndSpreadsVisualTargetsWithoutDroppingImpacts() {
         let targets = (1...64).map {
@@ -26,5 +27,35 @@ final class WeaponImpactPlanTests: XCTestCase {
 
         XCTAssertEqual(plan.visualTargets, targets)
         XCTAssertEqual(plan.impactEnemyIDs, Set(1...8))
+    }
+
+    func testGravityCollapseCapsVisualNodesForLargeClear() {
+        let scene = ArenaScene(size: CGSize(width: 320, height: 240))
+        let targets = (1...64).map {
+            WeaponImpactTarget(id: $0, position: CGPoint(x: CGFloat($0), y: 80))
+        }
+
+        scene.playGravityWellCollapseEffect(
+            at: CGPoint(x: 160, y: 120),
+            clearRadius: 32,
+            targets: targets
+        ) { _ in }
+
+        XCTAssertLessThanOrEqual(
+            scene.weaponEffectNodeCountForTesting,
+            WeaponImpactPlan.maximumVisualTargetCount + 2
+        )
+    }
+
+    func testFrozenShatterCapsVisualNodesForLargeStackedClear() {
+        let scene = ArenaScene(size: CGSize(width: 320, height: 240))
+        let positions = (1...64).map { CGPoint(x: CGFloat($0), y: 80) }
+
+        scene.playFrozenShatterEffect(at: positions, color: .white)
+
+        XCTAssertEqual(
+            scene.weaponEffectNodeCountForTesting,
+            WeaponImpactPlan.maximumVisualTargetCount * 5
+        )
     }
 }

@@ -5,6 +5,7 @@ final class DiagnosticLogStore: @unchecked Sendable {
         var maxCurrentFileBytes = 512 * 1_024
         var maxArchivedFileCount = 5
         var maxTotalBytes = 3 * 1_024 * 1_024
+        var maxPendingRecordCount = 256
 
         static let production = Configuration()
     }
@@ -18,9 +19,16 @@ final class DiagnosticLogStore: @unchecked Sendable {
     let configuration: Configuration
     private let fileManager: FileManager
     private let lock = NSLock()
+    private let pendingWriteLock = NSLock()
+    private let writeQueue = DispatchQueue(
+        label: "com.xlc.TiltArena.diagnostics.writer",
+        qos: .utility
+    )
+    private let writeQueueKey = DispatchSpecificKey<UInt8>()
     private let dateProvider: @Sendable () -> Date
     private let uuidProvider: @Sendable () -> UUID
     private let encoder: JSONEncoder
+    private var pendingWriteCount = 0
 
     init(
         directoryURL: URL,
@@ -36,6 +44,7 @@ final class DiagnosticLogStore: @unchecked Sendable {
         self.uuidProvider = uuidProvider
         encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
+        writeQueue.setSpecific(key: writeQueueKey, value: 1)
     }
 
     var currentLogFileURL: URL {
@@ -55,8 +64,35 @@ final class DiagnosticLogStore: @unchecked Sendable {
         }
     }
 
+    /// Queues routine persistence away from gameplay's main-thread render loop.
+    /// The queue is deliberately bounded: diagnostics are best-effort and must
+    /// be dropped rather than allowing slow storage to create unbounded work.
+    @discardableResult
+    func enqueue(_ record: DiagnosticLogRecord) -> Bool {
+        guard reservePendingWrite() else {
+            return false
+        }
+
+        writeQueue.async { [self] in
+            defer { releasePendingWrite() }
+            try? append(record)
+        }
+        return true
+    }
+
+    /// Waits for records accepted before this call. Intended for tests and
+    /// background export work, never for the gameplay render path.
+    func flushPendingWrites() {
+        guard DispatchQueue.getSpecific(key: writeQueueKey) == nil else {
+            return
+        }
+
+        writeQueue.sync {}
+    }
+
     func logFileURLs() throws -> [URL] {
-        try lock.withLock {
+        flushPendingWrites()
+        return try lock.withLock {
             try prepareDirectoryLocked()
             let archiveURLs = try archiveLogFileURLsLocked()
             guard fileManager.fileExists(atPath: currentLogFileURL.path) else {
@@ -68,6 +104,7 @@ final class DiagnosticLogStore: @unchecked Sendable {
     }
 
     func copyLogFiles(to destinationDirectoryURL: URL) throws {
+        flushPendingWrites()
         try lock.withLock {
             try prepareDirectoryLocked()
             try fileManager.createDirectory(
@@ -195,6 +232,23 @@ final class DiagnosticLogStore: @unchecked Sendable {
     private func fileSizeLocked(_ url: URL) throws -> Int {
         let attributes = try fileManager.attributesOfItem(atPath: url.path)
         return (attributes[.size] as? NSNumber)?.intValue ?? 0
+    }
+
+    private func reservePendingWrite() -> Bool {
+        pendingWriteLock.withLock {
+            guard pendingWriteCount < max(1, configuration.maxPendingRecordCount) else {
+                return false
+            }
+
+            pendingWriteCount += 1
+            return true
+        }
+    }
+
+    private func releasePendingWrite() {
+        pendingWriteLock.withLock {
+            pendingWriteCount = max(0, pendingWriteCount - 1)
+        }
     }
 
     private func markExcludedFromBackup(_ url: URL) throws {

@@ -47,3 +47,66 @@ enum ArenaGeometry {
         return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
 }
+
+extension CGPoint {
+    var isFinite: Bool {
+        x.isFinite && y.isFinite
+    }
+}
+
+extension CGSize {
+    var isFinite: Bool {
+        width.isFinite && height.isFinite
+    }
+}
+
+extension CGRect {
+    var isFinite: Bool {
+        origin.isFinite
+            && size.isFinite
+            && minX.isFinite
+            && maxX.isFinite
+            && minY.isFinite
+            && maxY.isFinite
+    }
+}
+
+extension CGVector {
+    var isFinite: Bool {
+        dx.isFinite && dy.isFinite
+    }
+
+    var length: CGFloat {
+        hypot(dx, dy)
+    }
+
+    var normalized: CGVector {
+        normalized(or: .zero)
+    }
+
+    func normalized(or fallback: CGVector) -> CGVector {
+        let length = length
+        guard isFinite, length.isFinite, length > 0 else {
+            return fallback.isFinite ? fallback : .zero
+        }
+
+        return CGVector(dx: dx / length, dy: dy / length)
+    }
+
+    func clamped(toMaximumLength maximumLength: CGFloat) -> CGVector {
+        guard isFinite, maximumLength.isFinite, maximumLength >= 0 else {
+            return .zero
+        }
+
+        let length = length
+        guard length.isFinite else {
+            return .zero
+        }
+        guard length > maximumLength else {
+            return self
+        }
+
+        let scale = maximumLength / length
+        return CGVector(dx: dx * scale, dy: dy * scale)
+    }
+}

@@ -3,6 +3,16 @@ import XCTest
 @testable import TiltArena
 
 final class AimDirectionStateTests: XCTestCase {
+    func testNonfiniteInputKeepsLastFiniteDirection() {
+        var state = AimDirectionState()
+        state.record(input: CGVector(dx: -1, dy: 0))
+
+        state.record(input: CGVector(dx: CGFloat.infinity, dy: 1))
+
+        XCTAssertEqual(state.resolvedDirection().dx, -1, accuracy: 0.0001)
+        XCTAssertEqual(state.resolvedDirection().dy, 0, accuracy: 0.0001)
+    }
+
     func testDefaultsToUpwardDirectionBeforeMovement() {
         let state = AimDirectionState()
 

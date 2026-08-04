@@ -1,41 +1,9 @@
 import SpriteKit
 
-struct WeaponImpactTarget: Equatable {
-    let id: Int
-    let position: CGPoint
-}
-
-struct WeaponImpactPlan {
-    static let maximumVisualTargetCount = 16
-
-    let impactEnemyIDs: Set<Int>
-    let visualTargets: [WeaponImpactTarget]
-
-    init(targets: [WeaponImpactTarget]) {
-        impactEnemyIDs = Set(targets.map(\.id))
-        visualTargets = Self.evenlySampledTargets(
-            targets,
-            maximumCount: Self.maximumVisualTargetCount
-        )
-    }
-
-    private static func evenlySampledTargets(
-        _ targets: [WeaponImpactTarget],
-        maximumCount: Int
-    ) -> [WeaponImpactTarget] {
-        let limit = max(0, maximumCount)
-        guard limit > 0, targets.count > limit else {
-            return limit > 0 ? targets : []
-        }
-        guard limit > 1 else {
-            return [targets[0]]
-        }
-
-        return (0..<limit).map { index in
-            let sourceIndex = index * (targets.count - 1) / (limit - 1)
-            return targets[sourceIndex]
-        }
-    }
+private struct TimeDilationAuraVisuals {
+    let outerRing: SKShapeNode
+    let innerRing: SKShapeNode
+    let sprite: SKSpriteNode
 }
 
 extension ArenaScene {
@@ -45,9 +13,11 @@ extension ArenaScene {
         duration: TimeInterval,
         holdDuration: TimeInterval
     ) {
-        let radius = radius ?? weaponResolver.configuration.shockwaveRadius
-        let expansionDuration = max(0.01, duration)
-        let holdDuration = max(0, holdDuration)
+        let radius = WeaponRuntimeSafetyLimits.distance(
+            radius ?? weaponResolver.configuration.shockwaveRadius
+        )
+        let expansionDuration = max(0.01, WeaponRuntimeSafetyLimits.duration(duration))
+        let holdDuration = WeaponRuntimeSafetyLimits.duration(holdDuration)
         let fadeDuration = max(0.01, holdDuration)
         let ring = makeEffectRing(
             radius: radius,
@@ -111,14 +81,12 @@ extension ArenaScene {
 
     func playNovaBombEffect(targets: [WeaponImpactTarget]) -> TimeInterval {
         let plan = WeaponImpactPlan(targets: targets)
-        let playableRect = currentPlayableRect
-
-        guard playableRect.width > 0, playableRect.height > 0 else {
+        guard let geometry = novaEffectGeometry() else {
             return 0
         }
 
-        let center = CGPoint(x: playableRect.midX, y: playableRect.midY)
-        let radius = hypot(playableRect.width, playableRect.height) / 2
+        let center = geometry.center
+        let radius = geometry.radius
         let duration = weaponEffectTiming.waveDuration(radius: radius)
         let ring = makeEffectRing(
             radius: radius,
@@ -132,23 +100,7 @@ extension ArenaScene {
         addWeaponEffectNode(ring)
         playWeaponEffectSprite(.novaBomb, at: center, size: min(radius * 0.76, 310), alpha: 0.5)
 
-        for index in 0..<16 {
-            let angle = CGFloat(index) * .pi / 8
-            let spoke = SKShapeNode(path: Self.radialLinePath(innerRadius: 18, outerRadius: radius, angle: angle))
-            spoke.position = center
-            spoke.strokeColor = theme.playerColor.withAlphaComponent(0.32)
-            spoke.lineWidth = 1.15
-            spoke.glowWidth = 0.85
-            spoke.zPosition = 18
-            spoke.alpha = 0
-            addWeaponEffectNode(spoke)
-            spoke.run(.sequence([
-                .wait(forDuration: duration * 0.08),
-                .fadeAlpha(to: 0.86, duration: duration * 0.18),
-                .fadeOut(withDuration: duration * 0.54),
-                .removeFromParent()
-            ]))
-        }
+        playNovaSpokes(center: center, radius: radius, duration: duration)
 
         ring.run(.sequence([
             .group([
@@ -171,6 +123,38 @@ extension ArenaScene {
         return duration
     }
 
+    private func novaEffectGeometry() -> (center: CGPoint, radius: CGFloat)? {
+        let playableRect = currentPlayableRect
+        guard playableRect.isFinite, playableRect.width > 0, playableRect.height > 0 else {
+            return nil
+        }
+
+        return (
+            center: CGPoint(x: playableRect.midX, y: playableRect.midY),
+            radius: WeaponRuntimeSafetyLimits.distance(hypot(playableRect.width, playableRect.height) / 2)
+        )
+    }
+
+    private func playNovaSpokes(center: CGPoint, radius: CGFloat, duration: TimeInterval) {
+        for index in 0..<16 {
+            let angle = CGFloat(index) * .pi / 8
+            let spoke = SKShapeNode(path: Self.radialLinePath(innerRadius: 18, outerRadius: radius, angle: angle))
+            spoke.position = center
+            spoke.strokeColor = theme.playerColor.withAlphaComponent(0.32)
+            spoke.lineWidth = 1.15
+            spoke.glowWidth = 0.85
+            spoke.zPosition = 18
+            spoke.alpha = 0
+            addWeaponEffectNode(spoke)
+            spoke.run(.sequence([
+                .wait(forDuration: duration * 0.08),
+                .fadeAlpha(to: 0.86, duration: duration * 0.18),
+                .fadeOut(withDuration: duration * 0.54),
+                .removeFromParent()
+            ]))
+        }
+    }
+
     func playGravityWellEffect(
         at position: CGPoint,
         radius: CGFloat? = nil,
@@ -183,7 +167,9 @@ extension ArenaScene {
         addWeaponEffectNode(container)
         gravityWellEffectNode = container
 
-        let radius = radius ?? weaponResolver.configuration.gravityWellRadius
+        let radius = WeaponRuntimeSafetyLimits.distance(
+            radius ?? weaponResolver.configuration.gravityWellRadius
+        )
         let ring = makeEffectRing(
             radius: radius,
             strokeColor: theme.pickupViolet.withAlphaComponent(0.84),
@@ -215,7 +201,12 @@ extension ArenaScene {
             container.addChild(arm)
         }
 
-        let duration = max(0.12, duration ?? weaponResolver.configuration.gravityWellPullDuration)
+        let duration = max(
+            0.12,
+            WeaponRuntimeSafetyLimits.duration(
+                duration ?? weaponResolver.configuration.gravityWellPullDuration
+            )
+        )
         container.run(.repeatForever(.rotate(byAngle: -.pi * 1.5, duration: 0.9)), withKey: "gravity.spin")
         let pulse = SKAction.group([
             .scale(to: 0.22, duration: duration),
@@ -230,7 +221,9 @@ extension ArenaScene {
         targets: [WeaponImpactTarget],
         onImpact: @escaping (Set<Int>) -> Void
     ) {
+        let plan = WeaponImpactPlan(targets: targets)
         let delay: TimeInterval = 0.12
+        let clearRadius = WeaponRuntimeSafetyLimits.distance(clearRadius)
         let ring = makeEffectRing(
             radius: clearRadius * 1.5,
             strokeColor: theme.pickupViolet.withAlphaComponent(0.95),
@@ -249,7 +242,7 @@ extension ArenaScene {
             .removeFromParent()
         ]))
 
-        for target in targets {
+        for target in plan.visualTargets {
             let tether = SKShapeNode(path: Self.linePath(from: target.position, to: position))
             tether.strokeColor = theme.pickupViolet.withAlphaComponent(0.42)
             tether.lineWidth = 1.2
@@ -262,7 +255,7 @@ extension ArenaScene {
             ]))
         }
 
-        runImpactBatch(Set(targets.map(\.id)), delay: delay, onImpact: onImpact)
+        runImpactBatch(plan.impactEnemyIDs, delay: delay, onImpact: onImpact)
     }
 
     func playTimeDilationAuraEffect(
@@ -270,8 +263,8 @@ extension ArenaScene {
         radius: CGFloat,
         duration: TimeInterval
     ) -> SKNode {
-        let clampedRadius = max(0, radius)
-        let clampedDuration = max(0.05, duration)
+        let clampedRadius = WeaponRuntimeSafetyLimits.distance(radius)
+        let clampedDuration = max(0.05, WeaponRuntimeSafetyLimits.duration(duration))
         let fadeInDuration = min(0.08, clampedDuration * 0.3)
         let fadeOutDuration = min(0.18, max(0.05, clampedDuration * 0.25))
         let holdDuration = max(0, clampedDuration - fadeInDuration - fadeOutDuration)
@@ -281,58 +274,8 @@ extension ArenaScene {
         container.alpha = 0
         addWeaponEffectNode(container)
 
-        let outerRing = makeEffectRing(
-            radius: clampedRadius,
-            strokeColor: theme.pickupViolet.withAlphaComponent(0.7),
-            fillColor: theme.pickupViolet.withAlphaComponent(0.07),
-            lineWidth: 2.2,
-            glowWidth: 1.8
-        )
-        outerRing.setScale(0.86)
-        container.addChild(outerRing)
-
-        let innerRing = makeEffectRing(
-            radius: clampedRadius * 0.46,
-            strokeColor: theme.playerAccentColor.withAlphaComponent(0.52),
-            fillColor: theme.playerAccentColor.withAlphaComponent(0.03),
-            lineWidth: 1.3,
-            glowWidth: 1
-        )
-        container.addChild(innerRing)
-
-        let core = SKShapeNode(circleOfRadius: min(14, max(7, clampedRadius * 0.08)))
-        core.fillColor = theme.pickupViolet.withAlphaComponent(0.34)
-        core.strokeColor = theme.playerColor.withAlphaComponent(0.72)
-        core.lineWidth = 1
-        core.glowWidth = 1.1
-        core.zPosition = 20
-        container.addChild(core)
-
-        for index in 0..<8 {
-            let angle = CGFloat(index) * .pi / 4
-            let tick = SKShapeNode(path: Self.radialLinePath(
-                innerRadius: clampedRadius * 0.72,
-                outerRadius: clampedRadius * 0.88,
-                angle: angle
-            ))
-            tick.strokeColor = theme.playerAccentColor.withAlphaComponent(0.24)
-            tick.lineWidth = 1
-            tick.glowWidth = 0.45
-            tick.lineCap = .round
-            tick.zPosition = 19
-            container.addChild(tick)
-        }
-
-        let sprite = makeWeaponEffectSprite(
-            kind: .warpDash,
-            size: min(92, max(40, clampedRadius * 0.72)),
-            zPosition: 17
-        )
-        sprite.alpha = 0.36
-        sprite.setScale(0.92)
-        container.addChild(sprite)
-
-        outerRing.run(.repeatForever(.sequence([
+        let visuals = addTimeDilationAuraVisuals(to: container, radius: clampedRadius)
+        visuals.outerRing.run(.repeatForever(.sequence([
             .group([
                 .scale(to: 1.0, duration: 0.28),
                 .fadeAlpha(to: 0.62, duration: 0.28)
@@ -342,8 +285,8 @@ extension ArenaScene {
                 .fadeAlpha(to: 1, duration: 0.28)
             ])
         ])))
-        innerRing.run(.repeatForever(.rotate(byAngle: -.pi * 2, duration: 1.0)))
-        sprite.run(.repeatForever(.rotate(byAngle: .pi * 2, duration: 1.2)))
+        visuals.innerRing.run(.repeatForever(.rotate(byAngle: -.pi * 2, duration: 1.0)))
+        visuals.sprite.run(.repeatForever(.rotate(byAngle: .pi * 2, duration: 1.2)))
 
         container.run(.sequence([
             .fadeAlpha(to: 1, duration: fadeInDuration),
@@ -353,6 +296,72 @@ extension ArenaScene {
         ]))
 
         return container
+    }
+
+    private func addTimeDilationAuraVisuals(
+        to container: SKNode,
+        radius: CGFloat
+    ) -> TimeDilationAuraVisuals {
+        let outerRing = makeEffectRing(
+            radius: radius,
+            strokeColor: theme.pickupViolet.withAlphaComponent(0.7),
+            fillColor: theme.pickupViolet.withAlphaComponent(0.07),
+            lineWidth: 2.2,
+            glowWidth: 1.8
+        )
+        outerRing.setScale(0.86)
+        container.addChild(outerRing)
+
+        let innerRing = makeEffectRing(
+            radius: radius * 0.46,
+            strokeColor: theme.playerAccentColor.withAlphaComponent(0.52),
+            fillColor: theme.playerAccentColor.withAlphaComponent(0.03),
+            lineWidth: 1.3,
+            glowWidth: 1
+        )
+        container.addChild(innerRing)
+
+        let core = SKShapeNode(circleOfRadius: min(14, max(7, radius * 0.08)))
+        core.fillColor = theme.pickupViolet.withAlphaComponent(0.34)
+        core.strokeColor = theme.playerColor.withAlphaComponent(0.72)
+        core.lineWidth = 1
+        core.glowWidth = 1.1
+        core.zPosition = 20
+        container.addChild(core)
+
+        addTimeDilationTicks(to: container, radius: radius)
+
+        let sprite = makeWeaponEffectSprite(
+            kind: .warpDash,
+            size: min(92, max(40, radius * 0.72)),
+            zPosition: 17
+        )
+        sprite.alpha = 0.36
+        sprite.setScale(0.92)
+        container.addChild(sprite)
+
+        return TimeDilationAuraVisuals(
+            outerRing: outerRing,
+            innerRing: innerRing,
+            sprite: sprite
+        )
+    }
+
+    private func addTimeDilationTicks(to container: SKNode, radius: CGFloat) {
+        for index in 0..<8 {
+            let angle = CGFloat(index) * .pi / 4
+            let tick = SKShapeNode(path: Self.radialLinePath(
+                innerRadius: radius * 0.72,
+                outerRadius: radius * 0.88,
+                angle: angle
+            ))
+            tick.strokeColor = theme.playerAccentColor.withAlphaComponent(0.24)
+            tick.lineWidth = 1
+            tick.glowWidth = 0.45
+            tick.lineCap = .round
+            tick.zPosition = 19
+            container.addChild(tick)
+        }
     }
 
     func playRazorShieldImpactEffect(
@@ -380,7 +389,8 @@ extension ArenaScene {
         onImpact: @escaping (Set<Int>) -> Void
     ) {
         let plan = WeaponImpactPlan(targets: targets)
-        let clampedExplosionRadius = max(0, explosionRadius)
+        let clampedExplosionRadius = WeaponRuntimeSafetyLimits.distance(explosionRadius)
+        let startRadius = WeaponRuntimeSafetyLimits.distance(startRadius)
         let delay: TimeInterval = 0.1
         let ring = makeEffectRing(
             radius: clampedExplosionRadius,
@@ -451,6 +461,7 @@ extension ArenaScene {
         core.glowWidth = 0.8
         container.addChild(core)
 
+        let duration = WeaponRuntimeSafetyLimits.duration(duration)
         let pulseDuration = max(0.08, min(0.18, max(0.01, duration) / 2))
         container.run(.repeatForever(.sequence([
             .group([
@@ -477,8 +488,11 @@ extension ArenaScene {
         travelDistance: CGFloat,
         duration: TimeInterval
     ) {
-        let fanAngleRadians = min(360, max(0, fanAngleDegrees)) * .pi / 180
-        let wave = SKShapeNode(path: Self.powerWaveFanPath(range: max(0, range), fanAngleRadians: fanAngleRadians))
+        let range = WeaponRuntimeSafetyLimits.distance(range)
+        let fanAngleDegrees = fanAngleDegrees.isFinite ? min(360, max(0, fanAngleDegrees)) : 0
+        let fanAngleRadians = fanAngleDegrees * .pi / 180
+        let wave = SKShapeNode(path: Self.powerWaveFanPath(range: range, fanAngleRadians: fanAngleRadians))
+        let position = position.isFinite ? position : .zero
         wave.position = position
         wave.zRotation = Self.rotation(for: direction)
         wave.zPosition = 18
@@ -496,20 +510,19 @@ extension ArenaScene {
         sprite.setScale(0.9)
         addWeaponEffectNode(sprite)
 
-        let clampedRange = max(0, range)
-        let travelSpeed = clampedRange / CGFloat(max(0.001, duration))
-        let travelDuration = TimeInterval(max(0, travelDistance) / max(1, travelSpeed))
-        let resolvedDirection = direction.length > 0 ? direction.normalized : CGVector(dx: 0, dy: 1)
-        let endPosition = CGPoint(
-            x: position.x + resolvedDirection.dx * max(0, travelDistance),
-            y: position.y + resolvedDirection.dy * max(0, travelDistance)
+        let travel = Self.powerWaveTravel(
+            from: position,
+            direction: direction,
+            range: range,
+            distance: travelDistance,
+            expansionDuration: duration
         )
         wave.run(.sequence([
             .group([
-                .move(to: endPosition, duration: travelDuration),
+                .move(to: travel.endPosition, duration: travel.duration),
                 .sequence([
-                    .fadeAlpha(to: 0.54, duration: min(0.08, travelDuration * 0.35)),
-                    .wait(forDuration: max(0, travelDuration - 0.16)),
+                    .fadeAlpha(to: 0.54, duration: min(0.08, travel.duration * 0.35)),
+                    .wait(forDuration: max(0, travel.duration - 0.16)),
                     .fadeOut(withDuration: 0.08)
                 ])
             ]),
@@ -517,10 +530,10 @@ extension ArenaScene {
         ]))
         sprite.run(.sequence([
             .group([
-                .move(to: endPosition, duration: travelDuration),
+                .move(to: travel.endPosition, duration: travel.duration),
                 .sequence([
-                    .fadeAlpha(to: 0.62, duration: min(0.08, travelDuration * 0.35)),
-                    .wait(forDuration: max(0, travelDuration - 0.16)),
+                    .fadeAlpha(to: 0.62, duration: min(0.08, travel.duration * 0.35)),
+                    .wait(forDuration: max(0, travel.duration - 0.16)),
                     .fadeOut(withDuration: 0.08)
                 ])
             ]),
@@ -542,6 +555,8 @@ extension ArenaScene {
         coreColor: SKColor,
         impactRadius: CGFloat
     ) {
+        let delay = WeaponRuntimeSafetyLimits.duration(delay)
+        let duration = WeaponRuntimeSafetyLimits.duration(duration)
         let trail = SKShapeNode(path: Self.linePath(from: origin, to: target.position))
         trail.strokeColor = color.withAlphaComponent(0.22)
         trail.lineWidth = 0.9
@@ -592,6 +607,8 @@ extension ArenaScene {
         color: SKColor,
         radius: CGFloat
     ) {
+        let delay = WeaponRuntimeSafetyLimits.duration(delay)
+        let radius = WeaponRuntimeSafetyLimits.distance(radius)
         let ring = makeEffectRing(
             radius: radius,
             strokeColor: color.withAlphaComponent(0.95),
@@ -649,7 +666,7 @@ extension ArenaScene {
         node.zPosition = 18
         addWeaponEffectNode(node)
         node.run(.sequence([
-            .wait(forDuration: max(0, delay)),
+            .wait(forDuration: WeaponRuntimeSafetyLimits.duration(delay)),
             .run {
                 onImpact(targetIDs)
             },
@@ -664,7 +681,7 @@ extension ArenaScene {
         lineWidth: CGFloat,
         glowWidth: CGFloat
     ) -> SKShapeNode {
-        let ring = SKShapeNode(circleOfRadius: max(0, radius))
+        let ring = SKShapeNode(circleOfRadius: WeaponRuntimeSafetyLimits.distance(radius))
         ring.strokeColor = strokeColor
         ring.fillColor = fillColor
         ring.lineWidth = lineWidth
@@ -675,7 +692,7 @@ extension ArenaScene {
 
     func makeWeaponEffectSprite(kind: WeaponKind, size: CGFloat, zPosition: CGFloat = 17) -> SKSpriteNode {
         let sprite = SKSpriteNode(texture: WeaponSpriteSheet.texture(for: kind, role: .effect))
-        let clampedSize = max(1, size)
+        let clampedSize = max(1, WeaponRuntimeSafetyLimits.distance(size))
         sprite.size = CGSize(width: clampedSize, height: clampedSize)
         sprite.colorBlendFactor = 0
         sprite.blendMode = .alpha
@@ -690,6 +707,7 @@ extension ArenaScene {
         delay: TimeInterval = 0,
         alpha: CGFloat = 0.62
     ) {
+        let delay = WeaponRuntimeSafetyLimits.duration(delay)
         let sprite = makeWeaponEffectSprite(kind: kind, size: size)
         sprite.position = position
         sprite.alpha = 0
@@ -725,19 +743,42 @@ extension ArenaScene {
     }
 
     private static func rotation(for direction: CGVector) -> CGFloat {
-        let resolvedDirection = direction.length > 0 ? direction.normalized : CGVector(dx: 0, dy: 1)
+        let resolvedDirection = direction.normalized(or: CGVector(dx: 0, dy: 1))
         return atan2(resolvedDirection.dy, resolvedDirection.dx)
     }
 
     private static func powerWaveFanPath(range: CGFloat, fanAngleRadians: CGFloat) -> CGPath {
-        let radius = max(0, range)
-        let halfAngle = min(.pi, max(0, fanAngleRadians / 2))
+        let radius = WeaponRuntimeSafetyLimits.distance(range)
+        let halfAngle = fanAngleRadians.isFinite ? min(.pi, max(0, fanAngleRadians / 2)) : 0
         let path = CGMutablePath()
         path.move(to: .zero)
         path.addLine(to: CGPoint(x: cos(-halfAngle) * radius, y: sin(-halfAngle) * radius))
         path.addArc(center: .zero, radius: radius, startAngle: -halfAngle, endAngle: halfAngle, clockwise: false)
         path.closeSubpath()
         return path
+    }
+
+    private static func powerWaveTravel(
+        from position: CGPoint,
+        direction: CGVector,
+        range: CGFloat,
+        distance: CGFloat,
+        expansionDuration: TimeInterval
+    ) -> (endPosition: CGPoint, duration: TimeInterval) {
+        let duration = WeaponRuntimeSafetyLimits.duration(expansionDuration)
+        let distance = WeaponRuntimeSafetyLimits.distance(distance)
+        let travelSpeed = range / CGFloat(max(0.001, duration))
+        let travelDuration = WeaponRuntimeSafetyLimits.duration(
+            TimeInterval(distance / max(1, travelSpeed))
+        )
+        let direction = direction.normalized(or: CGVector(dx: 0, dy: 1))
+        return (
+            endPosition: CGPoint(
+                x: position.x + direction.dx * distance,
+                y: position.y + direction.dy * distance
+            ),
+            duration: travelDuration
+        )
     }
 
     private static func crossPath(radius: CGFloat) -> CGPath {

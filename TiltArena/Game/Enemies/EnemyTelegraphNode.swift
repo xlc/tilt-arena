@@ -2,6 +2,7 @@ import SpriteKit
 
 @MainActor
 final class EnemyTelegraphNode: SKNode {
+    private static let maximumDashCountPerSegment = 256
     private let glowNode: SKShapeNode
     private let lineNode: SKShapeNode
 
@@ -65,7 +66,7 @@ final class EnemyTelegraphNode: SKNode {
         let dy = end.y - start.y
         let length = hypot(dx, dy)
 
-        guard length > 0 else {
+        guard length.isFinite, length > 0 else {
             return
         }
 
@@ -75,12 +76,14 @@ final class EnemyTelegraphNode: SKNode {
         let unitX = dx / length
         let unitY = dy / length
         var offset: CGFloat = 0
+        var dashCount = 0
 
-        while offset < length {
+        while offset < length, dashCount < maximumDashCountPerSegment {
             let dashEndOffset = min(length, offset + dashLength)
             path.move(to: CGPoint(x: start.x + unitX * offset, y: start.y + unitY * offset))
             path.addLine(to: CGPoint(x: start.x + unitX * dashEndOffset, y: start.y + unitY * dashEndOffset))
             offset += stepLength
+            dashCount += 1
         }
     }
 }

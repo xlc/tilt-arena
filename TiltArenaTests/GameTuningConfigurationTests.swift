@@ -2,6 +2,18 @@ import XCTest
 @testable import TiltArena
 
 final class GameTuningConfigurationTests: XCTestCase {
+    func testAdjustingExtremeIntegerTuningDoesNotOverflow() {
+        var tuning = GameTuningConfiguration.defaults
+        tuning.startingWeapons.ricochetLanceMaximumBounces = .max
+
+        tuning.adjustParameter(
+            id: "startingWeapons.ricochetLanceMaximumBounces",
+            direction: .increase
+        )
+
+        XCTAssertEqual(tuning.startingWeapons.ricochetLanceMaximumBounces, .max)
+    }
+
     func testParameterCatalogIDsAreUnique() {
         let ids = GameTuningParameterCatalog.parameters.map(\.id)
 

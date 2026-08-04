@@ -33,6 +33,27 @@ final class ClassicRunControllerTests: XCTestCase {
         XCTAssertEqual(controller.survivalTime, 1)
     }
 
+    func testNonFiniteDeltaDoesNotPoisonRunTimers() {
+        var controller = ClassicRunController()
+
+        controller.start()
+        controller.recordEnemyKills(count: 1, weaponKind: .shockwave)
+        controller.update(deltaTime: .nan)
+        controller.update(deltaTime: .infinity)
+
+        XCTAssertEqual(controller.survivalTime, 0)
+        XCTAssertEqual(controller.comboTimeRemaining, controller.configuration.comboWindow)
+
+        controller.update(deltaTime: 0.25)
+
+        XCTAssertEqual(controller.survivalTime, 0.25, accuracy: 0.0001)
+        XCTAssertEqual(
+            controller.comboTimeRemaining,
+            controller.configuration.comboWindow - 0.25,
+            accuracy: 0.0001
+        )
+    }
+
     func testPausePreservesRunTimeUntilResume() {
         var controller = ClassicRunController()
 
@@ -305,6 +326,20 @@ final class ClassicRunControllerTests: XCTestCase {
 
         XCTAssertEqual(controller.score, 5)
         XCTAssertEqual(controller.enemiesDestroyed, 100)
+    }
+
+    func testTinySurvivalBonusIntervalCannotTrapRunUpdate() {
+        var configuration = ClassicRunConfiguration()
+        configuration.survivalBonusStartTime = 0
+        configuration.survivalBonusInterval = .leastNonzeroMagnitude
+        var controller = ClassicRunController(configuration: configuration)
+
+        controller.start()
+        controller.update(deltaTime: 1)
+
+        XCTAssertEqual(controller.phase, .active)
+        XCTAssertEqual(controller.survivalTime, 1)
+        XCTAssertEqual(controller.score, 0)
     }
 
     func testRunSummaryFinalizesOnceAndResetsOnRestart() {

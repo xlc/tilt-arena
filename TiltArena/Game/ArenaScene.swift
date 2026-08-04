@@ -61,6 +61,7 @@ final class ArenaScene: SKScene {
     private var resetDataArmed = false
     private var hasPersistedFinalRun = false
     private var isResolvingDeath = false
+    private var postRunTransitionTimeRemaining: TimeInterval?
     private var developerTuningPageIndex = 0
     private var developerTuningSelectedGroup: String?
     private var developerTuningSelectedSubgroup: String?
@@ -77,7 +78,11 @@ final class ArenaScene: SKScene {
     private var pickupPlanner = PickupSpawnPlanner()
     private var weaponRandomNumberGenerator = RunRandomNumberGenerator(seed: 0)
     var weaponResolver = StartingWeaponResolver()
-    var weaponEffectTiming = WeaponEffectTiming()
+    private var runtimeWeaponEffectTiming = WeaponEffectTiming()
+    var weaponEffectTiming: WeaponEffectTiming {
+        get { runtimeWeaponEffectTiming }
+        set { runtimeWeaponEffectTiming = newValue.sanitizedForRuntime() }
+    }
     private var enemies: [ArenaEnemy] = []
     private var enemyNodes: [Int: EnemyNode] = [:]
     private var enemyTelegraphNodes: [Int: EnemyTelegraphNode] = [:]
@@ -207,15 +212,26 @@ final class ArenaScene: SKScene {
     }
 
     override func update(_ currentTime: TimeInterval) {
-        defer {
-            lastUpdateTime = currentTime
-        }
-
-        guard let lastUpdateTime else {
+        guard currentTime.isFinite else {
+            lastUpdateTime = nil
             return
         }
 
-        let deltaTime = min(1.0 / 15.0, max(0, currentTime - lastUpdateTime))
+        guard let lastUpdateTime, lastUpdateTime.isFinite else {
+            self.lastUpdateTime = currentTime
+            return
+        }
+
+        self.lastUpdateTime = currentTime
+        let elapsedTime = currentTime - lastUpdateTime
+        guard elapsedTime.isFinite else {
+            return
+        }
+
+        let positiveElapsedTime = max(0, elapsedTime)
+        updatePostRunTransition(deltaTime: positiveElapsedTime)
+
+        let deltaTime = min(1.0 / 15.0, positiveElapsedTime)
         guard deltaTime > 0 else {
             return
         }
@@ -679,26 +695,41 @@ final class ArenaScene: SKScene {
             playHaptic(.newBest)
         }
         if playFeedback {
-            run(.sequence([
-                .wait(forDuration: 0.22),
-                .run { [weak self] in
-                    guard let self else {
-                        return
-                    }
-                    self.isResolvingDeath = false
-                    self.show(.postRun)
-                }
-            ]))
+            postRunTransitionTimeRemaining = 0.22
         } else {
-            isResolvingDeath = false
-            show(.postRun)
+            completePostRunTransition()
         }
         logFinishedRun(isNewBest: isNewBest)
+    }
+
+    private func updatePostRunTransition(deltaTime: TimeInterval) {
+        guard let timeRemaining = postRunTransitionTimeRemaining else {
+            return
+        }
+
+        let updatedTimeRemaining = max(0, timeRemaining - deltaTime)
+        guard updatedTimeRemaining > 0 else {
+            completePostRunTransition()
+            return
+        }
+
+        postRunTransitionTimeRemaining = updatedTimeRemaining
+    }
+
+    private func completePostRunTransition() {
+        postRunTransitionTimeRemaining = nil
+        isResolvingDeath = false
+        guard runController.phase == .gameOver else {
+            return
+        }
+
+        show(.postRun)
     }
 
     private func resetActiveRun() {
         hasPersistedFinalRun = false
         isResolvingDeath = false
+        postRunTransitionTimeRemaining = nil
         lastProgressionResult = nil
         lastDeathCollisionSnapshot = nil
         deathReplayTrace.reset()
@@ -708,6 +739,8 @@ final class ArenaScene: SKScene {
     }
 
     private func resetGameplayObjects() {
+        isResolvingDeath = false
+        postRunTransitionTimeRemaining = nil
         applySelectedModeTuning()
         let runSequenceSeed = ArenaModeRules.sequenceSeed(for: selectedMode) ?? Int.random(in: 0...Int.max)
         weaponRandomNumberGenerator = RunRandomNumberGenerator(seed: runSequenceSeed)
@@ -798,7 +831,7 @@ final class ArenaScene: SKScene {
         )
 
         spawnDirector.configuration = modeTuning.enemySpawnConfiguration
-        pickupSpawnConfiguration = tunedPickupConfiguration
+        pickupSpawnConfiguration = tunedPickupConfiguration.sanitizedForRuntime()
     }
 
     private func resetPlayerFeedback() {
@@ -1689,15 +1722,21 @@ final class ArenaScene: SKScene {
             flameTrailState.configuration.duration
         )
         flameTrailInvulnerabilityTimeRemaining = max(
-            flameTrailInvulnerabilityTimeRemaining,
+            WeaponRuntimeSafetyLimits.duration(flameTrailInvulnerabilityTimeRemaining),
             flameTrailState.configuration.invulnerabilityDuration,
-            gameTuning.feedback.postWeaponSafetyDuration
+            WeaponRuntimeSafetyLimits.duration(gameTuning.feedback.postWeaponSafetyDuration)
         )
         flameTrailEffectNode.apply(segments: flameTrailState.segments)
     }
 
     private func updateFlameTrailTimers(deltaTime: TimeInterval) {
-        let clampedDelta = max(0, deltaTime)
+        flameTrailSpeedBoostTimeRemaining = WeaponRuntimeSafetyLimits.duration(
+            flameTrailSpeedBoostTimeRemaining
+        )
+        flameTrailInvulnerabilityTimeRemaining = WeaponRuntimeSafetyLimits.duration(
+            flameTrailInvulnerabilityTimeRemaining
+        )
+        let clampedDelta = deltaTime.isFinite ? max(0, deltaTime) : 0
         let boostDelta = min(flameTrailSpeedBoostTimeRemaining, clampedDelta)
 
         flameTrailSpeedBoostTimeRemaining -= boostDelta
@@ -1715,16 +1754,21 @@ final class ArenaScene: SKScene {
         for weaponKind: WeaponKind,
         minimumDuration: TimeInterval = 0
     ) {
-        let duration = max(
-            0,
-            gameTuning.feedback.postWeaponSafetyDuration,
-            minimumDuration
+        let duration = WeaponRuntimeSafetyLimits.duration(
+            max(
+                0,
+                gameTuning.feedback.postWeaponSafetyDuration,
+                minimumDuration
+            )
         )
         guard duration > 0, runController.phase == .active else {
             return
         }
 
-        postWeaponSafetyTimeRemaining = max(postWeaponSafetyTimeRemaining, duration)
+        postWeaponSafetyTimeRemaining = max(
+            WeaponRuntimeSafetyLimits.duration(postWeaponSafetyTimeRemaining),
+            duration
+        )
         AppDiagnostics.logger(.weapon).debug("weapon.postSafety", metadata: [
             "kind": "\(weaponKind.rawValue)",
             "duration": "\(duration)"
@@ -1732,11 +1776,13 @@ final class ArenaScene: SKScene {
     }
 
     private func updatePostWeaponSafety(deltaTime: TimeInterval) {
+        postWeaponSafetyTimeRemaining = WeaponRuntimeSafetyLimits.duration(postWeaponSafetyTimeRemaining)
         guard postWeaponSafetyTimeRemaining > 0 else {
             return
         }
 
-        postWeaponSafetyTimeRemaining = max(0, postWeaponSafetyTimeRemaining - max(0, deltaTime))
+        let deltaTime = deltaTime.isFinite ? max(0, deltaTime) : 0
+        postWeaponSafetyTimeRemaining = max(0, postWeaponSafetyTimeRemaining - deltaTime)
     }
 
     private func clearPostWeaponSafety() {
@@ -4022,7 +4068,7 @@ private extension ArenaScene {
     }
 
     func addReadyStartCircle(at point: CGPoint) {
-        let radius = readyHoldController.configuration.startCircleRadius
+        let radius = readyHoldController.configuration.effectiveStartCircleRadius
         let circle = SKShapeNode(circleOfRadius: radius)
         circle.position = point
         circle.zPosition = ArenaUIZPosition.content
@@ -4075,12 +4121,13 @@ private extension ArenaScene {
     }
 
     func updateReadyProgressDisplay(_ state: ReadyStartHoldState) {
-        let progress = state.progressFraction(requiredDuration: readyHoldController.configuration.requiredDuration)
+        let requiredDuration = readyHoldController.configuration.effectiveRequiredDuration
+        let progress = state.progressFraction(requiredDuration: requiredDuration)
         readyProgressRing?.setScale(0.55 + CGFloat(progress) * 0.45)
         readyProgressRing?.alpha = 0.35 + CGFloat(progress) * 0.65
 
         if state.isInsideCircle {
-            let remaining = max(0, readyHoldController.configuration.requiredDuration - state.elapsed)
+            let remaining = max(0, requiredDuration - state.elapsed)
             readyStatusLabel?.text = String(format: "HOLD %.1fs", remaining)
         } else {
             readyStatusLabel?.text = "CENTER CRAFT"
@@ -5008,6 +5055,10 @@ extension ArenaScene {
         finishRun(playFeedback: false)
     }
 
+    func finishRunWithFeedbackForTesting() {
+        finishRun(playFeedback: true)
+    }
+
     func grantPostWeaponSafetyForTesting(
         _ weaponKind: WeaponKind = .chainLightning,
         minimumDuration: TimeInterval = 0
@@ -5152,6 +5203,18 @@ extension ArenaScene {
 
     var isRunPausedForTesting: Bool {
         runController.phase == .paused
+    }
+
+    var runSurvivalTimeForTesting: TimeInterval {
+        runController.survivalTime
+    }
+
+    var uiStateForTesting: ArenaUISceneState {
+        uiState
+    }
+
+    var isResolvingDeathForTesting: Bool {
+        isResolvingDeath
     }
 
     var lastDeathCollisionSnapshotForTesting: DeathCollisionSnapshot? {

@@ -8,7 +8,7 @@ extension ArenaScene {
         targetPosition: @escaping (Int) -> CGPoint? = { _ in nil },
         onImpact: @escaping (WeaponImpactTarget) -> Void
     ) {
-        let configuration = configuration ?? weaponResolver.configuration
+        let configuration = (configuration ?? weaponResolver.configuration).sanitizedForRuntime()
         for (index, target) in targets.enumerated() {
             let duration = seekerTravelDuration(
                 from: origin,
@@ -34,13 +34,22 @@ extension ArenaScene {
         to target: CGPoint,
         configuration: StartingWeaponConfiguration
     ) -> TimeInterval {
+        let timing = weaponEffectTiming
         let distance = hypot(target.x - origin.x, target.y - origin.y)
-        guard distance > 0 else {
-            return weaponEffectTiming.minimumTravelDuration
+        guard distance.isFinite, distance > 0 else {
+            return timing.minimumTravelDuration
         }
 
         let speed = max(1, configuration.seekerTravelSpeed)
-        return max(weaponEffectTiming.minimumTravelDuration, TimeInterval(distance / speed))
+        let rawDuration = TimeInterval(distance / speed)
+        let maximumDuration = max(
+            timing.minimumTravelDuration,
+            timing.maximumProjectileTravelDuration
+        )
+        guard rawDuration.isFinite else {
+            return maximumDuration
+        }
+        return min(maximumDuration, max(timing.minimumTravelDuration, rawDuration))
     }
 
     private func playSeekerBolt(
@@ -165,7 +174,7 @@ extension ArenaScene {
         onImpact: @escaping (WeaponImpactTarget) -> Void
     ) {
         let radius = configuration.seekerExplosionRadius
-        let holdDuration = max(0, configuration.seekerExplosionHoldDuration)
+        let holdDuration = configuration.seekerExplosionHoldDuration
         let ring = makeEffectRing(
             radius: radius,
             strokeColor: theme.pickupViolet.withAlphaComponent(0.95),

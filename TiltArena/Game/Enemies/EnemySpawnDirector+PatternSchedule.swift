@@ -34,8 +34,11 @@ extension EnemySpawnDirector {
             return
         }
 
-        let spacing = max(0, configuration.patternIntroductionSpacing)
-        self[keyPath: timer] = min(max(0, interval), spacing * pattern.introductionStep)
+        let interval = interval.isFinite ? max(0, interval) : 0
+        let spacing = configuration.patternIntroductionSpacing.isFinite
+            ? max(0, configuration.patternIntroductionSpacing)
+            : 0
+        self[keyPath: timer] = min(interval, spacing * pattern.introductionStep)
     }
 
     mutating func disablePattern(

@@ -78,4 +78,42 @@ final class TiltSignalProcessorTests: XCTestCase {
         XCTAssertGreaterThan(laterInput.length, firstInput.length)
         XCTAssertLessThan(firstInput.length, 1)
     }
+
+    func testNonFiniteGravityCannotPoisonSmoothedInput() {
+        var processor = TiltSignalProcessor()
+        let settings = TiltControlSettings(
+            calibration: .custom(neutralGravity: TiltGravityVector(x: 0, y: 0)),
+            sensitivity: 1
+        )
+
+        let invalidInput = processor.inputVector(
+            gravity: TiltGravityVector(x: .nan, y: 0),
+            settings: settings,
+            deltaTime: 1.0 / 60.0
+        )
+        let recoveredInput = processor.inputVector(
+            gravity: TiltGravityVector(x: 0.3, y: 0),
+            settings: settings,
+            deltaTime: 1.0 / 60.0
+        )
+
+        XCTAssertEqual(invalidInput, .zero)
+        XCTAssertTrue(recoveredInput.isFinite)
+        XCTAssertGreaterThan(recoveredInput.dx, 0)
+    }
+
+    func testNonFiniteCalibrationProducesSafeZeroInput() {
+        let processor = TiltSignalProcessor()
+        let settings = TiltControlSettings(
+            calibration: .custom(neutralGravity: TiltGravityVector(x: .infinity, y: 0)),
+            sensitivity: 1
+        )
+
+        let input = processor.normalizedInputVector(
+            gravity: TiltGravityVector(x: 0.3, y: 0),
+            settings: settings
+        )
+
+        XCTAssertEqual(input, .zero)
+    }
 }

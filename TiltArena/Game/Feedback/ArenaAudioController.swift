@@ -57,6 +57,10 @@ struct ArenaAudioPlaybackLimiter {
     private(set) var lastPlayedTimes: [ArenaAudioCueFamily: TimeInterval] = [:]
 
     mutating func cueIfAllowed(for event: ArenaAudioEvent, at time: TimeInterval) -> ArenaAudioCue? {
+        guard time.isFinite else {
+            return nil
+        }
+
         let cue = ArenaAudioCueCatalog.cue(for: event)
         if let lastPlayedTime = lastPlayedTimes[cue.family], time - lastPlayedTime < cue.cooldown {
             return nil

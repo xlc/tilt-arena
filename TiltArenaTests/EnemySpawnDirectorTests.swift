@@ -2,6 +2,51 @@ import XCTest
 @testable import TiltArena
 
 final class EnemySpawnDirectorTests: XCTestCase {
+    func testExtremePhaseCountsAreCappedBeforePatternAllocation() {
+        var configuration = EnemySpawnConfiguration()
+        configuration.warmup.maxActiveEnemies = .max
+        configuration.warmup.formationLaneCount = .max
+        configuration.warmup.arrowRushEnemyCount = .max
+        configuration.warmup.paddleTrapBarEnemyCount = .max
+
+        let tuning = configuration.tuning(at: 0)
+
+        XCTAssertEqual(tuning.maxActiveEnemies, EnemySpawnSafetyLimits.maximumActiveEnemyCount)
+        XCTAssertEqual(tuning.formationLaneCount, EnemySpawnSafetyLimits.maximumFormationLaneCount)
+        XCTAssertEqual(tuning.arrowRushEnemyCount, EnemySpawnSafetyLimits.maximumArrowRushEnemyCount)
+        XCTAssertEqual(tuning.paddleTrapBarEnemyCount, EnemySpawnSafetyLimits.maximumPaddleBarEnemyCount)
+    }
+
+    func testNonfiniteDeltaAndPoisonedSpawnTimerRecoverOnNextValidFrame() {
+        var configuration = EnemySpawnConfiguration()
+        configuration.spawnWarningDuration = 0
+        configuration.warmup = disabledPhaseTuning(maxActiveEnemies: 8)
+        configuration.warmup.chaserSpawnInterval = 1
+        configuration.warmup.chaserSpeed = 40
+        var director = EnemySpawnDirector(configuration: configuration)
+        director.timeUntilNextChaser = .nan
+
+        let invalidFrame = director.update(
+            deltaTime: .infinity,
+            survivalTime: 0,
+            activeEnemies: [],
+            playableRect: CGRect(x: 0, y: 0, width: 320, height: 600),
+            playerPosition: CGPoint(x: 160, y: 300),
+            pickupCircles: []
+        )
+        let recoveredFrame = director.update(
+            deltaTime: 0.1,
+            survivalTime: 0,
+            activeEnemies: [],
+            playableRect: CGRect(x: 0, y: 0, width: 320, height: 600),
+            playerPosition: CGPoint(x: 160, y: 300),
+            pickupCircles: []
+        )
+
+        XCTAssertTrue(invalidFrame.newEnemies.isEmpty)
+        XCTAssertEqual(recoveredFrame.newEnemies.count, 1)
+    }
+
     func testDifficultyPhaseBoundaries() {
         XCTAssertEqual(EnemyDifficultyPhase.phase(at: 0), .warmup)
         XCTAssertEqual(EnemyDifficultyPhase.phase(at: 29.999), .warmup)

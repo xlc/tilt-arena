@@ -138,7 +138,7 @@ struct ClassicRunController {
     }
 
     mutating func update(deltaTime: TimeInterval) {
-        guard phase == .active else {
+        guard phase == .active, deltaTime.isFinite else {
             return
         }
 
@@ -247,7 +247,15 @@ struct ClassicRunController {
         }
 
         let elapsedBonusTime = survivalTime - configuration.survivalBonusStartTime
-        let eligibleIntervals = Int(elapsedBonusTime / configuration.survivalBonusInterval)
+        let eligibleIntervalQuotient = elapsedBonusTime / configuration.survivalBonusInterval
+        guard
+            eligibleIntervalQuotient.isFinite,
+            eligibleIntervalQuotient >= 0,
+            eligibleIntervalQuotient < Double(Int.max)
+        else {
+            return
+        }
+        let eligibleIntervals = Int(eligibleIntervalQuotient)
         guard eligibleIntervals > creditedSurvivalBonusIntervals else {
             return
         }

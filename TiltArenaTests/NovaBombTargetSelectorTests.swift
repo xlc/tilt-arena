@@ -2,6 +2,18 @@ import XCTest
 @testable import TiltArena
 
 final class NovaBombTargetSelectorTests: XCTestCase {
+    func testNonfiniteFractionAndExtremeEnemyCountStaySafe() {
+        let invalidSelector = NovaBombTargetSelector(
+            configuration: StartingWeaponConfiguration(novaBombTargetFraction: .nan)
+        )
+        let fullSelector = NovaBombTargetSelector(
+            configuration: StartingWeaponConfiguration(novaBombTargetFraction: 1)
+        )
+
+        XCTAssertEqual(invalidSelector.targetCount(enemyCount: 10), 0)
+        XCTAssertEqual(fullSelector.targetCount(enemyCount: .max), .max)
+    }
+
     func testTargetCountUsesFractionOnly() {
         let selector = NovaBombTargetSelector(
             configuration: StartingWeaponConfiguration(

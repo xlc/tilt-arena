@@ -8,7 +8,7 @@ extension ArenaScene {
         onImpact: ((Set<Int>) -> Void)? = nil,
         onComplete: (() -> Void)? = nil
     ) {
-        let configuration = configuration ?? weaponResolver.configuration
+        let configuration = (configuration ?? weaponResolver.configuration).sanitizedForRuntime()
         let accentColor = theme.playerAccentColor
         let coreColor = theme.playerColor
         let targetPositions = targets.isEmpty

@@ -2,6 +2,8 @@ import SpriteKit
 
 @MainActor
 final class ArenaThemeRenderer {
+    private static let maximumGridCoordinateCount = 256
+    private static let maximumRenderableExtent: CGFloat = 100_000
     private let theme: ArenaTheme
 
     init(theme: ArenaTheme) {
@@ -12,6 +14,10 @@ final class ArenaThemeRenderer {
         let arenaRect = arenaRect ?? CGRect(origin: .zero, size: size)
         let root = SKNode()
         root.zPosition = -100
+
+        guard Self.isRenderable(size: size, rect: arenaRect) else {
+            return root
+        }
 
         root.addChild(makeBackdrop(size: size))
         root.addChild(makeGrid(in: arenaRect))
@@ -40,18 +46,14 @@ final class ArenaThemeRenderer {
         let path = CGMutablePath()
         let spacing: CGFloat = 48
 
-        var x = rect.minX
-        while x <= rect.maxX {
+        for x in Self.gridCoordinates(from: rect.minX, through: rect.maxX, preferredSpacing: spacing) {
             path.move(to: CGPoint(x: x, y: rect.minY))
             path.addLine(to: CGPoint(x: x, y: rect.maxY))
-            x += spacing
         }
 
-        var y = rect.minY
-        while y <= rect.maxY {
+        for y in Self.gridCoordinates(from: rect.minY, through: rect.maxY, preferredSpacing: spacing) {
             path.move(to: CGPoint(x: rect.minX, y: y))
             path.addLine(to: CGPoint(x: rect.maxX, y: y))
-            y += spacing
         }
 
         let node = SKShapeNode(path: path)
@@ -108,14 +110,14 @@ final class ArenaThemeRenderer {
         path.move(to: CGPoint(x: rect.minX, y: center.y))
         path.addLine(to: CGPoint(x: rect.maxX, y: center.y))
 
-        for x in stride(from: rect.minX, through: rect.maxX, by: 96) {
+        for x in Self.gridCoordinates(from: rect.minX, through: rect.maxX, preferredSpacing: 96) {
             path.move(to: CGPoint(x: x, y: rect.minY))
             path.addLine(to: CGPoint(x: x, y: rect.minY + tickLength))
             path.move(to: CGPoint(x: x, y: rect.maxY))
             path.addLine(to: CGPoint(x: x, y: rect.maxY - tickLength))
         }
 
-        for y in stride(from: rect.minY, through: rect.maxY, by: 96) {
+        for y in Self.gridCoordinates(from: rect.minY, through: rect.maxY, preferredSpacing: 96) {
             path.move(to: CGPoint(x: rect.minX, y: y))
             path.addLine(to: CGPoint(x: rect.minX + tickLength, y: y))
             path.move(to: CGPoint(x: rect.maxX, y: y))
@@ -169,5 +171,44 @@ final class ArenaThemeRenderer {
         border.fillColor = .clear
 
         return border
+    }
+
+    private static func isRenderable(size: CGSize, rect: CGRect) -> Bool {
+        guard size.isFinite, rect.isFinite, size.width >= 0, size.height >= 0,
+              rect.width >= 0, rect.height >= 0 else {
+            return false
+        }
+
+        return size.width <= maximumRenderableExtent
+            && size.height <= maximumRenderableExtent
+            && rect.width <= maximumRenderableExtent
+            && rect.height <= maximumRenderableExtent
+    }
+
+    private static func gridCoordinates(
+        from start: CGFloat,
+        through end: CGFloat,
+        preferredSpacing: CGFloat
+    ) -> [CGFloat] {
+        guard start.isFinite, end.isFinite, preferredSpacing.isFinite,
+              end >= start, preferredSpacing > 0 else {
+            return []
+        }
+
+        let span = end - start
+        guard span > 0 else {
+            return [start]
+        }
+
+        let maximumSegmentCount = maximumGridCoordinateCount - 1
+        let requestedSegmentCount = min(
+            CGFloat(maximumSegmentCount),
+            floor(span / preferredSpacing)
+        )
+        let segmentCount = max(0, Int(requestedSegmentCount))
+
+        return (0...segmentCount).map { index in
+            start + CGFloat(index) * preferredSpacing
+        }
     }
 }

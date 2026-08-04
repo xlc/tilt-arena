@@ -1,6 +1,6 @@
 import Foundation
 
-struct DiagnosticGameplaySnapshot: Codable, Equatable {
+struct DiagnosticGameplaySnapshot: Codable, Equatable, Sendable {
     let uiState: String
     let selectedMode: String
     let runPhase: String
@@ -12,13 +12,13 @@ struct DiagnosticGameplaySnapshot: Codable, Equatable {
     let profile: DiagnosticProfileSnapshot
 }
 
-struct DiagnosticLocalOptionsSnapshot: Codable, Equatable {
+struct DiagnosticLocalOptionsSnapshot: Codable, Equatable, Sendable {
     let audioEnabled: Bool
     let hapticsEnabled: Bool
     let theme: String
 }
 
-struct DiagnosticProfileSnapshot: Codable, Equatable {
+struct DiagnosticProfileSnapshot: Codable, Equatable, Sendable {
     let bestScore: Int
     let highestCombo: Int
     let longestSurvivalTime: TimeInterval
@@ -28,7 +28,7 @@ struct DiagnosticProfileSnapshot: Codable, Equatable {
     let earnedAwardCount: Int
 }
 
-struct DiagnosticExportMetadata: Codable, Equatable {
+struct DiagnosticExportMetadata: Codable, Equatable, Sendable {
     let schemaVersion: Int
     let generatedAt: String
     let sessionID: String
@@ -37,13 +37,13 @@ struct DiagnosticExportMetadata: Codable, Equatable {
     let gameplay: DiagnosticGameplaySnapshot?
 }
 
-struct DiagnosticAppMetadata: Codable, Equatable {
+struct DiagnosticAppMetadata: Codable, Equatable, Sendable {
     let bundleID: String
     let version: String
     let build: String
 }
 
-struct DiagnosticDeviceMetadata: Codable, Equatable {
+struct DiagnosticDeviceMetadata: Codable, Equatable, Sendable {
     let osName: String
     let osVersion: String
     let localeIdentifier: String

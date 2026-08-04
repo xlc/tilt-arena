@@ -34,6 +34,15 @@ final class TiltSettingsStoreTests: XCTestCase {
         XCTAssertEqual(store.settings.calibration.neutralGravity, TiltGravityVector(x: 0.2, y: -0.4))
     }
 
+    func testInitialCalibrationRejectsNonFiniteGravity() {
+        let store = TiltSettingsStore(defaults: defaults)
+
+        store.ensureInitialCalibration(using: TiltGravityVector(x: .nan, y: 0))
+
+        XCTAssertTrue(store.needsInitialCalibration)
+        XCTAssertEqual(store.settings, .defaults)
+    }
+
     func testSensitivityUpdatesArePersistedAndClamped() {
         let store = TiltSettingsStore(defaults: defaults)
 
@@ -44,6 +53,14 @@ final class TiltSettingsStoreTests: XCTestCase {
         store.updateSensitivity(-10)
 
         XCTAssertEqual(store.settings.sensitivity, TiltControlSettings.minimumSensitivity)
+    }
+
+    func testSensitivityUpdateRejectsNonFiniteValue() {
+        let store = TiltSettingsStore(defaults: defaults)
+
+        store.updateSensitivity(.nan)
+
+        XCTAssertEqual(store.settings.sensitivity, TiltControlSettings.defaultSensitivity)
     }
 
     func testPresetSelectionMarksCalibrationComplete() {

@@ -2,6 +2,37 @@ import XCTest
 @testable import TiltArena
 
 final class FlameTrailStateTests: XCTestCase {
+    func testExtremeSegmentConfigurationStaysBoundedAndFinite() {
+        var state = FlameTrailState(configuration: FlameTrailConfiguration(
+            duration: 1,
+            segmentLifetime: 1,
+            segmentSpacing: .leastNonzeroMagnitude,
+            maxSegments: .max
+        ))
+        state.activate(at: .zero)
+
+        let frame = state.update(
+            deltaTime: 0.1,
+            playerPosition: CGPoint(x: 10_000, y: 0),
+            enemies: []
+        )
+
+        XCTAssertEqual(frame.segments.count, FlameTrailState.maximumSegmentCount)
+        XCTAssertTrue(frame.segments.allSatisfy { $0.position.x.isFinite && $0.position.y.isFinite })
+    }
+
+    func testNonfiniteDurationsDoNotCreatePermanentTrailState() {
+        var state = FlameTrailState(configuration: FlameTrailConfiguration(
+            duration: .infinity,
+            segmentLifetime: .infinity
+        ))
+
+        state.activate(at: .zero)
+
+        XCTAssertEqual(state.timeRemaining, 0)
+        XCTAssertTrue(state.segments.isEmpty)
+    }
+
     func testChargedConfigurationExtendsTrailControl() {
         let base = FlameTrailConfiguration()
         let charged = base.applying(chargeTier: .charged)

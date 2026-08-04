@@ -163,21 +163,30 @@ struct ArenaEnemy: Equatable, Identifiable {
     }
 
     mutating func freeze(duration: TimeInterval, thawGraceDuration: TimeInterval = 0) {
-        let clampedDuration = max(0, duration)
+        let clampedDuration = EnemySpawnSafetyLimits.statusDuration(duration)
         guard clampedDuration > 0 else {
             return
         }
 
-        frozenTimeRemaining = max(frozenTimeRemaining, clampedDuration)
-        self.thawGraceDuration = max(self.thawGraceDuration, max(0, thawGraceDuration))
+        frozenTimeRemaining = max(EnemySpawnSafetyLimits.statusDuration(frozenTimeRemaining), clampedDuration)
+        self.thawGraceDuration = max(
+            EnemySpawnSafetyLimits.statusDuration(self.thawGraceDuration),
+            EnemySpawnSafetyLimits.statusDuration(thawGraceDuration)
+        )
         thawGraceTimeRemaining = 0
     }
 
     mutating func startPlayerCollisionGrace(duration: TimeInterval) {
-        playerCollisionGraceTimeRemaining = max(playerCollisionGraceTimeRemaining, max(0, duration))
+        playerCollisionGraceTimeRemaining = max(
+            EnemySpawnSafetyLimits.statusDuration(playerCollisionGraceTimeRemaining),
+            EnemySpawnSafetyLimits.statusDuration(duration)
+        )
     }
 
     mutating func pullToward(_ target: CGPoint, distance: CGFloat) {
+        guard position.isFinite, target.isFinite, distance.isFinite else {
+            return
+        }
         let dx = target.x - position.x
         let dy = target.y - position.y
         let targetDistance = hypot(dx, dy)
@@ -194,6 +203,9 @@ struct ArenaEnemy: Equatable, Identifiable {
     }
 
     mutating func pushAway(from source: CGPoint, distance: CGFloat) {
+        guard position.isFinite, source.isFinite, distance.isFinite else {
+            return
+        }
         var dx = position.x - source.x
         var dy = position.y - source.y
         var sourceDistance = hypot(dx, dy)
@@ -221,7 +233,8 @@ struct ArenaEnemy: Equatable, Identifiable {
         externalSpeedMultiplier: CGFloat = 1,
         maximumSpeed: CGFloat? = nil
     ) {
-        let clampedTime = max(0, deltaTime)
+        sanitizeTransientTimers()
+        let clampedTime = deltaTime.isFinite ? max(0, deltaTime) : 0
         let clampedDelta = CGFloat(clampedTime)
 
         consumePlayerCollisionGrace(deltaTime: clampedTime)
@@ -234,10 +247,8 @@ struct ArenaEnemy: Equatable, Identifiable {
             return
         }
 
-        let effectiveSpeedMultiplier = movementSpeedMultiplier * max(0, externalSpeedMultiplier)
-        let movementMultiplier = cappedSpeedMultiplier(
-            for: behavior,
-            speedMultiplier: effectiveSpeedMultiplier,
+        let movementMultiplier = resolvedMovementMultiplier(
+            externalSpeedMultiplier,
             maximumSpeed: maximumSpeed
         )
 
@@ -291,14 +302,14 @@ struct ArenaEnemy: Equatable, Identifiable {
             behavior = .paddleTrapBar(
                 trapID: trapID,
                 orientation: orientation,
-                remainingLifetime: remainingLifetime - deltaTime
+                remainingLifetime: EnemySpawnSafetyLimits.statusDuration(remainingLifetime) - deltaTime
             )
         case let .paddleTrapDot(trapID, velocity, bounds, remainingLifetime):
             behavior = .paddleTrapDot(
                 trapID: trapID,
                 velocity: velocity,
                 bounds: bounds,
-                remainingLifetime: remainingLifetime - deltaTime
+                remainingLifetime: EnemySpawnSafetyLimits.statusDuration(remainingLifetime) - deltaTime
             )
         case .chaser, .formationLine, .arrowRush, .mineDot, .hunterDot, .splitter, .splitterChild:
             return
@@ -328,13 +339,30 @@ struct ArenaEnemy: Equatable, Identifiable {
     }
 
     private var movementSpeedMultiplier: CGFloat {
-        let ramp = max(0, speedRampPerSecond)
-        let maximum = max(1, maximumSpeedMultiplier)
+        let ramp = speedRampPerSecond.isFinite ? max(0, speedRampPerSecond) : 0
+        let maximum = maximumSpeedMultiplier.isFinite ? max(1, maximumSpeedMultiplier) : 1
         return min(maximum, 1 + CGFloat(movementTime) * ramp)
     }
 
+    private func resolvedMovementMultiplier(
+        _ externalSpeedMultiplier: CGFloat,
+        maximumSpeed: CGFloat?
+    ) -> CGFloat {
+        let externalMultiplier = externalSpeedMultiplier.isFinite
+            ? max(0, externalSpeedMultiplier)
+            : 0
+        return cappedSpeedMultiplier(
+            for: behavior,
+            speedMultiplier: movementSpeedMultiplier * externalMultiplier,
+            maximumSpeed: maximumSpeed
+        )
+    }
+
     private mutating func recordMovementTime(_ deltaTime: TimeInterval) {
-        movementTime += max(0, deltaTime)
+        if !movementTime.isFinite {
+            movementTime = 0
+        }
+        movementTime += deltaTime.isFinite ? max(0, deltaTime) : 0
     }
 
     private func cappedSpeedMultiplier(
@@ -382,6 +410,9 @@ struct ArenaEnemy: Equatable, Identifiable {
     }
 
     private mutating func advanceLinearly(velocity: CGVector, deltaTime: CGFloat, speedMultiplier: CGFloat) {
+        guard position.isFinite, velocity.isFinite, speedMultiplier.isFinite else {
+            return
+        }
         position = CGPoint(
             x: position.x + velocity.dx * speedMultiplier * deltaTime,
             y: position.y + velocity.dy * speedMultiplier * deltaTime
@@ -389,6 +420,9 @@ struct ArenaEnemy: Equatable, Identifiable {
     }
 
     private mutating func advanceChaser(toward target: CGPoint, deltaTime: CGFloat, speedMultiplier: CGFloat) {
+        guard position.isFinite, target.isFinite, speedMultiplier.isFinite else {
+            return
+        }
         let dx = target.x - position.x
         let dy = target.y - position.y
         let distance = hypot(dx, dy)
@@ -397,7 +431,8 @@ struct ArenaEnemy: Equatable, Identifiable {
             return
         }
 
-        let movementDistance = max(0, speed) * speedMultiplier * deltaTime
+        let speed = speed.isFinite ? max(0, speed) : 0
+        let movementDistance = speed * speedMultiplier * deltaTime
         guard movementDistance > 0 else {
             return
         }
@@ -418,7 +453,11 @@ struct ArenaEnemy: Equatable, Identifiable {
     ) {
         let predictedTarget: CGPoint
 
-        if let previousTarget, deltaTime > 0 {
+        if let previousTarget,
+           previousTarget.isFinite,
+           target.isFinite,
+           predictionLead.isFinite,
+           deltaTime > 0 {
             let velocityProjectionScale = max(0, predictionLead) / deltaTime
             predictedTarget = CGPoint(
                 x: target.x + (target.x - previousTarget.x) * velocityProjectionScale,
@@ -440,6 +479,13 @@ struct ArenaEnemy: Equatable, Identifiable {
         deltaTime: CGFloat,
         speedMultiplier: CGFloat
     ) {
+        guard position.isFinite,
+              velocity.isFinite,
+              bounds.isFinite,
+              deltaTime.isFinite,
+              speedMultiplier.isFinite else {
+            return
+        }
         var nextVelocity = velocity
         var nextPosition = CGPoint(
             x: position.x + velocity.dx * speedMultiplier * deltaTime,
@@ -470,4 +516,13 @@ struct ArenaEnemy: Equatable, Identifiable {
             remainingLifetime: remainingLifetime
         )
     }
+
+    private mutating func sanitizeTransientTimers() {
+        frozenTimeRemaining = EnemySpawnSafetyLimits.statusDuration(frozenTimeRemaining)
+        thawGraceTimeRemaining = EnemySpawnSafetyLimits.statusDuration(thawGraceTimeRemaining)
+        thawGraceDuration = EnemySpawnSafetyLimits.statusDuration(thawGraceDuration)
+        splitSpawnGraceTimeRemaining = EnemySpawnSafetyLimits.statusDuration(splitSpawnGraceTimeRemaining)
+        playerCollisionGraceTimeRemaining = EnemySpawnSafetyLimits.statusDuration(playerCollisionGraceTimeRemaining)
+    }
+
 }

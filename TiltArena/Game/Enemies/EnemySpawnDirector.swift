@@ -133,7 +133,8 @@ struct EnemySpawnDirector {
         playerPosition: CGPoint,
         pickupCircles: [CollisionCircle]
     ) -> EnemySpawnFrame {
-        let clampedDelta = max(0, deltaTime)
+        sanitizeSpawnTimers()
+        let clampedDelta = deltaTime.isFinite ? max(0, deltaTime) : 0
         let tuning = configuration.tuning(at: survivalTime)
         let activeEnemyCount = activeEnemies.count
         var frame = EnemySpawnFrame()
@@ -227,6 +228,7 @@ struct EnemySpawnDirector {
                 continue
             }
 
+            pendingSpawn.timeRemaining = telegraphDuration(pendingSpawn.timeRemaining)
             pendingSpawn.timeRemaining -= deltaTime
 
             if pendingSpawn.timeRemaining <= 0 {
@@ -282,7 +284,7 @@ struct EnemySpawnDirector {
         }
         primeTimer(for: .formation, interval: formationSpawnInterval, timer: \.timeUntilNextFormation)
 
-        guard pendingTelegraphSlotCount < configuration.maxPendingEnemyTelegraphs else {
+        guard pendingTelegraphSlotCount < pendingTelegraphCapacity else {
             timeUntilNextFormation = max(timeUntilNextFormation, formationSpawnInterval)
             return
         }
@@ -368,7 +370,7 @@ struct EnemySpawnDirector {
         )
 
         return PendingEnemySpawn(
-            timeRemaining: configuration.formationTelegraphDuration,
+            timeRemaining: telegraphDuration(configuration.formationTelegraphDuration),
             requiredEnemyCount: requiredFormationEnemyCount,
             enemies: enemies,
             telegraph: telegraph,
@@ -573,8 +575,6 @@ struct EnemySpawnDirector {
             return CGVector(dx: 0, dy: -speed)
         }
     }
-
-    private var requiredFormationEnemyCount: Int { max(1, configuration.minimumFormationEnemyCount) }
 }
 
 extension EnemySpawnDirector {
@@ -605,7 +605,7 @@ extension EnemySpawnDirector {
         let telegraphID = nextTelegraphID
         nextTelegraphID += 1
         return PendingEnemySpawn(
-            timeRemaining: configuration.spawnWarningDuration,
+            timeRemaining: telegraphDuration(configuration.spawnWarningDuration),
             requiredEnemyCount: 1,
             enemies: [enemy],
             telegraph: EnemyTelegraph(

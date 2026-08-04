@@ -1,7 +1,7 @@
 import Foundation
 import Logging
 
-struct DiagnosticLogRecord: Codable, Equatable {
+struct DiagnosticLogRecord: Codable, Equatable, Sendable {
     let schemaVersion: Int
     let timestamp: String
     let sessionID: String

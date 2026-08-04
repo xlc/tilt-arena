@@ -35,4 +35,33 @@ final class DeathReplayTraceTests: XCTestCase {
             ]
         )
     }
+
+    func testTraceRejectsNonFiniteSamplesAndRecoversFromClockRegression() {
+        var trace = DeathReplayTrace(duration: 2)
+        trace.record(time: 1, position: CGPoint(x: 1, y: 1))
+        trace.record(time: .nan, position: CGPoint(x: 2, y: 2))
+        trace.record(time: 2, position: CGPoint(x: CGFloat.infinity, y: 2))
+
+        XCTAssertEqual(trace.samples.map(\.time), [1])
+
+        trace.record(time: 0.5, position: CGPoint(x: 3, y: 3))
+
+        XCTAssertEqual(trace.samples, [
+            DeathReplaySample(time: 0.5, position: CGPoint(x: 3, y: 3))
+        ])
+    }
+
+    func testTraceBoundsSamplesWhenConfiguredDurationIsExcessive() {
+        var trace = DeathReplayTrace(duration: 1_000)
+
+        for index in 0..<2_000 {
+            trace.record(
+                time: Double(index) / 120,
+                position: CGPoint(x: index, y: index)
+            )
+        }
+
+        XCTAssertLessThanOrEqual(trace.samples.count, 1_200)
+        XCTAssertEqual(trace.samples.last?.time, Double(1_999) / 120)
+    }
 }
