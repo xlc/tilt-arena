@@ -166,8 +166,10 @@ final class ArenaThemeRenderer {
         )
 
         let border = SKShapeNode(rect: rect, cornerRadius: 6)
-        border.strokeColor = theme.borderColor
-        border.lineWidth = 1.8
+        border.strokeColor = theme.borderColor.withAlphaComponent(
+            theme.kind == .darkTacticalRadar ? 0.58 : 0.48
+        )
+        border.lineWidth = 1
         border.fillColor = .clear
 
         return border

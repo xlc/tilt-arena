@@ -43,6 +43,8 @@ final class ArenaScene: SKScene {
     private var arenaRoot = SKNode()
     private let weaponEffectsRoot = SKNode()
     private let uiRoot = SKNode()
+    private var runScoreLabel: SKLabelNode?
+    private var runBestLabel: SKLabelNode?
     private lazy var tiltInputController = TiltInputController(settingsStore: tiltSettingsStore)
     private let keyboardInputController = KeyboardInputController()
     private var gameTuning = GameTuningConfiguration.defaults
@@ -944,6 +946,7 @@ final class ArenaScene: SKScene {
             previousDamageableEnemyPositions: previousDamageableEnemyPositions,
             allowsSweptCollision: !wasPlayerCollisionProtected
         )
+        updateRunHUD()
         updatePlayerComboEffect()
     }
 
@@ -2077,6 +2080,11 @@ final class ArenaScene: SKScene {
         String(format: "%.1fs", time)
     }
 
+    private func updateRunHUD() {
+        runScoreLabel?.text = "SCORE \(runController.score)  \(formatSurvivalTime(runController.survivalTime))"
+        runBestLabel?.text = "BEST \(runProfile.bestScore)"
+    }
+
     private func updatePlayerComboEffect() {
         let showsComboEffect = uiState == .activeGameplay || uiState == .pause
         let weaponPrimer = showsComboEffect ? runController.weaponComboPrimer : nil
@@ -2176,6 +2184,8 @@ private extension ArenaScene {
 
     func rebuildUI() {
         uiRoot.removeAllChildren()
+        runScoreLabel = nil
+        runBestLabel = nil
         uiHitTargets.removeAll()
         calibrationPreviewPlayerNode = nil
         calibrationPreviewTrailNode = nil
@@ -2226,7 +2236,7 @@ private extension ArenaScene {
         case .preRun:
             renderPreRun()
         case .activeGameplay:
-            break
+            renderRunHUD(in: currentLandscapeLayout())
         case .pause:
             renderPause()
         case .postRun:
@@ -2236,54 +2246,68 @@ private extension ArenaScene {
         }
     }
 
-    func renderPreRunSummary(in safeRect: CGRect) {
-        let height: CGFloat = 28
-        let bestFrame = CGRect(
-            x: safeRect.minX - 6,
-            y: safeRect.maxY - height,
-            width: min(190, safeRect.width * 0.42),
-            height: height
-        )
-        let readyWidth = min(126, safeRect.width * 0.3)
-        let readyFrame = CGRect(
-            x: safeRect.maxX - readyWidth + 6,
-            y: safeRect.maxY - height,
-            width: readyWidth,
-            height: height
-        )
-        addPreRunSummaryCapsule(frame: bestFrame)
-        addPreRunSummaryCapsule(frame: readyFrame)
-        let bestLabel = makeLabel(
-            "BEST \(runProfile.bestScore)",
-            at: CGPoint(x: bestFrame.minX + 10, y: bestFrame.midY),
-            fontSize: 14,
+    func renderRunHUD(in layout: ArenaLandscapeUILayout) {
+        let frames = runHUDFrames(in: layout)
+        guard frames.leading.height >= 7, frames.trailing.height >= 7 else {
+            return
+        }
+        let scoreFontSize = min(11, max(7, frames.leading.height - 7))
+        let bestFontSize = min(10, max(7, frames.trailing.height - 7))
+
+        let scoreLabel = makeLabel(
+            "",
+            at: CGPoint(x: frames.leading.minX + 10, y: frames.leading.midY),
+            fontSize: scoreFontSize,
             color: theme.playerColor.withAlphaComponent(0.94),
             alignment: .left
         )
-        bestLabel.fontName = "Menlo-Bold"
-        uiRoot.addChild(bestLabel)
-        addLabel(
-            "\(selectedMode.displayName) READY",
-            at: CGPoint(x: readyFrame.maxX - 10, y: readyFrame.midY),
-            fontSize: 11,
+        scoreLabel.fontName = "Menlo-Bold"
+        uiRoot.addChild(scoreLabel)
+        runScoreLabel = scoreLabel
+
+        let bestLabel = makeLabel(
+            "",
+            at: CGPoint(x: frames.trailing.maxX - 10, y: frames.trailing.midY),
+            fontSize: bestFontSize,
             color: theme.playerColor.withAlphaComponent(0.82),
             alignment: .right
         )
+        uiRoot.addChild(bestLabel)
+        runBestLabel = bestLabel
+        updateRunHUD()
     }
 
-    func addPreRunSummaryCapsule(frame: CGRect) {
-        let capsule = SKShapeNode(rect: frame, cornerRadius: 6)
-        capsule.zPosition = ArenaUIZPosition.panel
-        capsule.fillColor = theme.panelFillColor.withAlphaComponent(0.82)
-        capsule.strokeColor = theme.borderColor.withAlphaComponent(0.56)
-        capsule.lineWidth = 1
-        uiRoot.addChild(capsule)
+    func runHUDFrames(
+        in layout: ArenaLandscapeUILayout
+    ) -> (leading: CGRect, trailing: CGRect) {
+        let arenaBorderFrame = layout.gameplayRect.insetBy(
+            dx: ArenaGeometry.arenaBorderInset,
+            dy: ArenaGeometry.arenaBorderInset
+        )
+        let playableRect = movementController.configuration.playableRect(in: layout.gameplayRect)
+        let marginBottom = max(playableRect.maxY, arenaBorderFrame.maxY)
+        let safeTop = max(
+            marginBottom,
+            size.height - max(0, layout.safeAreaInsets.top)
+        )
+        let availableHeight = max(0, safeTop - marginBottom)
+        let height = min(20, max(0, availableHeight - 4))
+        let y = marginBottom + (availableHeight - height) / 2
+        let trailingWidth = min(126, layout.safeRect.width * 0.3)
 
-        let accentWidth = min(38, frame.width * 0.24)
-        addDividerLine(
-            from: CGPoint(x: frame.minX + 8, y: frame.maxY),
-            to: CGPoint(x: frame.minX + 8 + accentWidth, y: frame.maxY),
-            color: theme.playerAccentColor.withAlphaComponent(0.78)
+        return (
+            CGRect(
+                x: layout.safeRect.minX - 6,
+                y: y,
+                width: min(190, layout.safeRect.width * 0.42),
+                height: height
+            ),
+            CGRect(
+                x: layout.safeRect.maxX - trailingWidth + 6,
+                y: y,
+                width: trailingWidth,
+                height: height
+            )
         )
     }
 
@@ -2335,12 +2359,6 @@ private extension ArenaScene {
             y: layout.safeRect.maxY - 118,
             width: min(178, layout.safeRect.width * 0.36),
             height: 108
-        )
-        addPanel(
-            frame: identityFrame,
-            stroke: theme.borderColor.withAlphaComponent(0.7),
-            fill: theme.panelFillColor.withAlphaComponent(0.88),
-            accent: theme.playerAccentColor.withAlphaComponent(0.78)
         )
         addTitle(
             "TILT ARENA",
@@ -2971,21 +2989,21 @@ private extension ArenaScene {
         let previewBounds = currentCalibrationPreviewBounds
         addLabel(
             "LIVE TILT",
-            at: CGPoint(x: previewBounds.maxX - 12, y: previewBounds.maxY - 24),
+            at: CGPoint(x: previewBounds.maxX - 20, y: previewBounds.maxY - 24),
             fontSize: 10,
             color: theme.playerAccentColor,
             alignment: .right
         )
         addLabel(
             "MOVE DEVICE TO TEST",
-            at: CGPoint(x: previewBounds.maxX - 12, y: previewBounds.maxY - 42),
+            at: CGPoint(x: previewBounds.maxX - 20, y: previewBounds.maxY - 42),
             fontSize: 9,
             color: theme.playerColor.withAlphaComponent(0.82),
             alignment: .right
         )
         addSmallLabel(
             calibrationText,
-            at: CGPoint(x: previewBounds.maxX - 12, y: previewBounds.minY + 16),
+            at: CGPoint(x: previewBounds.maxX - 20, y: previewBounds.minY + 20),
             color: theme.borderColor,
             alignment: .right
         )
@@ -3245,22 +3263,22 @@ private extension ArenaScene {
             for: nil,
             fallbackOrientation: currentTiltScreenOrientation
         )
-        let startY = frame.maxY
-        let rowSpacing: CGFloat = 16
+        let columnWidth = frame.width / CGFloat(max(1, rows.count))
 
         for (index, row) in rows.enumerated() {
-            let y = startY - CGFloat(index) * rowSpacing
+            let columnMinX = frame.minX + CGFloat(index) * columnWidth
+            let title = row.title == "ORIENTATION" ? "ORIENT" : "INPUT"
             addLabel(
-                row.title,
-                at: CGPoint(x: frame.minX + 14, y: y),
-                fontSize: 10,
+                title,
+                at: CGPoint(x: columnMinX, y: frame.midY),
+                fontSize: 8,
                 color: theme.borderColor,
                 alignment: .left
             )
             let valueLabel = makeLabel(
                 row.value,
-                at: CGPoint(x: frame.maxX - 14, y: y),
-                fontSize: 10,
+                at: CGPoint(x: columnMinX + columnWidth - 4, y: frame.midY),
+                fontSize: 8,
                 color: theme.playerAccentColor,
                 alignment: .right
             )
@@ -3335,7 +3353,7 @@ private extension ArenaScene {
 
     func renderPreRun() {
         let layout = currentLandscapeLayout()
-        renderPreRunSummary(in: layout.safeRect)
+        renderRunHUD(in: layout)
         addButton(
             "CAL",
             frame: CGRect(x: layout.safeRect.maxX - 112, y: layout.safeRect.maxY - 78, width: 48, height: 34),
@@ -3349,18 +3367,18 @@ private extension ArenaScene {
             style: .secondary
         )
         addReadyStartCircle(at: readyStartPoint)
-        addStatusChip(
+        addStatusLabel(
             "HOLD 3s TO START",
             frame: CGRect(x: layout.safeRect.midX - 82, y: layout.safeRect.minY, width: 164, height: 28),
             color: theme.playerAccentColor
         )
-        addStatusChip(
+        addStatusLabel(
             selectedMode.displayName,
             frame: CGRect(x: layout.safeRect.minX, y: layout.safeRect.minY, width: 112, height: 28),
             color: theme.playerAccentColor,
             glyph: .radar
         )
-        addStatusChip(
+        addStatusLabel(
             calibrationText,
             frame: CGRect(x: layout.safeRect.maxX - 170, y: layout.safeRect.minY, width: 170, height: 28),
             color: theme.borderColor
@@ -3368,18 +3386,12 @@ private extension ArenaScene {
         updateReadyProgressDisplay(readyHoldController.state)
     }
 
-    func addStatusChip(
+    func addStatusLabel(
         _ text: String,
         frame: CGRect,
         color: SKColor,
         glyph: ArenaControlGlyph? = nil
     ) {
-        let chip = SKShapeNode(rect: frame, cornerRadius: 6)
-        chip.zPosition = ArenaUIZPosition.control
-        chip.fillColor = theme.panelFillColor.withAlphaComponent(0.8)
-        chip.strokeColor = color.withAlphaComponent(0.58)
-        chip.lineWidth = 1
-        uiRoot.addChild(chip)
         if let glyph {
             addControlGlyph(
                 glyph,
@@ -3564,18 +3576,15 @@ private extension ArenaScene {
             color: theme.playerColor,
             alignment: .left
         )
-        addStatusChip(
+        addLabel(
             summary?.score ?? 0 > previousBestScore ? "NEW BEST" : "BEST \(runProfile.bestScore)",
-            frame: CGRect(
-                x: layout.safeRect.minX,
-                y: layout.safeRect.maxY - 150,
-                width: 144,
-                height: 26
-            ),
-            color: theme.playerAccentColor
+            at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 126),
+            fontSize: 11,
+            color: theme.playerAccentColor,
+            alignment: .left
         )
         renderGameCenterStatusMessage(
-            at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 164),
+            at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 146),
             alignment: .left
         )
     }
@@ -4264,13 +4273,8 @@ private extension ArenaScene {
         let backdrop = SKShapeNode(rect: layout.safeRect, cornerRadius: 10)
         backdrop.zPosition = ArenaUIZPosition.scrim
         backdrop.fillColor = theme.panelFillColor
-        backdrop.strokeColor = theme.panelStrokeColor.withAlphaComponent(0.65)
-        backdrop.lineWidth = 1.2
+        backdrop.strokeColor = .clear
         uiRoot.addChild(backdrop)
-        addCornerAccents(
-            frame: layout.safeRect.insetBy(dx: 2, dy: 2),
-            color: theme.playerAccentColor.withAlphaComponent(0.76)
-        )
     }
 
     func renderSelectedModeSummary(in frame: CGRect) {
@@ -4403,9 +4407,8 @@ private extension ArenaScene {
         let accentColor = row.isComplete ? theme.playerAccentColor : theme.pickupAmber
         addPanel(
             frame: frame,
-            stroke: accentColor.withAlphaComponent(row.isComplete ? 0.86 : 0.55),
-            fill: accentColor.withAlphaComponent(row.isComplete ? 0.06 : 0.04),
-            accent: row.isComplete ? accentColor.withAlphaComponent(0.72) : nil
+            stroke: accentColor.withAlphaComponent(row.isComplete ? 0.56 : 0.34),
+            fill: accentColor.withAlphaComponent(row.isComplete ? 0.04 : 0.025)
         )
         let fontSize: CGFloat = frame.width < 170 ? 9 : 11
         addControlGlyph(
@@ -4437,7 +4440,7 @@ private extension ArenaScene {
 
     func addWeaponCodexRow(_ row: WeaponCodexRow, frame: CGRect) {
         let strokeColor = row.isUnlocked
-            ? theme.playerAccentColor.withAlphaComponent(0.58)
+            ? theme.playerAccentColor.withAlphaComponent(0.3)
             : theme.borderColor.withAlphaComponent(0.28)
         let fillColor = row.isUnlocked
             ? theme.playerAccentColor.withAlphaComponent(0.06)
@@ -4558,7 +4561,8 @@ private extension ArenaScene {
     func addScrim(alpha: CGFloat) {
         let scrim = SKShapeNode(rect: CGRect(origin: .zero, size: size))
         scrim.zPosition = ArenaUIZPosition.scrim
-        scrim.fillColor = SKColor.black.withAlphaComponent(alpha)
+        let color = theme.kind == .darkTacticalRadar ? SKColor.black : theme.backgroundColor
+        scrim.fillColor = color.withAlphaComponent(alpha)
         scrim.strokeColor = .clear
         uiRoot.addChild(scrim)
     }
@@ -4573,7 +4577,7 @@ private extension ArenaScene {
         panel.zPosition = ArenaUIZPosition.panel
         panel.fillColor = fill ?? theme.panelFillColor
         panel.strokeColor = stroke ?? theme.panelStrokeColor
-        panel.lineWidth = 1
+        panel.lineWidth = 0.75
         uiRoot.addChild(panel)
 
         if let accent {
@@ -4594,7 +4598,7 @@ private extension ArenaScene {
         let accents = SKShapeNode(path: path)
         accents.zPosition = ArenaUIZPosition.controlFill
         accents.strokeColor = color
-        accents.lineWidth = 1.4
+        accents.lineWidth = 0.9
         accents.lineCap = .square
         uiRoot.addChild(accents)
     }
@@ -4646,16 +4650,16 @@ private extension ArenaScene {
 
         switch style {
         case .primary:
-            fill = theme.playerAccentColor.withAlphaComponent(0.22)
-            stroke = theme.playerAccentColor.withAlphaComponent(0.95)
+            fill = theme.playerAccentColor.withAlphaComponent(0.18)
+            stroke = theme.playerAccentColor.withAlphaComponent(0.82)
             text = theme.playerColor
         case .secondary:
-            fill = theme.borderColor.withAlphaComponent(0.13)
-            stroke = theme.borderColor.withAlphaComponent(0.68)
-            text = theme.playerColor.withAlphaComponent(0.76)
+            fill = theme.borderColor.withAlphaComponent(0.07)
+            stroke = theme.borderColor.withAlphaComponent(0.32)
+            text = theme.playerColor.withAlphaComponent(0.8)
         case .danger:
-            fill = theme.enemyColor.withAlphaComponent(0.12)
-            stroke = theme.enemyColor.withAlphaComponent(0.72)
+            fill = theme.enemyColor.withAlphaComponent(0.1)
+            stroke = theme.enemyColor.withAlphaComponent(0.62)
             text = theme.enemyColor.withAlphaComponent(0.9)
         }
 
@@ -4663,13 +4667,9 @@ private extension ArenaScene {
         button.zPosition = ArenaUIZPosition.control
         button.fillColor = fill
         button.strokeColor = stroke
-        button.lineWidth = style == .primary ? 1.4 : 1
+        button.lineWidth = style == .primary ? 1.1 : 0.8
         button.glowWidth = theme.kind == .darkTacticalRadar && style == .primary ? 0.45 : 0
         uiRoot.addChild(button)
-
-        if style == .primary || style == .danger {
-            addCornerAccents(frame: frame, color: stroke.withAlphaComponent(0.86))
-        }
 
         let compactGlyphLayout = glyph != nil && frame.width < 112
         let resolvedFontSize = fontSize ?? (glyph == nil ? 14 : (compactGlyphLayout ? 10 : 16))
@@ -5207,6 +5207,26 @@ extension ArenaScene {
 
     var runSurvivalTimeForTesting: TimeInterval {
         runController.survivalTime
+    }
+
+    var runScoreTextForTesting: String? {
+        runScoreLabel?.text
+    }
+
+    var runBestTextForTesting: String? {
+        runBestLabel?.text
+    }
+
+    var runScorePositionForTesting: CGPoint? {
+        runScoreLabel?.position
+    }
+
+    var runBestPositionForTesting: CGPoint? {
+        runBestLabel?.position
+    }
+
+    var runHUDFramesForTesting: (leading: CGRect, trailing: CGRect) {
+        runHUDFrames(in: currentLandscapeLayout())
     }
 
     var uiStateForTesting: ArenaUISceneState {

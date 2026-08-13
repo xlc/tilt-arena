@@ -33,8 +33,9 @@ screen snapshot as the functional reference.
 - `calibration.png`: live tilt radar, neutral target, presets, and clear bounds.
 - `developer-tuning.png`: compact expert controls with stronger grouping.
 - `pre-run.png`: clear hold-to-launch instruction without obscuring the craft.
-- `gameplay.png`: the original compact-HUD direction; the shipped gameplay
-  treatment keeps the arena clear with player-centered combo arcs and moves
-  score details to pause and results.
+- `gameplay.png`: the compact-HUD direction; the shipped gameplay treatment
+  keeps unboxed score, survival time, and best at identical top-margin anchors
+  from pre-run through active play, while using player-centered arcs for combo
+  timing.
 - `pause.png`: dominant resume path with secondary utilities and isolated exit.
 - `post-run.png`: score-first result hierarchy and immediate replay.

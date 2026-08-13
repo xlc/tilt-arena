@@ -149,6 +149,46 @@ final class GameViewControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testRunHUDKeepsScoreAndBestAnchoredFromPreRunIntoGameplay() throws {
+        let spriteView = SafeAreaTestSKView(frame: CGRect(x: 0, y: 0, width: 852, height: 393))
+        spriteView.testSafeAreaInsets = UIEdgeInsets(top: 9, left: 59, bottom: 34, right: 21)
+        let scene = ArenaScene(size: spriteView.bounds.size)
+        spriteView.presentScene(scene)
+        scene.prepareRunStateVisualSnapshot(state: .preRun)
+
+        XCTAssertEqual(scene.runScoreTextForTesting, "SCORE 0  0.0s")
+        XCTAssertEqual(scene.runBestTextForTesting, "BEST 0")
+        let preRunFrames = scene.runHUDFramesForTesting
+        let preRunScorePosition = try XCTUnwrap(scene.runScorePositionForTesting)
+        let preRunBestPosition = try XCTUnwrap(scene.runBestPositionForTesting)
+
+        scene.prepareActiveRunForTesting()
+
+        XCTAssertEqual(scene.runScoreTextForTesting, "SCORE 0  0.0s")
+        XCTAssertEqual(scene.runBestTextForTesting, "BEST 0")
+        let frames = scene.runHUDFramesForTesting
+        XCTAssertEqual(try XCTUnwrap(scene.runScorePositionForTesting), preRunScorePosition)
+        XCTAssertEqual(try XCTUnwrap(scene.runBestPositionForTesting), preRunBestPosition)
+        XCTAssertEqual(frames.leading, preRunFrames.leading)
+        XCTAssertEqual(frames.trailing, preRunFrames.trailing)
+        let arenaBorderFrame = scene.currentGameplayBounds.insetBy(
+            dx: ArenaGeometry.arenaBorderInset,
+            dy: ArenaGeometry.arenaBorderInset
+        )
+        XCTAssertFalse(frames.leading.intersects(arenaBorderFrame))
+        XCTAssertFalse(frames.trailing.intersects(arenaBorderFrame))
+        XCTAssertGreaterThanOrEqual(frames.leading.minY, arenaBorderFrame.maxY)
+        XCTAssertGreaterThanOrEqual(frames.trailing.minY, arenaBorderFrame.maxY)
+        let safeTop = scene.size.height - spriteView.testSafeAreaInsets.top
+        XCTAssertLessThanOrEqual(frames.leading.maxY, safeTop)
+        XCTAssertLessThanOrEqual(frames.trailing.maxY, safeTop)
+
+        scene.updateActiveRunForTesting(deltaTime: 0.5)
+
+        XCTAssertEqual(scene.runScoreTextForTesting, "SCORE 0  0.5s")
+    }
+
+    @MainActor
     func testDeveloperTuningNextPageReachesRenderedLastPage() {
         let suiteName = "DeveloperTuningPageTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

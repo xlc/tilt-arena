@@ -36,6 +36,10 @@ final class ArenaScreenSnapshotTests: XCTestCase {
         try assertScreenSnapshot(state: .weaponCodex, themeKind: .darkTacticalRadar, testName: #function)
     }
 
+    func testWhiteWeaponCodexScreen() throws {
+        try assertScreenSnapshot(state: .weaponCodex, themeKind: .whitePrecisionBoard, testName: #function)
+    }
+
     func testDarkOptionsScreen() throws {
         try assertScreenSnapshot(state: .options, themeKind: .darkTacticalRadar, testName: #function)
     }
@@ -56,8 +60,16 @@ final class ArenaScreenSnapshotTests: XCTestCase {
         try assertScreenSnapshot(state: .developerTuning, themeKind: .darkTacticalRadar, testName: #function)
     }
 
+    func testWhiteDeveloperTuningScreen() throws {
+        try assertScreenSnapshot(state: .developerTuning, themeKind: .whitePrecisionBoard, testName: #function)
+    }
+
     func testDarkPreRunScreen() throws {
         try assertScreenSnapshot(state: .preRun, themeKind: .darkTacticalRadar, testName: #function)
+    }
+
+    func testWhitePreRunScreen() throws {
+        try assertScreenSnapshot(state: .preRun, themeKind: .whitePrecisionBoard, testName: #function)
     }
 
     func testDarkActiveGameplayScreen() throws {
@@ -69,12 +81,29 @@ final class ArenaScreenSnapshotTests: XCTestCase {
         )
     }
 
+    func testWhiteActiveGameplayScreen() throws {
+        try assertScreenSnapshot(
+            state: .activeGameplay,
+            themeKind: .whitePrecisionBoard,
+            precision: 0.999,
+            testName: #function
+        )
+    }
+
     func testDarkPauseScreen() throws {
         try assertScreenSnapshot(state: .pause, themeKind: .darkTacticalRadar, testName: #function)
     }
 
+    func testWhitePauseScreen() throws {
+        try assertScreenSnapshot(state: .pause, themeKind: .whitePrecisionBoard, testName: #function)
+    }
+
     func testDarkPostRunScreen() throws {
         try assertScreenSnapshot(state: .postRun, themeKind: .darkTacticalRadar, testName: #function)
+    }
+
+    func testWhitePostRunScreen() throws {
+        try assertScreenSnapshot(state: .postRun, themeKind: .whitePrecisionBoard, testName: #function)
     }
 
     private func assertScreenSnapshot(

@@ -294,7 +294,7 @@ final class ArenaVisualRoleSnapshotTests: XCTestCase {
             scene.addChild(WeaponPickupNode(pickup: pickup, theme: theme))
             addContactLabel(
                 label(for: kind),
-                at: CGPoint(x: pickup.position.x, y: 46),
+                at: CGPoint(x: pickup.position.x, y: 56),
                 to: scene,
                 theme: theme
             )
