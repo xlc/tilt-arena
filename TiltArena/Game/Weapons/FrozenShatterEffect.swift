@@ -18,27 +18,28 @@ extension ArenaScene {
                 .fadeOut(withDuration: 0.1)
             ])
 
-            for index in 0..<4 {
-                let shard = SKShapeNode(path: Self.shatterShardPath(radius: 14, angle: CGFloat(index) * .pi / 4))
-                shard.position = position
-                shard.strokeColor = color.withAlphaComponent(0.64)
-                shard.lineWidth = 0.9
-                shard.lineCap = .round
-                shard.glowWidth = 0.65
-                shard.zPosition = 19
-                shard.setScale(0.4)
-                addWeaponEffectNode(shard)
-                shard.run(.sequence([burst, .removeFromParent()]))
-            }
+            let shards = SKShapeNode(path: Self.shatterShardBurstPath(radius: 14))
+            shards.position = position
+            shards.strokeColor = color.withAlphaComponent(0.64)
+            shards.lineWidth = 0.9
+            shards.lineCap = .round
+            shards.glowWidth = 0.65
+            shards.zPosition = 19
+            shards.setScale(0.4)
+            addWeaponEffectNode(shards)
+            shards.run(.sequence([burst, .removeFromParent()]))
 
             ring.run(.sequence([burst, .removeFromParent()]))
         }
     }
 
-    private static func shatterShardPath(radius: CGFloat, angle: CGFloat) -> CGPath {
+    private static func shatterShardBurstPath(radius: CGFloat) -> CGPath {
         let path = CGMutablePath()
-        path.move(to: CGPoint(x: -cos(angle) * radius * 0.45, y: -sin(angle) * radius * 0.45))
-        path.addLine(to: CGPoint(x: cos(angle) * radius, y: sin(angle) * radius))
+        for index in 0..<4 {
+            let angle = CGFloat(index) * .pi / 4
+            path.move(to: CGPoint(x: -cos(angle) * radius * 0.45, y: -sin(angle) * radius * 0.45))
+            path.addLine(to: CGPoint(x: cos(angle) * radius, y: sin(angle) * radius))
+        }
         return path
     }
 }

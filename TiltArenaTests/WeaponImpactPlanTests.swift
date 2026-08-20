@@ -55,7 +55,37 @@ final class WeaponImpactPlanTests: XCTestCase {
 
         XCTAssertEqual(
             scene.weaponEffectNodeCountForTesting,
-            WeaponImpactPlan.maximumVisualTargetCount * 5
+            WeaponImpactPlan.maximumVisualTargetCount * 2
         )
+    }
+
+    func testEnemyClearCapsAndCombinesVisualNodesForLargeClear() {
+        let scene = ArenaScene(size: CGSize(width: 320, height: 240))
+        let positions = (1...64).map { CGPoint(x: CGFloat($0), y: 80) }
+
+        scene.playEnemyClearBursts(
+            at: positions,
+            weaponKind: .shockwave,
+            comboMultiplier: 1
+        )
+
+        XCTAssertEqual(
+            scene.weaponEffectNodeCountForTesting,
+            WeaponImpactPlan.maximumVisualTargetCount * 4
+        )
+    }
+
+    func testImpactResidueCombinesShardVisuals() {
+        let scene = ArenaScene(size: CGSize(width: 320, height: 240))
+
+        scene.playImpactResidue(
+            at: CGPoint(x: 160, y: 120),
+            color: .white,
+            coreColor: .white,
+            radius: 12,
+            delay: 0
+        )
+
+        XCTAssertEqual(scene.weaponEffectNodeCountForTesting, 2)
     }
 }

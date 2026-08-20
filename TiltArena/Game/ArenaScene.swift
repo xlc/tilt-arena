@@ -5161,6 +5161,18 @@ extension ArenaScene {
         destroyEnemies(ids: enemyIDs, weaponKind: weaponKind)
     }
 
+    func freezeEnemiesForTesting(
+        ids enemyIDs: Set<Int>,
+        duration: TimeInterval,
+        thawGraceDuration: TimeInterval = 0
+    ) {
+        freezeEnemies(
+            ids: enemyIDs,
+            duration: duration,
+            thawGraceDuration: thawGraceDuration
+        )
+    }
+
     func shatterFrozenContactEnemiesForTesting() {
         shatterFrozenContactEnemies(playerPosition: movementController.state.position)
     }
@@ -5187,6 +5199,10 @@ extension ArenaScene {
 
     var enemyIDsForTesting: Set<Int> {
         Set(enemies.map(\.id))
+    }
+
+    var frozenEnemyIDsForTesting: Set<Int> {
+        Set(enemies.filter(\.isFrozen).map(\.id))
     }
 
     var enemyNodeCountForTesting: Int {
@@ -5527,10 +5543,14 @@ private extension ArenaScene {
         guard !enemyIDs.isEmpty, duration > 0 else {
             return
         }
+        var frozenEnemies: [ArenaEnemy] = []
         for index in enemies.indices where enemyIDs.contains(enemies[index].id) {
             enemies[index].freeze(duration: duration, thawGraceDuration: thawGraceDuration)
             enemyNodes[enemies[index].id]?.apply(enemies[index])
-            playFreezeAppliedEffect(at: enemies[index].position, radius: enemies[index].radius)
+            frozenEnemies.append(enemies[index])
+        }
+        for enemy in WeaponImpactPlan.evenlySampled(frozenEnemies) {
+            playFreezeAppliedEffect(at: enemy.position, radius: enemy.radius)
         }
     }
 

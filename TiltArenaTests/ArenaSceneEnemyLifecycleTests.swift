@@ -192,6 +192,30 @@ final class ArenaSceneEnemyLifecycleTests: XCTestCase {
         XCTAssertFalse(scene.isRunGameOverForTesting)
     }
 
+    func testFreezeBurstCapsContactPulsesWithoutDroppingFrozenEnemies() {
+        let scene = makeActiveScene()
+        let enemies = (1...64).map {
+            ArenaEnemy(
+                id: 300 + $0,
+                position: CGPoint(x: CGFloat($0), y: 80),
+                radius: 4,
+                speed: 0
+            )
+        }
+        for enemy in enemies {
+            scene.addEnemyForTesting(enemy)
+        }
+
+        let enemyIDs = Set(enemies.map(\.id))
+        scene.freezeEnemiesForTesting(ids: enemyIDs, duration: 4)
+
+        XCTAssertEqual(scene.frozenEnemyIDsForTesting, enemyIDs)
+        XCTAssertEqual(
+            scene.weaponEffectNodeCountForTesting,
+            WeaponImpactPlan.maximumVisualTargetCount
+        )
+    }
+
     func testControlAndArenaClearsSuppressSplitterChildren() {
         for weaponKind in [WeaponKind.freezeBurst, .gravityWell, .novaBomb] {
             let scene = makeActiveScene()
@@ -278,6 +302,7 @@ final class ArenaSceneEnemyLifecycleTests: XCTestCase {
         XCTAssertFalse(scene.isRunGameOverForTesting)
 
         let effectNodeCountAfterContact = scene.weaponEffectNodeCountForTesting
+        XCTAssertLessThanOrEqual(effectNodeCountAfterContact, 12)
         scene.updateRazorShieldForTesting(deltaTime: 1.0 / 60.0)
 
         XCTAssertEqual(scene.weaponEffectNodeCountForTesting, effectNodeCountAfterContact)
@@ -337,6 +362,7 @@ final class ArenaSceneEnemyLifecycleTests: XCTestCase {
         XCTAssertFalse(scene.isRunGameOverForTesting)
 
         let effectNodeCountAfterBurn = scene.weaponEffectNodeCountForTesting
+        XCTAssertLessThanOrEqual(effectNodeCountAfterBurn, 12)
         scene.updateFlameTrailForTesting(deltaTime: 1.0 / 60.0)
 
         XCTAssertEqual(scene.weaponEffectNodeCountForTesting, effectNodeCountAfterBurn)

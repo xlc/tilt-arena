@@ -45,7 +45,7 @@ extension ArenaScene {
         let coreColor = theme.playerColor
         let comboBoost = min(1.25, 1 + CGFloat(max(0, comboMultiplier - 1)) * 0.05)
 
-        for (index, position) in positions.prefix(32).enumerated() {
+        for (index, position) in WeaponImpactPlan.evenlySampled(positions).enumerated() {
             playEnemyClearBurst(
                 at: position,
                 color: color,
@@ -155,23 +155,19 @@ extension ArenaScene {
     ) {
         playImpactResidueSplash(at: position, color: color, coreColor: coreColor, radius: radius, delay: delay)
 
-        for index in 0..<6 {
-            let angle = CGFloat(index) * .pi / 3 + .pi / 9
-            let shard = SKShapeNode(path: Self.motionPolishRadialLinePath(
-                innerRadius: radius * 0.32,
-                outerRadius: radius * 1.05,
-                angle: angle
-            ))
-            shard.position = position
-            shard.strokeColor = color.withAlphaComponent(0.46)
-            shard.lineWidth = 0.85
-            shard.lineCap = .round
-            shard.glowWidth = 0.5
-            shard.zPosition = 20
-            shard.alpha = 0
-            addWeaponEffectNode(shard)
-            shard.run(Self.motionPolishShardAction(delay: delay + TimeInterval(index) * 0.004))
-        }
+        let shards = SKShapeNode(path: Self.motionPolishShardBurstPath(
+            innerRadius: radius * 0.32,
+            outerRadius: radius * 1.05
+        ))
+        shards.position = position
+        shards.strokeColor = color.withAlphaComponent(0.46)
+        shards.lineWidth = 0.85
+        shards.lineCap = .round
+        shards.glowWidth = 0.5
+        shards.zPosition = 20
+        shards.alpha = 0
+        addWeaponEffectNode(shards)
+        shards.run(Self.motionPolishShardAction(delay: delay + 0.01))
     }
 }
 
@@ -437,6 +433,16 @@ private extension ArenaScene {
         let path = CGMutablePath()
         path.move(to: CGPoint(x: cos(angle) * innerRadius, y: sin(angle) * innerRadius))
         path.addLine(to: CGPoint(x: cos(angle) * outerRadius, y: sin(angle) * outerRadius))
+        return path
+    }
+
+    static func motionPolishShardBurstPath(innerRadius: CGFloat, outerRadius: CGFloat) -> CGPath {
+        let path = CGMutablePath()
+        for index in 0..<6 {
+            let angle = CGFloat(index) * .pi / 3 + .pi / 9
+            path.move(to: CGPoint(x: cos(angle) * innerRadius, y: sin(angle) * innerRadius))
+            path.addLine(to: CGPoint(x: cos(angle) * outerRadius, y: sin(angle) * outerRadius))
+        }
         return path
     }
 
