@@ -2,6 +2,25 @@ import XCTest
 @testable import TiltArena
 
 final class RunProfileStoreTests: XCTestCase {
+    func testRecordingRunSaturatesCorruptedCounters() {
+        var profile = RunProfile()
+        profile.totalRuns = Int.max
+        profile.totalEnemiesDestroyed = Int.max
+        let summary = RunSummary(
+            score: 10,
+            survivalTime: 1,
+            maxCombo: 1,
+            enemiesDestroyed: 1,
+            bestWeapon: .shockwave,
+            timestamp: Date(timeIntervalSince1970: 1)
+        )
+
+        profile.record(summary)
+
+        XCTAssertEqual(profile.totalRuns, Int.max)
+        XCTAssertEqual(profile.totalEnemiesDestroyed, Int.max)
+    }
+
     private var defaults: UserDefaults!
     private var suiteName: String!
 
@@ -75,6 +94,54 @@ final class RunProfileStoreTests: XCTestCase {
         XCTAssertTrue(profile.unlockedWeapons.contains(.flameTrail))
         XCTAssertFalse(profile.unlockedWeapons.contains(.gravityWell))
         XCTAssertEqual(profile.dailyParticipationSeeds, [])
+    }
+
+    func testPersistedNumericNormalizationPreservesValidFieldsAndRepairsOnce() throws {
+        let originalData = Data("""
+        {
+          "bestScore": 4321,
+          "highestCombo": -4,
+          "longestSurvivalTime": 1e300,
+          "totalRuns": -2,
+          "totalEnemiesDestroyed": 55,
+          "unlockedWeapons": ["shockwave"],
+          "earnedAwardIDs": [],
+          "dailyParticipationSeeds": []
+        }
+        """.utf8)
+        defaults.set(originalData, forKey: "tiltArena.runProfile")
+        let store = RunProfileStore(defaults: defaults)
+
+        let profile = store.profile
+
+        XCTAssertEqual(profile.bestScore, 4_321)
+        XCTAssertEqual(profile.highestCombo, 0)
+        XCTAssertEqual(
+            profile.longestSurvivalTime,
+            RunProfile.maximumPersistedSurvivalTime
+        )
+        XCTAssertEqual(
+            TimeInterval(Int(profile.longestSurvivalTime)),
+            profile.longestSurvivalTime
+        )
+        XCTAssertEqual(profile.totalRuns, 0)
+        XCTAssertEqual(profile.totalEnemiesDestroyed, 55)
+        XCTAssertTrue(profile.earnedAwardIDs.contains(.survivor))
+
+        let repairedData = try XCTUnwrap(defaults.data(forKey: "tiltArena.runProfile"))
+        XCTAssertNotEqual(repairedData, originalData)
+        XCTAssertEqual(store.profile, profile)
+        XCTAssertEqual(defaults.data(forKey: "tiltArena.runProfile"), repairedData)
+    }
+
+    func testSurvivorProgressHandlesOutOfRangeInMemoryDuration() {
+        var profile = RunProfile()
+        profile.longestSurvivalTime = 1e300
+
+        let progress = ArenaProgressionRules.awardProgress(for: .survivor, profile: profile)
+
+        XCTAssertEqual(progress.progress, 120)
+        XCTAssertTrue(progress.isComplete)
     }
 
     func testLegacyDecoyBeaconWeaponDecodesAsPowerWave() throws {

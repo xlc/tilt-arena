@@ -6,6 +6,7 @@ enum AppDiagnostics {
     nonisolated static let subsystem = "com.xlc.TiltArena"
     nonisolated private static let sessionID = UUID().uuidString
     private static var isBootstrapped = false
+    private static var metricKitCollector: MetricKitDiagnosticCollector?
 
     static func bootstrap(store: DiagnosticLogStore = .shared) {
         guard !isBootstrapped else {
@@ -25,24 +26,28 @@ enum AppDiagnostics {
         }
         isBootstrapped = true
 
+        let collector = MetricKitDiagnosticCollector()
+        metricKitCollector = collector
+        collector.start()
+
         logger(.app).notice("app.launch")
     }
 
-    static func logger(_ category: DiagnosticCategory) -> Logger {
+    nonisolated static func logger(_ category: DiagnosticCategory) -> Logger {
         Logger(label: "\(subsystem).\(category.rawValue)")
     }
 
-    nonisolated static func makeExportBundle(gameplay: DiagnosticGameplaySnapshot?) throws -> URL {
+    nonisolated static func makeReport(gameplay: DiagnosticGameplaySnapshot?) throws -> URL {
         let generatedAt = Date()
         let metadata = DiagnosticExportMetadataFactory.make(
             generatedAt: generatedAt,
             sessionID: sessionID,
             gameplay: gameplay
         )
-        let builder = DiagnosticBundleBuilder(
+        let builder = DiagnosticTextReportBuilder(
             outputDirectoryURL: exportDirectoryURL()
         )
-        return try builder.makeBundle(metadata: metadata)
+        return try builder.makeReport(metadata: metadata)
     }
 
     nonisolated private static func exportDirectoryURL() -> URL {
@@ -53,6 +58,7 @@ enum AppDiagnostics {
 
 enum DiagnosticCategory: String {
     case app
+    case diagnostics
     case scene
     case input
     case run

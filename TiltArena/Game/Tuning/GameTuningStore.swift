@@ -1,11 +1,17 @@
 import Foundation
+import Logging
 
 final class GameTuningStore {
     private let defaults: UserDefaults
     private let overridesKey = "tiltArena.gameTuningOverrides.v1"
+    private let logger: Logger
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        defaults: UserDefaults = .standard,
+        logger: Logger = AppDiagnostics.logger(.app)
+    ) {
         self.defaults = defaults
+        self.logger = logger
     }
 
     var tuning: GameTuningConfiguration {
@@ -13,6 +19,9 @@ final class GameTuningStore {
             var tuning = GameTuningConfiguration.defaults
             for (id, storedValue) in overrides {
                 guard let parameter = GameTuningParameterCatalog.parameter(id: id) else {
+                    logger.warning("tuning.unknown_parameter_ignored", metadata: [
+                        "parameter": "\(id)"
+                    ])
                     continue
                 }
 
@@ -38,14 +47,18 @@ final class GameTuningStore {
 
     private var overrides: [String: GameTuningStoredValue] {
         get {
-            guard
-                let data = defaults.data(forKey: overridesKey),
-                let overrides = try? JSONDecoder().decode([String: GameTuningStoredValue].self, from: data)
-            else {
+            guard let data = defaults.data(forKey: overridesKey) else {
                 return [:]
             }
 
-            return overrides
+            do {
+                return try JSONDecoder().decode([String: GameTuningStoredValue].self, from: data)
+            } catch {
+                logger.warning("tuning.load_failed", error: error, metadata: [
+                    "bytes": "\(data.count)"
+                ])
+                return [:]
+            }
         }
         set {
             guard !newValue.isEmpty else {
@@ -53,11 +66,13 @@ final class GameTuningStore {
                 return
             }
 
-            guard let data = try? JSONEncoder().encode(newValue) else {
-                return
+            do {
+                defaults.set(try JSONEncoder().encode(newValue), forKey: overridesKey)
+            } catch {
+                logger.error("tuning.save_failed", error: error, metadata: [
+                    "parameters": "\(newValue.count)"
+                ])
             }
-
-            defaults.set(data, forKey: overridesKey)
         }
     }
 }

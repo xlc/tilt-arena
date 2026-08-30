@@ -133,11 +133,11 @@ struct EnemySpawnDirector {
         playerPosition: CGPoint,
         pickupCircles: [CollisionCircle]
     ) -> EnemySpawnFrame {
-        sanitizeSpawnTimers()
+        let sanitizedTimerCount = sanitizeSpawnTimers()
         let clampedDelta = deltaTime.isFinite ? max(0, deltaTime) : 0
         let tuning = configuration.tuning(at: survivalTime)
         let activeEnemyCount = activeEnemies.count
-        var frame = EnemySpawnFrame()
+        var frame = EnemySpawnFrame(runtimeCorrectionCount: sanitizedTimerCount + (deltaTime.isFinite ? 0 : 1))
         let context = SpawnContext(
             deltaTime: clampedDelta,
             tuning: tuning,

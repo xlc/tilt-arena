@@ -14,7 +14,9 @@ final class GameViewController: UIViewController {
     private var loadingOverlayInstalledAt: CFTimeInterval?
     private var loadingOverlayView: UIView?
     private var isHidingLoadingOverlay = false
-    private var diagnosticsExportTask: Task<Void, Never>?
+    private let logger = AppDiagnostics.logger(.app)
+    private var diagnosticsReportTask: Task<Void, Never>?
+    private weak var diagnosticsPreviewController: DiagnosticsPreviewController?
 
     override func loadView() {
         view = SKView(frame: .zero)
@@ -25,10 +27,12 @@ final class GameViewController: UIViewController {
         configureSpriteView()
         installLoadingOverlay()
         installGameCenterStatusObserver()
+        logger.info("view.loaded")
     }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        logger.info("view.appeared")
         guard !Self.isRunningUnitTests else {
             return
         }
@@ -92,6 +96,10 @@ final class GameViewController: UIViewController {
         spriteView.presentScene(scene)
         scene.refreshSafeAreaLayout()
         hasPresentedScene = true
+        logger.notice("scene.presentation_completed", metadata: [
+            "height": "\(spriteView.bounds.height.rounded())",
+            "width": "\(spriteView.bounds.width.rounded())"
+        ])
         hideLoadingOverlayWhenReady()
     }
 
@@ -295,12 +303,16 @@ final class GameViewController: UIViewController {
         lastLandscapeOrientation = resolvedOrientation
         lockedOrientationMask = Self.landscapeMask(for: resolvedOrientation)
         setNeedsUpdateOfSupportedInterfaceOrientations()
+        logger.info("orientation.locked", metadata: [
+            "orientation": "\(resolvedOrientation.rawValue)"
+        ])
         return TiltScreenOrientation(interfaceOrientation: resolvedOrientation) ?? fallback
     }
 
     func unlockRunOrientation() {
         lockedOrientationMask = nil
         setNeedsUpdateOfSupportedInterfaceOrientations()
+        logger.info("orientation.unlocked")
     }
 
     private static func landscapeMask(for orientation: UIInterfaceOrientation?) -> UIInterfaceOrientationMask? {
@@ -351,36 +363,164 @@ extension GameViewController: ArenaSceneOrientationDelegate {
 }
 
 extension GameViewController: ArenaSceneDiagnosticsDelegate {
-    func arenaSceneRequestsDiagnosticsExport(
+    func arenaSceneRequestsDiagnosticsPresentation(
         _ scene: ArenaScene,
         snapshot: DiagnosticGameplaySnapshot
     ) {
-        guard diagnosticsExportTask == nil else {
+        guard diagnosticsReportTask == nil, diagnosticsPreviewController == nil else {
+            logger.info("diagnostics.presentation_skipped", metadata: [
+                "reason": "already_active"
+            ])
             return
         }
 
-        diagnosticsExportTask = Task { [weak self] in
-            defer { self?.diagnosticsExportTask = nil }
+        logger.info("diagnostics.report_build_started")
+        diagnosticsReportTask = Task { [weak self] in
+            defer { self?.diagnosticsReportTask = nil }
 
             do {
-                let bundleURL = try await Task.detached(priority: .userInitiated) {
-                    try AppDiagnostics.makeExportBundle(gameplay: snapshot)
+                let reportURL = try await Task.detached(priority: .userInitiated) {
+                    try AppDiagnostics.makeReport(gameplay: snapshot)
                 }.value
-                try Task.checkCancellation()
+                guard !Task.isCancelled else {
+                    try? FileManager.default.removeItem(at: reportURL)
+                    self?.logger.info("diagnostics.report_build_cancelled")
+                    return
+                }
 
-                let activityController = UIActivityViewController(
-                    activityItems: [bundleURL],
-                    applicationActivities: nil
-                )
-                AppDiagnostics.logger(.app).notice("diagnostics.export.presented", metadata: [
-                    "bundle": "\(bundleURL.lastPathComponent)"
-                ])
-                self?.present(activityController, animated: true)
-            } catch is CancellationError {
-                return
+                guard let self else {
+                    try? FileManager.default.removeItem(at: reportURL)
+                    return
+                }
+
+                self.presentDiagnosticsReport(at: reportURL)
             } catch {
-                AppDiagnostics.logger(.app).error("diagnostics.export.failed", error: error)
+                self?.logger.error("diagnostics.report_build_failed", error: error)
+                self?.presentDiagnosticsFailureAlert()
             }
+        }
+    }
+
+    func presentDiagnosticsReport(at reportURL: URL) {
+        guard let windowScene = viewIfLoaded?.window?.windowScene else {
+            logger.warning("diagnostics.presentation_rejected", metadata: [
+                "reason": "view_detached"
+            ])
+            removeDiagnosticsReport(at: reportURL)
+            return
+        }
+        guard windowScene.activationState == .foregroundActive else {
+            logger.warning("diagnostics.presentation_rejected", metadata: [
+                "reason": "scene_inactive"
+            ])
+            removeDiagnosticsReport(at: reportURL)
+            return
+        }
+        guard presentedViewController == nil else {
+            logger.info("diagnostics.presentation_rejected", metadata: [
+                "reason": "another_controller_presented"
+            ])
+            removeDiagnosticsReport(at: reportURL)
+            return
+        }
+
+        let previewController = makeDiagnosticsPreviewController(reportURL: reportURL)
+        diagnosticsPreviewController = previewController
+
+        let navigationController = UINavigationController(rootViewController: previewController)
+        navigationController.modalPresentationStyle = .fullScreen
+        present(navigationController, animated: true) { [weak self, weak navigationController] in
+            guard let self, self.presentedViewController === navigationController else {
+                return
+            }
+            self.logger.notice("diagnostics.preview_presented")
+        }
+    }
+
+    private func makeDiagnosticsPreviewController(reportURL: URL) -> DiagnosticsPreviewController {
+        DiagnosticsPreviewController(
+            reportURL: reportURL,
+            onDone: { [weak self] in
+                self?.logger.info("diagnostics.preview_done")
+            },
+            onShare: { [weak self] url, presenter, sourceButton in
+                self?.presentDiagnosticsShareSheet(
+                    reportURL: url,
+                    presenter: presenter,
+                    sourceButton: sourceButton
+                )
+            },
+            onDismiss: { [weak self] in
+                guard let self else {
+                    try? FileManager.default.removeItem(at: reportURL)
+                    return
+                }
+                self.diagnosticsPreviewController = nil
+                self.removeDiagnosticsReport(at: reportURL)
+            }
+        )
+    }
+
+    private func presentDiagnosticsShareSheet(
+        reportURL: URL,
+        presenter: UIViewController,
+        sourceButton: UIBarButtonItem
+    ) {
+        guard presenter.presentedViewController == nil else {
+            logger.info("diagnostics.share_skipped", metadata: [
+                "reason": "another_controller_presented"
+            ])
+            return
+        }
+
+        let activityController = UIActivityViewController(
+            activityItems: [reportURL],
+            applicationActivities: nil
+        )
+        activityController.popoverPresentationController?.barButtonItem = sourceButton
+        activityController.completionWithItemsHandler = { [weak self] _, completed, _, error in
+            Task { @MainActor [weak self] in
+                if let error {
+                    self?.logger.error("diagnostics.share_failed", error: error)
+                } else {
+                    self?.logger.info("diagnostics.share_completed", metadata: [
+                        "completed": "\(completed)"
+                    ])
+                }
+            }
+        }
+        logger.notice("diagnostics.share_presented")
+        presenter.present(activityController, animated: true)
+    }
+
+    private func presentDiagnosticsFailureAlert() {
+        guard
+            viewIfLoaded?.window?.windowScene?.activationState == .foregroundActive,
+            presentedViewController == nil
+        else {
+            logger.info("diagnostics.failure_alert_skipped", metadata: [
+                "reason": "presentation_unavailable"
+            ])
+            return
+        }
+
+        let alert = UIAlertController(
+            title: "Logs Unavailable",
+            message: "Tilt Arena could not prepare the diagnostic report. Please try again.",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+    }
+
+    private func removeDiagnosticsReport(at reportURL: URL) {
+        do {
+            try FileManager.default.removeItem(at: reportURL)
+            logger.info("diagnostics.report_removed")
+        } catch CocoaError.fileNoSuchFile {
+            return
+        } catch {
+            logger.warning("diagnostics.report_remove_failed", error: error)
         }
     }
 }

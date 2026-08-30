@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import Logging
 
 enum ArenaAudioCueFamily: String, CaseIterable, Equatable {
     case pickup
@@ -75,8 +76,36 @@ struct ArenaAudioPlaybackLimiter {
     }
 }
 
+struct ArenaAudioReadinessEpisodeGate {
+    private(set) var isFailureActive = false
+
+    mutating func beginFailureIfNeeded() -> Bool {
+        guard !isFailureActive else {
+            return false
+        }
+
+        isFailureActive = true
+        return true
+    }
+
+    mutating func recoverIfNeeded() -> Bool {
+        guard isFailureActive else {
+            return false
+        }
+
+        isFailureActive = false
+        return true
+    }
+}
+
 @MainActor
 final class ArenaAudioController {
+    private static let maximumGeneratedBufferBytes = 8 * 1_024 * 1_024
+    private static let maximumGeneratedBufferFrames = AVAudioFrameCount(
+        maximumGeneratedBufferBytes / MemoryLayout<Float>.size
+    )
+    private static let longestGeneratedBufferDuration: TimeInterval = 2
+
     var isEnabled = true {
         didSet {
             if !isEnabled {
@@ -90,28 +119,44 @@ final class ArenaAudioController {
     private let engine = AVAudioEngine()
     private let effectsNode = AVAudioPlayerNode()
     private let musicNode = AVAudioPlayerNode()
-    private let format: AVAudioFormat
+    private let logger: Logger
+    private let format: AVAudioFormat?
     private let sampleRate: Double
     private var effectBuffers: [ArenaAudioCueFamily: AVAudioPCMBuffer] = [:]
     private var musicBuffer: AVAudioPCMBuffer?
     private var playbackLimiter = ArenaAudioPlaybackLimiter()
+    private var sessionReadinessEpisode = ArenaAudioReadinessEpisodeGate()
+    private var engineReadinessEpisode = ArenaAudioReadinessEpisodeGate()
     private var isConfigured = false
     private var isMusicPlaying = false
     private var isMusicScheduled = false
     private var fallbackClock: TimeInterval = 0
 
-    init(sampleRate: Double = 44_100) {
+    init(
+        sampleRate: Double = 44_100,
+        logger: Logger = AppDiagnostics.logger(.app)
+    ) {
         self.sampleRate = sampleRate
-        guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1) else {
-            fatalError("Unable to create procedural audio format.")
+        self.logger = logger
+        let maximumSampleRate = Double(Self.maximumGeneratedBufferFrames)
+            / Self.longestGeneratedBufferDuration
+        format = sampleRate.isFinite && sampleRate > 0 && sampleRate <= maximumSampleRate
+            ? AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)
+            : nil
+        guard format != nil else {
+            logger.error("audio.format_unavailable", metadata: [
+                "sampleRate": "\(sampleRate)"
+            ])
+            return
         }
-        self.format = format
+
         buildBuffers()
     }
 
     func startMusic() {
         guard
             isEnabled,
+            format != nil,
             configureAudioSessionIfNeeded(),
             startEngineIfNeeded()
         else {
@@ -161,6 +206,7 @@ final class ArenaAudioController {
     func play(_ event: ArenaAudioEvent, at time: TimeInterval? = nil) {
         guard
             isEnabled,
+            format != nil,
             configureAudioSessionIfNeeded(),
             startEngineIfNeeded()
         else {
@@ -188,18 +234,29 @@ final class ArenaAudioController {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.ambient, options: [.mixWithOthers])
             try session.setActive(true)
-            configureEngineIfNeeded()
+            if sessionReadinessEpisode.recoverIfNeeded() {
+                logger.info("audio.session_recovered")
+            }
+            guard configureEngineIfNeeded() else {
+                return false
+            }
+
             isConfigured = true
             return true
         } catch {
-            AppDiagnostics.logger(.app).warning("audio.session_failed", error: error)
+            if sessionReadinessEpisode.beginFailureIfNeeded() {
+                logger.warning("audio.session_failed", error: error)
+            }
             return false
         }
     }
 
-    private func configureEngineIfNeeded() {
+    private func configureEngineIfNeeded() -> Bool {
         guard effectsNode.engine == nil else {
-            return
+            return true
+        }
+        guard let format else {
+            return false
         }
 
         engine.attach(effectsNode)
@@ -208,41 +265,64 @@ final class ArenaAudioController {
         engine.connect(musicNode, to: engine.mainMixerNode, format: format)
         effectsNode.volume = 1
         engine.prepare()
+        return true
     }
 
     private func startEngineIfNeeded() -> Bool {
         guard !engine.isRunning else {
+            if engineReadinessEpisode.recoverIfNeeded() {
+                logger.info("audio.engine_recovered")
+            }
             return true
         }
 
         do {
             try engine.start()
+            if engineReadinessEpisode.recoverIfNeeded() {
+                logger.info("audio.engine_recovered")
+            }
             return true
         } catch {
-            AppDiagnostics.logger(.app).warning("audio.engine_failed", error: error)
+            if engineReadinessEpisode.beginFailureIfNeeded() {
+                logger.warning("audio.engine_failed", error: error)
+            }
             return false
         }
     }
 
     private func buildBuffers() {
-        effectBuffers = Dictionary(
-            uniqueKeysWithValues: ArenaAudioCueFamily.allCases.map { family in
-                (family, makeEffectBuffer(for: family))
+        effectBuffers = Dictionary(uniqueKeysWithValues: ArenaAudioCueFamily.allCases.compactMap { family in
+            guard let buffer = makeEffectBuffer(for: family) else {
+                logger.error("audio.effect_buffer_unavailable", metadata: [
+                    "family": "\(family.rawValue)"
+                ])
+                return nil
             }
-        )
+
+            return (family, buffer)
+        })
         musicBuffer = makeMusicBuffer()
+        if musicBuffer == nil {
+            logger.error("audio.music_buffer_unavailable")
+        }
     }
 
-    private func makeEffectBuffer(for family: ArenaAudioCueFamily) -> AVAudioPCMBuffer {
+    private func makeEffectBuffer(for family: ArenaAudioCueFamily) -> AVAudioPCMBuffer? {
+        guard let format else {
+            return nil
+        }
+
         let cue = catalogCue(for: family)
-        let frameCount = AVAudioFrameCount(max(1, Int(cue.duration * sampleRate)))
+        guard let frameCount = audioFrameCount(duration: cue.duration) else {
+            return nil
+        }
         guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
-            fatalError("Unable to create procedural SFX buffer.")
+            return nil
         }
 
         buffer.frameLength = frameCount
         guard let channel = buffer.floatChannelData?[0] else {
-            return buffer
+            return nil
         }
 
         for frame in 0..<Int(frameCount) {
@@ -258,16 +338,22 @@ final class ArenaAudioController {
         return buffer
     }
 
-    private func makeMusicBuffer() -> AVAudioPCMBuffer {
+    private func makeMusicBuffer() -> AVAudioPCMBuffer? {
+        guard let format else {
+            return nil
+        }
+
         let duration = 2.0
-        let frameCount = AVAudioFrameCount(duration * sampleRate)
+        guard let frameCount = audioFrameCount(duration: duration) else {
+            return nil
+        }
         guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
-            fatalError("Unable to create procedural music buffer.")
+            return nil
         }
 
         buffer.frameLength = frameCount
         guard let channel = buffer.floatChannelData?[0] else {
-            return buffer
+            return nil
         }
 
         let beatDuration = 0.125
@@ -284,6 +370,19 @@ final class ArenaAudioController {
         }
 
         return buffer
+    }
+
+    private func audioFrameCount(duration: TimeInterval) -> AVAudioFrameCount? {
+        let frameCount = duration * sampleRate
+        guard
+            frameCount.isFinite,
+            frameCount >= 1,
+            frameCount <= Double(Self.maximumGeneratedBufferFrames)
+        else {
+            return nil
+        }
+
+        return AVAudioFrameCount(frameCount.rounded(.down))
     }
 
     private func fallbackPlaybackTime() -> TimeInterval {

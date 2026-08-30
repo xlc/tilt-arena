@@ -1,4 +1,5 @@
 import Foundation
+import Logging
 
 final class TiltSettingsStore {
     private static let currentCalibrationSpaceVersion = 3
@@ -7,13 +8,35 @@ final class TiltSettingsStore {
     private static let calibrationSpaceVersionKey = "tiltArena.tiltCalibrationSpaceVersion"
 
     private let defaults: UserDefaults
+    private let logger: Logger
     private(set) var settings: TiltControlSettings
     private var hasCapturedInitialCalibration: Bool
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        defaults: UserDefaults = .standard,
+        logger: Logger = AppDiagnostics.logger(.input)
+    ) {
         self.defaults = defaults
-        settings = Self.loadSettings(from: defaults, key: Self.settingsKey) ?? .defaults
-        hasCapturedInitialCalibration = defaults.bool(forKey: Self.initialCalibrationKey)
+        self.logger = logger
+        if let data = defaults.data(forKey: Self.settingsKey) {
+            do {
+                settings = try JSONDecoder().decode(TiltControlSettings.self, from: data)
+                hasCapturedInitialCalibration = defaults.bool(forKey: Self.initialCalibrationKey)
+            } catch {
+                settings = .defaults
+                hasCapturedInitialCalibration = false
+                defaults.removeObject(forKey: Self.settingsKey)
+                defaults.removeObject(forKey: Self.initialCalibrationKey)
+                defaults.removeObject(forKey: Self.calibrationSpaceVersionKey)
+                logger.warning("input.settings_load_failed", error: error, metadata: [
+                    "bytes": "\(data.count)"
+                ])
+            }
+        } else {
+            settings = .defaults
+            hasCapturedInitialCalibration = false
+            defaults.removeObject(forKey: Self.initialCalibrationKey)
+        }
         migrateCalibrationSpaceIfNeeded()
     }
 
@@ -34,6 +57,9 @@ final class TiltSettingsStore {
 
     func recalibrate(using gravity: TiltGravityVector) {
         guard gravity.isFinite else {
+            logger.warning("input.calibration_rejected", metadata: [
+                "reason": "nonfinite_gravity"
+            ])
             return
         }
 
@@ -50,11 +76,17 @@ final class TiltSettingsStore {
         hasCapturedInitialCalibration = true
         defaults.set(true, forKey: Self.initialCalibrationKey)
         markCurrentCalibrationSpaceVersion()
+        logger.info("input.preset_selected", metadata: [
+            "preset": "\(preset.rawValue)"
+        ])
     }
 
     func updateSensitivity(_ sensitivity: Double) {
         var currentSettings = settings
         guard sensitivity.isFinite else {
+            logger.warning("input.sensitivity_rejected", metadata: [
+                "reason": "nonfinite_value"
+            ])
             return
         }
 
@@ -63,6 +95,9 @@ final class TiltSettingsStore {
             max(TiltControlSettings.minimumSensitivity, sensitivity)
         )
         save(currentSettings)
+        logger.info("input.sensitivity_changed", metadata: [
+            "value": "\(currentSettings.sensitivity)"
+        ])
     }
 
     func reset() {
@@ -71,6 +106,7 @@ final class TiltSettingsStore {
         defaults.removeObject(forKey: Self.settingsKey)
         defaults.removeObject(forKey: Self.initialCalibrationKey)
         defaults.removeObject(forKey: Self.calibrationSpaceVersionKey)
+        logger.notice("input.settings_reset")
     }
 
     private func migrateCalibrationSpaceIfNeeded() {
@@ -96,6 +132,9 @@ final class TiltSettingsStore {
         }
 
         markCurrentCalibrationSpaceVersion()
+        logger.notice("input.calibration_migrated", metadata: [
+            "version": "\(Self.currentCalibrationSpaceVersion)"
+        ])
     }
 
     private func markCurrentCalibrationSpaceVersion() {
@@ -103,19 +142,13 @@ final class TiltSettingsStore {
     }
 
     private func save(_ updatedSettings: TiltControlSettings) {
-        guard let data = try? JSONEncoder().encode(updatedSettings) else {
-            return
+        do {
+            let data = try JSONEncoder().encode(updatedSettings)
+            settings = updatedSettings
+            defaults.set(data, forKey: Self.settingsKey)
+        } catch {
+            logger.error("input.settings_save_failed", error: error)
         }
-
-        settings = updatedSettings
-        defaults.set(data, forKey: Self.settingsKey)
     }
 
-    private static func loadSettings(from defaults: UserDefaults, key: String) -> TiltControlSettings? {
-        guard let data = defaults.data(forKey: key) else {
-            return nil
-        }
-
-        return try? JSONDecoder().decode(TiltControlSettings.self, from: data)
-    }
 }

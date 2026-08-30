@@ -1,4 +1,6 @@
+// swiftlint:disable file_length
 import GameKit
+import Logging
 import UIKit
 import XCTest
 @testable import TiltArena
@@ -560,17 +562,75 @@ final class GameCenterServiceTests: XCTestCase {
         XCTAssertTrue(achievementProgressStore.pendingProgress.isEmpty)
     }
 
+    func testTerminalAuthenticationFailureLogsAchievementUnavailabilityOncePerEpisode() {
+        let logRecorder = GameCenterLogRecorder()
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: false)
+        let service = makeService(localPlayer: client, logger: logRecorder.logger)
+        service.authenticate(presenter: nil)
+        client.completeAuthentication(
+            viewController: nil,
+            error: NSError(domain: NSCocoaErrorDomain, code: 4_099)
+        )
+
+        for _ in 0..<3 {
+            service.reportAchievementEvent(.enemyClear(
+                count: 1,
+                weaponKind: .shockwave,
+                maxCombo: 1
+            ))
+        }
+
+        XCTAssertEqual(logRecorder.count(of: "game_center.achievement_unavailable"), 1)
+
+        client.isAuthenticated = true
+        service.reportAchievementEvent(.weaponOrbCollected)
+        XCTAssertEqual(logRecorder.count(of: "game_center.achievement_available"), 1)
+
+        client.isAuthenticated = false
+        service.reportAchievementEvent(.enemyClear(
+            count: 1,
+            weaponKind: .shockwave,
+            maxCombo: 1
+        ))
+        XCTAssertEqual(logRecorder.count(of: "game_center.achievement_unavailable"), 2)
+    }
+
+    func testCorruptedAchievementProgressBlobsAreDiscardedAfterFirstFailedRead() {
+        let pendingKey = "tiltArena.gameCenter.pendingAchievements"
+        let reportedKey = "tiltArena.gameCenter.reportedAchievementProgress"
+        defaults.set(Data("not-json".utf8), forKey: pendingKey)
+        defaults.set(Data("also-not-json".utf8), forKey: reportedKey)
+
+        _ = achievementProgressStore.reportableProgress(
+            from: GameCenterAchievementProgressMapper.progress(for: .weaponOrbCollected)
+        )
+
+        XCTAssertNil(defaults.data(forKey: pendingKey))
+        XCTAssertNil(defaults.data(forKey: reportedKey))
+    }
+
+    func testCorruptedScoreQueueBlobIsDiscardedAfterFirstFailedRead() {
+        let pendingKey = "tiltArena.gameCenter.pendingScores"
+        defaults.set(Data("not-json".utf8), forKey: pendingKey)
+
+        XCTAssertTrue(scoreSubmissionStore.pendingSubmissions.isEmpty)
+
+        XCTAssertNil(defaults.data(forKey: pendingKey))
+    }
+
     private func makeService(
         localPlayer: FakeGameCenterLocalPlayerClient,
         leaderboardFactory: GameCenterLeaderboardFactory = FakeLeaderboardFactory(),
         authenticationTimeout: TimeInterval = 20,
-        submissionTimeout: TimeInterval = 30
+        submissionTimeout: TimeInterval = 30,
+        logger: Logger = AppDiagnostics.logger(.gameCenter)
     ) -> GameCenterService {
         GameCenterService(
             localPlayer: localPlayer,
             scoreSubmissionStore: scoreSubmissionStore,
             achievementProgressStore: achievementProgressStore,
             leaderboardFactory: leaderboardFactory,
+            logger: logger,
             authenticationTimeout: authenticationTimeout,
             submissionTimeout: submissionTimeout
         )
@@ -593,6 +653,45 @@ final class GameCenterServiceTests: XCTestCase {
             timestamp: Date(timeIntervalSince1970: timestamp),
             mode: mode
         )
+    }
+}
+
+private final class GameCenterLogRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var messages: [String] = []
+
+    var logger: Logger {
+        Logger(label: "GameCenterServiceTests") { _ in
+            GameCenterRecordingLogHandler(recorder: self)
+        }
+    }
+
+    func record(_ message: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        messages.append(message)
+    }
+
+    func count(of message: String) -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return messages.count { $0 == message }
+    }
+}
+
+private struct GameCenterRecordingLogHandler: LogHandler {
+    let recorder: GameCenterLogRecorder
+    var metadata: Logger.Metadata = [:]
+    var metadataProvider: Logger.MetadataProvider?
+    var logLevel: Logger.Level = .trace
+
+    subscript(metadataKey key: String) -> Logger.Metadata.Value? {
+        get { metadata[key] }
+        set { metadata[key] = newValue }
+    }
+
+    func log(event: LogEvent) {
+        recorder.record(event.message.description)
     }
 }
 

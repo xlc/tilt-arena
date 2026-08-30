@@ -26,7 +26,9 @@ extension EnemySpawnDirector {
         EnemySpawnSafetyLimits.telegraphDuration(duration)
     }
 
-    mutating func sanitizeSpawnTimers() {
+    @discardableResult
+    mutating func sanitizeSpawnTimers() -> Int {
+        var sanitizedCount = 0
         let timers: [WritableKeyPath<EnemySpawnDirector, TimeInterval>] = [
             \.timeUntilNextChaser,
             \.timeUntilNextFormation,
@@ -38,6 +40,8 @@ extension EnemySpawnDirector {
         ]
         for timer in timers where !self[keyPath: timer].isFinite {
             self[keyPath: timer] = 0
+            sanitizedCount += 1
         }
+        return sanitizedCount
     }
 }

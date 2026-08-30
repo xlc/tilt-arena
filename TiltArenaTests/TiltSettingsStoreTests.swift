@@ -43,6 +43,28 @@ final class TiltSettingsStoreTests: XCTestCase {
         XCTAssertEqual(store.settings, .defaults)
     }
 
+    func testCorruptSettingsResetCalibrationStateInsteadOfTrustingStaleFlag() {
+        defaults.set(Data("not-json".utf8), forKey: Self.settingsKey)
+        defaults.set(true, forKey: Self.initialCalibrationKey)
+        defaults.set(3, forKey: Self.calibrationSpaceVersionKey)
+
+        let store = TiltSettingsStore(defaults: defaults)
+
+        XCTAssertTrue(store.needsInitialCalibration)
+        XCTAssertEqual(store.settings, .defaults)
+        XCTAssertNil(defaults.data(forKey: Self.settingsKey))
+        XCTAssertFalse(defaults.bool(forKey: Self.initialCalibrationKey))
+    }
+
+    func testMissingSettingsResetOrphanedCalibrationFlag() {
+        defaults.set(true, forKey: Self.initialCalibrationKey)
+
+        let store = TiltSettingsStore(defaults: defaults)
+
+        XCTAssertTrue(store.needsInitialCalibration)
+        XCTAssertFalse(defaults.bool(forKey: Self.initialCalibrationKey))
+    }
+
     func testSensitivityUpdatesArePersistedAndClamped() {
         let store = TiltSettingsStore(defaults: defaults)
 

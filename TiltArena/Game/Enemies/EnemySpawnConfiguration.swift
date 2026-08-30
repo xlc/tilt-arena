@@ -477,4 +477,5 @@ struct EnemySpawnFrame: Equatable {
     var newEnemies: [ArenaEnemy] = []
     var telegraphsToShow: [EnemyTelegraph] = []
     var telegraphIDsToRemove: Set<Int> = []
+    var runtimeCorrectionCount = 0
 }

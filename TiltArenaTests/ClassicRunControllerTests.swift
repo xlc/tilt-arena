@@ -2,6 +2,32 @@ import XCTest
 @testable import TiltArena
 
 final class ClassicRunControllerTests: XCTestCase {
+    func testExtremeFiniteDeltaKeepsFinalizedDurationEncodable() throws {
+        var controller = ClassicRunController()
+        controller.start()
+
+        controller.update(deltaTime: .greatestFiniteMagnitude)
+        controller.update(deltaTime: .greatestFiniteMagnitude)
+        controller.endRun()
+
+        let summary = try XCTUnwrap(controller.finalizedSummary)
+        XCTAssertEqual(summary.survivalTime, RunProfile.maximumPersistedSurvivalTime)
+        XCTAssertNoThrow(try JSONEncoder().encode(summary))
+    }
+
+    func testScoreSaturatesInsteadOfOverflowing() {
+        var configuration = ClassicRunConfiguration()
+        configuration.baseEnemyScore = Int.max
+        configuration.killsPerMultiplierStep = 1
+        var controller = ClassicRunController(configuration: configuration)
+        controller.start()
+
+        controller.recordEnemyKills(count: 2, weaponKind: .shockwave)
+
+        XCTAssertEqual(controller.score, Int.max)
+        XCTAssertEqual(controller.enemiesDestroyed, 2)
+    }
+
     func testStartAndRestartEnterActiveRunAtZeroTime() {
         var controller = ClassicRunController()
 

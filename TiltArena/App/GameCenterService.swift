@@ -196,6 +196,12 @@ private final class GameCenterOperationWatchdog {
     }
 }
 
+private enum AchievementUnavailableReason: String {
+    case unsupported
+    case authenticationDeclined
+    case authenticationFailed
+}
+
 @MainActor
 final class GameCenterService {
     static let shared = GameCenterService()
@@ -217,6 +223,7 @@ final class GameCenterService {
     private let authenticationWatchdog = GameCenterOperationWatchdog()
     private let scoreRetryWatchdog = GameCenterOperationWatchdog()
     private let achievementRetryWatchdog = GameCenterOperationWatchdog()
+    private var activeAchievementUnavailableReason: AchievementUnavailableReason?
 
     private(set) var authenticationState: GameCenterAuthenticationState = .notStarted
 
@@ -370,28 +377,23 @@ final class GameCenterService {
     }
 
     func reportAchievementEvent(_ event: GameCenterAchievementEvent) {
-        let progress = achievementProgressStore.reportableProgress(
-            from: GameCenterAchievementProgressMapper.progress(for: event)
-        )
+        let mappedProgress = GameCenterAchievementProgressMapper.progress(for: event)
+        guard !mappedProgress.isEmpty else {
+            return
+        }
+
+        if let unavailableReason = achievementUnavailableReason {
+            reportAchievementUnavailableIfNeeded(unavailableReason)
+            return
+        }
+        reportAchievementAvailabilityRecoveryIfNeeded()
+
+        let progress = achievementProgressStore.reportableProgress(from: mappedProgress)
         guard !progress.isEmpty else {
             return
         }
 
-        guard localPlayer.isAvailable else {
-            logger.info("game_center.achievement_unavailable", metadata: [
-                "reason": "unsupported"
-            ])
-            return
-        }
-
         guard localPlayer.isAuthenticated else {
-            guard shouldQueueUnauthenticatedAchievements else {
-                logger.info("game_center.achievement_unavailable", metadata: [
-                    "reason": "authenticationFailed"
-                ])
-                return
-            }
-
             enqueueAchievementProgress(progress, reason: "unauthenticated")
             return
         }
@@ -626,15 +628,6 @@ final class GameCenterService {
         ))
     }
 
-    private var shouldQueueUnauthenticatedAchievements: Bool {
-        switch authenticationState {
-        case .unsupported, .declined, .failed:
-            return false
-        case .notStarted, .authenticating, .needsUserAuthentication, .authenticated:
-            return true
-        }
-    }
-
     private func submitAchievements(
         _ progress: [GameCenterAchievementProgress],
         queueRecoverableFailure: Bool
@@ -854,6 +847,50 @@ private extension GameCenterService {
             "game_center.achievement_retry_timed_out",
             metadata: achievementProgressMetadata(progress)
         )
+    }
+}
+
+private extension GameCenterService {
+    var achievementUnavailableReason: AchievementUnavailableReason? {
+        guard localPlayer.isAvailable else {
+            return .unsupported
+        }
+        guard !localPlayer.isAuthenticated else {
+            return nil
+        }
+
+        switch authenticationState {
+        case .unsupported:
+            return .unsupported
+        case .declined:
+            return .authenticationDeclined
+        case .failed:
+            return .authenticationFailed
+        case .notStarted, .authenticating, .needsUserAuthentication, .authenticated:
+            return nil
+        }
+    }
+
+    func reportAchievementUnavailableIfNeeded(_ reason: AchievementUnavailableReason) {
+        guard activeAchievementUnavailableReason != reason else {
+            return
+        }
+
+        activeAchievementUnavailableReason = reason
+        logger.info("game_center.achievement_unavailable", metadata: [
+            "reason": "\(reason.rawValue)"
+        ])
+    }
+
+    func reportAchievementAvailabilityRecoveryIfNeeded() {
+        guard let previousReason = activeAchievementUnavailableReason else {
+            return
+        }
+
+        activeAchievementUnavailableReason = nil
+        logger.info("game_center.achievement_available", metadata: [
+            "previousReason": "\(previousReason.rawValue)"
+        ])
     }
 }
 

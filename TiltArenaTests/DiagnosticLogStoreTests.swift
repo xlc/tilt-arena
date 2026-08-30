@@ -80,6 +80,35 @@ final class DiagnosticLogStoreTests: XCTestCase {
         XCTAssertTrue(logFiles.contains(store.currentLogFileURL))
     }
 
+    func testSameTimestampRotationsRetainDeterministicNewestFirstOrder() throws {
+        let uuidSequence = LockedDiagnosticUUIDSequence()
+        let store = DiagnosticLogStore(
+            directoryURL: rootURL.appendingPathComponent("ordered-logs", isDirectory: true),
+            configuration: .init(
+                maxCurrentFileBytes: 1,
+                maxArchivedFileCount: 2,
+                maxTotalBytes: 64 * 1_024
+            ),
+            dateProvider: { Date(timeIntervalSince1970: 1) },
+            uuidProvider: uuidSequence.next
+        )
+
+        for index in 0..<4 {
+            try store.append(record(message: "event.\(index)"))
+        }
+
+        let result = store.readNewest(configuration: .init(
+            maxRecords: 10,
+            maxBytes: 64 * 1_024
+        ))
+        XCTAssertEqual(result.records.map(\.message), ["event.3", "event.2", "event.1"])
+        let archiveNames = try store.logFileURLs()
+            .filter { $0.lastPathComponent.hasPrefix("diagnostics-") }
+            .map(\.lastPathComponent)
+        XCTAssertTrue(archiveNames[0].contains("-g00000000000000000002-"))
+        XCTAssertTrue(archiveNames[1].contains("-g00000000000000000003-"))
+    }
+
     func testConcurrentAppendsProduceCompleteLineDelimitedRecords() throws {
         let store = makeStore(configuration: DiagnosticLogStore.Configuration(
             maxCurrentFileBytes: 128 * 1_024,
@@ -117,6 +146,56 @@ final class DiagnosticLogStoreTests: XCTestCase {
         }
     }
 
+    func testWriterCompactsEscapedMetadataToReadableLineLimit() throws {
+        let store = makeStore(configuration: .init(
+            maxCurrentFileBytes: 128 * 1_024,
+            maxArchivedFileCount: 1,
+            maxTotalBytes: 256 * 1_024
+        ))
+        var metadata: Logger.Metadata = [:]
+        for index in 0..<DiagnosticLogLimits.maxMetadataEntries {
+            metadata["field.\(index)"] = "\(String(repeating: "\u{0000}", count: 240))"
+        }
+
+        try store.append(DiagnosticLogRecord(
+            timestamp: Date(timeIntervalSince1970: 1),
+            sessionID: "session",
+            level: .notice,
+            label: "com.xlc.TiltArena.run",
+            message: "run.metadata_heavy",
+            metadata: metadata,
+            source: "test",
+            file: "/tmp/Test.swift",
+            function: "testWriterCompactsEscapedMetadataToReadableLineLimit()",
+            line: 1
+        ))
+
+        let contents = try Data(contentsOf: store.currentLogFileURL)
+        let line = try XCTUnwrap(contents.split(separator: 0x0A).first)
+        XCTAssertLessThanOrEqual(line.count, DiagnosticLogLimits.maxEncodedLineBytes)
+
+        let decoded = try JSONDecoder().decode(DiagnosticLogRecord.self, from: Data(line))
+        XCTAssertEqual(decoded.metadata["diagnostics.metadata_truncated"], "true")
+        let readResult = DiagnosticLogReader(
+            directoryURL: store.directoryURL
+        ).readNewestSynchronously()
+        XCTAssertEqual(readResult.records.map(\.message), ["run.metadata_heavy"])
+        XCTAssertEqual(readResult.malformedLineCount, 0)
+    }
+
+    func testNegativeRetentionConfigurationCannotTrap() throws {
+        let store = makeStore(configuration: .init(
+            maxCurrentFileBytes: -1,
+            maxArchivedFileCount: -1,
+            maxTotalBytes: -1,
+            maxPendingRecordCount: -1
+        ))
+
+        XCTAssertFalse(store.enqueue(record(message: "queued.drop")))
+        XCTAssertNoThrow(try store.append(record(message: "direct.write")))
+        XCTAssertEqual(try store.logFileURLs(), [store.currentLogFileURL])
+    }
+
     func testMetadataSanitizerRedactsSensitiveKeys() {
         let longSensitiveKey = "\(String(repeating: "x", count: 84))token"
         let metadata = DiagnosticMetadataSanitizer.sanitized([
@@ -148,40 +227,6 @@ final class DiagnosticLogStoreTests: XCTestCase {
             metadata["context"],
             "mode=classic,nested=count=2,email=<redacted>,token=<redacted>"
         )
-    }
-
-    func testExportBundleContainsMetadataReadmeAndCopiedLogs() throws {
-        let store = makeStore()
-        try store.append(record(message: "run.finished"))
-        let builder = DiagnosticBundleBuilder(
-            store: store,
-            outputDirectoryURL: rootURL.appendingPathComponent("exports", isDirectory: true),
-            dateProvider: { Date(timeIntervalSince1970: 2) },
-            uuidProvider: { UUID(uuidString: "00000000-0000-0000-0000-000000000001")! }
-        )
-        let metadata = DiagnosticExportMetadataFactory.make(
-            generatedAt: Date(timeIntervalSince1970: 3),
-            sessionID: "session-2",
-            gameplay: nil
-        )
-
-        let bundleURL = try builder.makeBundle(metadata: metadata)
-
-        XCTAssertTrue(FileManager.default.fileExists(atPath: bundleURL.appendingPathComponent("README.txt").path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: bundleURL.appendingPathComponent("metadata.json").path))
-        XCTAssertTrue(FileManager.default.fileExists(
-            atPath: bundleURL
-                .appendingPathComponent("logs", isDirectory: true)
-                .appendingPathComponent("current.jsonl")
-                .path
-        ))
-
-        let decodedMetadata = try JSONDecoder().decode(
-            DiagnosticExportMetadata.self,
-            from: Data(contentsOf: bundleURL.appendingPathComponent("metadata.json"))
-        )
-        XCTAssertEqual(decodedMetadata.schemaVersion, DiagnosticExportMetadataFactory.currentSchemaVersion)
-        XCTAssertEqual(decodedMetadata.sessionID, "session-2")
     }
 
     func testExportMetadataVersionTracksLocalOptionsSnapshotShape() throws {
@@ -291,6 +336,19 @@ private final class ConcurrentErrorRecorder: @unchecked Sendable {
     func record(_ error: any Error) {
         lock.withLock {
             errors.append(error)
+        }
+    }
+}
+
+private final class LockedDiagnosticUUIDSequence: @unchecked Sendable {
+    private let lock = NSLock()
+    private var nextValue: UInt64 = 1
+
+    func next() -> UUID {
+        lock.withLock {
+            defer { nextValue += 1 }
+            let suffix = String(format: "%012llx", nextValue)
+            return UUID(uuidString: "00000000-0000-0000-0000-\(suffix)")!
         }
     }
 }

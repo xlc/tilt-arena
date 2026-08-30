@@ -7,6 +7,9 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
         AppDiagnostics.bootstrap()
+        AppDiagnostics.logger(.app).notice("app.launch_completed", metadata: [
+            "hasLaunchOptions": "\(launchOptions?.isEmpty == false)"
+        ])
         return true
     }
 
@@ -15,7 +18,10 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         configurationForConnecting connectingSceneSession: UISceneSession,
         options: UIScene.ConnectionOptions
     ) -> UISceneConfiguration {
-        UISceneConfiguration(
+        AppDiagnostics.logger(.app).info("app.scene_configuration_created", metadata: [
+            "role": "\(connectingSceneSession.role.rawValue)"
+        ])
+        return UISceneConfiguration(
             name: "Default Configuration",
             sessionRole: connectingSceneSession.role
         )
@@ -23,5 +29,13 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func applicationDidReceiveMemoryWarning(_ application: UIApplication) {
         AppDiagnostics.logger(.app).warning("app.memory_warning")
+        Task.detached(priority: .utility) {
+            DiagnosticLogStore.shared.flushPendingWrites()
+        }
+    }
+
+    func applicationWillTerminate(_ application: UIApplication) {
+        AppDiagnostics.logger(.app).notice("app.terminating")
+        DiagnosticLogStore.shared.flushPendingWrites()
     }
 }

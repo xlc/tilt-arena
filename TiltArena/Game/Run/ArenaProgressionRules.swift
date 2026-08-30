@@ -189,8 +189,13 @@ struct ArenaProgressionRules {
             progress = unlockedWeapons(for: profile).count
             target = allGameplayWeapons.count
         case .survivor:
-            progress = Int(profile.longestSurvivalTime)
             target = 120
+            let survivalTime = RunProfile.normalizedPersistedSurvivalTime(
+                profile.longestSurvivalTime
+            )
+            progress = survivalTime >= TimeInterval(target)
+                ? target
+                : Int(survivalTime)
         }
 
         let clampedTarget = max(1, target)

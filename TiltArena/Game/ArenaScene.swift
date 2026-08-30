@@ -14,7 +14,7 @@ protocol ArenaSceneOrientationDelegate: AnyObject {
 
 @MainActor
 protocol ArenaSceneDiagnosticsDelegate: AnyObject {
-    func arenaSceneRequestsDiagnosticsExport(
+    func arenaSceneRequestsDiagnosticsPresentation(
         _ scene: ArenaScene,
         snapshot: DiagnosticGameplaySnapshot
     )
@@ -38,6 +38,14 @@ final class ArenaScene: SKScene {
     private let runProfileStore: RunProfileStore
     private let localOptionsStore: ArenaLocalOptionsStore
     private let gameTuningStore: GameTuningStore
+    private let appLogger = AppDiagnostics.logger(.app)
+    private let sceneLogger = AppDiagnostics.logger(.scene)
+    private let inputLogger = AppDiagnostics.logger(.input)
+    private let runLogger = AppDiagnostics.logger(.run)
+    private let spawnLogger = AppDiagnostics.logger(.spawn)
+    private let weaponLogger = AppDiagnostics.logger(.weapon)
+    private let profileLogger = AppDiagnostics.logger(.profile)
+    private let performanceLogger = AppDiagnostics.logger(.performance)
     private let hapticsController = ArenaHapticsController()
     private let audioController = ArenaAudioController()
     private var arenaRoot = SKNode()
@@ -116,9 +124,16 @@ final class ArenaScene: SKScene {
 #if DEBUG
     private let debugStatsLabel = SKLabelNode(fontNamed: "Menlo")
     private var debugStatsElapsed: TimeInterval = 0
-    private var debugStatsLogElapsed: TimeInterval = 0
     private var debugStatsFrameCount = 0
 #endif
+    private var diagnosticHealthElapsed: TimeInterval = 0
+    private var diagnosticHealthFrameCount = 0
+    private var diagnosticHealthLongFrameCount = 0
+    private var diagnosticHealthMaximumFrameInterval: TimeInterval = 0
+    private var diagnosticSpawnedEnemyCount = 0
+    private var diagnosticSpawnRuntimeCorrectionCount = 0
+    private var hasReportedInvalidFrameTime = false
+    private var reportedDuplicateEnemyIDContexts: Set<String> = []
     private let uiMargin: CGFloat = 24
     private var uiHitTargets: [ArenaControlHitTarget] = []
     private var calibrationPreviewMovementController = PlayerMovementController()
@@ -181,9 +196,9 @@ final class ArenaScene: SKScene {
         placePlayer(resetPosition: true)
         rebuildUI()
         tiltInputController.start()
-        AppDiagnostics.logger(.scene).notice("scene.presented", metadata: [
-            "width": "\(Int(size.width.rounded()))",
-            "height": "\(Int(size.height.rounded()))"
+        sceneLogger.notice("scene.presented", metadata: [
+            "width": "\(size.width.rounded())",
+            "height": "\(size.height.rounded())"
         ])
     }
 
@@ -199,9 +214,9 @@ final class ArenaScene: SKScene {
         }
         layoutDebugStats()
         rebuildUI()
-        AppDiagnostics.logger(.scene).debug("scene.resized", metadata: [
-            "width": "\(Int(size.width.rounded()))",
-            "height": "\(Int(size.height.rounded()))"
+        sceneLogger.debug("scene.resized", metadata: [
+            "width": "\(size.width.rounded())",
+            "height": "\(size.height.rounded())"
         ])
     }
 
@@ -210,11 +225,12 @@ final class ArenaScene: SKScene {
         audioController.stopMusic()
         tiltInputController.stop()
         lastUpdateTime = nil
-        AppDiagnostics.logger(.scene).notice("scene.removed")
+        sceneLogger.notice("scene.removed")
     }
 
     override func update(_ currentTime: TimeInterval) {
         guard currentTime.isFinite else {
+            reportInvalidFrameTime(reason: "nonfinite_current_time")
             lastUpdateTime = nil
             return
         }
@@ -227,10 +243,16 @@ final class ArenaScene: SKScene {
         self.lastUpdateTime = currentTime
         let elapsedTime = currentTime - lastUpdateTime
         guard elapsedTime.isFinite else {
+            reportInvalidFrameTime(reason: "nonfinite_elapsed_time")
             return
         }
 
         let positiveElapsedTime = max(0, elapsedTime)
+        if hasReportedInvalidFrameTime {
+            hasReportedInvalidFrameTime = false
+            performanceLogger.info("performance.frame_time_recovered")
+        }
+        updateDiagnosticHealth(elapsedTime: positiveElapsedTime)
         updatePostRunTransition(deltaTime: positiveElapsedTime)
 
         let deltaTime = min(1.0 / 15.0, positiveElapsedTime)
@@ -256,7 +278,7 @@ final class ArenaScene: SKScene {
 
     func recalibrateTiltControls() {
         tiltInputController.recalibrateToCurrentAttitude(orientation: currentTiltScreenOrientation)
-        AppDiagnostics.logger(.input).notice("input.calibrated", metadata: [
+        inputLogger.notice("input.calibrated", metadata: [
             "orientation": "\(currentTiltScreenOrientation.rawValue)"
         ])
         if uiState == .calibrationPreview {
@@ -420,7 +442,6 @@ final class ArenaScene: SKScene {
     private func updateDebugStats(deltaTime: TimeInterval) {
         #if DEBUG
         debugStatsElapsed += deltaTime
-        debugStatsLogElapsed += deltaTime
         debugStatsFrameCount += 1
 
         guard debugStatsElapsed >= 0.25 else {
@@ -429,17 +450,66 @@ final class ArenaScene: SKScene {
 
         let framesPerSecond = Double(debugStatsFrameCount) / debugStatsElapsed
         let nodeCount = debugNodeCount(in: self)
-        debugStatsLabel.text = "nodes:\(nodeCount)  \(Int(framesPerSecond.rounded())) fps"
-        if debugStatsLogElapsed >= 5 {
-            AppDiagnostics.logger(.performance).info("performance.sample", metadata: [
-                "fps": "\(Int(framesPerSecond.rounded()))",
-                "nodes": "\(nodeCount)"
-            ])
-            debugStatsLogElapsed = 0
-        }
+        debugStatsLabel.text = "nodes:\(nodeCount)  \(framesPerSecond.rounded()) fps"
         debugStatsElapsed = 0
         debugStatsFrameCount = 0
         #endif
+    }
+
+    private func updateDiagnosticHealth(elapsedTime: TimeInterval) {
+        diagnosticHealthElapsed += elapsedTime
+        diagnosticHealthFrameCount += 1
+        diagnosticHealthMaximumFrameInterval = max(diagnosticHealthMaximumFrameInterval, elapsedTime)
+        if elapsedTime >= 0.1 {
+            diagnosticHealthLongFrameCount += 1
+        }
+
+        guard diagnosticHealthElapsed >= 10 else {
+            return
+        }
+
+        let framesPerSecond = diagnosticHealthElapsed > 0
+            ? Double(diagnosticHealthFrameCount) / diagnosticHealthElapsed
+            : 0
+        performanceLogger.info("performance.heartbeat", metadata: [
+            "enemies": "\(enemies.count)",
+            "fps": "\(framesPerSecond.rounded())",
+            "freezeWaves": "\(freezeBurstWaveStates.count)",
+            "longFrames": "\(diagnosticHealthLongFrameCount)",
+            "maxFrameMs": "\((diagnosticHealthMaximumFrameInterval * 1_000).rounded())",
+            "pendingNova": "\(pendingNovaBombClears.count)",
+            "pickups": "\(pickups.count)",
+            "shockwaves": "\(shockwaveWaveStates.count)",
+            "spawnCorrections": "\(diagnosticSpawnRuntimeCorrectionCount)",
+            "spawnedEnemies": "\(diagnosticSpawnedEnemyCount)",
+            "state": "\(uiState.diagnosticName)",
+            "thermal": "\(ProcessInfo.processInfo.thermalState.diagnosticName)",
+            "weaponEffects": "\(weaponEffectsRoot.children.count)"
+        ])
+        if diagnosticSpawnRuntimeCorrectionCount > 0 {
+            spawnLogger.warning("spawn.runtime_values_corrected", metadata: [
+                "corrections": "\(diagnosticSpawnRuntimeCorrectionCount)",
+                "survivalTime": "\(runController.survivalTime)"
+            ])
+        }
+        diagnosticHealthElapsed = 0
+        diagnosticHealthFrameCount = 0
+        diagnosticHealthLongFrameCount = 0
+        diagnosticHealthMaximumFrameInterval = 0
+        diagnosticSpawnedEnemyCount = 0
+        diagnosticSpawnRuntimeCorrectionCount = 0
+    }
+
+    private func reportInvalidFrameTime(reason: String) {
+        guard !hasReportedInvalidFrameTime else {
+            return
+        }
+
+        hasReportedInvalidFrameTime = true
+        performanceLogger.warning("performance.frame_time_invalid", metadata: [
+            "reason": "\(reason)",
+            "state": "\(uiState.diagnosticName)"
+        ])
     }
 
     #if DEBUG
@@ -615,7 +685,7 @@ final class ArenaScene: SKScene {
         readyStartPoint = movementController.state.position
         resetPlayerFeedback()
         show(.preRun)
-        AppDiagnostics.logger(.run).notice("run.prepared", metadata: [
+        runLogger.notice("run.prepared", metadata: [
             "mode": "\(selectedMode.rawValue)"
         ])
     }
@@ -628,7 +698,7 @@ final class ArenaScene: SKScene {
         audioController.startMusic()
         hapticsController.prepare()
         show(.activeGameplay)
-        AppDiagnostics.logger(.run).notice("run.started", metadata: [
+        runLogger.notice("run.started", metadata: [
             "mode": "\(selectedMode.rawValue)",
             "seed": "\(weaponRandomNumberGenerator.initialSeed)"
         ])
@@ -644,7 +714,7 @@ final class ArenaScene: SKScene {
         tiltInputController.resetSmoothedInput()
         setWeaponEffectPlaybackPaused(true)
         show(.pause)
-        AppDiagnostics.logger(.run).info("run.paused", metadata: [
+        runLogger.info("run.paused", metadata: [
             "score": "\(runController.score)",
             "survivalTime": "\(runController.survivalTime)"
         ])
@@ -656,7 +726,7 @@ final class ArenaScene: SKScene {
         setWeaponEffectPlaybackPaused(false)
         audioController.startMusic()
         show(.activeGameplay)
-        AppDiagnostics.logger(.run).info("run.resumed", metadata: [
+        runLogger.info("run.resumed", metadata: [
             "score": "\(runController.score)",
             "survivalTime": "\(runController.survivalTime)"
         ])
@@ -924,11 +994,7 @@ final class ArenaScene: SKScene {
         updatePostWeaponSafety(deltaTime: deltaTime)
         updatePendingNovaBombClears(deltaTime: deltaTime)
         playerPosition = collectPickups(playerPosition: playerPosition)
-        let previousDamageableEnemyPositions = Dictionary(
-            uniqueKeysWithValues: enemies.lazy
-                .filter(\.canDamagePlayer)
-                .map { ($0.id, $0.position) }
-        )
+        let previousDamageableEnemyPositions = damageableEnemyPositionsByID()
         advanceEnemies(deltaTime: deltaTime, playerPosition: playerPosition)
         updateTimeDilationAura(deltaTime: deltaTime, playerPosition: playerPosition)
         updateGravityWell(deltaTime: deltaTime)
@@ -960,18 +1026,21 @@ final class ArenaScene: SKScene {
             pickupCircles: pickups.map(\.collisionCircle)
         )
 
+        diagnosticSpawnRuntimeCorrectionCount = saturatedDiagnosticCount(
+            diagnosticSpawnRuntimeCorrectionCount,
+            adding: frame.runtimeCorrectionCount
+        )
+
         removeEnemyTelegraphs(ids: frame.telegraphIDsToRemove)
         showEnemyTelegraphs(frame.telegraphsToShow)
         addSpawnedEnemies(frame.newEnemies)
     }
 
     private func addSpawnedEnemies(_ spawnedEnemies: [ArenaEnemy]) {
-        if !spawnedEnemies.isEmpty {
-            AppDiagnostics.logger(.spawn).debug("spawn.enemies", metadata: [
-                "count": "\(spawnedEnemies.count)",
-                "survivalTime": "\(runController.survivalTime)"
-            ])
-        }
+        diagnosticSpawnedEnemyCount = saturatedDiagnosticCount(
+            diagnosticSpawnedEnemyCount,
+            adding: spawnedEnemies.count
+        )
 
         for enemy in spawnedEnemies {
             enemies.append(enemy)
@@ -984,6 +1053,11 @@ final class ArenaScene: SKScene {
                 formationEnemyIDs[formationID, default: []].insert(enemy.id)
             }
         }
+    }
+
+    private func saturatedDiagnosticCount(_ current: Int, adding increment: Int) -> Int {
+        let (result, overflow) = current.addingReportingOverflow(max(0, increment))
+        return overflow ? Int.max : result
     }
 
     private func showEnemyTelegraphs(_ telegraphs: [EnemyTelegraph]) {
@@ -1021,7 +1095,7 @@ final class ArenaScene: SKScene {
 
         for pickup in spawnedPickups {
             pickups.append(pickup)
-            AppDiagnostics.logger(.weapon).info("pickup.spawned", metadata: [
+            weaponLogger.info("pickup.spawned", metadata: [
                 "id": "\(pickup.id)",
                 "kind": "\(pickup.kind.rawValue)",
                 "tier": "\(pickup.chargeTier.metadataValue)"
@@ -1047,7 +1121,7 @@ final class ArenaScene: SKScene {
             }
 
             pickupNodes[pickups[index].id]?.apply(pickups[index])
-            AppDiagnostics.logger(.weapon).info("pickup.charged", metadata: [
+            weaponLogger.info("pickup.charged", metadata: [
                 "id": "\(pickups[index].id)",
                 "kind": "\(pickups[index].kind.rawValue)",
                 "tier": "\(pickups[index].chargeTier.metadataValue)"
@@ -1135,7 +1209,7 @@ final class ArenaScene: SKScene {
             }
             playAudio(.pickup)
             playHaptic(.pickup)
-            AppDiagnostics.logger(.weapon).notice("pickup.collected", metadata: [
+            weaponLogger.notice("pickup.collected", metadata: [
                 "id": "\(pickup.id)",
                 "kind": "\(pickup.kind.rawValue)",
                 "tier": "\(pickup.chargeTier.metadataValue)"
@@ -1180,12 +1254,15 @@ final class ArenaScene: SKScene {
             chargeTier: pickup.chargeTier
         )
 
-        AppDiagnostics.logger(.weapon).notice("weapon.resolved", metadata: [
+        let logicalTargetCount = max(log.destroyedCount, log.frozenCount, log.gravityTargetCount)
+        weaponLogger.notice("weapon.resolved", metadata: [
             "kind": "\(pickup.kind.rawValue)",
             "tier": "\(pickup.chargeTier.metadataValue)",
             "destroyed": "\(log.destroyedCount)",
             "frozen": "\(log.frozenCount)",
-            "gravityTargets": "\(log.gravityTargetCount)"
+            "gravityTargets": "\(log.gravityTargetCount)",
+            "visualTargetLimit": "\(WeaponImpactPlan.maximumVisualTargetCount)",
+            "visualsCapped": "\(logicalTargetCount > WeaponImpactPlan.maximumVisualTargetCount)"
         ])
     }
 
@@ -1380,7 +1457,7 @@ final class ArenaScene: SKScene {
     }
 
     private func impactTargets(forEnemyIDs enemyIDs: [Int]) -> [WeaponImpactTarget] {
-        let enemiesByID = Dictionary(uniqueKeysWithValues: enemies.map { ($0.id, $0) })
+        let enemiesByID = indexedEnemiesByID()
         return enemyIDs.compactMap { enemyID in
             guard let enemy = enemiesByID[enemyID] else {
                 return nil
@@ -1388,6 +1465,46 @@ final class ArenaScene: SKScene {
 
             return WeaponImpactTarget(id: enemy.id, position: enemy.position)
         }
+    }
+
+    private func damageableEnemyPositionsByID() -> [Int: CGPoint] {
+        var positions: [Int: CGPoint] = [:]
+        var duplicateCount = 0
+        for enemy in enemies where enemy.canDamagePlayer {
+            if positions.updateValue(enemy.position, forKey: enemy.id) != nil {
+                duplicateCount += 1
+            }
+        }
+
+        reportDuplicateEnemyIDsIfNeeded(count: duplicateCount, context: "collision_snapshot")
+        return positions
+    }
+
+    private func indexedEnemiesByID() -> [Int: ArenaEnemy] {
+        var indexedEnemies: [Int: ArenaEnemy] = [:]
+        var duplicateCount = 0
+        for enemy in enemies {
+            duplicateCount += indexedEnemies.updateValue(enemy, forKey: enemy.id) == nil ? 0 : 1
+        }
+
+        reportDuplicateEnemyIDsIfNeeded(count: duplicateCount, context: "impact_targets")
+        return indexedEnemies
+    }
+
+    private func reportDuplicateEnemyIDsIfNeeded(count: Int, context: String) {
+        guard count > 0 else {
+            reportedDuplicateEnemyIDContexts.remove(context)
+            return
+        }
+        guard reportedDuplicateEnemyIDContexts.insert(context).inserted else {
+            return
+        }
+
+        spawnLogger.critical("enemy.id_invariant_violated", metadata: [
+            "context": "\(context)",
+            "duplicates": "\(count)",
+            "enemies": "\(enemies.count)"
+        ])
     }
 
     @discardableResult
@@ -1502,7 +1619,7 @@ final class ArenaScene: SKScene {
             return
         }
 
-        AppDiagnostics.logger(.spawn).info("enemy.split", metadata: [
+        spawnLogger.info("enemy.split", metadata: [
             "children": "\(childrenToAdd.count)"
         ])
         addSpawnedEnemies(childrenToAdd)
@@ -1772,7 +1889,7 @@ final class ArenaScene: SKScene {
             WeaponRuntimeSafetyLimits.duration(postWeaponSafetyTimeRemaining),
             duration
         )
-        AppDiagnostics.logger(.weapon).debug("weapon.postSafety", metadata: [
+        weaponLogger.debug("weapon.postSafety", metadata: [
             "kind": "\(weaponKind.rawValue)",
             "duration": "\(duration)"
         ])
@@ -1954,6 +2071,17 @@ final class ArenaScene: SKScene {
             return
         }
 
+        runLogger.notice("run.player_collision", metadata: [
+            "allowsSwept": "\(allowsSweptCollision)",
+            "enemies": "\(enemies.count)",
+            "enemyID": "\(collision.enemyID)",
+            "enemyKind": "\(collision.enemyKind.rawValue)",
+            "impactTime": "\(collision.impactTime)",
+            "pickups": "\(pickups.count)",
+            "score": "\(runController.score)",
+            "survivalTime": "\(runController.survivalTime)",
+            "weaponEffects": "\(weaponEffectsRoot.children.count)"
+        ])
         finishRun(
             collision: collision.snapshot
         )
@@ -1986,6 +2114,8 @@ final class ArenaScene: SKScene {
 
         return PlayerCollisionCandidate(
             impactTime: impactTime,
+            enemyID: enemy.id,
+            enemyKind: enemy.behavior.kind,
             snapshot: DeathCollisionSnapshot(
                 playerPosition: Self.interpolatedPosition(
                     from: motion.playerStart,
@@ -2125,6 +2255,15 @@ final class ArenaScene: SKScene {
 
         let result = runProfileStore.record(summary)
         runProfile = result.profile
+        if summary.score == Int.max
+            || runProfile.totalRuns == Int.max
+            || runProfile.totalEnemiesDestroyed == Int.max {
+            profileLogger.critical("profile.counter_saturated", metadata: [
+                "score": "\(summary.score)",
+                "totalEnemies": "\(runProfile.totalEnemiesDestroyed)",
+                "totalRuns": "\(runProfile.totalRuns)"
+            ])
+        }
         lastProgressionResult = result
         hasPersistedFinalRun = true
         if !Self.isRunningUnitTests {
@@ -2145,7 +2284,15 @@ private extension ArenaScene {
             gameCenterStatusMessage = nil
         }
 
+        let previousState = uiState
         uiState = state
+        if previousState != state {
+            sceneLogger.info("scene.state_changed", metadata: [
+                "from": "\(previousState.diagnosticName)",
+                "runPhase": "\(runController.phase.diagnosticName)",
+                "to": "\(state.diagnosticName)"
+            ])
+        }
         syncOrientationLock()
         rebuildUI()
     }
@@ -3336,9 +3483,9 @@ private extension ArenaScene {
             }
         }
         addButton(
-            "EXPORT LOGS",
+            "VIEW / SHARE LOGS",
             frame: CGRect(x: frame.minX + inset, y: frame.maxY - 110, width: contentWidth, height: 32),
-            action: .exportDiagnostics,
+            action: .openDiagnostics,
             style: .secondary,
             fontSize: 10
         )
@@ -3717,8 +3864,8 @@ private extension ArenaScene {
             performNavigationAction(action)
         case .selectMode, .resume, .calibrate, .endRun:
             performRunControlAction(action)
-        case .exportDiagnostics:
-            exportDiagnostics()
+        case .openDiagnostics:
+            openDiagnostics()
         case .openClassicLeaderboard:
             requestClassicLeaderboard()
         case .sensitivityDown, .sensitivityUp, .preset, .toggleAudio, .toggleHaptics, .selectTheme, .resetData:
@@ -3817,10 +3964,17 @@ private extension ArenaScene {
         switch action {
         case let .selectMode(mode):
             guard modeRowsByKind[mode]?.isAvailable == true else {
+                runLogger.warning("run.mode_selection_rejected", metadata: [
+                    "mode": "\(mode.rawValue)",
+                    "reason": "unavailable"
+                ])
                 return
             }
 
             selectedMode = mode
+            runLogger.info("run.mode_selected", metadata: [
+                "mode": "\(mode.rawValue)"
+            ])
             rebuildUI()
         case .resume:
             resumeRun()
@@ -3915,7 +4069,7 @@ private extension ArenaScene {
         let changedCount = gameTuning.changedParameters().count
         UIPasteboard.general.string = gameTuning.sourceSnapshot(changedOnly: true)
         developerTuningCopyConfirmation = "COPIED \(changedCount)"
-        AppDiagnostics.logger(.app).info("dev.tuning_copied", metadata: [
+        appLogger.info("dev.tuning_copied", metadata: [
             "parameters": "\(changedCount)"
         ])
         rebuildUI()
@@ -3932,7 +4086,7 @@ private extension ArenaScene {
         applyGameTuning(rebuildPlayerVisuals: true)
         rebuildArena()
         rebuildUI()
-        AppDiagnostics.logger(.app).notice("dev.tuning_reset")
+        appLogger.notice("dev.tuning_reset")
     }
 
     func performLocalOptionToggle(_ action: ArenaControlAction) {
@@ -3941,11 +4095,17 @@ private extension ArenaScene {
             localOptions.audioEnabled.toggle()
             localOptionsStore.options = localOptions
             syncAudioOption()
+            appLogger.info("options.audio_changed", metadata: [
+                "enabled": "\(localOptions.audioEnabled)"
+            ])
             rebuildUI()
         case .toggleHaptics:
             localOptions.hapticsEnabled.toggle()
             localOptionsStore.options = localOptions
             syncHapticsOption()
+            appLogger.info("options.haptics_changed", metadata: [
+                "enabled": "\(localOptions.hapticsEnabled)"
+            ])
             rebuildUI()
         default:
             break
@@ -3961,7 +4121,7 @@ private extension ArenaScene {
 
             localOptions.themeKind = themeKind
             localOptionsStore.options = localOptions
-            AppDiagnostics.logger(.app).notice("options.theme_changed", metadata: [
+            appLogger.notice("options.theme_changed", metadata: [
                 "theme": "\(themeKind.rawValue)"
             ])
             applyThemeChange()
@@ -3978,8 +4138,9 @@ private extension ArenaScene {
         rebuildUI()
     }
 
-    func exportDiagnostics() {
-        diagnosticsDelegate?.arenaSceneRequestsDiagnosticsExport(self, snapshot: diagnosticSnapshot())
+    func openDiagnostics() {
+        appLogger.info("diagnostics.presentation_requested")
+        diagnosticsDelegate?.arenaSceneRequestsDiagnosticsPresentation(self, snapshot: diagnosticSnapshot())
     }
 
     func resetMenuPreviewIfNeeded() {
@@ -4029,17 +4190,17 @@ private extension ArenaScene {
         lastProgressionResult = nil
         selectedMode = .classic
         resetDataArmed = false
-        AppDiagnostics.logger(.profile).warning("profile.reset")
+        profileLogger.warning("profile.reset")
         applyThemeChange()
     }
 
     func logFinishedRun(isNewBest: Bool) {
         guard let summary = runController.finalizedSummary else {
-            AppDiagnostics.logger(.run).error("run.finished_missing_summary")
+            runLogger.error("run.finished_missing_summary")
             return
         }
 
-        AppDiagnostics.logger(.run).notice("run.finished", metadata: [
+        runLogger.notice("run.finished", metadata: [
             "mode": "\(summary.mode.rawValue)",
             "score": "\(summary.score)",
             "survivalTime": "\(summary.survivalTime)",
@@ -5605,7 +5766,7 @@ private extension ArenaScene {
         previousComboMultiplier: Int,
         clearPositions: [CGPoint]
     ) {
-        AppDiagnostics.logger(.weapon).notice("weapon.combo.resolved", metadata: [
+        weaponLogger.notice("weapon.combo.resolved", metadata: [
             "kind": "\(event.kind.rawValue)",
             "from": "\(event.previousFamily.rawValue)",
             "to": "\(event.currentFamily.rawValue)"
@@ -5638,6 +5799,8 @@ private struct PendingNovaBombClear {
 
 private struct PlayerCollisionCandidate {
     let impactTime: CGFloat
+    let enemyID: Int
+    let enemyKind: EnemyKind
     let snapshot: DeathCollisionSnapshot
 }
 
@@ -5684,7 +5847,7 @@ private enum ArenaControlAction: Equatable {
     case toggleHaptics
     case selectTheme(ArenaThemeKind)
     case resetData
-    case exportDiagnostics
+    case openDiagnostics
     case openClassicLeaderboard
     case developerTuningPreviousPage
     case developerTuningNextPage
@@ -5775,6 +5938,23 @@ private extension ClassicRunPhase {
             return "paused"
         case .gameOver:
             return "gameOver"
+        }
+    }
+}
+
+private extension ProcessInfo.ThermalState {
+    var diagnosticName: String {
+        switch self {
+        case .nominal:
+            return "nominal"
+        case .fair:
+            return "fair"
+        case .serious:
+            return "serious"
+        case .critical:
+            return "critical"
+        @unknown default:
+            return "unknown"
         }
     }
 }

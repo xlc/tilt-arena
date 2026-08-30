@@ -43,4 +43,34 @@ final class ArenaAudioControllerTests: XCTestCase {
         XCTAssertNotNil(limiter.cueIfAllowed(for: .enemyClear(count: 1), at: 1))
         XCTAssertNil(limiter.cueIfAllowed(for: .enemyClear(count: 1), at: 1.01))
     }
+
+    func testReadinessEpisodeGateEmitsOnlyFirstContinuousFailure() {
+        var gate = ArenaAudioReadinessEpisodeGate()
+
+        XCTAssertTrue(gate.beginFailureIfNeeded())
+        XCTAssertTrue(gate.isFailureActive)
+        XCTAssertFalse(gate.beginFailureIfNeeded())
+        XCTAssertFalse(gate.beginFailureIfNeeded())
+    }
+
+    func testReadinessEpisodeGateEmitsRecoveryOnceAndRearmsFutureFailure() {
+        var gate = ArenaAudioReadinessEpisodeGate()
+
+        XCTAssertFalse(gate.recoverIfNeeded())
+        XCTAssertTrue(gate.beginFailureIfNeeded())
+        XCTAssertTrue(gate.recoverIfNeeded())
+        XCTAssertFalse(gate.isFailureActive)
+        XCTAssertFalse(gate.recoverIfNeeded())
+        XCTAssertTrue(gate.beginFailureIfNeeded())
+    }
+
+    @MainActor
+    func testInvalidSampleRateDisablesAudioWithoutCrashing() {
+        for sampleRate in [0, Double.nan, Double.infinity, Double.greatestFiniteMagnitude] {
+            let controller = ArenaAudioController(sampleRate: sampleRate)
+            controller.startMusic()
+            controller.play(.pickup)
+            controller.stopMusic()
+        }
+    }
 }

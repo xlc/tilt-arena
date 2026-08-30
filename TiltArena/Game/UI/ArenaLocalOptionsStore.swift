@@ -1,4 +1,5 @@
 import Foundation
+import Logging
 
 struct ArenaLocalOptions: Codable, Equatable {
     var audioEnabled = true
@@ -34,28 +35,37 @@ struct ArenaLocalOptions: Codable, Equatable {
 final class ArenaLocalOptionsStore {
     private let defaults: UserDefaults
     private let optionsKey = "tiltArena.localOptions"
+    private let logger: Logger
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        defaults: UserDefaults = .standard,
+        logger: Logger = AppDiagnostics.logger(.app)
+    ) {
         self.defaults = defaults
+        self.logger = logger
     }
 
     var options: ArenaLocalOptions {
         get {
-            guard
-                let data = defaults.data(forKey: optionsKey),
-                let options = try? JSONDecoder().decode(ArenaLocalOptions.self, from: data)
-            else {
+            guard let data = defaults.data(forKey: optionsKey) else {
                 return .defaults
             }
 
-            return options
+            do {
+                return try JSONDecoder().decode(ArenaLocalOptions.self, from: data)
+            } catch {
+                logger.warning("options.load_failed", error: error, metadata: [
+                    "bytes": "\(data.count)"
+                ])
+                return .defaults
+            }
         }
         set {
-            guard let data = try? JSONEncoder().encode(newValue) else {
-                return
+            do {
+                defaults.set(try JSONEncoder().encode(newValue), forKey: optionsKey)
+            } catch {
+                logger.error("options.save_failed", error: error)
             }
-
-            defaults.set(data, forKey: optionsKey)
         }
     }
 

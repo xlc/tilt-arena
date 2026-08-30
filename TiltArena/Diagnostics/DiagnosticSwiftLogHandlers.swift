@@ -18,7 +18,7 @@ struct DiagnosticJSONLLogHandler: LogHandler {
         logLevel: Logging.Logger.Level = .info,
         dateProvider: @escaping @Sendable () -> Date = Date.init
     ) {
-        self.label = label
+        self.label = DiagnosticLogLimits.bounded(label, to: DiagnosticLogLimits.maxLabelLength)
         self.store = store
         self.sessionID = sessionID
         self.logLevel = logLevel
@@ -60,7 +60,7 @@ struct DiagnosticOSLogHandler: LogHandler {
     var logLevel: Logging.Logger.Level
 
     init(label: String, logLevel: Logging.Logger.Level = .debug) {
-        self.label = label
+        self.label = DiagnosticLogLimits.bounded(label, to: DiagnosticLogLimits.maxLabelLength)
         self.logLevel = logLevel
     }
 
@@ -81,8 +81,15 @@ struct DiagnosticOSLogHandler: LogHandler {
         let metadataText = metadata.isEmpty
             ? ""
             : " " + metadata.map { "\($0.key)=\($0.value)" }.sorted().joined(separator: " ")
-        let fileName = URL(fileURLWithPath: event.file).lastPathComponent
-        let rendered = "\(event.message.description)\(metadataText) \(fileName):\(event.line)"
+        let message = DiagnosticLogLimits.bounded(
+            event.message.description,
+            to: DiagnosticLogLimits.maxMessageLength
+        )
+        let fileName = DiagnosticLogLimits.bounded(
+            URL(fileURLWithPath: event.file).lastPathComponent,
+            to: DiagnosticLogLimits.maxFileLength
+        )
+        let rendered = "\(message)\(metadataText) \(fileName):\(event.line)"
         let logger = DiagnosticOSLogCache.shared.log(for: label)
 
         os_log("%{public}@", log: logger, type: osLogType(for: event.level), rendered)
@@ -92,7 +99,9 @@ struct DiagnosticOSLogHandler: LogHandler {
         switch level {
         case .trace, .debug:
             return .debug
-        case .info, .notice:
+        case .info:
+            return .info
+        case .notice:
             return .default
         case .warning, .error:
             return .error

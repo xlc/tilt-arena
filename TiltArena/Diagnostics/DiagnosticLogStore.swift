@@ -1,7 +1,20 @@
 import Foundation
 
+struct DiagnosticLogHealthSnapshot: Codable, Equatable, Sendable {
+    let pendingRecordCount: Int
+    let queueDropCount: UInt64
+    let writeFailureCount: UInt64
+    let degradationRecordCount: UInt64
+    let unreportedQueueDropCount: UInt64
+    let unreportedWriteFailureCount: UInt64
+}
+
 final class DiagnosticLogStore: @unchecked Sendable {
-    struct Configuration: Equatable {
+    enum StoreError: Error, Equatable {
+        case encodedRecordTooLarge(actualBytes: Int, maximumBytes: Int)
+    }
+
+    struct Configuration: Equatable, Sendable {
         var maxCurrentFileBytes = 512 * 1_024
         var maxArchivedFileCount = 5
         var maxTotalBytes = 3 * 1_024 * 1_024
@@ -19,7 +32,7 @@ final class DiagnosticLogStore: @unchecked Sendable {
     let configuration: Configuration
     private let fileManager: FileManager
     private let lock = NSLock()
-    private let pendingWriteLock = NSLock()
+    private let healthLock = NSLock()
     private let writeQueue = DispatchQueue(
         label: "com.xlc.TiltArena.diagnostics.writer",
         qos: .utility
@@ -28,7 +41,22 @@ final class DiagnosticLogStore: @unchecked Sendable {
     private let dateProvider: @Sendable () -> Date
     private let uuidProvider: @Sendable () -> UUID
     private let encoder: JSONEncoder
-    private var pendingWriteCount = 0
+    private var healthState = HealthState()
+    private var archiveGeneration: UInt64?
+
+    private struct HealthState {
+        var pendingRecordCount = 0
+        var queueDropCount: UInt64 = 0
+        var writeFailureCount: UInt64 = 0
+        var degradationRecordCount: UInt64 = 0
+        var unreportedQueueDropCount: UInt64 = 0
+        var unreportedWriteFailureCount: UInt64 = 0
+    }
+
+    private struct PendingDegradation {
+        let queueDropCount: UInt64
+        let writeFailureCount: UInt64
+    }
 
     init(
         directoryURL: URL,
@@ -51,17 +79,28 @@ final class DiagnosticLogStore: @unchecked Sendable {
         directoryURL.appendingPathComponent("current.jsonl", isDirectory: false)
     }
 
-    func append(_ record: DiagnosticLogRecord) throws {
-        try lock.withLock {
-            let data = try encodedLine(for: record)
-            try prepareDirectoryLocked()
-            if try shouldRotateCurrentLogLocked(appendingByteCount: data.count) {
-                try rotateCurrentLogLocked()
-            }
-
-            try appendLocked(data, to: currentLogFileURL)
-            try pruneArchivesLocked()
+    var healthSnapshot: DiagnosticLogHealthSnapshot {
+        healthLock.withLock {
+            DiagnosticLogHealthSnapshot(
+                pendingRecordCount: healthState.pendingRecordCount,
+                queueDropCount: healthState.queueDropCount,
+                writeFailureCount: healthState.writeFailureCount,
+                degradationRecordCount: healthState.degradationRecordCount,
+                unreportedQueueDropCount: healthState.unreportedQueueDropCount,
+                unreportedWriteFailureCount: healthState.unreportedWriteFailureCount
+            )
         }
+    }
+
+    func append(_ record: DiagnosticLogRecord) throws {
+        do {
+            try appendRecord(record)
+        } catch {
+            recordWriteFailure()
+            throw error
+        }
+
+        emitPendingDegradationIfNeeded(sessionID: record.sessionID)
     }
 
     /// Queues routine persistence away from gameplay's main-thread render loop.
@@ -103,23 +142,68 @@ final class DiagnosticLogStore: @unchecked Sendable {
         }
     }
 
-    func copyLogFiles(to destinationDirectoryURL: URL) throws {
+    /// Reads a consistent, bounded view without copying whole log files.
+    /// The store lock prevents rotation while the tail reader is scanning;
+    /// gameplay logging remains nonblocking because producers only enqueue.
+    func readNewest(
+        configuration: DiagnosticLogReader.Configuration
+    ) -> DiagnosticLogReadResult {
         flushPendingWrites()
-        try lock.withLock {
-            try prepareDirectoryLocked()
-            try fileManager.createDirectory(
-                at: destinationDirectoryURL,
-                withIntermediateDirectories: true
-            )
+        return lock.withLock {
+            DiagnosticLogReader(
+                directoryURL: directoryURL,
+                configuration: configuration
+            ).readNewestSynchronously(fileManager: fileManager)
+        }
+    }
 
-            for sourceURL in try logFileURLsLocked() {
-                let destinationURL = destinationDirectoryURL.appendingPathComponent(sourceURL.lastPathComponent)
-                if fileManager.fileExists(atPath: destinationURL.path) {
-                    try fileManager.removeItem(at: destinationURL)
-                }
-                try fileManager.copyItem(at: sourceURL, to: destinationURL)
+    private static let metadataTruncatedKey = "diagnostics.metadata_truncated"
+
+    private static let typedErrorMetadataKeys: Set<String> = [
+        "error.code",
+        "error.domain",
+        "error.type"
+    ]
+
+    private func metadataRemovalOrder(_ metadata: [String: String]) -> [String] {
+        metadata.keys.sorted { lhs, rhs in
+            let lhsIsTypedError = Self.typedErrorMetadataKeys.contains(lhs)
+            let rhsIsTypedError = Self.typedErrorMetadataKeys.contains(rhs)
+            if lhsIsTypedError != rhsIsTypedError {
+                return !lhsIsTypedError
+            }
+
+            let lhsBytes = metadata[lhs]?.utf8.count ?? 0
+            let rhsBytes = metadata[rhs]?.utf8.count ?? 0
+            if lhsBytes != rhsBytes {
+                return lhsBytes > rhsBytes
+            }
+            return lhs > rhs
+        }
+    }
+
+    private func boundedEncodedRecord(_ record: DiagnosticLogRecord) throws -> Data {
+        var metadata = record.metadata
+        var candidate = record
+        var data = try encoder.encode(candidate)
+        guard data.count > DiagnosticLogLimits.maxEncodedLineBytes else {
+            return data
+        }
+
+        for key in metadataRemovalOrder(metadata) {
+            metadata.removeValue(forKey: key)
+            metadata[Self.metadataTruncatedKey] = "true"
+            candidate = record.replacingMetadata(metadata)
+            data = try encoder.encode(candidate)
+            if data.count <= DiagnosticLogLimits.maxEncodedLineBytes {
+                return data
             }
         }
+
+        throw StoreError.encodedRecordTooLarge(
+            actualBytes: data.count,
+            maximumBytes: DiagnosticLogLimits.maxEncodedLineBytes
+        )
     }
 
     private static func defaultDirectoryURL() -> URL {
@@ -133,8 +217,21 @@ final class DiagnosticLogStore: @unchecked Sendable {
             .appendingPathComponent("Logs", isDirectory: true)
     }
 
+    private func appendRecord(_ record: DiagnosticLogRecord) throws {
+        try lock.withLock {
+            let data = try encodedLine(for: record)
+            try prepareDirectoryLocked()
+            if try shouldRotateCurrentLogLocked(appendingByteCount: data.count) {
+                try rotateCurrentLogLocked()
+            }
+
+            try appendLocked(data, to: currentLogFileURL)
+            try pruneArchivesLocked()
+        }
+    }
+
     private func encodedLine(for record: DiagnosticLogRecord) throws -> Data {
-        var data = try encoder.encode(record)
+        var data = try boundedEncodedRecord(record)
         data.append(0x0A)
         return data
     }
@@ -151,7 +248,9 @@ final class DiagnosticLogStore: @unchecked Sendable {
         }
 
         let currentSize = try fileSizeLocked(currentLogFileURL)
-        return currentSize > 0 && currentSize + appendingByteCount > configuration.maxCurrentFileBytes
+        let maximumBytes = max(1, configuration.maxCurrentFileBytes)
+        let wouldOverflow = appendingByteCount > Int.max - currentSize
+        return currentSize > 0 && (wouldOverflow || currentSize + appendingByteCount > maximumBytes)
     }
 
     private func rotateCurrentLogLocked() throws {
@@ -161,11 +260,39 @@ final class DiagnosticLogStore: @unchecked Sendable {
 
         let archiveName = [
             "diagnostics",
+            "g\(String(format: "%020llu", try nextArchiveGenerationLocked()))",
             DiagnosticDateFormatter.fileSafeString(from: dateProvider()),
             uuidProvider().uuidString
         ].joined(separator: "-") + ".jsonl"
         let archiveURL = directoryURL.appendingPathComponent(archiveName, isDirectory: false)
         try fileManager.moveItem(at: currentLogFileURL, to: archiveURL)
+    }
+
+    private func nextArchiveGenerationLocked() throws -> UInt64 {
+        if let archiveGeneration {
+            let nextGeneration = archiveGeneration == UInt64.max
+                ? UInt64.max
+                : archiveGeneration + 1
+            self.archiveGeneration = nextGeneration
+            return nextGeneration
+        }
+
+        let latestGeneration = try archiveLogFileURLsLocked()
+            .compactMap(Self.archiveGeneration(from:))
+            .max() ?? 0
+        let nextGeneration = latestGeneration == UInt64.max
+            ? UInt64.max
+            : latestGeneration + 1
+        archiveGeneration = nextGeneration
+        return nextGeneration
+    }
+
+    private static func archiveGeneration(from url: URL) -> UInt64? {
+        let components = url.deletingPathExtension().lastPathComponent.split(separator: "-")
+        guard components.count >= 2, components[1].hasPrefix("g") else {
+            return nil
+        }
+        return UInt64(components[1].dropFirst())
     }
 
     private func appendLocked(_ data: Data, to url: URL) throws {
@@ -212,16 +339,18 @@ final class DiagnosticLogStore: @unchecked Sendable {
 
     private func pruneArchivesLocked() throws {
         var archives = try archiveLogFileURLsLocked()
-        while archives.count > configuration.maxArchivedFileCount {
+        while archives.count > max(0, configuration.maxArchivedFileCount) {
             try fileManager.removeItem(at: archives.removeFirst())
         }
 
         var totalBytes = try logFileURLsLocked().reduce(0) { total, url in
-            try total + fileSizeLocked(url)
+            let fileBytes = try fileSizeLocked(url)
+            return fileBytes > Int.max - total ? Int.max : total + fileBytes
         }
 
         archives = try archiveLogFileURLsLocked()
-        while totalBytes > configuration.maxTotalBytes, let oldestArchive = archives.first {
+        let maximumTotalBytes = max(0, configuration.maxTotalBytes)
+        while totalBytes > maximumTotalBytes, let oldestArchive = archives.first {
             let removedSize = try fileSizeLocked(oldestArchive)
             try fileManager.removeItem(at: oldestArchive)
             totalBytes -= removedSize
@@ -235,19 +364,87 @@ final class DiagnosticLogStore: @unchecked Sendable {
     }
 
     private func reservePendingWrite() -> Bool {
-        pendingWriteLock.withLock {
-            guard pendingWriteCount < max(1, configuration.maxPendingRecordCount) else {
+        healthLock.withLock {
+            guard healthState.pendingRecordCount < max(0, configuration.maxPendingRecordCount) else {
+                Self.saturatingIncrement(&healthState.queueDropCount)
+                Self.saturatingIncrement(&healthState.unreportedQueueDropCount)
                 return false
             }
 
-            pendingWriteCount += 1
+            healthState.pendingRecordCount += 1
             return true
         }
     }
 
     private func releasePendingWrite() {
-        pendingWriteLock.withLock {
-            pendingWriteCount = max(0, pendingWriteCount - 1)
+        healthLock.withLock {
+            healthState.pendingRecordCount = max(0, healthState.pendingRecordCount - 1)
+        }
+    }
+
+    private func recordWriteFailure() {
+        healthLock.withLock {
+            Self.saturatingIncrement(&healthState.writeFailureCount)
+            Self.saturatingIncrement(&healthState.unreportedWriteFailureCount)
+        }
+    }
+
+    private func emitPendingDegradationIfNeeded(sessionID: String) {
+        guard let degradation = takePendingDegradation() else {
+            return
+        }
+
+        let record = DiagnosticLogRecord.persistenceDegraded(
+            timestamp: dateProvider(),
+            sessionID: sessionID,
+            queueDropCount: degradation.queueDropCount,
+            writeFailureCount: degradation.writeFailureCount
+        )
+
+        do {
+            try appendRecord(record)
+            healthLock.withLock {
+                Self.saturatingIncrement(&healthState.degradationRecordCount)
+            }
+        } catch {
+            restorePendingDegradationAfterWriteFailure(degradation)
+        }
+    }
+
+    private func takePendingDegradation() -> PendingDegradation? {
+        healthLock.withLock {
+            let degradation = PendingDegradation(
+                queueDropCount: healthState.unreportedQueueDropCount,
+                writeFailureCount: healthState.unreportedWriteFailureCount
+            )
+            guard degradation.queueDropCount > 0 || degradation.writeFailureCount > 0 else {
+                return nil
+            }
+
+            healthState.unreportedQueueDropCount = 0
+            healthState.unreportedWriteFailureCount = 0
+            return degradation
+        }
+    }
+
+    private func restorePendingDegradationAfterWriteFailure(_ degradation: PendingDegradation) {
+        healthLock.withLock {
+            Self.saturatingAdd(degradation.queueDropCount, to: &healthState.unreportedQueueDropCount)
+            Self.saturatingAdd(degradation.writeFailureCount, to: &healthState.unreportedWriteFailureCount)
+            Self.saturatingIncrement(&healthState.writeFailureCount)
+            Self.saturatingIncrement(&healthState.unreportedWriteFailureCount)
+        }
+    }
+
+    private static func saturatingIncrement(_ value: inout UInt64) {
+        saturatingAdd(1, to: &value)
+    }
+
+    private static func saturatingAdd(_ amount: UInt64, to value: inout UInt64) {
+        if amount > UInt64.max - value {
+            value = UInt64.max
+        } else {
+            value += amount
         }
     }
 

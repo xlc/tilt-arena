@@ -6,7 +6,7 @@ enum PaddleTrapOrientation: Equatable {
     case vertical
 }
 
-enum EnemyKind: Equatable {
+enum EnemyKind: String, Equatable {
     case chaser
     case formation
     case arrowRush

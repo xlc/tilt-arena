@@ -1,4 +1,5 @@
 import Foundation
+import Logging
 
 struct GameCenterScoreSubmission: Codable, Equatable {
     let runKey: String
@@ -32,23 +33,34 @@ final class GameCenterScoreSubmissionStore {
     private let defaults: UserDefaults
     private let pendingSubmissionsKey: String
     private let maxPendingSubmissions: Int
+    private let logger: Logger
 
     init(
         defaults: UserDefaults = .standard,
         pendingSubmissionsKey: String = "tiltArena.gameCenter.pendingScores",
-        maxPendingSubmissions: Int = 25
+        maxPendingSubmissions: Int = 25,
+        logger: Logger = AppDiagnostics.logger(.gameCenter)
     ) {
         self.defaults = defaults
         self.pendingSubmissionsKey = pendingSubmissionsKey
         self.maxPendingSubmissions = max(1, maxPendingSubmissions)
+        self.logger = logger
     }
 
     var pendingSubmissions: [GameCenterScoreSubmission] {
         get {
-            guard
-                let data = defaults.data(forKey: pendingSubmissionsKey),
-                let submissions = try? JSONDecoder().decode([GameCenterScoreSubmission].self, from: data)
-            else {
+            guard let data = defaults.data(forKey: pendingSubmissionsKey) else {
+                return []
+            }
+
+            let submissions: [GameCenterScoreSubmission]
+            do {
+                submissions = try JSONDecoder().decode([GameCenterScoreSubmission].self, from: data)
+            } catch {
+                logger.warning("game_center.score_queue_load_failed", error: error, metadata: [
+                    "bytes": "\(data.count)"
+                ])
+                defaults.removeObject(forKey: pendingSubmissionsKey)
                 return []
             }
 
@@ -88,11 +100,13 @@ final class GameCenterScoreSubmissionStore {
     }
 
     private func save(_ submissions: [GameCenterScoreSubmission]) {
-        guard let data = try? JSONEncoder().encode(submissions) else {
-            return
+        do {
+            defaults.set(try JSONEncoder().encode(submissions), forKey: pendingSubmissionsKey)
+        } catch {
+            logger.error("game_center.score_queue_save_failed", error: error, metadata: [
+                "count": "\(submissions.count)"
+            ])
         }
-
-        defaults.set(data, forKey: pendingSubmissionsKey)
     }
 
     private func normalized(_ submissions: [GameCenterScoreSubmission]) -> [GameCenterScoreSubmission] {
@@ -212,25 +226,36 @@ final class GameCenterAchievementProgressStore {
     private let pendingProgressKey: String
     private let reportedProgressKey: String
     private let maxPendingProgress: Int
+    private let logger: Logger
 
     init(
         defaults: UserDefaults = .standard,
         pendingProgressKey: String = "tiltArena.gameCenter.pendingAchievements",
         reportedProgressKey: String = "tiltArena.gameCenter.reportedAchievementProgress",
-        maxPendingProgress: Int = 25
+        maxPendingProgress: Int = 25,
+        logger: Logger = AppDiagnostics.logger(.gameCenter)
     ) {
         self.defaults = defaults
         self.pendingProgressKey = pendingProgressKey
         self.reportedProgressKey = reportedProgressKey
         self.maxPendingProgress = max(1, maxPendingProgress)
+        self.logger = logger
     }
 
     var pendingProgress: [GameCenterAchievementProgress] {
         get {
-            guard
-                let data = defaults.data(forKey: pendingProgressKey),
-                let progress = try? JSONDecoder().decode([GameCenterAchievementProgress].self, from: data)
-            else {
+            guard let data = defaults.data(forKey: pendingProgressKey) else {
+                return []
+            }
+
+            let progress: [GameCenterAchievementProgress]
+            do {
+                progress = try JSONDecoder().decode([GameCenterAchievementProgress].self, from: data)
+            } catch {
+                logger.warning("game_center.achievement_queue_load_failed", error: error, metadata: [
+                    "bytes": "\(data.count)"
+                ])
+                defaults.removeObject(forKey: pendingProgressKey)
                 return []
             }
 
@@ -307,10 +332,18 @@ final class GameCenterAchievementProgressStore {
 
     private var reportedProgressByAchievementID: [String: Double] {
         get {
-            guard
-                let data = defaults.data(forKey: reportedProgressKey),
-                let progress = try? JSONDecoder().decode([String: Double].self, from: data)
-            else {
+            guard let data = defaults.data(forKey: reportedProgressKey) else {
+                return [:]
+            }
+
+            let progress: [String: Double]
+            do {
+                progress = try JSONDecoder().decode([String: Double].self, from: data)
+            } catch {
+                logger.warning("game_center.reported_progress_load_failed", error: error, metadata: [
+                    "bytes": "\(data.count)"
+                ])
+                defaults.removeObject(forKey: reportedProgressKey)
                 return [:]
             }
 
@@ -318,20 +351,24 @@ final class GameCenterAchievementProgressStore {
         }
         set {
             let normalizedProgress = newValue.mapValues { min(100, max(0, $0)) }
-            guard let data = try? JSONEncoder().encode(normalizedProgress) else {
-                return
+            do {
+                defaults.set(try JSONEncoder().encode(normalizedProgress), forKey: reportedProgressKey)
+            } catch {
+                logger.error("game_center.reported_progress_save_failed", error: error, metadata: [
+                    "count": "\(normalizedProgress.count)"
+                ])
             }
-
-            defaults.set(data, forKey: reportedProgressKey)
         }
     }
 
     private func savePendingProgress(_ progress: [GameCenterAchievementProgress]) {
-        guard let data = try? JSONEncoder().encode(progress) else {
-            return
+        do {
+            defaults.set(try JSONEncoder().encode(progress), forKey: pendingProgressKey)
+        } catch {
+            logger.error("game_center.achievement_queue_save_failed", error: error, metadata: [
+                "count": "\(progress.count)"
+            ])
         }
-
-        defaults.set(data, forKey: pendingProgressKey)
     }
 
     private func normalized(_ progress: [GameCenterAchievementProgress]) -> [GameCenterAchievementProgress] {

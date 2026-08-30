@@ -16,6 +16,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.rootViewController = GameViewController()
         window.makeKeyAndVisible()
         self.window = window
+        AppDiagnostics.logger(.app).notice("app.scene_connected")
     }
 
     func sceneDidBecomeActive(_ scene: UIScene) {
@@ -29,11 +30,18 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     func sceneDidEnterBackground(_ scene: UIScene) {
         AppDiagnostics.logger(.app).notice("app.background")
+        Task.detached(priority: .utility) {
+            DiagnosticLogStore.shared.flushPendingWrites()
+        }
     }
 
     func sceneWillEnterForeground(_ scene: UIScene) {
         AppDiagnostics.logger(.app).notice("app.foreground")
         GameCenterService.shared.retryQueuedScores()
         GameCenterService.shared.retryQueuedAchievements()
+    }
+
+    func sceneDidDisconnect(_ scene: UIScene) {
+        AppDiagnostics.logger(.app).notice("app.scene_disconnected")
     }
 }

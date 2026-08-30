@@ -143,7 +143,9 @@ struct ClassicRunController {
         }
 
         let clampedDelta = max(0, deltaTime)
-        survivalTime += clampedDelta
+        survivalTime = RunProfile.normalizedPersistedSurvivalTime(
+            survivalTime + clampedDelta
+        )
         updateComboTimer(deltaTime: clampedDelta)
         weaponComboState.update(deltaTime: clampedDelta)
         applySurvivalBonusIfNeeded()
@@ -191,7 +193,7 @@ struct ClassicRunController {
         }
 
         creditedItemPickupIDs.insert(pickupID)
-        score += max(0, configuration.itemPickupScore)
+        score = saturatedSum(score, max(0, configuration.itemPickupScore))
         return true
     }
 
@@ -261,10 +263,19 @@ struct ClassicRunController {
         }
 
         let newIntervals = eligibleIntervals - creditedSurvivalBonusIntervals
-        survivalBonusRemainder += Double(newIntervals) * survivalBonusScorePerInterval()
+        let bonusIncrement = Double(newIntervals) * survivalBonusScorePerInterval()
+        let updatedRemainder = survivalBonusRemainder + bonusIncrement
+        guard updatedRemainder.isFinite, updatedRemainder < Double(Int.max) else {
+            score = Int.max
+            survivalBonusRemainder = 0
+            creditedSurvivalBonusIntervals = eligibleIntervals
+            return
+        }
+
+        survivalBonusRemainder = max(0, updatedRemainder)
         let wholePoints = Int(survivalBonusRemainder)
         if wholePoints > 0 {
-            score += wholePoints
+            score = saturatedSum(score, wholePoints)
             survivalBonusRemainder -= Double(wholePoints)
         }
         creditedSurvivalBonusIntervals = eligibleIntervals
@@ -276,12 +287,14 @@ struct ClassicRunController {
     }
 
     private mutating func recordKill(scoreValue: Int, weaponKind: WeaponKind?) {
-        let nextCombo = currentCombo + 1
-        score += max(0, scoreValue) * multiplier(forComboCount: nextCombo)
+        let nextCombo = saturatedSum(currentCombo, 1)
+        let (scoreIncrement, multiplicationOverflow) = max(0, scoreValue)
+            .multipliedReportingOverflow(by: multiplier(forComboCount: nextCombo))
+        score = saturatedSum(score, multiplicationOverflow ? Int.max : scoreIncrement)
         currentCombo = nextCombo
         maxCombo = max(maxCombo, currentCombo)
         comboTimeRemaining = configuration.comboWindow
-        enemiesDestroyed += 1
+        enemiesDestroyed = saturatedSum(enemiesDestroyed, 1)
         recordWeaponKills(1, weaponKind: weaponKind)
     }
 
@@ -302,7 +315,7 @@ struct ClassicRunController {
             return
         }
 
-        let updatedCount = weaponKillCounts[weaponKind, default: 0] + killCount
+        let updatedCount = saturatedSum(weaponKillCounts[weaponKind, default: 0], killCount)
         weaponKillCounts[weaponKind] = updatedCount
 
         guard let currentBestWeapon = bestWeapon else {
@@ -317,6 +330,11 @@ struct ClassicRunController {
 
     private func multiplier(forComboCount comboCount: Int) -> Int {
         let step = max(1, configuration.killsPerMultiplierStep)
-        return 1 + max(0, comboCount) / step
+        return saturatedSum(1, max(0, comboCount) / step)
+    }
+
+    private func saturatedSum(_ lhs: Int, _ rhs: Int) -> Int {
+        let (sum, overflow) = lhs.addingReportingOverflow(rhs)
+        return overflow ? Int.max : sum
     }
 }

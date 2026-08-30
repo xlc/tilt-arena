@@ -76,6 +76,21 @@ final class GameViewControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testDetachedControllerRejectsDiagnosticsPreviewAndRemovesReport() throws {
+        let reportURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "TiltArenaDiagnostics-\(UUID().uuidString).txt"
+        )
+        try "diagnostics".write(to: reportURL, atomically: true, encoding: .utf8)
+        let controller = GameViewController()
+        controller.loadViewIfNeeded()
+
+        controller.presentDiagnosticsReport(at: reportURL)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: reportURL.path))
+        XCTAssertNil(controller.presentedViewController)
+    }
+
+    @MainActor
     func testSafeAreaInsetsChangeRefreshesPresentedSceneLayout() {
         let spriteView = SafeAreaTestSKView(frame: CGRect(x: 0, y: 0, width: 852, height: 393))
         let controller = GameViewController()
