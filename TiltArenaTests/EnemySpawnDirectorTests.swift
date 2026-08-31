@@ -298,6 +298,23 @@ final class EnemySpawnDirectorTests: XCTestCase {
         XCTAssertFalse(spawnFrame.newEnemies.contains { abs($0.position.y - 75) < 0.0001 })
     }
 
+    func testFormationRejectsNonfinitePlayerPositionWithoutTrapping() {
+        let configuration = formationTestConfiguration()
+        var director = EnemySpawnDirector(configuration: configuration)
+
+        let frame = director.update(
+            deltaTime: 0.1,
+            survivalTime: 30,
+            activeEnemies: [],
+            playableRect: CGRect(x: 0, y: 0, width: 300, height: 300),
+            playerPosition: CGPoint(x: CGFloat.nan, y: CGFloat.infinity),
+            pickupCircles: []
+        )
+
+        XCTAssertTrue(frame.telegraphsToShow.isEmpty)
+        XCTAssertTrue(frame.newEnemies.isEmpty)
+    }
+
     func testPendingFormationSpawningRespectsActiveCap() {
         var configuration = formationTestConfiguration()
         configuration.playerSafetyRadius = 20

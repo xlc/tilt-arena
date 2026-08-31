@@ -399,6 +399,34 @@ final class GameCenterServiceTests: XCTestCase {
         XCTAssertEqual(reloadedStore.pendingSubmissions.map(\.score), [200, 300])
     }
 
+    func testPendingScoreStoreRepairsMalformedPersistedSubmissions() throws {
+        let pendingKey = "tiltArena.gameCenter.pendingScores"
+        let submission = GameCenterScoreSubmission.classicSurvival(
+            from: makeRunSummary(score: 100, timestamp: 1)
+        )
+        let encoded = try JSONEncoder().encode([submission])
+        var payload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: encoded) as? [[String: Any]]
+        )
+        payload[0]["runKey"] = "  \(submission.runKey)  "
+        payload[0]["leaderboardID"] = "  \(submission.leaderboardID)  "
+        payload[0]["score"] = -100
+        var invalidSubmission = payload[0]
+        invalidSubmission["runKey"] = "   "
+        payload.append(invalidSubmission)
+        defaults.set(
+            try JSONSerialization.data(withJSONObject: payload),
+            forKey: pendingKey
+        )
+
+        let reloaded = GameCenterScoreSubmissionStore(defaults: defaults).pendingSubmissions
+
+        XCTAssertEqual(reloaded.count, 1)
+        XCTAssertEqual(reloaded[0].runKey, submission.runKey)
+        XCTAssertEqual(reloaded[0].leaderboardID, submission.leaderboardID)
+        XCTAssertEqual(reloaded[0].score, 0)
+    }
+
     func testAuthenticatedLeaderboardPresentationPresentsClassicLeaderboard() {
         let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
         let viewController = UIViewController()
@@ -609,6 +637,43 @@ final class GameCenterServiceTests: XCTestCase {
         XCTAssertNil(defaults.data(forKey: reportedKey))
     }
 
+    func testPendingAchievementStoreRepairsMalformedPersistedProgress() throws {
+        let pendingKey = "tiltArena.gameCenter.pendingAchievements"
+        let progress = try XCTUnwrap(
+            GameCenterAchievementProgressMapper.progress(for: .weaponOrbCollected).first
+        )
+        let encoded = try JSONEncoder().encode([progress])
+        var payload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: encoded) as? [[String: Any]]
+        )
+        payload[0]["achievementID"] = "  \(progress.achievementID)  "
+        payload[0]["percentComplete"] = 150
+        var invalidProgress = payload[0]
+        invalidProgress["achievementID"] = "   "
+        payload.append(invalidProgress)
+        defaults.set(
+            try JSONSerialization.data(withJSONObject: payload),
+            forKey: pendingKey
+        )
+
+        let reloaded = achievementProgressStore.pendingProgress
+
+        XCTAssertEqual(reloaded.count, 1)
+        XCTAssertEqual(reloaded[0].achievementID, progress.achievementID)
+        XCTAssertEqual(reloaded[0].percentComplete, 100)
+    }
+
+    func testAchievementProgressRejectsNonfinitePercentages() {
+        achievementProgressStore.pendingProgress = [
+            GameCenterAchievementProgress(
+                achievement: .firstWeaponOrb,
+                percentComplete: .infinity
+            )
+        ]
+
+        XCTAssertTrue(achievementProgressStore.pendingProgress.isEmpty)
+    }
+
     func testCorruptedScoreQueueBlobIsDiscardedAfterFirstFailedRead() {
         let pendingKey = "tiltArena.gameCenter.pendingScores"
         defaults.set(Data("not-json".utf8), forKey: pendingKey)
@@ -703,12 +768,6 @@ private struct SubmittedGameCenterScore: Equatable {
 private struct SubmittedGameCenterAchievement: Equatable {
     let achievementID: String
     let percentComplete: Double
-}
-
-private extension Array where Element == SubmittedGameCenterAchievement {
-    var progressByAchievementID: [String: Double] {
-        Dictionary(uniqueKeysWithValues: map { ($0.achievementID, $0.percentComplete) })
-    }
 }
 
 private extension Array where Element == GameCenterAchievementProgress {

@@ -3,7 +3,6 @@ import UIKit
 struct ArenaLandscapeUILayout: Equatable {
     private static let controlBorderGap: CGFloat = 12
     private static let gameplayEdgeMargin: CGFloat = 8
-    private static let titleTopClearance: CGFloat = 10
 
     let sceneSize: CGSize
     let safeAreaInsets: UIEdgeInsets
@@ -26,42 +25,8 @@ struct ArenaLandscapeUILayout: Equatable {
         return safeRect.insetBy(dx: inset, dy: inset)
     }
 
-    var titlePosition: CGPoint {
-        CGPoint(x: safeRect.minX, y: safeRect.maxY - Self.titleTopClearance)
-    }
-
-    var bottomCenterPosition: CGPoint {
-        CGPoint(x: safeRect.midX, y: safeRect.minY)
-    }
-
     var lowerRightButtonFrame: CGRect {
         CGRect(x: controlRect.maxX - 156, y: controlRect.minY, width: 156, height: 48)
-    }
-
-    func stackedLowerRightButtonFrame(aboveBottomControlHeight bottomControlHeight: CGFloat) -> CGRect {
-        let size = CGSize(width: 156, height: 48)
-        let preferredY = controlRect.minY + max(0, bottomControlHeight) + 16
-        let maximumY = max(controlRect.minY, controlRect.maxY - size.height)
-
-        return CGRect(
-            x: controlRect.maxX - size.width,
-            y: min(preferredY, maximumY),
-            width: size.width,
-            height: size.height
-        )
-    }
-
-    var centerPoint: CGPoint {
-        CGPoint(x: safeRect.midX, y: safeRect.midY)
-    }
-
-    func leftColumnFrame(width: CGFloat) -> CGRect {
-        CGRect(
-            x: safeRect.minX,
-            y: safeRect.minY + 56,
-            width: min(width, safeRect.width * 0.46),
-            height: max(0, safeRect.height - 96)
-        )
     }
 
     func rightColumnFrame(width: CGFloat) -> CGRect {

@@ -206,6 +206,7 @@ final class RunProfileStore {
                 logger.warning("profile.load_failed", error: error, metadata: [
                     "bytes": "\(data.count)"
                 ])
+                defaults.removeObject(forKey: profileKey)
                 return RunProfile()
             }
         }

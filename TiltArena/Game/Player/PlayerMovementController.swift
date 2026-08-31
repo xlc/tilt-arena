@@ -8,10 +8,6 @@ struct PlayerMovementConfiguration: Equatable {
     var borderInset: CGFloat = 18
     var arenaCrossingDuration: TimeInterval = Self.defaultArenaCrossingDuration
 
-    func maximumSpeed(in arenaSize: CGSize) -> CGFloat {
-        maximumSpeed(in: CGRect(origin: .zero, size: arenaSize))
-    }
-
     func maximumSpeed(in arenaBounds: CGRect) -> CGFloat {
         let width = playableRect(in: arenaBounds).width
         let crossingDuration = arenaCrossingDuration.isFinite
@@ -156,10 +152,6 @@ struct PlayerMovementController {
         return state
     }
 
-    mutating func clampToArena(_ arenaSize: CGSize) -> PlayerMovementState {
-        clampToArena(CGRect(origin: .zero, size: arenaSize))
-    }
-
     mutating func clampToArena(_ arenaBounds: CGRect) -> PlayerMovementState {
         state = PlayerMovementState(
             position: clampedPosition(state.position, in: arenaBounds),
@@ -168,10 +160,6 @@ struct PlayerMovementController {
                 : .zero
         )
         return state
-    }
-
-    func clampedPosition(_ position: CGPoint, in arenaSize: CGSize) -> CGPoint {
-        clampedPosition(position, in: CGRect(origin: .zero, size: arenaSize))
     }
 
     func clampedPosition(_ position: CGPoint, in arenaBounds: CGRect) -> CGPoint {

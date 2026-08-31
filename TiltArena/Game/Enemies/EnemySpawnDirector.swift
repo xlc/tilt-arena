@@ -444,7 +444,7 @@ struct EnemySpawnDirector {
         let coordinate = direction.travelsHorizontally ? playerPosition.y : playerPosition.x
         let start = direction.travelsHorizontally ? playableRect.minY : playableRect.minX
         let length = direction.travelsHorizontally ? playableRect.height : playableRect.width
-        guard length > 0 else {
+        guard laneCount > 0, coordinate.isFinite, start.isFinite, length.isFinite, length > 0 else {
             return laneCount / 2
         }
 

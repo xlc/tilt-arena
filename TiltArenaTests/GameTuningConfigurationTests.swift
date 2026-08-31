@@ -204,4 +204,17 @@ final class GameTuningConfigurationTests: XCTestCase {
         XCTAssertEqual(tuning.classic.enemySpawnConfiguration.warmup.formationLaneCount, 3)
         XCTAssertEqual(tuning.classic.enemySpawnConfiguration.warmup.formationSpawnInterval, 0.1)
     }
+
+    func testTuningStoreDiscardsCorruptOverridesAfterFailedRead() throws {
+        let suiteName = "GameTuningStoreCorruptDataTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+        let overridesKey = "tiltArena.gameTuningOverrides.v1"
+        defaults.set(Data("not-json".utf8), forKey: overridesKey)
+
+        XCTAssertEqual(GameTuningStore(defaults: defaults).tuning, .defaults)
+        XCTAssertNil(defaults.data(forKey: overridesKey))
+    }
 }

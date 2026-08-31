@@ -55,10 +55,6 @@ enum GameCenterAuthenticationState: Equatable {
     case authenticated
     case declined(GameCenterAuthenticationFailure)
     case failed(GameCenterAuthenticationFailure)
-
-    var isAuthenticated: Bool {
-        self == .authenticated
-    }
 }
 
 enum GameCenterAuthenticationFailureReason: String, Equatable {

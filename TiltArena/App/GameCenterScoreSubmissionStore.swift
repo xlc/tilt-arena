@@ -12,6 +12,20 @@ struct GameCenterScoreSubmission: Codable, Equatable {
         "\(leaderboardID)|\(runKey)"
     }
 
+    fileprivate init(
+        runKey: String,
+        leaderboardID: String,
+        score: Int,
+        context: Int,
+        createdAt: Date
+    ) {
+        self.runKey = runKey
+        self.leaderboardID = leaderboardID
+        self.score = max(0, score)
+        self.context = context
+        self.createdAt = createdAt
+    }
+
     static func classicSurvival(from summary: RunSummary) -> GameCenterScoreSubmission {
         GameCenterScoreSubmission(
             runKey: [
@@ -95,10 +109,6 @@ final class GameCenterScoreSubmissionStore {
         pendingSubmissions = pendingSubmissions.filter { !queueKeys.contains($0.queueKey) }
     }
 
-    func reset() {
-        defaults.removeObject(forKey: pendingSubmissionsKey)
-    }
-
     private func save(_ submissions: [GameCenterScoreSubmission]) {
         do {
             defaults.set(try JSONEncoder().encode(submissions), forKey: pendingSubmissionsKey)
@@ -111,8 +121,23 @@ final class GameCenterScoreSubmissionStore {
 
     private func normalized(_ submissions: [GameCenterScoreSubmission]) -> [GameCenterScoreSubmission] {
         var seenQueueKeys = Set<String>()
-        let deduplicated = submissions.filter { submission in
-            seenQueueKeys.insert(submission.queueKey).inserted
+        let deduplicated = submissions.compactMap { submission -> GameCenterScoreSubmission? in
+            let runKey = submission.runKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            let leaderboardID = submission.leaderboardID.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !runKey.isEmpty, !leaderboardID.isEmpty else {
+                return nil
+            }
+
+            let normalizedSubmission = GameCenterScoreSubmission(
+                runKey: runKey,
+                leaderboardID: leaderboardID,
+                score: submission.score,
+                context: submission.context,
+                createdAt: submission.createdAt
+            )
+            return seenQueueKeys.insert(normalizedSubmission.queueKey).inserted
+                ? normalizedSubmission
+                : nil
         }
         return Array(deduplicated.suffix(maxPendingSubmissions))
     }
@@ -129,18 +154,25 @@ struct GameCenterAchievementProgress: Codable, Equatable {
     let percentComplete: Double
     let createdAt: Date
 
-    var queueKey: String {
-        achievementID
+    init(achievement: GameCenterIdentifiers.Achievement, percentComplete: Double, createdAt: Date = Date()) {
+        self.init(
+            achievementID: achievement.rawValue,
+            percentComplete: percentComplete,
+            createdAt: createdAt
+        )
     }
 
-    init(achievement: GameCenterIdentifiers.Achievement, percentComplete: Double, createdAt: Date = Date()) {
-        self.achievementID = achievement.rawValue
+    fileprivate init(achievementID: String, percentComplete: Double, createdAt: Date) {
+        self.achievementID = achievementID
         self.percentComplete = Self.normalizedPercent(percentComplete)
         self.createdAt = createdAt
     }
 
     private static func normalizedPercent(_ percentComplete: Double) -> Double {
-        min(100, max(0, percentComplete))
+        guard percentComplete.isFinite else {
+            return 0
+        }
+        return min(100, max(0, percentComplete))
     }
 }
 
@@ -325,11 +357,6 @@ final class GameCenterAchievementProgressStore {
         pendingProgress = pendingProgress.filter { !achievementIDs.contains($0.achievementID) }
     }
 
-    func reset() {
-        defaults.removeObject(forKey: pendingProgressKey)
-        defaults.removeObject(forKey: reportedProgressKey)
-    }
-
     private var reportedProgressByAchievementID: [String: Double] {
         get {
             guard let data = defaults.data(forKey: reportedProgressKey) else {
@@ -374,16 +401,22 @@ final class GameCenterAchievementProgressStore {
     private func normalized(_ progress: [GameCenterAchievementProgress]) -> [GameCenterAchievementProgress] {
         var byAchievementID: [String: GameCenterAchievementProgress] = [:]
         for item in progress {
-            guard item.percentComplete > 0 else {
+            let achievementID = item.achievementID.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedItem = GameCenterAchievementProgress(
+                achievementID: achievementID,
+                percentComplete: item.percentComplete,
+                createdAt: item.createdAt
+            )
+            guard !achievementID.isEmpty, normalizedItem.percentComplete > 0 else {
                 continue
             }
 
-            if let existing = byAchievementID[item.achievementID],
-               existing.percentComplete >= item.percentComplete {
+            if let existing = byAchievementID[achievementID],
+               existing.percentComplete >= normalizedItem.percentComplete {
                 continue
             }
 
-            byAchievementID[item.achievementID] = item
+            byAchievementID[achievementID] = normalizedItem
         }
 
         let orderedKnownAchievements = GameCenterIdentifiers.Achievement.allCases

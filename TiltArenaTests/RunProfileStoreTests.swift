@@ -208,6 +208,7 @@ final class RunProfileStoreTests: XCTestCase {
         defaults.set(Data([0, 1, 2]), forKey: "tiltArena.runProfile")
 
         XCTAssertEqual(store.profile, RunProfile())
+        XCTAssertNil(defaults.data(forKey: "tiltArena.runProfile"))
     }
 
     func testResetClearsPersistedProfile() {

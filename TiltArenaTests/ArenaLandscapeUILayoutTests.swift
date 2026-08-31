@@ -11,8 +11,6 @@ final class ArenaLandscapeUILayoutTests: XCTestCase {
         )
 
         XCTAssertEqual(layout.safeRect, CGRect(x: 83, y: 45, width: 686, height: 324))
-        XCTAssertEqual(layout.titlePosition, CGPoint(x: 83, y: 359))
-        XCTAssertEqual(layout.bottomCenterPosition, CGPoint(x: 426, y: 45))
     }
 
     func testGameplayRectUsesCameraInsetsWithoutReservingVerticalControlArea() {
@@ -37,8 +35,6 @@ final class ArenaLandscapeUILayoutTests: XCTestCase {
         )
 
         XCTAssertEqual(layout.safeRect, CGRect(x: 83, y: 58, width: 804, height: 339))
-        XCTAssertEqual(layout.titlePosition, CGPoint(x: 83, y: 387))
-        XCTAssertEqual(layout.bottomCenterPosition, CGPoint(x: 485, y: 58))
     }
 
     func testGameplayRectHonorsAsymmetricCameraInsets() {
@@ -77,30 +73,6 @@ final class ArenaLandscapeUILayoutTests: XCTestCase {
         XCTAssertEqual(last.maxX, 562)
     }
 
-    func testStackedLowerRightButtonClearsBottomControlsOnCompactLandscape() {
-        let layout = ArenaLandscapeUILayout(
-            sceneSize: CGSize(width: 667, height: 375),
-            safeAreaInsets: .zero,
-            margin: 24
-        )
-        let bottomButtonSize = CGSize(width: 108, height: 38)
-        let playFrame = layout.stackedLowerRightButtonFrame(
-            aboveBottomControlHeight: bottomButtonSize.height
-        )
-
-        for index in 0..<3 {
-            let bottomFrame = layout.bottomButtonFrame(
-                index: index,
-                count: 3,
-                buttonSize: bottomButtonSize
-            )
-            XCTAssertFalse(playFrame.intersects(bottomFrame))
-        }
-
-        XCTAssertEqual(playFrame.minY, 104)
-        XCTAssertEqual(playFrame.maxX, layout.controlRect.maxX)
-    }
-
     func testControlsStayInsidePlayfieldBorder() {
         let layout = ArenaLandscapeUILayout(
             sceneSize: CGSize(width: 667, height: 375),
@@ -114,10 +86,6 @@ final class ArenaLandscapeUILayoutTests: XCTestCase {
             layout.controlRect.minY
         )
         XCTAssertEqual(layout.lowerRightButtonFrame.maxX, layout.controlRect.maxX)
-        XCTAssertEqual(
-            layout.stackedLowerRightButtonFrame(aboveBottomControlHeight: bottomButtonSize.height).maxX,
-            layout.controlRect.maxX
-        )
 
         for index in 0..<3 {
             XCTAssertTrue(

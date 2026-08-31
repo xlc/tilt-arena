@@ -265,14 +265,6 @@ struct WeaponEffectTiming: Equatable {
         )
     }
 
-    func waveDuration(from origin: CGPoint, to target: CGPoint) -> TimeInterval {
-        duration(
-            distance: distance(from: origin, to: target),
-            speed: waveSpeed,
-            maximumDuration: maximumWaveTravelDuration
-        )
-    }
-
     func waveDuration(radius: CGFloat) -> TimeInterval {
         duration(
             distance: max(0, radius),

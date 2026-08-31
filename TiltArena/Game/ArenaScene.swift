@@ -1446,10 +1446,6 @@ final class ArenaScene: SKScene {
         }
     }
 
-    private func positions(forEnemyIDs enemyIDs: Set<Int>) -> [CGPoint] {
-        enemies.compactMap { enemyIDs.contains($0.id) ? $0.position : nil }
-    }
-
     private func impactTargets(forEnemyIDs enemyIDs: Set<Int>) -> [WeaponImpactTarget] {
         enemies.compactMap { enemy in
             enemyIDs.contains(enemy.id) ? WeaponImpactTarget(id: enemy.id, position: enemy.position) : nil
@@ -5470,10 +5466,6 @@ extension ArenaScene {
 
     func selectDeveloperTuningSubgroupForTesting(_ subgroup: String) {
         performDeveloperTuningAction(.selectTuningSubgroup(subgroup))
-    }
-
-    func toggleDeveloperTuningChangedOnlyForTesting() {
-        performDeveloperTuningAction(.toggleDeveloperTuningChangedOnly)
     }
 
     func adjustTuningParameterForTesting(id: String, direction: GameTuningAdjustmentDirection) {

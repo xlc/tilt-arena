@@ -57,6 +57,7 @@ final class GameTuningStore {
                 logger.warning("tuning.load_failed", error: error, metadata: [
                     "bytes": "\(data.count)"
                 ])
+                defaults.removeObject(forKey: overridesKey)
                 return [:]
             }
         }
