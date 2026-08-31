@@ -68,6 +68,16 @@ final class EnemySpawnDirectorTests: XCTestCase {
         XCTAssertEqual(pressureStart.formationSpawnInterval, configuration.pressure.formationSpawnInterval)
     }
 
+    func testFormationDensityRampsBetweenPhaseAnchors() {
+        let configuration = EnemySpawnConfiguration()
+
+        XCTAssertEqual(configuration.tuning(at: 30).formationLaneCount, 5)
+        XCTAssertEqual(configuration.tuning(at: 60).formationLaneCount, 6)
+        XCTAssertEqual(configuration.tuning(at: 90).formationLaneCount, 7)
+        XCTAssertEqual(configuration.tuning(at: 135).formationLaneCount, 8)
+        XCTAssertEqual(configuration.tuning(at: 180).formationLaneCount, 9)
+    }
+
     func testSpecialSpawnPressureScalesWithinActivePhases() throws {
         let configuration = EnemySpawnConfiguration()
 

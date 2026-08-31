@@ -112,9 +112,14 @@ extension EnemyPhaseTuning {
         )
         formationSpawnInterval = interpolateOptional(formationSpawnInterval, next?.formationSpawnInterval, progress)
         formationSpeed = interpolateSpeed(formationSpeed, next?.formationSpeed, progress)
-        formationLaneCount = min(
-            EnemySpawnSafetyLimits.maximumFormationLaneCount,
-            max(3, formationLaneCount)
+        formationLaneCount = max(
+            3,
+            interpolateCount(
+                formationLaneCount,
+                next?.formationLaneCount,
+                progress,
+                maximum: EnemySpawnSafetyLimits.maximumFormationLaneCount
+            )
         )
         arrowRushSpawnInterval = interpolateOptional(arrowRushSpawnInterval, next?.arrowRushSpawnInterval, progress)
         arrowRushSpeed = interpolateSpeed(arrowRushSpeed, next?.arrowRushSpeed, progress)
