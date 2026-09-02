@@ -65,25 +65,11 @@ final class ArenaScene: SKScene {
     private var runController = ClassicRunController()
     private var runProfile = RunProfile()
     private var localOptions = ArenaLocalOptions()
-    private var uiState: ArenaUISceneState = .home
-    private var optionsReturnState: ArenaUISceneState = .home
-    private var calibrationReturnState: ArenaUISceneState = .home
-    private var developerReturnState: ArenaUISceneState = .home
-    private var gameCenterStatusMessage: String?
-    private var selectedMode: ArenaModeKind = .classic
-    private var previousBestScore = 0
-    private var lastProgressionResult: ArenaProgressionResult?
-    private var resetDataArmed = false
-    private var hasPersistedFinalRun = false
-    private var isResolvingDeath = false
-    private var postRunTransitionTimeRemaining: TimeInterval?
-    private var developerTuningPageIndex = 0
-    private var developerTuningSelectedGroup: String?
-    private var developerTuningSelectedSubgroup: String?
-    private var developerTuningChangedOnly = false
-    private var developerTuningCopyConfirmation: String?
-    private var deathReplayTrace = DeathReplayTrace()
-    private var lastDeathCollisionSnapshot: DeathCollisionSnapshot?
+    private var navigationState = ArenaNavigationState()
+    private var uiState: ArenaUISceneState {
+        navigationState.current
+    }
+    private var runSession = ArenaRunSessionState()
     private var readyHoldController = ReadyStartHoldController()
     private var readyStartPoint = CGPoint.zero
     private var readyProgressRing: SKShapeNode?
@@ -102,42 +88,24 @@ final class ArenaScene: SKScene {
     private var enemies: [ArenaEnemy] {
         enemyRegistry.enemies
     }
-    private var pickups: [WeaponPickup] = []
-    private var pickupNodes: [Int: WeaponPickupNode] = [:]
+    private let pickupRegistry = ArenaPickupRegistry()
+    private var pickups: [WeaponPickup] {
+        pickupRegistry.pickups
+    }
     private var playerNode: PlayerCraftNode?
     private var playerTrailNode: PlayerTrailNode?
-    private var razorShieldTimeRemaining: TimeInterval = 0
-    private var activeRazorShieldConfiguration: StartingWeaponConfiguration?
-    private var hasPlayedRazorShieldWarning = false
+    private var activeWeapons = ArenaActiveWeaponState()
     private var razorShieldNode: SKShapeNode?
-    private var shockwaveWaveStates: [ShockwaveWaveState] = []
-    private var freezeBurstWaveStates: [FreezeBurstWaveState] = []
-    private var flameTrailState = FlameTrailState()
-    private var flameTrailSpeedBoostTimeRemaining: TimeInterval = 0
-    private var flameTrailInvulnerabilityTimeRemaining: TimeInterval = 0
-    private var postWeaponSafetyTimeRemaining: TimeInterval = 0
-    private var pendingNovaBombClears: [PendingNovaBombClear] = []
     private lazy var flameTrailEffectNode = FlameTrailEffectNode(theme: theme)
-    private var gravityWellState: GravityWellState?
     var gravityWellEffectNode: SKNode?
-    private var aimDirectionState = AimDirectionState()
-    private var timeDilationTimeRemaining: TimeInterval = 0
-    private var activeTimeDilationConfiguration: StartingWeaponConfiguration?
     private var timeDilationAuraNode: SKNode?
-    private var powerWaveState = PowerWaveState()
     var powerWaveChargeNode: SKNode?
 #if DEBUG
     private let debugStatsLabel = SKLabelNode(fontNamed: "Menlo")
     private var debugStatsElapsed: TimeInterval = 0
     private var debugStatsFrameCount = 0
 #endif
-    private var diagnosticHealthElapsed: TimeInterval = 0
-    private var diagnosticHealthFrameCount = 0
-    private var diagnosticHealthLongFrameCount = 0
-    private var diagnosticHealthMaximumFrameInterval: TimeInterval = 0
-    private var diagnosticSpawnedEnemyCount = 0
-    private var diagnosticSpawnRuntimeCorrectionCount = 0
-    private var hasReportedInvalidFrameTime = false
+    private var diagnosticAccumulator = ArenaDiagnosticAccumulator()
     private let uiMargin: CGFloat = 24
     private var calibrationPreviewMovementController = PlayerMovementController()
     private var calibrationPreviewPlayerNode: PlayerCraftNode?
@@ -254,8 +222,7 @@ final class ArenaScene: SKScene {
         }
 
         let positiveElapsedTime = max(0, elapsedTime)
-        if hasReportedInvalidFrameTime {
-            hasReportedInvalidFrameTime = false
+        if diagnosticAccumulator.consumeFrameTimeRecovery() {
             performanceLogger.info("performance.frame_time_recovered")
         }
         updateDiagnosticHealth(elapsedTime: positiveElapsedTime)
@@ -468,55 +435,37 @@ extension ArenaScene {
     }
 
     private func updateDiagnosticHealth(elapsedTime: TimeInterval) {
-        diagnosticHealthElapsed += elapsedTime
-        diagnosticHealthFrameCount += 1
-        diagnosticHealthMaximumFrameInterval = max(diagnosticHealthMaximumFrameInterval, elapsedTime)
-        if elapsedTime >= 0.1 {
-            diagnosticHealthLongFrameCount += 1
-        }
-
-        guard diagnosticHealthElapsed >= 10 else {
+        guard let heartbeat = diagnosticAccumulator.recordFrame(duration: elapsedTime) else {
             return
         }
 
-        let framesPerSecond = diagnosticHealthElapsed > 0
-            ? Double(diagnosticHealthFrameCount) / diagnosticHealthElapsed
-            : 0
         performanceLogger.info("performance.heartbeat", metadata: [
             "enemies": "\(enemies.count)",
-            "fps": "\(framesPerSecond.rounded())",
-            "freezeWaves": "\(freezeBurstWaveStates.count)",
-            "longFrames": "\(diagnosticHealthLongFrameCount)",
-            "maxFrameMs": "\((diagnosticHealthMaximumFrameInterval * 1_000).rounded())",
-            "pendingNova": "\(pendingNovaBombClears.count)",
+            "fps": "\(heartbeat.framesPerSecond.rounded())",
+            "freezeWaves": "\(activeWeapons.freezeBurstWaves.count)",
+            "longFrames": "\(heartbeat.longFrameCount)",
+            "maxFrameMs": "\((heartbeat.maximumFrameInterval * 1_000).rounded())",
+            "pendingNova": "\(activeWeapons.pendingNovaBombClears.count)",
             "pickups": "\(pickups.count)",
-            "shockwaves": "\(shockwaveWaveStates.count)",
-            "spawnCorrections": "\(diagnosticSpawnRuntimeCorrectionCount)",
-            "spawnedEnemies": "\(diagnosticSpawnedEnemyCount)",
+            "shockwaves": "\(activeWeapons.shockwaveWaves.count)",
+            "spawnCorrections": "\(heartbeat.spawnRuntimeCorrectionCount)",
+            "spawnedEnemies": "\(heartbeat.spawnedEnemyCount)",
             "state": "\(uiState.diagnosticName)",
             "thermal": "\(ProcessInfo.processInfo.thermalState.diagnosticName)",
             "weaponEffects": "\(weaponEffectsRoot.children.count)"
         ])
-        if diagnosticSpawnRuntimeCorrectionCount > 0 {
+        if heartbeat.spawnRuntimeCorrectionCount > 0 {
             spawnLogger.warning("spawn.runtime_values_corrected", metadata: [
-                "corrections": "\(diagnosticSpawnRuntimeCorrectionCount)",
+                "corrections": "\(heartbeat.spawnRuntimeCorrectionCount)",
                 "survivalTime": "\(runController.survivalTime)"
             ])
         }
-        diagnosticHealthElapsed = 0
-        diagnosticHealthFrameCount = 0
-        diagnosticHealthLongFrameCount = 0
-        diagnosticHealthMaximumFrameInterval = 0
-        diagnosticSpawnedEnemyCount = 0
-        diagnosticSpawnRuntimeCorrectionCount = 0
     }
 
     private func reportInvalidFrameTime(reason: String) {
-        guard !hasReportedInvalidFrameTime else {
+        guard diagnosticAccumulator.markInvalidFrameTimeReported() else {
             return
         }
-
-        hasReportedInvalidFrameTime = true
         performanceLogger.warning("performance.frame_time_invalid", metadata: [
             "reason": "\(reason)",
             "state": "\(uiState.diagnosticName)"
@@ -588,7 +537,7 @@ extension ArenaScene {
 
         let previousPlayerPosition = movementController.state.position
         let input = movementInput(deltaTime: deltaTime)
-        aimDirectionState.record(input: input)
+        activeWeapons.aimDirection.record(input: input)
         let state = updatePlayerMovement(input: input, deltaTime: deltaTime)
         applyPlayerState(state, resetTrail: false)
         updateActiveRun(
@@ -599,7 +548,7 @@ extension ArenaScene {
     }
 
     private func updatePlayerMovement(input: CGVector, deltaTime: TimeInterval) -> PlayerMovementState {
-        guard flameTrailSpeedBoostTimeRemaining > 0 else {
+        guard activeWeapons.flameTrailProtection.speedBoostTimeRemaining > 0 else {
             return movementController.update(
                 input: input,
                 deltaTime: deltaTime,
@@ -611,7 +560,7 @@ extension ArenaScene {
             input: input,
             deltaTime: deltaTime,
             arenaBounds: currentGameplayBounds,
-            speedMultiplier: flameTrailState.configuration.speedMultiplier
+            speedMultiplier: activeWeapons.flameTrail.configuration.speedMultiplier
         )
     }
 
@@ -639,10 +588,7 @@ extension ArenaScene {
     }
 
     private func enterCalibrationPreview() {
-        if uiState != .calibrationPreview {
-            calibrationReturnState = uiState
-        }
-
+        navigationState.prepareCalibrationPresentation()
         tiltInputController.resetSmoothedInput()
         resetCalibrationPreviewPosition()
         show(.calibrationPreview)
@@ -689,7 +635,7 @@ extension ArenaScene {
 
     private func preparePreRun() {
         runController = ClassicRunController(configuration: runController.configuration)
-        hasPersistedFinalRun = false
+        runSession.preparePreRun()
         resetGameplayObjects()
         readyHoldController.reset()
         placePlayer(resetPosition: true)
@@ -697,7 +643,7 @@ extension ArenaScene {
         resetPlayerFeedback()
         show(.preRun)
         runLogger.notice("run.prepared", metadata: [
-            "mode": "\(selectedMode.rawValue)"
+            "mode": "\(runSession.selectedMode.rawValue)"
         ])
     }
 
@@ -710,7 +656,7 @@ extension ArenaScene {
         hapticsController.prepare()
         show(.activeGameplay)
         runLogger.notice("run.started", metadata: [
-            "mode": "\(selectedMode.rawValue)",
+            "mode": "\(runSession.selectedMode.rawValue)",
             "seed": "\(weaponRuntime.initialSeed)"
         ])
     }
@@ -745,28 +691,24 @@ extension ArenaScene {
 
     private func finishRun(playFeedback: Bool = true, collision: DeathCollisionSnapshot? = nil) {
         guard
-            !isResolvingDeath,
+            !runSession.isResolvingDeath,
             runController.phase == .active || runController.phase == .paused
         else {
             return
         }
 
-        isResolvingDeath = playFeedback
-        previousBestScore = runProfile.bestScore
-        runController.endRun(mode: selectedMode)
+        runSession.beginRunCompletion(
+            previousBestScore: runProfile.bestScore,
+            collision: collision,
+            transitionDuration: playFeedback ? 0.22 : nil
+        )
+        runController.endRun(mode: runSession.selectedMode)
         clearWeaponEffectNodes(paused: true)
-        shockwaveWaveStates.removeAll()
-        freezeBurstWaveStates.removeAll()
-        powerWaveState.reset()
+        activeWeapons.finishRun()
         powerWaveChargeNode = nil
-        flameTrailSpeedBoostTimeRemaining = 0
-        flameTrailInvulnerabilityTimeRemaining = 0
-        clearPostWeaponSafety()
-        pendingNovaBombClears.removeAll()
-        deactivateTimeDilationAura()
+        timeDilationAuraNode = nil
         audioController.stopMusic()
-        lastDeathCollisionSnapshot = collision
-        let isNewBest = (runController.finalizedSummary?.score ?? runController.score) > previousBestScore
+        let isNewBest = (runController.finalizedSummary?.score ?? runController.score) > runSession.previousBestScore
         persistFinalRunIfNeeded()
         if playFeedback {
             playAudio(.death)
@@ -777,31 +719,20 @@ extension ArenaScene {
             playAudio(.newBest)
             playHaptic(.newBest)
         }
-        if playFeedback {
-            postRunTransitionTimeRemaining = 0.22
-        } else {
+        if !playFeedback {
             completePostRunTransition()
         }
         logFinishedRun(isNewBest: isNewBest)
     }
 
     private func updatePostRunTransition(deltaTime: TimeInterval) {
-        guard let timeRemaining = postRunTransitionTimeRemaining else {
-            return
-        }
-
-        let updatedTimeRemaining = max(0, timeRemaining - deltaTime)
-        guard updatedTimeRemaining > 0 else {
+        if runSession.advancePostRunTransition(by: deltaTime) {
             completePostRunTransition()
-            return
         }
-
-        postRunTransitionTimeRemaining = updatedTimeRemaining
     }
 
     private func completePostRunTransition() {
-        postRunTransitionTimeRemaining = nil
-        isResolvingDeath = false
+        runSession.completePostRunTransition()
         guard runController.phase == .gameOver else {
             return
         }
@@ -810,48 +741,31 @@ extension ArenaScene {
     }
 
     private func resetActiveRun() {
-        hasPersistedFinalRun = false
-        isResolvingDeath = false
-        postRunTransitionTimeRemaining = nil
-        lastProgressionResult = nil
-        lastDeathCollisionSnapshot = nil
-        deathReplayTrace.reset()
+        runSession.prepareNewRun()
         resetGameplayObjects()
         placePlayer(resetPosition: true)
         resetPlayerFeedback()
     }
 
     private func resetGameplayObjects() {
-        isResolvingDeath = false
-        postRunTransitionTimeRemaining = nil
+        runSession.resetGameplayTransition()
         applySelectedModeTuning()
-        let runSequenceSeed = ArenaModeRules.sequenceSeed(for: selectedMode) ?? Int.random(in: 0...Int.max)
+        let runSequenceSeed = ArenaModeRules.sequenceSeed(for: runSession.selectedMode) ?? Int.random(in: 0...Int.max)
         weaponRuntime.prepareRun(sequenceSeed: runSequenceSeed)
         enemyRegistry.reset()
         spawnDirector.reset(sequenceSeed: runSequenceSeed)
 
-        pickups.removeAll()
-        pickupNodes.values.forEach { $0.removeFromParent() }
-        pickupNodes.removeAll()
+        pickupRegistry.reset()
         pickupPlanner.reset(
             configuration: pickupSpawnConfiguration,
             sequenceSeed: runSequenceSeed
         )
         clearWeaponEffectNodes(paused: false)
         deactivateRazorShield()
-        hasPlayedRazorShieldWarning = false
-        shockwaveWaveStates.removeAll()
-        freezeBurstWaveStates.removeAll()
-        flameTrailState.reset()
-        flameTrailSpeedBoostTimeRemaining = 0
-        flameTrailInvulnerabilityTimeRemaining = 0
-        clearPostWeaponSafety()
-        pendingNovaBombClears.removeAll()
+        activeWeapons.reset()
         flameTrailEffectNode.reset()
         deactivateGravityWell()
-        aimDirectionState.reset()
         deactivateTimeDilationAura()
-        powerWaveState.reset()
         deactivatePowerWaveChargeEffect()
     }
 
@@ -866,8 +780,8 @@ extension ArenaScene {
             weaponConfiguration: gameTuning.startingWeapons,
             effectTiming: gameTuning.weaponEffectTiming
         )
-        flameTrailState.configuration = gameTuning.flameTrail
-        deathReplayTrace.duration = gameTuning.feedback.deathReplayDuration
+        activeWeapons.configure(flameTrail: gameTuning.flameTrail)
+        runSession.deathReplayTrace.duration = gameTuning.feedback.deathReplayDuration
         applySelectedModeTuning()
 
         if rebuildPlayerVisuals {
@@ -886,7 +800,7 @@ extension ArenaScene {
         }
 
         if let razorShieldNode {
-            let remainingShieldTime = razorShieldTimeRemaining
+            let remainingShieldTime = activeWeapons.razorShield.timeRemaining
             razorShieldNode.removeFromParent()
             self.razorShieldNode = nil
             if remainingShieldTime > 0 {
@@ -897,13 +811,12 @@ extension ArenaScene {
                 node.isHidden = false
                 addWeaponEffectNode(node)
                 self.razorShieldNode = node
-                razorShieldTimeRemaining = remainingShieldTime
             }
         }
     }
 
     private func applySelectedModeTuning() {
-        let modeTuning = gameTuning.modeTuning(for: selectedMode)
+        let modeTuning = gameTuning.modeTuning(for: runSession.selectedMode)
         var tunedPickupConfiguration = modeTuning.pickupSpawnConfiguration
         tunedPickupConfiguration.weaponKindCycle = ArenaProgressionRules.filteredWeaponCycle(
             tunedPickupConfiguration.weaponKindCycle,
@@ -938,9 +851,7 @@ extension ArenaScene {
     }
 
     private func refreshPickupNodesForTheme() {
-        for pickup in pickups {
-            pickupNodes[pickup.id]?.applyTheme(theme, pickup: pickup)
-        }
+        pickupRegistry.applyTheme(theme)
     }
 
     private func refreshActiveWeaponEffectNodesForTheme() {
@@ -948,7 +859,7 @@ extension ArenaScene {
             styleRazorShieldNode(razorShieldNode)
         }
 
-        if let gravityWellState {
+        if let gravityWellState = activeWeapons.gravityWell {
             playGravityWellEffect(
                 at: gravityWellState.center,
                 radius: gravityWellState.pullRadius,
@@ -956,20 +867,20 @@ extension ArenaScene {
             )
         }
 
-        if powerWaveState.isCharging {
+        if activeWeapons.powerWave.isCharging {
             playPowerWaveChargeEffect(
                 at: movementController.state.position,
-                direction: aimDirectionState.resolvedDirection(),
-                duration: powerWaveState.chargeTimeRemaining
+                direction: activeWeapons.aimDirection.resolvedDirection(),
+                duration: activeWeapons.powerWave.chargeTimeRemaining
             )
         }
 
-        if timeDilationTimeRemaining > 0 {
+        if activeWeapons.timeDilation.timeRemaining > 0 {
             timeDilationAuraNode?.removeFromParent()
             timeDilationAuraNode = playTimeDilationAuraEffect(
                 at: movementController.state.position,
                 radius: timeDilationConfiguration.timeDilationRadius,
-                duration: timeDilationTimeRemaining
+                duration: activeWeapons.timeDilation.timeRemaining
             )
         }
     }
@@ -983,7 +894,7 @@ extension ArenaScene {
         let wasPlayerCollisionProtected = isPlayerCollisionProtected
 
         runController.update(deltaTime: deltaTime)
-        deathReplayTrace.record(time: runController.survivalTime, position: playerPosition)
+        runSession.deathReplayTrace.record(time: runController.survivalTime, position: playerPosition)
         spawnEnemiesIfNeeded(deltaTime: deltaTime, playerPosition: playerPosition)
         advancePickupCharges(deltaTime: deltaTime)
         spawnPickupIfNeeded(deltaTime: deltaTime, playerPosition: playerPosition)
@@ -1020,13 +931,10 @@ extension ArenaScene {
             activeEnemies: enemies,
             playableRect: currentPlayableRect,
             playerPosition: playerPosition,
-            pickupCircles: pickups.map(\.collisionCircle)
+            pickupCircles: pickupRegistry.collisionCircles
         )
 
-        diagnosticSpawnRuntimeCorrectionCount = saturatedDiagnosticCount(
-            diagnosticSpawnRuntimeCorrectionCount,
-            adding: frame.runtimeCorrectionCount
-        )
+        diagnosticAccumulator.recordSpawnCorrections(count: frame.runtimeCorrectionCount)
 
         removeEnemyTelegraphs(ids: frame.telegraphIDsToRemove)
         showEnemyTelegraphs(frame.telegraphsToShow)
@@ -1034,17 +942,9 @@ extension ArenaScene {
     }
 
     private func addSpawnedEnemies(_ spawnedEnemies: [ArenaEnemy]) {
-        diagnosticSpawnedEnemyCount = saturatedDiagnosticCount(
-            diagnosticSpawnedEnemyCount,
-            adding: spawnedEnemies.count
-        )
+        diagnosticAccumulator.recordSpawn(count: spawnedEnemies.count)
 
         enemyRegistry.add(spawnedEnemies, to: self, theme: theme)
-    }
-
-    private func saturatedDiagnosticCount(_ current: Int, adding increment: Int) -> Int {
-        let (result, overflow) = current.addingReportingOverflow(max(0, increment))
-        return overflow ? Int.max : result
     }
 
     private func showEnemyTelegraphs(_ telegraphs: [EnemyTelegraph]) {
@@ -1061,11 +961,11 @@ extension ArenaScene {
         let spawnedPickups = pickupPlanner.update(
             deltaTime: deltaTime,
             phase: runController.phase,
-            activePickupCount: pickups.count,
+            activePickupCount: pickupRegistry.count,
             playableRect: currentPlayableRect,
             playerPosition: playerPosition,
             enemyCircles: enemyCircles,
-            pickupCircles: pickups.map(\.collisionCircle),
+            pickupCircles: pickupRegistry.collisionCircles,
             configuration: pickupSpawnConfiguration
         )
 
@@ -1073,38 +973,26 @@ extension ArenaScene {
             return
         }
 
-        for pickup in spawnedPickups {
-            pickups.append(pickup)
+        let acceptedPickups = pickupRegistry.add(spawnedPickups, to: self, theme: theme)
+        for pickup in acceptedPickups {
             weaponLogger.info("pickup.spawned", metadata: [
                 "id": "\(pickup.id)",
                 "kind": "\(pickup.kind.rawValue)",
                 "tier": "\(pickup.chargeTier.metadataValue)"
             ])
-
-            let node = WeaponPickupNode(pickup: pickup, theme: theme)
-            pickupNodes[pickup.id] = node
-            addChild(node)
         }
     }
 
     private func advancePickupCharges(deltaTime: TimeInterval) {
-        guard deltaTime > 0, !pickups.isEmpty else {
-            return
-        }
-
-        for index in pickups.indices {
-            let previousTier = pickups[index].chargeTier
-            pickups[index].advanceCharge(deltaTime: deltaTime, configuration: pickupSpawnConfiguration)
-
-            guard pickups[index].chargeTier != previousTier else {
-                continue
-            }
-
-            pickupNodes[pickups[index].id]?.apply(pickups[index])
+        let chargedPickups = pickupRegistry.advanceCharges(
+            deltaTime: deltaTime,
+            configuration: pickupSpawnConfiguration
+        )
+        for pickup in chargedPickups {
             weaponLogger.info("pickup.charged", metadata: [
-                "id": "\(pickups[index].id)",
-                "kind": "\(pickups[index].kind.rawValue)",
-                "tier": "\(pickups[index].chargeTier.metadataValue)"
+                "id": "\(pickup.id)",
+                "kind": "\(pickup.kind.rawValue)",
+                "tier": "\(pickup.chargeTier.metadataValue)"
             ])
         }
     }
@@ -1192,8 +1080,7 @@ extension ArenaScene {
     }
 
     private func removePickup(id: Int) {
-        pickups.removeAll { $0.id == id }
-        pickupNodes.removeValue(forKey: id)?.removeFromParent()
+        pickupRegistry.remove(id: id)
     }
 
     private func applyWeapon(_ pickup: WeaponPickup, playerPosition: CGPoint) {
@@ -1385,27 +1272,27 @@ extension ArenaScene {
             return
         }
 
-        pendingNovaBombClears.append(PendingNovaBombClear(
+        activeWeapons.pendingNovaBombClears.append(ArenaPendingNovaBombClear(
             enemyIDs: enemyIDs,
             timeRemaining: delay
         ))
     }
 
     private func updatePendingNovaBombClears(deltaTime: TimeInterval) {
-        guard !pendingNovaBombClears.isEmpty else {
+        guard !activeWeapons.pendingNovaBombClears.isEmpty else {
             return
         }
 
         let clampedDelta = max(0, deltaTime)
-        for index in pendingNovaBombClears.indices {
-            pendingNovaBombClears[index].timeRemaining = max(
+        for index in activeWeapons.pendingNovaBombClears.indices {
+            activeWeapons.pendingNovaBombClears[index].timeRemaining = max(
                 0,
-                pendingNovaBombClears[index].timeRemaining - clampedDelta
+                activeWeapons.pendingNovaBombClears[index].timeRemaining - clampedDelta
             )
         }
 
-        let completedClears = pendingNovaBombClears.filter { $0.timeRemaining == 0 }
-        pendingNovaBombClears.removeAll { $0.timeRemaining == 0 }
+        let completedClears = activeWeapons.pendingNovaBombClears.filter { $0.timeRemaining == 0 }
+        activeWeapons.pendingNovaBombClears.removeAll { $0.timeRemaining == 0 }
         for clear in completedClears {
             destroyEnemies(ids: clear.enemyIDs, weaponKind: .novaBomb)
             grantPostWeaponSafety(for: .novaBomb)
@@ -1567,19 +1454,12 @@ extension ArenaScene {
         at playerPosition: CGPoint,
         configuration: StartingWeaponConfiguration
     ) {
-        let resolvedConfiguration = activeRazorShieldConfiguration?
-            .mergingRazorShield(with: configuration) ?? configuration
-        activeRazorShieldConfiguration = resolvedConfiguration
-        razorShieldTimeRemaining = max(
-            razorShieldTimeRemaining,
-            max(0, configuration.razorShieldDuration)
-        )
-        hasPlayedRazorShieldWarning = false
+        let resolvedConfiguration = activeWeapons.razorShield.activate(with: configuration)
 
         razorShieldNode?.removeFromParent()
         razorShieldNode = nil
 
-        guard razorShieldTimeRemaining > 0 else {
+        guard activeWeapons.razorShield.timeRemaining > 0 else {
             triggerRazorShieldExpiryExplosion(at: playerPosition)
             deactivateRazorShield(emitHaptic: true)
             grantPostWeaponSafety(for: .razorShield)
@@ -1597,7 +1477,7 @@ extension ArenaScene {
     }
 
     private var razorShieldConfiguration: StartingWeaponConfiguration {
-        activeRazorShieldConfiguration ?? weaponResolver.configuration
+        activeWeapons.razorShield.resolvedConfiguration(fallback: weaponResolver.configuration)
     }
 
     private func styleRazorShieldNode(_ node: SKShapeNode) {
@@ -1639,7 +1519,7 @@ extension ArenaScene {
     }
 
     private func updateRazorShield(deltaTime: TimeInterval, playerPosition: CGPoint) {
-        guard razorShieldTimeRemaining > 0 else {
+        guard activeWeapons.razorShield.timeRemaining > 0 else {
             deactivateRazorShield()
             return
         }
@@ -1655,10 +1535,10 @@ extension ArenaScene {
         destroyEnemies(ids: targetIDs, weaponKind: .razorShield)
         playRazorShieldImpactEffect(from: playerPosition, targets: targets)
 
-        razorShieldTimeRemaining = max(0, razorShieldTimeRemaining - max(0, deltaTime))
+        activeWeapons.razorShield.advance(by: deltaTime)
         playRazorShieldWarningIfNeeded()
 
-        if razorShieldTimeRemaining == 0 {
+        if activeWeapons.razorShield.timeRemaining == 0 {
             triggerRazorShieldExpiryExplosion(at: playerPosition)
             deactivateRazorShield(emitHaptic: true)
             grantPostWeaponSafety(for: .razorShield)
@@ -1684,12 +1564,8 @@ extension ArenaScene {
     }
 
     private func deactivateRazorShield(emitHaptic: Bool = false) {
-        let hadActiveShield = activeRazorShieldConfiguration != nil
-            || razorShieldNode != nil
-            || razorShieldTimeRemaining > 0
-        razorShieldTimeRemaining = 0
-        activeRazorShieldConfiguration = nil
-        hasPlayedRazorShieldWarning = false
+        let hadActiveShield = activeWeapons.razorShield.isActive || razorShieldNode != nil
+        activeWeapons.razorShield.clear()
         razorShieldNode?.removeFromParent()
         razorShieldNode = nil
 
@@ -1700,16 +1576,13 @@ extension ArenaScene {
     }
 
     private func playRazorShieldWarningIfNeeded() {
-        guard
-            !hasPlayedRazorShieldWarning,
-            razorShieldTimeRemaining > 0,
-            razorShieldTimeRemaining <= gameTuning.feedback.razorShieldWarningLeadTime,
-            runController.phase == .active
-        else {
+        guard activeWeapons.razorShield.claimWarningIfNeeded(
+            leadTime: gameTuning.feedback.razorShieldWarningLeadTime,
+            isRunActive: runController.phase == .active
+        ) else {
             return
         }
 
-        hasPlayedRazorShieldWarning = true
         playAudio(.shieldWarning)
         playHaptic(.shieldWarning)
         let pulse = SKAction.sequence([
@@ -1720,7 +1593,7 @@ extension ArenaScene {
     }
 
     private func updateFlameTrail(deltaTime: TimeInterval, playerPosition: CGPoint) {
-        let frame = flameTrailState.update(
+        let frame = activeWeapons.flameTrail.update(
             deltaTime: deltaTime,
             playerPosition: playerPosition,
             enemies: enemies
@@ -1732,39 +1605,21 @@ extension ArenaScene {
     }
 
     private func activateFlameTrail(at playerPosition: CGPoint, chargeTier: WeaponPickupChargeTier = .base) {
-        flameTrailState.configuration = gameTuning.flameTrail.applying(chargeTier: chargeTier)
-        flameTrailState.activate(at: playerPosition)
-        flameTrailSpeedBoostTimeRemaining = max(
-            flameTrailSpeedBoostTimeRemaining,
-            flameTrailState.configuration.duration
+        activeWeapons.flameTrail.configuration = gameTuning.flameTrail.applying(chargeTier: chargeTier)
+        activeWeapons.flameTrail.activate(at: playerPosition)
+        activeWeapons.flameTrailProtection.activate(
+            configuration: activeWeapons.flameTrail.configuration,
+            postWeaponSafetyDuration: gameTuning.feedback.postWeaponSafetyDuration
         )
-        flameTrailInvulnerabilityTimeRemaining = max(
-            WeaponRuntimeSafetyLimits.duration(flameTrailInvulnerabilityTimeRemaining),
-            flameTrailState.configuration.invulnerabilityDuration,
-            WeaponRuntimeSafetyLimits.duration(gameTuning.feedback.postWeaponSafetyDuration)
-        )
-        flameTrailEffectNode.apply(segments: flameTrailState.segments)
+        flameTrailEffectNode.apply(segments: activeWeapons.flameTrail.segments)
     }
 
     private func updateFlameTrailTimers(deltaTime: TimeInterval) {
-        flameTrailSpeedBoostTimeRemaining = WeaponRuntimeSafetyLimits.duration(
-            flameTrailSpeedBoostTimeRemaining
-        )
-        flameTrailInvulnerabilityTimeRemaining = WeaponRuntimeSafetyLimits.duration(
-            flameTrailInvulnerabilityTimeRemaining
-        )
-        let clampedDelta = deltaTime.isFinite ? max(0, deltaTime) : 0
-        let boostDelta = min(flameTrailSpeedBoostTimeRemaining, clampedDelta)
-
-        flameTrailSpeedBoostTimeRemaining -= boostDelta
-        flameTrailInvulnerabilityTimeRemaining = max(
-            0,
-            flameTrailInvulnerabilityTimeRemaining - (clampedDelta - boostDelta)
-        )
+        activeWeapons.flameTrailProtection.advance(by: deltaTime)
     }
 
     private var isFlameTrailInvulnerable: Bool {
-        flameTrailSpeedBoostTimeRemaining > 0 || flameTrailInvulnerabilityTimeRemaining > 0
+        activeWeapons.flameTrailProtection.isInvulnerable
     }
 
     private func grantPostWeaponSafety(
@@ -1782,10 +1637,7 @@ extension ArenaScene {
             return
         }
 
-        postWeaponSafetyTimeRemaining = max(
-            WeaponRuntimeSafetyLimits.duration(postWeaponSafetyTimeRemaining),
-            duration
-        )
+        activeWeapons.postWeaponSafety.grant(duration: duration)
         weaponLogger.debug("weapon.postSafety", metadata: [
             "kind": "\(weaponKind.rawValue)",
             "duration": "\(duration)"
@@ -1793,21 +1645,11 @@ extension ArenaScene {
     }
 
     private func updatePostWeaponSafety(deltaTime: TimeInterval) {
-        postWeaponSafetyTimeRemaining = WeaponRuntimeSafetyLimits.duration(postWeaponSafetyTimeRemaining)
-        guard postWeaponSafetyTimeRemaining > 0 else {
-            return
-        }
-
-        let deltaTime = deltaTime.isFinite ? max(0, deltaTime) : 0
-        postWeaponSafetyTimeRemaining = max(0, postWeaponSafetyTimeRemaining - deltaTime)
-    }
-
-    private func clearPostWeaponSafety() {
-        postWeaponSafetyTimeRemaining = 0
+        activeWeapons.postWeaponSafety.advance(by: deltaTime)
     }
 
     private var isPostWeaponSafe: Bool {
-        postWeaponSafetyTimeRemaining > 0
+        activeWeapons.postWeaponSafety.isActive
     }
 
     private var isPlayerCollisionProtected: Bool {
@@ -1818,13 +1660,9 @@ extension ArenaScene {
         at playerPosition: CGPoint,
         configuration: StartingWeaponConfiguration
     ) {
-        let resolvedConfiguration = activeTimeDilationConfiguration?
-            .mergingTimeDilation(with: configuration) ?? configuration
-        activeTimeDilationConfiguration = resolvedConfiguration
-        let duration = max(0, configuration.timeDilationDuration)
-        timeDilationTimeRemaining = max(timeDilationTimeRemaining, duration)
+        let resolvedConfiguration = activeWeapons.timeDilation.activate(with: configuration)
 
-        guard timeDilationTimeRemaining > 0 else {
+        guard activeWeapons.timeDilation.timeRemaining > 0 else {
             pushTimeDilationEnemies(from: playerPosition)
             deactivateTimeDilationAura()
             grantPostWeaponSafety(for: .warpDash)
@@ -1835,13 +1673,13 @@ extension ArenaScene {
         timeDilationAuraNode = playTimeDilationAuraEffect(
             at: playerPosition,
             radius: resolvedConfiguration.timeDilationRadius,
-            duration: timeDilationTimeRemaining
+            duration: activeWeapons.timeDilation.timeRemaining
         )
         pushTimeDilationEnemies(from: playerPosition)
     }
 
     private var timeDilationConfiguration: StartingWeaponConfiguration {
-        activeTimeDilationConfiguration ?? weaponResolver.configuration
+        activeWeapons.timeDilation.resolvedConfiguration(fallback: weaponResolver.configuration)
     }
 
     private func pushTimeDilationEnemies(from playerPosition: CGPoint) {
@@ -1867,51 +1705,27 @@ extension ArenaScene {
     }
 
     private func updateTimeDilationAura(deltaTime: TimeInterval, playerPosition: CGPoint) {
-        guard timeDilationTimeRemaining > 0 else {
+        guard activeWeapons.timeDilation.timeRemaining > 0 else {
             return
         }
 
         timeDilationAuraNode?.position = playerPosition
-        timeDilationTimeRemaining = max(
-            0,
-            timeDilationTimeRemaining - max(0, deltaTime)
-        )
 
-        if timeDilationTimeRemaining == 0 {
+        if activeWeapons.timeDilation.advance(by: deltaTime) {
             timeDilationAuraNode?.removeFromParent()
             timeDilationAuraNode = nil
-            activeTimeDilationConfiguration = nil
             grantPostWeaponSafety(for: .warpDash)
         }
     }
 
     private func deactivateTimeDilationAura() {
-        timeDilationTimeRemaining = 0
-        activeTimeDilationConfiguration = nil
+        activeWeapons.timeDilation.clear()
         timeDilationAuraNode?.removeFromParent()
         timeDilationAuraNode = nil
     }
 
     private func timeDilationEnemySpeedMultiplier(for enemy: ArenaEnemy, playerPosition: CGPoint) -> CGFloat {
-        guard timeDilationTimeRemaining > 0 else {
-            return 1
-        }
-
-        let configuration = timeDilationConfiguration
-        let radius = max(0, configuration.timeDilationRadius)
-        guard radius > 0 else {
-            return 1
-        }
-
-        let distance = hypot(enemy.position.x - playerPosition.x, enemy.position.y - playerPosition.y)
-        guard distance < radius else {
-            return 1
-        }
-
-        let closeness = 1 - min(1, max(0, distance / radius))
-        let maximumSlowFactor = max(1, configuration.timeDilationMaximumSlowFactor)
-        let slowFactor = 1 + closeness * (maximumSlowFactor - 1)
-        return 1 / slowFactor
+        activeWeapons.timeDilation.enemySpeedMultiplier(for: enemy, playerPosition: playerPosition)
     }
 
     private func fireRicochetLance(
@@ -1920,7 +1734,7 @@ extension ArenaScene {
     ) -> Int {
         let result = RicochetLancePath.resolve(
             origin: playerPosition,
-            direction: aimDirectionState.resolvedDirection(),
+            direction: activeWeapons.aimDirection.resolvedDirection(),
             playableRect: currentPlayableRect,
             enemies: enemies,
             configuration: configuration
@@ -2143,7 +1957,7 @@ extension ArenaScene {
     }
 
     private func persistFinalRunIfNeeded() {
-        guard !hasPersistedFinalRun, let summary = runController.finalizedSummary else {
+        guard runSession.needsFinalRunPersistence, let summary = runController.finalizedSummary else {
             return
         }
 
@@ -2158,8 +1972,7 @@ extension ArenaScene {
                 "totalRuns": "\(runProfile.totalRuns)"
             ])
         }
-        lastProgressionResult = result
-        hasPersistedFinalRun = true
+        runSession.recordProgression(result)
         gameCenterReporter.submitRunScore(summary)
         gameCenterReporter.reportAchievementEvent(.runFinished(summary))
     }
@@ -2170,20 +1983,12 @@ extension ArenaScene {
 
 private extension ArenaScene {
     func show(_ state: ArenaUISceneState) {
-        if state != .options {
-            resetDataArmed = false
-        }
-        if state != .home && state != .postRun {
-            gameCenterStatusMessage = nil
-        }
-
-        let previousState = uiState
-        uiState = state
-        if previousState != state {
+        let transition = navigationState.transition(to: state)
+        if transition.previous != transition.current {
             sceneLogger.info("scene.state_changed", metadata: [
-                "from": "\(previousState.diagnosticName)",
+                "from": "\(transition.previous.diagnosticName)",
                 "runPhase": "\(runController.phase.diagnosticName)",
-                "to": "\(state.diagnosticName)"
+                "to": "\(transition.current.diagnosticName)"
             ])
         }
         syncOrientationLock()
@@ -2208,14 +2013,7 @@ private extension ArenaScene {
     }
 
     var shouldLockCurrentOrientation: Bool {
-        switch uiState {
-        case .options:
-            return optionsReturnState.requiresLockedRunOrientation
-        case .developerTuning:
-            return developerReturnState.requiresLockedRunOrientation
-        default:
-            return uiState.requiresLockedRunOrientation
-        }
+        navigationState.shouldLockCurrentOrientation
     }
 
     func rebuildUI() {
@@ -2458,7 +2256,7 @@ private extension ArenaScene {
         let layout = currentLandscapeLayout()
         let contentFrame = addMenuChrome(title: "SELECT MODE", layout: layout)
 
-        let rows = ArenaMenuContent.modeRows(profile: runProfile, selectedMode: selectedMode)
+        let rows = ArenaMenuContent.modeRows(profile: runProfile, selectedMode: runSession.selectedMode)
         let detailWidth = min(168, contentFrame.width * 0.34)
         let columnGap: CGFloat = 14
         let rowWidth = max(0, contentFrame.width - detailWidth - columnGap)
@@ -2479,7 +2277,7 @@ private extension ArenaScene {
                 width: rowWidth,
                 height: rowHeight
             )
-            uiRenderer.addModeRow(row, selected: row.kind == selectedMode, frame: frame)
+            uiRenderer.addModeRow(row, selected: row.kind == runSession.selectedMode, frame: frame)
         }
 
         let detailFrame = CGRect(
@@ -2488,7 +2286,7 @@ private extension ArenaScene {
             width: detailWidth,
             height: contentFrame.height
         )
-        if let selectedRow = modeRowsByKind[selectedMode] {
+        if let selectedRow = modeRowsByKind[runSession.selectedMode] {
             uiRenderer.addSelectedModeSummary(row: selectedRow, frame: detailFrame)
         }
     }
@@ -2639,10 +2437,10 @@ private extension ArenaScene {
             style: changedCount == 0 ? .secondary : .primary
         )
         uiRenderer.addButton(
-            developerTuningChangedOnly ? "CHANGED" : "ALL",
+            navigationState.developerTuning.showsChangedOnly ? "CHANGED" : "ALL",
             frame: CGRect(x: layout.safeRect.maxX - 174, y: layout.safeRect.maxY - 48, width: 98, height: 34),
             action: .toggleDeveloperTuningChangedOnly,
-            style: developerTuningChangedOnly ? .primary : .secondary
+            style: navigationState.developerTuning.showsChangedOnly ? .primary : .secondary
         )
         uiRenderer.addButton(
             "RESET",
@@ -2651,7 +2449,7 @@ private extension ArenaScene {
             style: changedCount == 0 ? .secondary : .danger
         )
 
-        if let developerTuningCopyConfirmation {
+        if let developerTuningCopyConfirmation = navigationState.developerTuning.confirmation {
             uiRenderer.addLabel(
                 developerTuningCopyConfirmation,
                 at: CGPoint(x: layout.safeRect.maxX - 14, y: layout.safeRect.maxY - 66),
@@ -2699,16 +2497,10 @@ private extension ArenaScene {
 
     private func currentDeveloperTuningMenu() -> DeveloperTuningMenu {
         let groups = GameTuningParameterCatalog.groupNames(
-            changedOnly: developerTuningChangedOnly,
+            changedOnly: navigationState.developerTuning.showsChangedOnly,
             tuning: gameTuning
         )
-        if developerTuningSelectedGroup.map({ !groups.contains($0) }) ?? true {
-            developerTuningSelectedGroup = groups.first
-            developerTuningPageIndex = 0
-        }
-
-        guard let selectedGroup = developerTuningSelectedGroup else {
-            developerTuningSelectedSubgroup = nil
+        guard let selectedGroup = navigationState.developerTuning.reconcileGroups(groups) else {
             return DeveloperTuningMenu(
                 groups: groups,
                 selectedGroup: nil,
@@ -2720,15 +2512,10 @@ private extension ArenaScene {
 
         let subgroups = GameTuningParameterCatalog.subgroupNames(
             in: selectedGroup,
-            changedOnly: developerTuningChangedOnly,
+            changedOnly: navigationState.developerTuning.showsChangedOnly,
             tuning: gameTuning
         )
-        if developerTuningSelectedSubgroup.map({ !subgroups.contains($0) }) ?? true {
-            developerTuningSelectedSubgroup = subgroups.first
-            developerTuningPageIndex = 0
-        }
-
-        guard let selectedSubgroup = developerTuningSelectedSubgroup else {
+        guard let selectedSubgroup = navigationState.developerTuning.reconcileSubgroups(subgroups) else {
             return DeveloperTuningMenu(
                 groups: groups,
                 selectedGroup: selectedGroup,
@@ -2741,7 +2528,7 @@ private extension ArenaScene {
         let parameters = GameTuningParameterCatalog.parameters(
             in: selectedGroup,
             subgroup: selectedSubgroup,
-            changedOnly: developerTuningChangedOnly,
+            changedOnly: navigationState.developerTuning.showsChangedOnly,
             tuning: gameTuning
         )
 
@@ -2836,7 +2623,7 @@ private extension ArenaScene {
 
         let pageSize = developerTuningPageSize(in: frame)
         let pageCount = max(1, Int(ceil(Double(parameters.count) / Double(pageSize))))
-        developerTuningPageIndex = min(max(0, developerTuningPageIndex), pageCount - 1)
+        navigationState.developerTuning.clampPage(lastPageIndex: pageCount - 1)
 
         renderDeveloperTuningPageControls(
             pageCount: pageCount,
@@ -2872,7 +2659,7 @@ private extension ArenaScene {
 
     func renderDeveloperTuningEmptyParameterList(in frame: CGRect) {
         uiRenderer.addLabel(
-            developerTuningChangedOnly ? "NO CHANGED PARAMETERS" : "NO PARAMETERS",
+            navigationState.developerTuning.showsChangedOnly ? "NO CHANGED PARAMETERS" : "NO PARAMETERS",
             at: CGPoint(x: frame.midX, y: frame.midY),
             fontSize: 11,
             color: theme.borderColor.withAlphaComponent(0.78),
@@ -2886,16 +2673,16 @@ private extension ArenaScene {
             "<",
             frame: CGRect(x: frame.minX + 10, y: controlsY - 13, width: 34, height: 26),
             action: .developerTuningPreviousPage,
-            style: developerTuningPageIndex == 0 ? .secondary : .primary
+            style: navigationState.developerTuning.pageIndex == 0 ? .secondary : .primary
         )
         uiRenderer.addButton(
             ">",
             frame: CGRect(x: frame.minX + 52, y: controlsY - 13, width: 34, height: 26),
             action: .developerTuningNextPage,
-            style: developerTuningPageIndex + 1 >= pageCount ? .secondary : .primary
+            style: navigationState.developerTuning.pageIndex + 1 >= pageCount ? .secondary : .primary
         )
         uiRenderer.addLabel(
-            "PAGE \(developerTuningPageIndex + 1)/\(pageCount)  \(parameterCount) VALUES",
+            "PAGE \(navigationState.developerTuning.pageIndex + 1)/\(pageCount)  \(parameterCount) VALUES",
             at: CGPoint(x: frame.minX + 98, y: controlsY),
             fontSize: 8,
             color: theme.borderColor,
@@ -2908,7 +2695,7 @@ private extension ArenaScene {
         pageSize: Int,
         frame: CGRect
     ) {
-        let pageStart = developerTuningPageIndex * pageSize
+        let pageStart = navigationState.developerTuning.pageIndex * pageSize
         let pageEnd = min(parameters.count, pageStart + pageSize)
         let visibleParameters = Array(parameters[pageStart..<pageEnd])
         let rowHeight = developerTuningRowHeight(in: frame)
@@ -3231,7 +3018,7 @@ private extension ArenaScene {
             fontSize: 10
         )
         uiRenderer.addButton(
-            resetDataArmed ? "CONFIRM RESET" : "RESET PROFILE",
+            navigationState.isResetDataArmed ? "CONFIRM RESET" : "RESET PROFILE",
             frame: CGRect(x: frame.minX + inset, y: frame.minY + 8, width: contentWidth, height: 32),
             action: .resetData,
             style: .danger,
@@ -3261,7 +3048,7 @@ private extension ArenaScene {
             color: theme.playerAccentColor
         )
         addStatusLabel(
-            selectedMode.displayName,
+            runSession.selectedMode.displayName,
             frame: CGRect(x: layout.safeRect.minX, y: layout.safeRect.minY, width: 112, height: 28),
             color: theme.playerAccentColor,
             glyph: .radar
@@ -3430,14 +3217,14 @@ private extension ArenaScene {
         renderPostRunScore(summary: summary, layout: layout)
         addDeathReplayTrace()
         addDeathClarityMarker(
-            snapshot: lastDeathCollisionSnapshot,
+            snapshot: runSession.lastDeathCollisionSnapshot,
             fallbackPosition: movementController.state.position
         )
         let highlights = Array(ArenaMenuContent.postRunHighlights(
             summary: summary,
             profile: runProfile,
-            previousBestScore: previousBestScore,
-            progressionResult: lastProgressionResult
+            previousBestScore: runSession.previousBestScore,
+            progressionResult: runSession.progressionResult
         ).dropFirst())
         uiRenderer.addPostRunHighlights(highlights, frame: postRunHighlightsFrame(layout: layout))
         uiRenderer.addPostRunButtons(layout: layout)
@@ -3471,7 +3258,7 @@ private extension ArenaScene {
             alignment: .left
         )
         uiRenderer.addLabel(
-            summary?.score ?? 0 > previousBestScore ? "NEW BEST" : "BEST \(runProfile.bestScore)",
+            summary?.score ?? 0 > runSession.previousBestScore ? "NEW BEST" : "BEST \(runProfile.bestScore)",
             at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 126),
             fontSize: 11,
             color: theme.playerAccentColor,
@@ -3537,9 +3324,9 @@ private extension ArenaScene {
             ?? .unavailable(.unsupported)
         switch result {
         case .presented:
-            gameCenterStatusMessage = nil
+            navigationState.gameCenterStatusMessage = nil
         case let .unavailable(reason):
-            gameCenterStatusMessage = reason.gameplayStatusMessage
+            navigationState.gameCenterStatusMessage = reason.gameplayStatusMessage
             rebuildUI()
         }
     }
@@ -3549,7 +3336,7 @@ private extension ArenaScene {
             return nil
         }
 
-        return gameCenterStatusMessage
+        return navigationState.gameCenterStatusMessage
             ?? gameCenterDelegate?.arenaSceneGameCenterMenuStatus(self).menuMessage
     }
 
@@ -3562,11 +3349,10 @@ private extension ArenaScene {
         case .openModes, .openAwards, .openWeaponCodex:
             openMenu(action)
         case .openOptions:
-            optionsReturnState = uiState
+            navigationState.prepareOptionsPresentation()
             show(.options)
         case .openDeveloperTuning:
-            developerReturnState = uiState
-            developerTuningCopyConfirmation = nil
+            navigationState.prepareDeveloperTuningPresentation()
             show(.developerTuning)
         case .openCalibrationPreview:
             enterCalibrationPreview()
@@ -3597,17 +3383,8 @@ private extension ArenaScene {
     func performBackNavigation() {
         if uiState == .calibrationPreview {
             tiltInputController.resetSmoothedInput()
-            show(calibrationReturnState)
-            return
         }
-
-        if uiState == .developerTuning {
-            developerTuningCopyConfirmation = nil
-            show(developerReturnState)
-            return
-        }
-
-        show(uiState == .options ? optionsReturnState : .home)
+        show(navigationState.prepareBackNavigation())
     }
 
     func performRunControlAction(_ action: ArenaControlAction) {
@@ -3621,7 +3398,7 @@ private extension ArenaScene {
                 return
             }
 
-            selectedMode = mode
+            runSession.selectMode(mode)
             runLogger.info("run.mode_selected", metadata: [
                 "mode": "\(mode.rawValue)"
             ])
@@ -3662,25 +3439,18 @@ private extension ArenaScene {
     func performDeveloperTuningAction(_ action: ArenaControlAction) {
         switch action {
         case .developerTuningPreviousPage:
-            developerTuningPageIndex = max(0, developerTuningPageIndex - 1)
+            navigationState.developerTuning.moveToPreviousPage()
             rebuildUI()
         case .developerTuningNextPage:
             advanceDeveloperTuningPage()
         case let .selectTuningGroup(group):
-            developerTuningSelectedGroup = group
-            developerTuningSelectedSubgroup = nil
-            developerTuningPageIndex = 0
-            developerTuningCopyConfirmation = nil
+            navigationState.developerTuning.selectGroup(group)
             rebuildUI()
         case let .selectTuningSubgroup(subgroup):
-            developerTuningSelectedSubgroup = subgroup
-            developerTuningPageIndex = 0
-            developerTuningCopyConfirmation = nil
+            navigationState.developerTuning.selectSubgroup(subgroup)
             rebuildUI()
         case .toggleDeveloperTuningChangedOnly:
-            developerTuningChangedOnly.toggle()
-            developerTuningPageIndex = 0
-            developerTuningCopyConfirmation = nil
+            navigationState.developerTuning.toggleChangedOnly()
             rebuildUI()
         case let .adjustTuningParameter(parameterID, direction):
             adjustDeveloperTuningParameter(id: parameterID, direction: direction)
@@ -3700,7 +3470,7 @@ private extension ArenaScene {
             1,
             Int(ceil(Double(parameters.count) / Double(pageSize)))
         )
-        developerTuningPageIndex = min(pageCount - 1, developerTuningPageIndex + 1)
+        navigationState.developerTuning.moveToNextPage(lastPageIndex: pageCount - 1)
         rebuildUI()
     }
 
@@ -3710,7 +3480,7 @@ private extension ArenaScene {
         gameTuningStore.tuning = gameTuning
         let didChangePlayerRadius = oldPlayerRadius != gameTuning.playerMovement.visualRadius
         applyGameTuning(rebuildPlayerVisuals: didChangePlayerRadius)
-        developerTuningCopyConfirmation = nil
+        navigationState.developerTuning.confirmation = nil
         rebuildArena()
         rebuildUI()
     }
@@ -3718,7 +3488,7 @@ private extension ArenaScene {
     func copyChangedTuningParameters() {
         let changedCount = gameTuning.changedParameters().count
         UIPasteboard.general.string = gameTuning.sourceSnapshot(changedOnly: true)
-        developerTuningCopyConfirmation = "COPIED \(changedCount)"
+        navigationState.developerTuning.confirmation = "COPIED \(changedCount)"
         appLogger.info("dev.tuning_copied", metadata: [
             "parameters": "\(changedCount)"
         ])
@@ -3728,11 +3498,7 @@ private extension ArenaScene {
     func resetTuningParameters() {
         gameTuningStore.reset()
         gameTuning = .defaults
-        developerTuningPageIndex = 0
-        developerTuningSelectedGroup = nil
-        developerTuningSelectedSubgroup = nil
-        developerTuningChangedOnly = false
-        developerTuningCopyConfirmation = "RESET"
+        navigationState.developerTuning.reset(confirmation: "RESET")
         applyGameTuning(rebuildPlayerVisuals: true)
         rebuildArena()
         rebuildUI()
@@ -3801,20 +3567,19 @@ private extension ArenaScene {
         runController = ClassicRunController(configuration: runController.configuration)
         resetGameplayObjects()
         readyHoldController.reset()
-        deathReplayTrace.reset()
-        lastDeathCollisionSnapshot = nil
+        runSession.clearDeathPresentation()
         placePlayer(resetPosition: true)
         resetPlayerFeedback()
     }
 
     var selectedModeIsAvailable: Bool {
-        modeRowsByKind[selectedMode]?.isAvailable == true
+        modeRowsByKind[runSession.selectedMode]?.isAvailable == true
     }
 
     var modeRowsByKind: [ArenaModeKind: ArenaModeRow] {
         Dictionary(
             uniqueKeysWithValues: ArenaMenuContent
-                .modeRows(profile: runProfile, selectedMode: selectedMode)
+                .modeRows(profile: runProfile, selectedMode: runSession.selectedMode)
                 .map { ($0.kind, $0) }
         )
     }
@@ -3824,8 +3589,8 @@ private extension ArenaScene {
     }
 
     func resetLocalDataOrArmConfirmation() {
-        guard resetDataArmed else {
-            resetDataArmed = true
+        guard navigationState.isResetDataArmed else {
+            navigationState.isResetDataArmed = true
             rebuildUI()
             return
         }
@@ -3837,9 +3602,8 @@ private extension ArenaScene {
         localOptions = .defaults
         syncAudioOption()
         syncHapticsOption()
-        lastProgressionResult = nil
-        selectedMode = .classic
-        resetDataArmed = false
+        runSession.resetProfileSelection()
+        navigationState.isResetDataArmed = false
         profileLogger.warning("profile.reset")
         applyThemeChange()
     }
@@ -3864,7 +3628,7 @@ private extension ArenaScene {
     func diagnosticSnapshot() -> DiagnosticGameplaySnapshot {
         DiagnosticGameplaySnapshot(
             uiState: uiState.diagnosticName,
-            selectedMode: selectedMode.rawValue,
+            selectedMode: runSession.selectedMode.rawValue,
             runPhase: runController.phase.diagnosticName,
             score: runController.score,
             survivalTime: runController.survivalTime,
@@ -3983,13 +3747,13 @@ private extension ArenaScene {
     }
 
     func addDeathReplayTrace() {
-        guard deathReplayTrace.samples.count >= 2 else {
+        guard runSession.deathReplayTrace.samples.count >= 2 else {
             return
         }
 
         let path = CGMutablePath()
-        path.move(to: deathReplayTrace.samples[0].position)
-        for sample in deathReplayTrace.samples.dropFirst() {
+        path.move(to: runSession.deathReplayTrace.samples[0].position)
+        for sample in runSession.deathReplayTrace.samples.dropFirst() {
             path.addLine(to: sample.position)
         }
 
@@ -4103,25 +3867,12 @@ extension ArenaScene {
     ) {
         self.runProfile = profile
         self.localOptions = localOptions
-        self.selectedMode = selectedMode
-        self.resetDataArmed = resetDataArmed
-        optionsReturnState = .home
-        calibrationReturnState = .home
-        developerReturnState = .home
-        developerTuningPageIndex = 0
-        developerTuningSelectedGroup = nil
-        developerTuningSelectedSubgroup = nil
-        developerTuningChangedOnly = false
-        developerTuningCopyConfirmation = nil
+        runSession.prepareSnapshot(selectedMode: selectedMode)
+        navigationState.resetForSnapshot(resetDataArmed: resetDataArmed)
         gameTuning = .defaults
         applyGameTuning(rebuildPlayerVisuals: true)
-        gameCenterStatusMessage = nil
-        lastProgressionResult = nil
-        lastDeathCollisionSnapshot = nil
-        hasPersistedFinalRun = false
         runController = ClassicRunController()
         readyHoldController.reset()
-        deathReplayTrace.reset()
         resetGameplayObjects()
         placePlayer(resetPosition: true)
         resetPlayerFeedback()
@@ -4172,17 +3923,12 @@ extension ArenaScene {
 
     private func prepareSeededRunVisualSnapshot(profile: RunProfile, selectedMode: ArenaModeKind) {
         self.runProfile = profile
-        self.selectedMode = selectedMode
-        previousBestScore = profile.bestScore
-        lastProgressionResult = nil
-        lastDeathCollisionSnapshot = nil
-        hasPersistedFinalRun = false
+        runSession.prepareSnapshot(selectedMode: selectedMode, previousBestScore: profile.bestScore)
         runController = ClassicRunController(configuration: runController.configuration)
         runController.start()
         runController.update(deltaTime: 38.4)
         _ = runController.recordItemPickup(pickupID: 1)
         runController.recordEnemyKills(count: 14, weaponKind: .chainLightning)
-        deathReplayTrace.reset()
         seedDeathReplayTraceForSnapshot()
         resetGameplayObjects()
         placePlayer(resetPosition: true)
@@ -4201,15 +3947,14 @@ extension ArenaScene {
         var updatedProfile = profile
         let result = updatedProfile.record(summary)
         runProfile = updatedProfile
-        lastProgressionResult = result
-        hasPersistedFinalRun = true
 
         let playerPosition = movementController.state.position
-        lastDeathCollisionSnapshot = DeathCollisionSnapshot(
+        let collision = DeathCollisionSnapshot(
             playerPosition: playerPosition,
             enemyPosition: CGPoint(x: playerPosition.x + 24, y: playerPosition.y - 10),
             enemyRadius: 12
         )
+        runSession.finishSnapshot(progressionResult: result, collision: collision)
     }
 
     private func seedDeathReplayTraceForSnapshot() {
@@ -4222,7 +3967,7 @@ extension ArenaScene {
         ]
 
         for (index, position) in samples.enumerated() {
-            deathReplayTrace.record(
+            runSession.deathReplayTrace.record(
                 time: runController.survivalTime - TimeInterval(samples.count - index) * 0.35,
                 position: position
             )
@@ -4339,8 +4084,8 @@ extension ArenaScene {
     }
 
     func activateFlameTrailForTesting(configuration: FlameTrailConfiguration) {
-        flameTrailState.configuration = configuration
-        flameTrailState.activate(at: movementController.state.position)
+        activeWeapons.flameTrail.configuration = configuration
+        activeWeapons.flameTrail.activate(at: movementController.state.position)
     }
 
     func updateFlameTrailForTesting(deltaTime: TimeInterval) {
@@ -4363,11 +4108,11 @@ extension ArenaScene {
     }
 
     var isRazorShieldActiveForTesting: Bool {
-        razorShieldTimeRemaining > 0 || razorShieldNode != nil || activeRazorShieldConfiguration != nil
+        activeWeapons.razorShield.isActive || razorShieldNode != nil
     }
 
     var isTimeDilationAuraActiveForTesting: Bool {
-        timeDilationTimeRemaining > 0 || timeDilationAuraNode != nil || activeTimeDilationConfiguration != nil
+        activeWeapons.timeDilation.isActive || timeDilationAuraNode != nil
     }
 
     var isPostWeaponSafeForTesting: Bool {
@@ -4479,11 +4224,11 @@ extension ArenaScene {
     }
 
     var isResolvingDeathForTesting: Bool {
-        isResolvingDeath
+        runSession.isResolvingDeath
     }
 
     var lastDeathCollisionSnapshotForTesting: DeathCollisionSnapshot? {
-        lastDeathCollisionSnapshot
+        runSession.lastDeathCollisionSnapshot
     }
 
     var isWeaponEffectPlaybackPausedForTesting: Bool {
@@ -4495,7 +4240,7 @@ extension ArenaScene {
     }
 
     var developerTuningPageIndexForTesting: Int {
-        developerTuningPageIndex
+        navigationState.developerTuning.pageIndex
     }
 
     var devTuningPageCountForTesting: Int {
@@ -4553,7 +4298,7 @@ private extension ArenaScene {
         at center: CGPoint,
         configuration: StartingWeaponConfiguration
     ) {
-        shockwaveWaveStates.append(
+        activeWeapons.shockwaveWaves.append(
             ShockwaveWaveState(
                 center: center,
                 maximumRadius: configuration.shockwaveRadius,
@@ -4570,13 +4315,13 @@ private extension ArenaScene {
     }
 
     func updateShockwaveWaves(deltaTime: TimeInterval) {
-        guard !shockwaveWaveStates.isEmpty else {
+        guard !activeWeapons.shockwaveWaves.isEmpty else {
             return
         }
 
         var activeStates: [ShockwaveWaveState] = []
         var didCompleteWave = false
-        for var state in shockwaveWaveStates {
+        for var state in activeWeapons.shockwaveWaves {
             let frame = state.update(deltaTime: deltaTime, enemies: enemies)
             destroyEnemies(ids: frame.destroyedEnemyIDs, weaponKind: .shockwave)
             if !frame.isComplete {
@@ -4585,7 +4330,7 @@ private extension ArenaScene {
                 didCompleteWave = true
             }
         }
-        shockwaveWaveStates = activeStates
+        activeWeapons.shockwaveWaves = activeStates
         if didCompleteWave {
             grantPostWeaponSafety(for: .shockwave)
         }
@@ -4595,7 +4340,7 @@ private extension ArenaScene {
         at center: CGPoint,
         configuration: StartingWeaponConfiguration
     ) {
-        freezeBurstWaveStates.append(
+        activeWeapons.freezeBurstWaves.append(
             FreezeBurstWaveState(
                 center: center,
                 maximumRadius: configuration.freezeBurstRadius,
@@ -4612,13 +4357,13 @@ private extension ArenaScene {
     }
 
     func updateFreezeBurstWaves(deltaTime: TimeInterval) {
-        guard !freezeBurstWaveStates.isEmpty else {
+        guard !activeWeapons.freezeBurstWaves.isEmpty else {
             return
         }
 
         var activeStates: [FreezeBurstWaveState] = []
         var didCompleteWave = false
-        for var state in freezeBurstWaveStates {
+        for var state in activeWeapons.freezeBurstWaves {
             let frame = state.update(deltaTime: deltaTime, enemies: enemies)
             freezeEnemies(
                 ids: frame.frozenEnemyIDs,
@@ -4631,7 +4376,7 @@ private extension ArenaScene {
                 didCompleteWave = true
             }
         }
-        freezeBurstWaveStates = activeStates
+        activeWeapons.freezeBurstWaves = activeStates
         if didCompleteWave {
             grantPostWeaponSafety(for: .freezeBurst)
         }
@@ -4641,23 +4386,23 @@ private extension ArenaScene {
         at position: CGPoint,
         configuration: StartingWeaponConfiguration
     ) {
-        powerWaveState.activate(configuration: configuration)
+        activeWeapons.powerWave.activate(configuration: configuration)
         playPowerWaveChargeEffect(
             at: position,
-            direction: aimDirectionState.resolvedDirection(),
+            direction: activeWeapons.aimDirection.resolvedDirection(),
             duration: configuration.powerWaveChargeDuration
         )
     }
 
     func updatePowerWave(deltaTime: TimeInterval, playerPosition: CGPoint) {
-        guard powerWaveState.isActive else {
+        guard activeWeapons.powerWave.isActive else {
             return
         }
 
-        let frame = powerWaveState.update(
+        let frame = activeWeapons.powerWave.update(
             deltaTime: deltaTime,
             playerPosition: playerPosition,
-            direction: aimDirectionState.resolvedDirection(),
+            direction: activeWeapons.aimDirection.resolvedDirection(),
             playableRect: currentPlayableRect,
             enemies: enemies,
             configuration: weaponResolver.configuration
@@ -4666,7 +4411,7 @@ private extension ArenaScene {
         if frame.isCharging {
             updatePowerWaveChargeEffect(
                 at: playerPosition,
-                direction: aimDirectionState.resolvedDirection()
+                direction: activeWeapons.aimDirection.resolvedDirection()
             )
         }
 
@@ -4702,7 +4447,7 @@ private extension ArenaScene {
             pullDuration: configuration.gravityWellPullDuration,
             clearRadius: configuration.gravityWellClearRadius
         )
-        gravityWellState = state
+        activeWeapons.gravityWell = state
         playGravityWellEffect(
             at: center,
             radius: configuration.gravityWellRadius,
@@ -4712,7 +4457,7 @@ private extension ArenaScene {
     }
 
     func updateGravityWell(deltaTime: TimeInterval) {
-        guard var state = gravityWellState else {
+        guard var state = activeWeapons.gravityWell else {
             return
         }
 
@@ -4731,7 +4476,7 @@ private extension ArenaScene {
         if state.isComplete {
             completeGravityWell(state)
         } else {
-            gravityWellState = state
+            activeWeapons.gravityWell = state
         }
     }
 
@@ -4743,7 +4488,7 @@ private extension ArenaScene {
     }
 
     func completeGravityWell(_ state: GravityWellState) {
-        gravityWellState = nil
+        activeWeapons.gravityWell = nil
         gravityWellEffectNode?.removeFromParent()
         gravityWellEffectNode = nil
 
@@ -4760,7 +4505,7 @@ private extension ArenaScene {
     }
 
     func deactivateGravityWell() {
-        gravityWellState = nil
+        activeWeapons.gravityWell = nil
         gravityWellEffectNode?.removeFromParent()
         gravityWellEffectNode = nil
     }
@@ -4849,11 +4594,6 @@ private extension ArenaScene {
     func canShatterOnContact(_ enemy: ArenaEnemy) -> Bool {
         enemy.isShatterableFrozen
     }
-}
-
-private struct PendingNovaBombClear {
-    let enemyIDs: Set<Int>
-    var timeRemaining: TimeInterval
 }
 
 private struct PlayerCollisionCandidate {
