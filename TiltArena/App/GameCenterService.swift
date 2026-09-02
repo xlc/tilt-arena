@@ -1,205 +1,9 @@
-// swiftlint:disable file_length
 import Foundation
-#if canImport(GameKit)
-import GameKit
-#endif
 import Logging
 import UIKit
 
-extension Notification.Name {
-    static let gameCenterMenuStatusDidChange = Notification.Name("TiltArena.gameCenterMenuStatusDidChange")
-}
-
 @MainActor
-protocol GameCenterAuthenticationPresenting: AnyObject {
-    func presentGameCenterAuthentication(_ viewController: UIViewController)
-}
-
-@MainActor
-protocol GameCenterLeaderboardPresenting: AnyObject {
-    func presentGameCenterLeaderboard(_ viewController: UIViewController)
-}
-
-@MainActor
-protocol GameCenterLeaderboardFactory {
-    func makeClassicSurvivalLeaderboardViewController() -> UIViewController?
-}
-
-@MainActor
-protocol GameCenterLocalPlayerClient: AnyObject {
-    var isAvailable: Bool { get }
-    var isAuthenticated: Bool { get }
-
-    func setAuthenticateHandler(
-        _ handler: @escaping @MainActor (_ viewController: UIViewController?, _ error: Error?) -> Void
-    )
-
-    func submitScore(
-        _ score: Int,
-        context: Int,
-        leaderboardIDs: [String],
-        completion: @escaping @MainActor (Error?) -> Void
-    )
-
-    func reportAchievements(
-        _ progress: [GameCenterAchievementProgress],
-        completion: @escaping @MainActor (Error?) -> Void
-    )
-}
-
-enum GameCenterAuthenticationState: Equatable {
-    case notStarted
-    case unsupported
-    case authenticating
-    case needsUserAuthentication
-    case authenticated
-    case declined(GameCenterAuthenticationFailure)
-    case failed(GameCenterAuthenticationFailure)
-}
-
-enum GameCenterAuthenticationFailureReason: String, Equatable {
-    case cancelled
-    case denied
-    case unavailable
-    case failed
-}
-
-enum GameCenterLeaderboardUnavailableReason: Equatable {
-    case unsupported
-    case authenticationRequired
-}
-
-enum GameCenterLeaderboardPresentationResult: Equatable {
-    case presented
-    case unavailable(GameCenterLeaderboardUnavailableReason)
-}
-
-enum GameCenterMenuStatus: Equatable {
-    case hidden
-    case ready
-    case signInRequired
-    case unavailable
-    case syncing
-
-    var menuMessage: String? {
-        switch self {
-        case .hidden:
-            return nil
-        case .ready:
-            return "GAME CENTER READY"
-        case .signInRequired:
-            return "SIGN IN TO VIEW RANKS"
-        case .unavailable:
-            return "GAME CENTER UNAVAILABLE"
-        case .syncing:
-            return "GAME CENTER SYNCING"
-        }
-    }
-}
-
-struct GameCenterAuthenticationFailure: Equatable {
-    let reason: GameCenterAuthenticationFailureReason
-    let domain: String
-    let code: Int
-
-    static func make(from error: Error) -> GameCenterAuthenticationFailure {
-        let nsError = error as NSError
-        return GameCenterAuthenticationFailure(
-            reason: reason(for: nsError),
-            domain: nsError.domain,
-            code: nsError.code
-        )
-    }
-
-    private static func reason(for error: NSError) -> GameCenterAuthenticationFailureReason {
-        #if canImport(GameKit)
-        guard error.domain == GKErrorDomain, let code = GKError.Code(rawValue: error.code) else {
-            return .failed
-        }
-
-        switch code {
-        case .cancelled:
-            return .cancelled
-        case .userDenied, .notAuthenticated, .notAuthorized, .parentalControlsBlocked, .underage:
-            return .denied
-        case .notSupported, .apiNotAvailable:
-            return .unavailable
-        default:
-            return .failed
-        }
-        #else
-        return .failed
-        #endif
-    }
-}
-
-@MainActor
-private final class GameCenterOperationWatchdog {
-    private var task: Task<Void, Never>?
-    private(set) var requestID: UUID?
-
-    func begin() -> UUID {
-        cancel()
-        let requestID = UUID()
-        self.requestID = requestID
-        return requestID
-    }
-
-    func isCurrent(_ requestID: UUID) -> Bool {
-        self.requestID == requestID
-    }
-
-    @discardableResult
-    func complete(_ requestID: UUID) -> Bool {
-        guard isCurrent(requestID) else {
-            return false
-        }
-
-        cancel()
-        return true
-    }
-
-    func arm(
-        requestID: UUID,
-        after timeout: TimeInterval,
-        operation: @escaping @MainActor @Sendable () -> Void
-    ) {
-        guard isCurrent(requestID) else {
-            return
-        }
-        guard timeout > 0 else {
-            operation()
-            return
-        }
-
-        task = Task { @MainActor in
-            do {
-                try await Task.sleep(for: .seconds(timeout))
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else {
-                return
-            }
-            operation()
-        }
-    }
-
-    func cancel() {
-        requestID = nil
-        task?.cancel()
-        task = nil
-    }
-}
-
-private enum AchievementUnavailableReason: String {
-    case unsupported
-    case authenticationDeclined
-    case authenticationFailed
-}
-
-@MainActor
-final class GameCenterService {
+final class GameCenterService: GameCenterClient {
     static let shared = GameCenterService()
 
     private let localPlayer: GameCenterLocalPlayerClient
@@ -219,7 +23,7 @@ final class GameCenterService {
     private let authenticationWatchdog = GameCenterOperationWatchdog()
     private let scoreRetryWatchdog = GameCenterOperationWatchdog()
     private let achievementRetryWatchdog = GameCenterOperationWatchdog()
-    private var activeAchievementUnavailableReason: AchievementUnavailableReason?
+    private var activeAchievementUnavailableReason: GameCenterAchievementUnavailableReason?
 
     private(set) var authenticationState: GameCenterAuthenticationState = .notStarted
 
@@ -262,8 +66,8 @@ final class GameCenterService {
         self.achievementProgressStore = achievementProgressStore
         self.leaderboardFactory = leaderboardFactory
         self.logger = logger
-        self.authenticationTimeout = Self.normalizedTimeout(authenticationTimeout, fallback: 20)
-        self.submissionTimeout = Self.normalizedTimeout(submissionTimeout, fallback: 30)
+        self.authenticationTimeout = GameCenterFailurePolicy.normalizedTimeout(authenticationTimeout, fallback: 20)
+        self.submissionTimeout = GameCenterFailurePolicy.normalizedTimeout(submissionTimeout, fallback: 30)
     }
 
     func authenticate(
@@ -456,13 +260,13 @@ final class GameCenterService {
             }
 
             if let error {
-                if !self.shouldQueueRecoverableFailure(error) {
+                if !GameCenterFailurePolicy.shouldQueue(error) {
                     self.achievementProgressStore.removeProgress(withAchievementIDs: Set(progress.map(\.achievementID)))
                 }
                 self.logger.warning(
                     "game_center.achievement_retry_failed",
                     error: error,
-                    metadata: self.achievementProgressMetadata(progress)
+                    metadata: GameCenterLogMetadata.achievementProgress(progress)
                 )
                 return
             }
@@ -596,7 +400,7 @@ final class GameCenterService {
         queueRecoverableFailure: Bool
     ) {
         let nsError = error as NSError
-        let metadata = scoreSubmissionMetadata(
+        let metadata = GameCenterLogMetadata.scoreSubmission(
             submission,
             additionalMetadata: [
                 "domain": "\(nsError.domain)",
@@ -604,7 +408,7 @@ final class GameCenterService {
             ]
         )
 
-        guard queueRecoverableFailure, shouldQueueRecoverableFailure(error) else {
+        guard queueRecoverableFailure, GameCenterFailurePolicy.shouldQueue(error) else {
             logger.warning("game_center.score_submit_failed", error: error, metadata: metadata)
             return
         }
@@ -615,7 +419,7 @@ final class GameCenterService {
 
     private func enqueueScoreSubmission(_ submission: GameCenterScoreSubmission, reason: String) {
         let didEnqueue = scoreSubmissionStore.enqueue(submission)
-        logger.info("game_center.score_queued", metadata: scoreSubmissionMetadata(
+        logger.info("game_center.score_queued", metadata: GameCenterLogMetadata.scoreSubmission(
             submission,
             additionalMetadata: [
                 "reason": "\(reason)",
@@ -644,7 +448,7 @@ final class GameCenterService {
             }
 
             self.achievementProgressStore.markSubmitted(progress)
-            self.logger.notice("game_center.achievement_submitted", metadata: self.achievementProgressMetadata(progress))
+            self.logger.notice("game_center.achievement_submitted", metadata: GameCenterLogMetadata.achievementProgress(progress))
         }
     }
 
@@ -653,14 +457,14 @@ final class GameCenterService {
         error: Error,
         queueRecoverableFailure: Bool
     ) {
-        var metadata = achievementProgressMetadata(progress)
+        var metadata = GameCenterLogMetadata.achievementProgress(progress)
         let nsError = error as NSError
         metadata.merge([
             "domain": "\(nsError.domain)",
             "code": "\(nsError.code)"
         ]) { _, new in new }
 
-        guard queueRecoverableFailure, shouldQueueRecoverableFailure(error) else {
+        guard queueRecoverableFailure, GameCenterFailurePolicy.shouldQueue(error) else {
             achievementProgressStore.removeProgress(withAchievementIDs: Set(progress.map(\.achievementID)))
             logger.warning("game_center.achievement_submit_failed", error: error, metadata: metadata)
             return
@@ -720,7 +524,7 @@ final class GameCenterService {
 
             var updatedCompletedQueueKeys = completedQueueKeys
             if let error {
-                if !self.shouldQueueRecoverableFailure(error) {
+                if !GameCenterFailurePolicy.shouldQueue(error) {
                     self.scoreSubmissionStore.removeSubmissions(
                         withQueueKeys: [submission.queueKey]
                     )
@@ -728,11 +532,11 @@ final class GameCenterService {
                 self.logger.warning(
                     "game_center.score_retry_failed",
                     error: error,
-                    metadata: self.scoreSubmissionMetadata(submission)
+                    metadata: GameCenterLogMetadata.scoreSubmission(submission)
                 )
             } else {
                 updatedCompletedQueueKeys.insert(submission.queueKey)
-                self.logger.notice("game_center.score_retry_submitted", metadata: self.scoreSubmissionMetadata(submission))
+                self.logger.notice("game_center.score_retry_submitted", metadata: GameCenterLogMetadata.scoreSubmission(submission))
             }
 
             self.retryQueuedScores(
@@ -746,57 +550,8 @@ final class GameCenterService {
         }
     }
 
-    private static func normalizedTimeout(_ timeout: TimeInterval, fallback: TimeInterval) -> TimeInterval {
-        guard timeout.isFinite else {
-            return fallback
-        }
-
-        return max(0, timeout)
-    }
-
-    private func shouldQueueRecoverableFailure(_ error: Error) -> Bool {
-        let nsError = error as NSError
-        if nsError.domain == NSURLErrorDomain {
-            return true
-        }
-
-        #if canImport(GameKit)
-        guard nsError.domain == GKErrorDomain, let code = GKError.Code(rawValue: nsError.code) else {
-            return false
-        }
-
-        switch code {
-        case .unknown, .communicationsFailure, .notAuthenticated, .authenticationInProgress, .connectionTimeout:
-            return true
-        default:
-            return false
-        }
-        #else
-        return false
-        #endif
-    }
-
-    private func achievementProgressMetadata(_ progress: [GameCenterAchievementProgress]) -> Logger.Metadata {
-        [
-            "achievementCount": "\(progress.count)",
-            "maxPercentComplete": "\(progress.map(\.percentComplete).max() ?? 0)"
-        ]
-    }
-
     private func notifyMenuStatusChanged() {
         NotificationCenter.default.post(name: .gameCenterMenuStatusDidChange, object: self)
-    }
-
-    private func scoreSubmissionMetadata(
-        _ submission: GameCenterScoreSubmission,
-        additionalMetadata: Logger.Metadata = [:]
-    ) -> Logger.Metadata {
-        var metadata: Logger.Metadata = [
-            "leaderboardID": "\(submission.leaderboardID)",
-            "score": "\(submission.score)"
-        ]
-        metadata.merge(additionalMetadata) { _, new in new }
-        return metadata
     }
 }
 
@@ -824,7 +579,7 @@ private extension GameCenterService {
         notifyMenuStatusChanged()
         logger.warning(
             "game_center.score_retry_timed_out",
-            metadata: scoreSubmissionMetadata(submission)
+            metadata: GameCenterLogMetadata.scoreSubmission(submission)
         )
     }
 
@@ -841,13 +596,13 @@ private extension GameCenterService {
         notifyMenuStatusChanged()
         logger.warning(
             "game_center.achievement_retry_timed_out",
-            metadata: achievementProgressMetadata(progress)
+            metadata: GameCenterLogMetadata.achievementProgress(progress)
         )
     }
 }
 
 private extension GameCenterService {
-    var achievementUnavailableReason: AchievementUnavailableReason? {
+    var achievementUnavailableReason: GameCenterAchievementUnavailableReason? {
         guard localPlayer.isAvailable else {
             return .unsupported
         }
@@ -867,7 +622,7 @@ private extension GameCenterService {
         }
     }
 
-    func reportAchievementUnavailableIfNeeded(_ reason: AchievementUnavailableReason) {
+    func reportAchievementUnavailableIfNeeded(_ reason: GameCenterAchievementUnavailableReason) {
         guard activeAchievementUnavailableReason != reason else {
             return
         }
@@ -889,111 +644,3 @@ private extension GameCenterService {
         ])
     }
 }
-
-#if canImport(GameKit)
-@MainActor
-struct GameKitLeaderboardFactory: GameCenterLeaderboardFactory {
-    func makeClassicSurvivalLeaderboardViewController() -> UIViewController? {
-        GKGameCenterViewController(
-            leaderboardID: GameCenterIdentifiers.Leaderboard.classicSurvivalHighScore,
-            playerScope: .global,
-            timeScope: .allTime
-        )
-    }
-}
-
-@MainActor
-final class GameKitLocalPlayerClient: GameCenterLocalPlayerClient {
-    var isAvailable: Bool {
-        true
-    }
-
-    var isAuthenticated: Bool {
-        GKLocalPlayer.local.isAuthenticated
-    }
-
-    func setAuthenticateHandler(
-        _ handler: @escaping @MainActor (_ viewController: UIViewController?, _ error: Error?) -> Void
-    ) {
-        GKLocalPlayer.local.authenticateHandler = { viewController, error in
-            Task { @MainActor in
-                handler(viewController, error)
-            }
-        }
-    }
-
-    func submitScore(
-        _ score: Int,
-        context: Int,
-        leaderboardIDs: [String],
-        completion: @escaping @MainActor (Error?) -> Void
-    ) {
-        GKLeaderboard.submitScore(
-            score,
-            context: context,
-            player: GKLocalPlayer.local,
-            leaderboardIDs: leaderboardIDs
-        ) { error in
-            Task { @MainActor in
-                completion(error)
-            }
-        }
-    }
-
-    func reportAchievements(
-        _ progress: [GameCenterAchievementProgress],
-        completion: @escaping @MainActor (Error?) -> Void
-    ) {
-        let achievements = progress.map { item in
-            let achievement = GKAchievement(identifier: item.achievementID)
-            achievement.percentComplete = item.percentComplete
-            achievement.showsCompletionBanner = item.percentComplete >= 100
-            return achievement
-        }
-
-        GKAchievement.report(achievements) { error in
-            Task { @MainActor in
-                completion(error)
-            }
-        }
-    }
-}
-#else
-@MainActor
-struct GameKitLeaderboardFactory: GameCenterLeaderboardFactory {
-    func makeClassicSurvivalLeaderboardViewController() -> UIViewController? {
-        nil
-    }
-}
-
-@MainActor
-final class GameKitLocalPlayerClient: GameCenterLocalPlayerClient {
-    var isAvailable: Bool {
-        false
-    }
-
-    var isAuthenticated: Bool {
-        false
-    }
-
-    func setAuthenticateHandler(
-        _ handler: @escaping @MainActor (_ viewController: UIViewController?, _ error: Error?) -> Void
-    ) {}
-
-    func submitScore(
-        _ score: Int,
-        context: Int,
-        leaderboardIDs: [String],
-        completion: @escaping @MainActor (Error?) -> Void
-    ) {
-        completion(NSError(domain: "GameCenterUnavailable", code: 1))
-    }
-
-    func reportAchievements(
-        _ progress: [GameCenterAchievementProgress],
-        completion: @escaping @MainActor (Error?) -> Void
-    ) {
-        completion(NSError(domain: "GameCenterUnavailable", code: 1))
-    }
-}
-#endif

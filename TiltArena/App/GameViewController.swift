@@ -17,6 +17,17 @@ final class GameViewController: UIViewController {
     private let logger = AppDiagnostics.logger(.app)
     private var diagnosticsReportTask: Task<Void, Never>?
     private weak var diagnosticsPreviewController: DiagnosticsPreviewController?
+    private let gameCenterClient: any GameCenterClient
+
+    init(gameCenterClient: any GameCenterClient = NoopGameCenterClient()) {
+        self.gameCenterClient = gameCenterClient
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("GameViewController does not support storyboard initialization.")
+    }
 
     override func loadView() {
         view = SKView(frame: .zero)
@@ -33,11 +44,7 @@ final class GameViewController: UIViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         logger.info("view.appeared")
-        guard !Self.isRunningUnitTests else {
-            return
-        }
-
-        GameCenterService.shared.authenticate(presenter: nil, allowsPrompt: false)
+        gameCenterClient.authenticate(presenter: nil, allowsPrompt: false)
     }
 
     override func viewDidLayoutSubviews() {
@@ -88,7 +95,10 @@ final class GameViewController: UIViewController {
     }
 
     private func presentArenaScene(in spriteView: SKView) {
-        let scene = ArenaScene(size: spriteView.bounds.size)
+        let scene = ArenaScene(
+            size: spriteView.bounds.size,
+            gameCenterReporter: gameCenterClient
+        )
         scene.orientationDelegate = self
         scene.diagnosticsDelegate = self
         scene.gameCenterDelegate = self
@@ -130,7 +140,7 @@ final class GameViewController: UIViewController {
             self,
             selector: #selector(gameCenterMenuStatusDidChange),
             name: .gameCenterMenuStatusDidChange,
-            object: nil
+            object: gameCenterClient
         )
     }
 
@@ -333,10 +343,6 @@ final class GameViewController: UIViewController {
         default:
             return nil
         }
-    }
-
-    private static var isRunningUnitTests: Bool {
-        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 
     private func rememberCurrentLandscapeOrientation() {
@@ -545,13 +551,13 @@ extension GameViewController: GameCenterLeaderboardPresenting {
 
 extension GameViewController: ArenaSceneGameCenterDelegate {
     func arenaSceneGameCenterMenuStatus(_ scene: ArenaScene) -> GameCenterMenuStatus {
-        GameCenterService.shared.menuStatus
+        gameCenterClient.menuStatus
     }
 
     func arenaSceneRequestsClassicLeaderboard(_ scene: ArenaScene) -> GameCenterLeaderboardPresentationResult {
-        let result = GameCenterService.shared.presentClassicSurvivalLeaderboard(presenter: self)
+        let result = gameCenterClient.presentClassicSurvivalLeaderboard(presenter: self)
         if result == .unavailable(.authenticationRequired) {
-            GameCenterService.shared.retryAuthentication(presenter: self)
+            gameCenterClient.retryAuthentication(presenter: self)
         }
         return result
     }

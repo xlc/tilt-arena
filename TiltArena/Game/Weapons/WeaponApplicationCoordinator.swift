@@ -28,6 +28,8 @@ struct WeaponApplication: Equatable {
 struct WeaponApplicationCoordinator {
     var resolver = StartingWeaponResolver()
 
+    // Every WeaponKind must map explicitly so adding a weapon produces a compiler error here.
+    // swiftlint:disable:next cyclomatic_complexity
     func application<R: RandomNumberGenerator>(
         kind: WeaponKind,
         playerPosition: CGPoint,

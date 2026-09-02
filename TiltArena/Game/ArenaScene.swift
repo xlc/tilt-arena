@@ -1,3 +1,5 @@
+// ArenaScene keeps SpriteKit lifecycle orchestration while enemy ownership, weapon planning,
+// and reusable UI rendering live in focused collaborators.
 // swiftlint:disable file_length
 import QuartzCore
 import SpriteKit
@@ -26,7 +28,6 @@ protocol ArenaSceneGameCenterDelegate: AnyObject {
     func arenaSceneRequestsClassicLeaderboard(_ scene: ArenaScene) -> GameCenterLeaderboardPresentationResult
 }
 
-// swiftlint:disable:next type_body_length
 final class ArenaScene: SKScene {
     weak var orientationDelegate: ArenaSceneOrientationDelegate?
     weak var diagnosticsDelegate: ArenaSceneDiagnosticsDelegate?
@@ -38,6 +39,7 @@ final class ArenaScene: SKScene {
     private let runProfileStore: RunProfileStore
     private let localOptionsStore: ArenaLocalOptionsStore
     private let gameTuningStore: GameTuningStore
+    private let gameCenterReporter: any GameCenterRunReporting
     private let appLogger = AppDiagnostics.logger(.app)
     private let sceneLogger = AppDiagnostics.logger(.scene)
     private let inputLogger = AppDiagnostics.logger(.input)
@@ -50,7 +52,10 @@ final class ArenaScene: SKScene {
     private let audioController = ArenaAudioController()
     private var arenaRoot = SKNode()
     private let weaponEffectsRoot = SKNode()
-    private let uiRoot = SKNode()
+    private let uiRenderer = ArenaUIRenderer()
+    private var uiRoot: SKNode {
+        uiRenderer.root
+    }
     private var runScoreLabel: SKLabelNode?
     private var runBestLabel: SKLabelNode?
     private lazy var tiltInputController = TiltInputController(settingsStore: tiltSettingsStore)
@@ -86,17 +91,17 @@ final class ArenaScene: SKScene {
     private var spawnDirector = EnemySpawnDirector()
     private var pickupSpawnConfiguration = PickupSpawnConfiguration()
     private var pickupPlanner = PickupSpawnPlanner()
-    private var weaponRandomNumberGenerator = RunRandomNumberGenerator(seed: 0)
-    var weaponResolver = StartingWeaponResolver()
-    private var runtimeWeaponEffectTiming = WeaponEffectTiming()
-    var weaponEffectTiming: WeaponEffectTiming {
-        get { runtimeWeaponEffectTiming }
-        set { runtimeWeaponEffectTiming = newValue.sanitizedForRuntime() }
+    private let weaponRuntime = ArenaWeaponRuntime()
+    var weaponResolver: StartingWeaponResolver {
+        weaponRuntime.resolver
     }
-    private var enemies: [ArenaEnemy] = []
-    private var enemyNodes: [Int: EnemyNode] = [:]
-    private var enemyTelegraphNodes: [Int: EnemyTelegraphNode] = [:]
-    private var formationEnemyIDs: [Int: Set<Int>] = [:]
+    var weaponEffectTiming: WeaponEffectTiming {
+        weaponRuntime.effectTiming
+    }
+    private let enemyRegistry = ArenaEnemyRegistry()
+    private var enemies: [ArenaEnemy] {
+        enemyRegistry.enemies
+    }
     private var pickups: [WeaponPickup] = []
     private var pickupNodes: [Int: WeaponPickupNode] = [:]
     private var playerNode: PlayerCraftNode?
@@ -133,9 +138,7 @@ final class ArenaScene: SKScene {
     private var diagnosticSpawnedEnemyCount = 0
     private var diagnosticSpawnRuntimeCorrectionCount = 0
     private var hasReportedInvalidFrameTime = false
-    private var reportedDuplicateEnemyIDContexts: Set<String> = []
     private let uiMargin: CGFloat = 24
-    private var uiHitTargets: [ArenaControlHitTarget] = []
     private var calibrationPreviewMovementController = PlayerMovementController()
     private var calibrationPreviewPlayerNode: PlayerCraftNode?
     private var calibrationPreviewTrailNode: PlayerTrailNode?
@@ -150,21 +153,24 @@ final class ArenaScene: SKScene {
         runProfileStore = RunProfileStore()
         localOptionsStore = ArenaLocalOptionsStore()
         gameTuningStore = GameTuningStore()
+        gameCenterReporter = NoopGameCenterClient()
         super.init(size: size)
         configureSceneDefaults()
     }
 
     init(
         size: CGSize,
-        tiltSettingsStore: TiltSettingsStore,
+        tiltSettingsStore: TiltSettingsStore = TiltSettingsStore(),
         runProfileStore: RunProfileStore = RunProfileStore(),
         localOptionsStore: ArenaLocalOptionsStore = ArenaLocalOptionsStore(),
-        gameTuningStore: GameTuningStore = GameTuningStore()
+        gameTuningStore: GameTuningStore = GameTuningStore(),
+        gameCenterReporter: any GameCenterRunReporting = NoopGameCenterClient()
     ) {
         self.tiltSettingsStore = tiltSettingsStore
         self.runProfileStore = runProfileStore
         self.localOptionsStore = localOptionsStore
         self.gameTuningStore = gameTuningStore
+        self.gameCenterReporter = gameCenterReporter
         super.init(size: size)
         configureSceneDefaults()
     }
@@ -322,13 +328,18 @@ final class ArenaScene: SKScene {
 
         for touch in touches {
             let location = touch.location(in: self)
-            if let target = uiHitTargets.reversed().first(where: { $0.frame.contains(location) }) {
+            if let target = uiRenderer.hitTargets.reversed().first(where: { $0.frame.contains(location) }) {
                 perform(target.action)
                 return
             }
         }
     }
 
+}
+
+// MARK: - Gameplay orchestration
+
+extension ArenaScene {
     private func rebuildArena() {
         arenaRoot.removeFromParent()
         arenaRoot = ArenaThemeRenderer(theme: theme).makeArenaBackground(
@@ -700,7 +711,7 @@ final class ArenaScene: SKScene {
         show(.activeGameplay)
         runLogger.notice("run.started", metadata: [
             "mode": "\(selectedMode.rawValue)",
-            "seed": "\(weaponRandomNumberGenerator.initialSeed)"
+            "seed": "\(weaponRuntime.initialSeed)"
         ])
     }
 
@@ -815,13 +826,8 @@ final class ArenaScene: SKScene {
         postRunTransitionTimeRemaining = nil
         applySelectedModeTuning()
         let runSequenceSeed = ArenaModeRules.sequenceSeed(for: selectedMode) ?? Int.random(in: 0...Int.max)
-        weaponRandomNumberGenerator = RunRandomNumberGenerator(seed: runSequenceSeed)
-        enemies.removeAll()
-        enemyNodes.values.forEach { $0.removeFromParent() }
-        enemyNodes.removeAll()
-        enemyTelegraphNodes.values.forEach { $0.removeFromParent() }
-        enemyTelegraphNodes.removeAll()
-        formationEnemyIDs.removeAll()
+        weaponRuntime.prepareRun(sequenceSeed: runSequenceSeed)
+        enemyRegistry.reset()
         spawnDirector.reset(sequenceSeed: runSequenceSeed)
 
         pickups.removeAll()
@@ -856,8 +862,10 @@ final class ArenaScene: SKScene {
         runConfiguration.playerVisualRadius = gameTuning.playerMovement.visualRadius
         runController.configuration = runConfiguration
         readyHoldController.configuration = gameTuning.readyStart
-        weaponResolver.configuration = gameTuning.startingWeapons
-        weaponEffectTiming = gameTuning.weaponEffectTiming
+        weaponRuntime.configure(
+            weaponConfiguration: gameTuning.startingWeapons,
+            effectTiming: gameTuning.weaponEffectTiming
+        )
         flameTrailState.configuration = gameTuning.flameTrail
         deathReplayTrace.duration = gameTuning.feedback.deathReplayDuration
         applySelectedModeTuning()
@@ -924,26 +932,15 @@ final class ArenaScene: SKScene {
         playerNode?.applyTheme(theme)
         playerTrailNode?.applyTheme(theme)
         flameTrailEffectNode.applyTheme(theme)
-        refreshEnemyNodesForTheme()
+        enemyRegistry.applyTheme(theme)
         refreshPickupNodesForTheme()
-        refreshTelegraphNodesForTheme()
         refreshActiveWeaponEffectNodesForTheme()
-    }
-
-    private func refreshEnemyNodesForTheme() {
-        for enemy in enemies {
-            enemyNodes[enemy.id]?.applyTheme(theme, enemy: enemy)
-        }
     }
 
     private func refreshPickupNodesForTheme() {
         for pickup in pickups {
             pickupNodes[pickup.id]?.applyTheme(theme, pickup: pickup)
         }
-    }
-
-    private func refreshTelegraphNodesForTheme() {
-        enemyTelegraphNodes.values.forEach { $0.applyTheme(theme) }
     }
 
     private func refreshActiveWeaponEffectNodesForTheme() {
@@ -1042,17 +1039,7 @@ final class ArenaScene: SKScene {
             adding: spawnedEnemies.count
         )
 
-        for enemy in spawnedEnemies {
-            enemies.append(enemy)
-
-            let node = EnemyNode(enemy: enemy, theme: theme)
-            enemyNodes[enemy.id] = node
-            addChild(node)
-
-            if let formationID = enemy.formationID {
-                formationEnemyIDs[formationID, default: []].insert(enemy.id)
-            }
-        }
+        enemyRegistry.add(spawnedEnemies, to: self, theme: theme)
     }
 
     private func saturatedDiagnosticCount(_ current: Int, adding increment: Int) -> Int {
@@ -1061,18 +1048,11 @@ final class ArenaScene: SKScene {
     }
 
     private func showEnemyTelegraphs(_ telegraphs: [EnemyTelegraph]) {
-        for telegraph in telegraphs {
-            enemyTelegraphNodes[telegraph.id]?.removeFromParent()
-            let node = EnemyTelegraphNode(telegraph: telegraph, theme: theme)
-            enemyTelegraphNodes[telegraph.id] = node
-            addChild(node)
-        }
+        enemyRegistry.showTelegraphs(telegraphs, in: self, theme: theme)
     }
 
     private func removeEnemyTelegraphs(ids telegraphIDs: Set<Int>) {
-        for telegraphID in telegraphIDs {
-            enemyTelegraphNodes.removeValue(forKey: telegraphID)?.removeFromParent()
-        }
+        enemyRegistry.removeTelegraphs(ids: telegraphIDs)
     }
 
     private func spawnPickupIfNeeded(deltaTime: TimeInterval, playerPosition: CGPoint) {
@@ -1135,21 +1115,20 @@ final class ArenaScene: SKScene {
         )
         let playerMaximumSpeed = movementController.configuration.maximumSpeed(in: currentGameplayBounds)
 
-        for index in enemies.indices {
+        enemyRegistry.updateAll { [self] enemy in
             let maximumEnemySpeed = spawnDirector.configuration.maximumSpeed(
-                for: enemies[index].behavior.kind,
+                for: enemy.behavior.kind,
                 playerMaximumSpeed: playerMaximumSpeed
             )
-            enemies[index].advance(
+            enemy.advance(
                 toward: playerPosition,
                 deltaTime: deltaTime,
                 externalSpeedMultiplier: runSpeedMultiplier * timeDilationEnemySpeedMultiplier(
-                    for: enemies[index],
+                    for: enemy,
                     playerPosition: playerPosition
                 ),
                 maximumSpeed: maximumEnemySpeed
             )
-            enemyNodes[enemies[index].id]?.apply(enemies[index])
         }
     }
 
@@ -1165,14 +1144,7 @@ final class ArenaScene: SKScene {
             return
         }
 
-        for formationID in Set(exitedEnemies.compactMap(\.formationID)) {
-            formationEnemyIDs.removeValue(forKey: formationID)
-        }
-
-        enemies.removeAll { exitedEnemyIDs.contains($0.id) }
-        for enemyID in exitedEnemyIDs {
-            enemyNodes.removeValue(forKey: enemyID)?.removeFromParent()
-        }
+        enemyRegistry.remove(ids: exitedEnemyIDs, presentation: .immediate)
     }
 
     private func removeExpiredEnemies() {
@@ -1182,12 +1154,7 @@ final class ArenaScene: SKScene {
             return
         }
 
-        enemies.removeAll { expiredEnemyIDs.contains($0.id) }
-        removeFormationEnemies(ids: expiredEnemyIDs)
-
-        for enemyID in expiredEnemyIDs {
-            enemyNodes.removeValue(forKey: enemyID)?.removeFromParent()
-        }
+        enemyRegistry.remove(ids: expiredEnemyIDs, presentation: .immediate)
     }
 
     private func collectPickups(playerPosition: CGPoint) -> CGPoint {
@@ -1230,14 +1197,13 @@ final class ArenaScene: SKScene {
     }
 
     private func applyWeapon(_ pickup: WeaponPickup, playerPosition: CGPoint) {
-        let chargedConfiguration = weaponResolver.configuration.applying(chargeTier: pickup.chargeTier)
-        let chargedResolver = StartingWeaponResolver(configuration: chargedConfiguration)
-        let application = WeaponApplicationCoordinator(resolver: chargedResolver).application(
-            kind: pickup.kind,
+        let plan = weaponRuntime.activationPlan(
+            for: pickup,
             playerPosition: playerPosition,
-            enemies: enemies,
-            using: &weaponRandomNumberGenerator
+            enemies: enemies
         )
+        let chargedConfiguration = plan.configuration
+        let application = plan.application
         var log = application.log
 
         if let directionalDestroyedCount = performWeaponApplicationEffect(
@@ -1352,7 +1318,7 @@ final class ArenaScene: SKScene {
     }
 
     private func position(forEnemyID enemyID: Int) -> CGPoint? {
-        enemies.first { $0.id == enemyID }?.position
+        enemyRegistry.enemy(id: enemyID)?.position
     }
 
     private func resolveSeekerExplosion(at target: WeaponImpactTarget, resolver: StartingWeaponResolver) {
@@ -1464,43 +1430,11 @@ final class ArenaScene: SKScene {
     }
 
     private func damageableEnemyPositionsByID() -> [Int: CGPoint] {
-        var positions: [Int: CGPoint] = [:]
-        var duplicateCount = 0
-        for enemy in enemies where enemy.canDamagePlayer {
-            if positions.updateValue(enemy.position, forKey: enemy.id) != nil {
-                duplicateCount += 1
-            }
-        }
-
-        reportDuplicateEnemyIDsIfNeeded(count: duplicateCount, context: "collision_snapshot")
-        return positions
+        enemyRegistry.damageablePositionsByID()
     }
 
     private func indexedEnemiesByID() -> [Int: ArenaEnemy] {
-        var indexedEnemies: [Int: ArenaEnemy] = [:]
-        var duplicateCount = 0
-        for enemy in enemies {
-            duplicateCount += indexedEnemies.updateValue(enemy, forKey: enemy.id) == nil ? 0 : 1
-        }
-
-        reportDuplicateEnemyIDsIfNeeded(count: duplicateCount, context: "impact_targets")
-        return indexedEnemies
-    }
-
-    private func reportDuplicateEnemyIDsIfNeeded(count: Int, context: String) {
-        guard count > 0 else {
-            reportedDuplicateEnemyIDContexts.remove(context)
-            return
-        }
-        guard reportedDuplicateEnemyIDContexts.insert(context).inserted else {
-            return
-        }
-
-        spawnLogger.critical("enemy.id_invariant_violated", metadata: [
-            "context": "\(context)",
-            "duplicates": "\(count)",
-            "enemies": "\(enemies.count)"
-        ])
+        enemyRegistry.indexedEnemiesByID()
     }
 
     @discardableResult
@@ -1622,44 +1556,11 @@ final class ArenaScene: SKScene {
     }
 
     private func reportGameCenterAchievementEvent(_ event: GameCenterAchievementEvent) {
-        guard !Self.isRunningUnitTests else {
-            return
-        }
-
-        GameCenterService.shared.reportAchievementEvent(event)
+        gameCenterReporter.reportAchievementEvent(event)
     }
 
     private func removeEnemies(ids enemyIDs: Set<Int>) {
-        enemies.removeAll { enemyIDs.contains($0.id) }
-        removeFormationEnemies(ids: enemyIDs)
-
-        for enemyID in enemyIDs {
-            guard let node = enemyNodes.removeValue(forKey: enemyID) else {
-                continue
-            }
-
-            let fade = SKAction.group([
-                .scale(to: 0.35, duration: 0.08),
-                .fadeOut(withDuration: 0.08)
-            ])
-            node.run(.sequence([fade, .removeFromParent()]))
-        }
-    }
-
-    private func removeFormationEnemies(ids enemyIDs: Set<Int>) {
-        for formationID in formationEnemyIDs.keys.sorted() {
-            guard var remainingEnemyIDs = formationEnemyIDs[formationID] else {
-                continue
-            }
-
-            remainingEnemyIDs.subtract(enemyIDs)
-
-            if remainingEnemyIDs.isEmpty {
-                formationEnemyIDs.removeValue(forKey: formationID)
-            } else {
-                formationEnemyIDs[formationID] = remainingEnemyIDs
-            }
-        }
+        enemyRegistry.remove(ids: enemyIDs, presentation: .defeated)
     }
 
     private func activateRazorShield(
@@ -1952,19 +1853,16 @@ final class ArenaScene: SKScene {
             return
         }
 
-        for index in enemies.indices {
+        enemyRegistry.updateAll { enemy in
             let distance = hypot(
-                enemies[index].position.x - playerPosition.x,
-                enemies[index].position.y - playerPosition.y
+                enemy.position.x - playerPosition.x,
+                enemy.position.y - playerPosition.y
             )
 
-            guard distance <= pushRadius else {
-                continue
+            if distance <= pushRadius {
+                let strength = 1 - min(1, max(0, distance / pushRadius))
+                enemy.pushAway(from: playerPosition, distance: maximumPushDistance * strength)
             }
-
-            let strength = 1 - min(1, max(0, distance / pushRadius))
-            enemies[index].pushAway(from: playerPosition, distance: maximumPushDistance * strength)
-            enemyNodes[enemies[index].id]?.apply(enemies[index])
         }
     }
 
@@ -2262,14 +2160,13 @@ final class ArenaScene: SKScene {
         }
         lastProgressionResult = result
         hasPersistedFinalRun = true
-        if !Self.isRunningUnitTests {
-            let gameCenterService = GameCenterService.shared
-            gameCenterService.submitRunScore(summary)
-            gameCenterService.reportAchievementEvent(.runFinished(summary))
-        }
+        gameCenterReporter.submitRunScore(summary)
+        gameCenterReporter.reportAchievementEvent(.runFinished(summary))
     }
 
 }
+
+// MARK: - UI state and actions
 
 private extension ArenaScene {
     func show(_ state: ArenaUISceneState) {
@@ -2310,10 +2207,6 @@ private extension ArenaScene {
         }
     }
 
-    static var isRunningUnitTests: Bool {
-        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-    }
-
     var shouldLockCurrentOrientation: Bool {
         switch uiState {
         case .options:
@@ -2326,10 +2219,9 @@ private extension ArenaScene {
     }
 
     func rebuildUI() {
-        uiRoot.removeAllChildren()
+        uiRenderer.begin(theme: theme, sceneSize: size)
         runScoreLabel = nil
         runBestLabel = nil
-        uiHitTargets.removeAll()
         calibrationPreviewPlayerNode = nil
         calibrationPreviewTrailNode = nil
         tiltReadoutValueLabels.removeAll()
@@ -2397,7 +2289,7 @@ private extension ArenaScene {
         let scoreFontSize = min(11, max(7, frames.leading.height - 7))
         let bestFontSize = min(10, max(7, frames.trailing.height - 7))
 
-        let scoreLabel = makeLabel(
+        let scoreLabel = uiRenderer.makeLabel(
             "",
             at: CGPoint(x: frames.leading.minX + 10, y: frames.leading.midY),
             fontSize: scoreFontSize,
@@ -2408,7 +2300,7 @@ private extension ArenaScene {
         uiRoot.addChild(scoreLabel)
         runScoreLabel = scoreLabel
 
-        let bestLabel = makeLabel(
+        let bestLabel = uiRenderer.makeLabel(
             "",
             at: CGPoint(x: frames.trailing.maxX - 10, y: frames.trailing.midY),
             fontSize: bestFontSize,
@@ -2503,49 +2395,12 @@ private extension ArenaScene {
             width: min(178, layout.safeRect.width * 0.36),
             height: 108
         )
-        addTitle(
-            "TILT ARENA",
-            at: CGPoint(x: identityFrame.minX + 14, y: identityFrame.maxY - 22)
-        )
-        addSmallLabel(
-            "CLASSIC SURVIVAL",
-            at: CGPoint(x: identityFrame.minX + 14, y: identityFrame.maxY - 48),
-            color: theme.borderColor,
-            alignment: .left
-        )
-        addSectionLabel(
-            "PERSONAL BEST",
-            at: CGPoint(x: identityFrame.minX + 14, y: identityFrame.maxY - 70)
-        )
-        addLabel(
-            "\(runProfile.bestScore)",
-            at: CGPoint(x: identityFrame.minX + 14, y: identityFrame.minY + 19),
-            fontSize: 26,
-            color: theme.playerAccentColor,
-            alignment: .left
-        )
-        renderGameCenterStatusMessage(
-            at: CGPoint(x: identityFrame.minX + 14, y: identityFrame.minY - 12),
-            alignment: .left
-        )
+        renderHomeIdentity(in: identityFrame)
         addPreviewThreats(in: layout.gameplayRect)
-        let playFrame = CGRect(
-            x: layout.controlRect.maxX - 164,
-            y: layout.controlRect.minY + bottomButtonSize.height + 16,
-            width: 164,
-            height: 56
-        )
-        addButton(
-            "PLAY",
-            frame: playFrame,
-            action: .play,
-            style: .primary,
-            glyph: .play,
-            fontSize: 18
-        )
-        renderHomeNavigationButtons(layout: layout, buttonSize: bottomButtonSize)
+        renderHomePlayButton(layout: layout, bottomButtonSize: bottomButtonSize)
+        uiRenderer.addHomeNavigationButtons(layout: layout, buttonSize: bottomButtonSize)
         #if DEBUG
-        addButton(
+        uiRenderer.addButton(
             "DEV",
             frame: CGRect(x: layout.safeRect.maxX - 70, y: layout.safeRect.maxY - 42, width: 70, height: 34),
             action: .openDeveloperTuning,
@@ -2554,41 +2409,48 @@ private extension ArenaScene {
         #endif
     }
 
-    func renderHomeNavigationButtons(layout: ArenaLandscapeUILayout, buttonSize: CGSize) {
-        addButton(
-            "MODES",
-            frame: layout.bottomButtonFrame(index: 0, count: 5, buttonSize: buttonSize),
-            action: .openModes,
-            style: .secondary,
-            glyph: .radar
+    func renderHomeIdentity(in frame: CGRect) {
+        uiRenderer.addTitle(
+            "TILT ARENA",
+            at: CGPoint(x: frame.minX + 14, y: frame.maxY - 22)
         )
-        addButton(
-            "AWARDS",
-            frame: layout.bottomButtonFrame(index: 1, count: 5, buttonSize: buttonSize),
-            action: .openAwards,
-            style: .secondary,
-            glyph: .award
+        uiRenderer.addSmallLabel(
+            "CLASSIC SURVIVAL",
+            at: CGPoint(x: frame.minX + 14, y: frame.maxY - 48),
+            color: theme.borderColor,
+            alignment: .left
         )
-        addButton(
-            "WEAPONS",
-            frame: layout.bottomButtonFrame(index: 2, count: 5, buttonSize: buttonSize),
-            action: .openWeaponCodex,
-            style: .secondary,
-            glyph: .weapon
+        uiRenderer.addSectionLabel(
+            "PERSONAL BEST",
+            at: CGPoint(x: frame.minX + 14, y: frame.maxY - 70)
         )
-        addButton(
-            "RANKS",
-            frame: layout.bottomButtonFrame(index: 3, count: 5, buttonSize: buttonSize),
-            action: .openClassicLeaderboard,
-            style: .secondary,
-            glyph: .ranks
+        uiRenderer.addLabel(
+            "\(runProfile.bestScore)",
+            at: CGPoint(x: frame.minX + 14, y: frame.minY + 19),
+            fontSize: 26,
+            color: theme.playerAccentColor,
+            alignment: .left
         )
-        addButton(
-            "OPTIONS",
-            frame: layout.bottomButtonFrame(index: 4, count: 5, buttonSize: buttonSize),
-            action: .openOptions,
-            style: .secondary,
-            glyph: .settings
+        renderGameCenterStatusMessage(
+            at: CGPoint(x: frame.minX + 14, y: frame.minY - 12),
+            alignment: .left
+        )
+    }
+
+    func renderHomePlayButton(layout: ArenaLandscapeUILayout, bottomButtonSize: CGSize) {
+        let playFrame = CGRect(
+            x: layout.controlRect.maxX - 164,
+            y: layout.controlRect.minY + bottomButtonSize.height + 16,
+            width: 164,
+            height: 56
+        )
+        uiRenderer.addButton(
+            "PLAY",
+            frame: playFrame,
+            action: .play,
+            style: .primary,
+            glyph: .play,
+            fontSize: 18
         )
     }
 
@@ -2617,7 +2479,7 @@ private extension ArenaScene {
                 width: rowWidth,
                 height: rowHeight
             )
-            addModeRow(row, frame: frame)
+            uiRenderer.addModeRow(row, selected: row.kind == selectedMode, frame: frame)
         }
 
         let detailFrame = CGRect(
@@ -2626,7 +2488,9 @@ private extension ArenaScene {
             width: detailWidth,
             height: contentFrame.height
         )
-        renderSelectedModeSummary(in: detailFrame)
+        if let selectedRow = modeRowsByKind[selectedMode] {
+            uiRenderer.addSelectedModeSummary(row: selectedRow, frame: detailFrame)
+        }
     }
 
     func renderAwards() {
@@ -2640,7 +2504,10 @@ private extension ArenaScene {
             width: contentFrame.width,
             height: 42
         )
-        renderActiveUnlockBanner(in: unlockFrame)
+        uiRenderer.addActiveUnlockBanner(
+            text: ArenaMenuContent.activeUnlockText(profile: runProfile),
+            frame: unlockFrame
+        )
 
         let columnCount = 3
         let columnGap: CGFloat = 10
@@ -2661,7 +2528,7 @@ private extension ArenaScene {
                 width: columnWidth,
                 height: rowHeight
             )
-            addAwardRow(row, frame: frame)
+            uiRenderer.addAwardRow(row, frame: frame)
         }
     }
 
@@ -2694,7 +2561,7 @@ private extension ArenaScene {
                 width: columnWidth,
                 height: rowHeight
             )
-            addWeaponCodexRow(row, frame: frame)
+            uiRenderer.addWeaponCodexRow(row, frame: frame)
         }
     }
 
@@ -2724,9 +2591,9 @@ private extension ArenaScene {
             width: displayWidth,
             height: contentFrame.height
         )
-        addPanel(frame: controlFrame, accent: theme.playerAccentColor.withAlphaComponent(0.58))
-        addPanel(frame: feedbackFrame)
-        addPanel(frame: displayFrame)
+        uiRenderer.addPanel(frame: controlFrame, accent: theme.playerAccentColor.withAlphaComponent(0.58))
+        uiRenderer.addPanel(frame: feedbackFrame)
+        uiRenderer.addPanel(frame: displayFrame)
 
         renderTiltOptions(in: controlFrame)
         renderFeedbackOptions(in: feedbackFrame)
@@ -2765,19 +2632,19 @@ private extension ArenaScene {
     }
 
     func renderDeveloperTuningHeaderActions(layout: ArenaLandscapeUILayout, changedCount: Int) {
-        addButton(
+        uiRenderer.addButton(
             "COPY",
             frame: CGRect(x: layout.safeRect.maxX - 246, y: layout.safeRect.maxY - 48, width: 66, height: 34),
             action: .copyTuningParameters,
             style: changedCount == 0 ? .secondary : .primary
         )
-        addButton(
+        uiRenderer.addButton(
             developerTuningChangedOnly ? "CHANGED" : "ALL",
             frame: CGRect(x: layout.safeRect.maxX - 174, y: layout.safeRect.maxY - 48, width: 98, height: 34),
             action: .toggleDeveloperTuningChangedOnly,
             style: developerTuningChangedOnly ? .primary : .secondary
         )
-        addButton(
+        uiRenderer.addButton(
             "RESET",
             frame: CGRect(x: layout.safeRect.maxX - 68, y: layout.safeRect.maxY - 48, width: 54, height: 34),
             action: .resetTuningParameters,
@@ -2785,7 +2652,7 @@ private extension ArenaScene {
         )
 
         if let developerTuningCopyConfirmation {
-            addLabel(
+            uiRenderer.addLabel(
                 developerTuningCopyConfirmation,
                 at: CGPoint(x: layout.safeRect.maxX - 14, y: layout.safeRect.maxY - 66),
                 fontSize: 9,
@@ -2894,11 +2761,11 @@ private extension ArenaScene {
         frame: CGRect,
         action: (String) -> ArenaControlAction
     ) {
-        addPanel(frame: frame)
-        addSectionLabel(title, at: CGPoint(x: frame.minX + 10, y: frame.maxY - 15))
+        uiRenderer.addPanel(frame: frame)
+        uiRenderer.addSectionLabel(title, at: CGPoint(x: frame.minX + 10, y: frame.maxY - 15))
 
         guard !items.isEmpty else {
-            addLabel(
+            uiRenderer.addLabel(
                 "NONE",
                 at: CGPoint(x: frame.minX + 10, y: frame.maxY - 42),
                 fontSize: 9,
@@ -2930,19 +2797,19 @@ private extension ArenaScene {
                 height: rowHeight
             )
             let isSelected = item == selected
-            addPanel(
+            uiRenderer.addPanel(
                 frame: rowFrame,
                 stroke: isSelected ? theme.playerAccentColor.withAlphaComponent(0.85) : theme.borderColor.withAlphaComponent(0.26),
                 fill: isSelected ? theme.playerAccentColor.withAlphaComponent(0.11) : theme.backgroundColor.withAlphaComponent(0.28)
             )
-            addLabel(
-                truncatedMenuText(item.uppercased(), fontSize: rowFontSize, width: rowFrame.width - 14),
+            uiRenderer.addLabel(
+                uiRenderer.truncatedText(item.uppercased(), fontSize: rowFontSize, width: rowFrame.width - 14),
                 at: CGPoint(x: rowFrame.minX + 7, y: rowFrame.midY),
                 fontSize: rowFontSize,
                 color: isSelected ? theme.playerAccentColor : theme.playerColor.withAlphaComponent(0.82),
                 alignment: .left
             )
-            uiHitTargets.append(ArenaControlHitTarget(action: action(item), frame: rowFrame))
+            uiRenderer.addHitTarget(action: action(item), frame: rowFrame)
         }
     }
 
@@ -2952,7 +2819,7 @@ private extension ArenaScene {
         selectedSubgroup: String?,
         frame: CGRect
     ) {
-        addPanel(frame: frame)
+        uiRenderer.addPanel(frame: frame)
 
         let changedCount = gameTuning.changedParameters().count
         renderDeveloperTuningParameterHeader(
@@ -2987,14 +2854,14 @@ private extension ArenaScene {
     ) {
         let heading = [selectedGroup, selectedSubgroup].compactMap { $0 }.joined(separator: " / ")
         let headingText = heading.isEmpty ? "NO PARAMETERS" : heading.uppercased()
-        addLabel(
-            truncatedMenuText(headingText, fontSize: 10, width: frame.width - 116),
+        uiRenderer.addLabel(
+            uiRenderer.truncatedText(headingText, fontSize: 10, width: frame.width - 116),
             at: CGPoint(x: frame.minX + 10, y: frame.maxY - 17),
             fontSize: 10,
             color: theme.playerColor,
             alignment: .left
         )
-        addLabel(
+        uiRenderer.addLabel(
             "\(changedCount) CHANGED",
             at: CGPoint(x: frame.maxX - 10, y: frame.maxY - 17),
             fontSize: 8,
@@ -3004,7 +2871,7 @@ private extension ArenaScene {
     }
 
     func renderDeveloperTuningEmptyParameterList(in frame: CGRect) {
-        addLabel(
+        uiRenderer.addLabel(
             developerTuningChangedOnly ? "NO CHANGED PARAMETERS" : "NO PARAMETERS",
             at: CGPoint(x: frame.midX, y: frame.midY),
             fontSize: 11,
@@ -3015,19 +2882,19 @@ private extension ArenaScene {
 
     func renderDeveloperTuningPageControls(pageCount: Int, parameterCount: Int, frame: CGRect) {
         let controlsY = frame.maxY - 46
-        addButton(
+        uiRenderer.addButton(
             "<",
             frame: CGRect(x: frame.minX + 10, y: controlsY - 13, width: 34, height: 26),
             action: .developerTuningPreviousPage,
             style: developerTuningPageIndex == 0 ? .secondary : .primary
         )
-        addButton(
+        uiRenderer.addButton(
             ">",
             frame: CGRect(x: frame.minX + 52, y: controlsY - 13, width: 34, height: 26),
             action: .developerTuningNextPage,
             style: developerTuningPageIndex + 1 >= pageCount ? .secondary : .primary
         )
-        addLabel(
+        uiRenderer.addLabel(
             "PAGE \(developerTuningPageIndex + 1)/\(pageCount)  \(parameterCount) VALUES",
             at: CGPoint(x: frame.minX + 98, y: controlsY),
             fontSize: 8,
@@ -3057,21 +2924,9 @@ private extension ArenaScene {
         }
     }
 
-    func truncatedMenuText(_ text: String, fontSize: CGFloat, width: CGFloat) -> String {
-        let maxCharacters = max(1, Int(width / max(1, fontSize * 0.62)))
-        guard text.count > maxCharacters else {
-            return text
-        }
-        guard maxCharacters > 3 else {
-            return String(text.prefix(maxCharacters))
-        }
-
-        return "\(text.prefix(maxCharacters - 3))..."
-    }
-
     func renderDeveloperTuningRow(_ parameter: GameTuningParameterSpec, frame: CGRect) {
         let isChanged = gameTuning.isChanged(parameter)
-        addPanel(
+        uiRenderer.addPanel(
             frame: frame,
             stroke: isChanged ? theme.playerAccentColor.withAlphaComponent(0.62) : theme.borderColor.withAlphaComponent(0.28),
             fill: isChanged ? theme.playerAccentColor.withAlphaComponent(0.08) : theme.backgroundColor.withAlphaComponent(0.42)
@@ -3079,7 +2934,7 @@ private extension ArenaScene {
 
         let compact = frame.width < 320
         if isChanged {
-            addLabel(
+            uiRenderer.addLabel(
                 "*",
                 at: CGPoint(x: frame.minX + 10, y: frame.midY),
                 fontSize: 11,
@@ -3090,27 +2945,27 @@ private extension ArenaScene {
         let titleFontSize: CGFloat = compact ? 8 : 9
         let titleX = frame.minX + (isChanged ? 24 : 12)
         let titleMaxWidth = max(44, frame.maxX - titleX - 124)
-        addLabel(
-            truncatedMenuText(parameter.title.uppercased(), fontSize: titleFontSize, width: titleMaxWidth),
+        uiRenderer.addLabel(
+            uiRenderer.truncatedText(parameter.title.uppercased(), fontSize: titleFontSize, width: titleMaxWidth),
             at: CGPoint(x: titleX, y: frame.midY),
             fontSize: titleFontSize,
             color: theme.playerColor,
             alignment: .left
         )
-        addLabel(
+        uiRenderer.addLabel(
             parameter.displayValue(in: gameTuning),
             at: CGPoint(x: frame.maxX - 90, y: frame.midY),
             fontSize: 10,
             color: theme.playerAccentColor,
             alignment: .right
         )
-        addButton(
+        uiRenderer.addButton(
             "-",
             frame: CGRect(x: frame.maxX - 78, y: frame.midY - 12, width: 32, height: 24),
             action: .adjustTuningParameter(parameter.id, .decrease),
             style: .secondary
         )
-        addButton(
+        uiRenderer.addButton(
             "+",
             frame: CGRect(x: frame.maxX - 38, y: frame.midY - 12, width: 32, height: 24),
             action: .adjustTuningParameter(parameter.id, .increase),
@@ -3123,28 +2978,28 @@ private extension ArenaScene {
         addCalibrationPreviewWorld(layout: layout)
 
         let controlsFrame = calibrationControlsFrame(layout: layout)
-        addPanel(
+        uiRenderer.addPanel(
             frame: controlsFrame,
             fill: theme.panelFillColor.withAlphaComponent(0.98)
         )
         addCalibrationHeader(in: controlsFrame)
         renderCalibrationControls(in: controlsFrame)
         let previewBounds = currentCalibrationPreviewBounds
-        addLabel(
+        uiRenderer.addLabel(
             "LIVE TILT",
             at: CGPoint(x: previewBounds.maxX - 20, y: previewBounds.maxY - 24),
             fontSize: 10,
             color: theme.playerAccentColor,
             alignment: .right
         )
-        addLabel(
+        uiRenderer.addLabel(
             "MOVE DEVICE TO TEST",
             at: CGPoint(x: previewBounds.maxX - 20, y: previewBounds.maxY - 42),
             fontSize: 9,
             color: theme.playerColor.withAlphaComponent(0.82),
             alignment: .right
         )
-        addSmallLabel(
+        uiRenderer.addSmallLabel(
             calibrationText,
             at: CGPoint(x: previewBounds.maxX - 20, y: previewBounds.minY + 20),
             color: theme.borderColor,
@@ -3240,7 +3095,7 @@ private extension ArenaScene {
     }
 
     func addCalibrationHeader(in frame: CGRect) {
-        addBackButton(
+        uiRenderer.addBackButton(
             frame: CGRect(
                 x: frame.minX + 12,
                 y: frame.maxY - 46,
@@ -3248,7 +3103,7 @@ private extension ArenaScene {
                 height: 34
             )
         )
-        addTitle(
+        uiRenderer.addTitle(
             "CALIBRATE",
             at: CGPoint(x: frame.minX + 66, y: frame.maxY - 29)
         )
@@ -3257,7 +3112,7 @@ private extension ArenaScene {
     func renderCalibrationControls(in frame: CGRect) {
         let settings = tiltSettingsStore.settings
         let inset: CGFloat = 12
-        addButton(
+        uiRenderer.addButton(
             "SET NEUTRAL",
             frame: CGRect(x: frame.minX + inset, y: frame.maxY - 92, width: frame.width - inset * 2, height: 36),
             action: .calibrate,
@@ -3265,62 +3120,7 @@ private extension ArenaScene {
             glyph: .radar,
             fontSize: 12
         )
-        addSmallLabel(
-            "SENSITIVITY \(String(format: "%.1f", settings.clampedSensitivity))",
-            at: CGPoint(x: frame.minX + inset, y: frame.maxY - 108),
-            color: theme.borderColor,
-            alignment: .left
-        )
-        let stepperWidth: CGFloat = 40
-        addButton(
-            "-",
-            frame: CGRect(x: frame.minX + inset, y: frame.maxY - 142, width: stepperWidth, height: 26),
-            action: .sensitivityDown,
-            style: .secondary
-        )
-        addButton(
-            "+",
-            frame: CGRect(x: frame.maxX - inset - stepperWidth, y: frame.maxY - 142, width: stepperWidth, height: 26),
-            action: .sensitivityUp,
-            style: .secondary
-        )
-        addProgressBar(
-            frame: CGRect(
-                x: frame.minX + inset + stepperWidth + 7,
-                y: frame.maxY - 130,
-                width: max(0, frame.width - inset * 2 - stepperWidth * 2 - 14),
-                height: 4
-            ),
-            fraction: (
-                settings.clampedSensitivity - TiltControlSettings.minimumSensitivity
-            ) / (
-                TiltControlSettings.maximumSensitivity - TiltControlSettings.minimumSensitivity
-            )
-        )
-
-        addSectionLabel("PRESET", at: CGPoint(x: frame.minX + inset, y: frame.maxY - 154))
-        let presetY = frame.maxY - 188
-        for (index, preset) in [TiltCalibrationPreset.standard, .flatTable, .reclined].enumerated() {
-            let presetSpacing: CGFloat = 5
-            let presetWidth = (frame.width - inset * 2 - presetSpacing * 2) / 3
-            let buttonFrame = CGRect(
-                x: frame.minX + inset + CGFloat(index) * (presetWidth + presetSpacing),
-                y: presetY,
-                width: presetWidth,
-                height: 28
-            )
-            let isSelected = settings.calibration.preset == preset
-            addButton(
-                presetTitle(preset),
-                frame: buttonFrame,
-                action: .preset(preset),
-                style: isSelected ? .primary : .secondary,
-                fontSize: 9
-            )
-            if isSelected {
-                addSelectionIndicator(in: buttonFrame)
-            }
-        }
+        uiRenderer.addTiltSettingsControls(settings: settings, in: frame, style: .calibration)
 
         renderTiltReadout(in: CGRect(
             x: frame.minX + inset,
@@ -3332,8 +3132,8 @@ private extension ArenaScene {
 
     func renderTiltOptions(in frame: CGRect) {
         let inset: CGFloat = 10
-        addSectionLabel("CONTROL", at: CGPoint(x: frame.minX + inset, y: frame.maxY - 18))
-        addButton(
+        uiRenderer.addSectionLabel("CONTROL", at: CGPoint(x: frame.minX + inset, y: frame.maxY - 18))
+        uiRenderer.addButton(
             "CALIBRATE",
             frame: CGRect(x: frame.minX + inset, y: frame.maxY - 58, width: frame.width - inset * 2, height: 32),
             action: .openCalibrationPreview,
@@ -3342,62 +3142,7 @@ private extension ArenaScene {
             fontSize: 12
         )
         let settings = tiltSettingsStore.settings
-        addSmallLabel(
-            "SENSITIVITY \(String(format: "%.1f", settings.clampedSensitivity))",
-            at: CGPoint(x: frame.minX + inset, y: frame.maxY - 74),
-            color: theme.borderColor,
-            alignment: .left
-        )
-        let stepperWidth: CGFloat = 42
-        addButton(
-            "-",
-            frame: CGRect(x: frame.minX + inset, y: frame.maxY - 112, width: stepperWidth, height: 28),
-            action: .sensitivityDown,
-            style: .secondary
-        )
-        addButton(
-            "+",
-            frame: CGRect(x: frame.maxX - inset - stepperWidth, y: frame.maxY - 112, width: stepperWidth, height: 28),
-            action: .sensitivityUp,
-            style: .secondary
-        )
-        addProgressBar(
-            frame: CGRect(
-                x: frame.minX + inset + stepperWidth + 8,
-                y: frame.maxY - 99,
-                width: max(0, frame.width - inset * 2 - stepperWidth * 2 - 16),
-                height: 4
-            ),
-            fraction: (
-                settings.clampedSensitivity - TiltControlSettings.minimumSensitivity
-            ) / (
-                TiltControlSettings.maximumSensitivity - TiltControlSettings.minimumSensitivity
-            )
-        )
-
-        addSectionLabel("PRESET", at: CGPoint(x: frame.minX + inset, y: frame.minY + 36))
-        let presetY = frame.minY + 7
-        let presetSpacing: CGFloat = 5
-        let presetWidth = max(0, (frame.width - inset * 2 - presetSpacing * 2) / 3)
-        for (index, preset) in [TiltCalibrationPreset.standard, .flatTable, .reclined].enumerated() {
-            let buttonFrame = CGRect(
-                x: frame.minX + inset + CGFloat(index) * (presetWidth + presetSpacing),
-                y: presetY,
-                width: presetWidth,
-                height: 26
-            )
-            let isSelected = settings.calibration.preset == preset
-            addButton(
-                presetTitle(preset),
-                frame: buttonFrame,
-                action: .preset(preset),
-                style: isSelected ? .primary : .secondary,
-                fontSize: 9
-            )
-            if isSelected {
-                addSelectionIndicator(in: buttonFrame)
-            }
-        }
+        uiRenderer.addTiltSettingsControls(settings: settings, in: frame, style: .options)
     }
 
     func renderTiltReadout(in frame: CGRect) {
@@ -3411,14 +3156,14 @@ private extension ArenaScene {
         for (index, row) in rows.enumerated() {
             let columnMinX = frame.minX + CGFloat(index) * columnWidth
             let title = row.title == "ORIENTATION" ? "ORIENT" : "INPUT"
-            addLabel(
+            uiRenderer.addLabel(
                 title,
                 at: CGPoint(x: columnMinX, y: frame.midY),
                 fontSize: 8,
                 color: theme.borderColor,
                 alignment: .left
             )
-            let valueLabel = makeLabel(
+            let valueLabel = uiRenderer.makeLabel(
                 row.value,
                 at: CGPoint(x: columnMinX + columnWidth - 4, y: frame.midY),
                 fontSize: 8,
@@ -3434,14 +3179,14 @@ private extension ArenaScene {
 
     func renderFeedbackOptions(in frame: CGRect) {
         let inset: CGFloat = 10
-        addSectionLabel("FEEDBACK", at: CGPoint(x: frame.minX + inset, y: frame.maxY - 18))
-        addToggle(
+        uiRenderer.addSectionLabel("FEEDBACK", at: CGPoint(x: frame.minX + inset, y: frame.maxY - 18))
+        uiRenderer.addToggle(
             title: "AUDIO",
             isOn: localOptions.audioEnabled,
             frame: CGRect(x: frame.minX + inset, y: frame.maxY - 72, width: frame.width - inset * 2, height: 40),
             action: .toggleAudio
         )
-        addToggle(
+        uiRenderer.addToggle(
             title: "HAPTICS",
             isOn: localOptions.hapticsEnabled,
             frame: CGRect(x: frame.minX + inset, y: frame.maxY - 122, width: frame.width - inset * 2, height: 40),
@@ -3453,7 +3198,7 @@ private extension ArenaScene {
         let inset: CGFloat = 10
         let contentWidth = max(0, frame.width - inset * 2)
         let rowSpacing: CGFloat = 6
-        addSectionLabel("DISPLAY & DATA", at: CGPoint(x: frame.minX + inset, y: frame.maxY - 18))
+        uiRenderer.addSectionLabel("DISPLAY & DATA", at: CGPoint(x: frame.minX + inset, y: frame.maxY - 18))
         let themeKinds = ArenaThemeKind.allCases
         let themeButtonWidth = max(
             0,
@@ -3467,7 +3212,7 @@ private extension ArenaScene {
                 height: 34
             )
             let isSelected = localOptions.themeKind == themeKind
-            addButton(
+            uiRenderer.addButton(
                 themeKind.shortTitle,
                 frame: buttonFrame,
                 action: .selectTheme(themeKind),
@@ -3475,17 +3220,17 @@ private extension ArenaScene {
                 fontSize: 10
             )
             if isSelected {
-                addSelectionIndicator(in: buttonFrame)
+                uiRenderer.addSelectionIndicator(in: buttonFrame)
             }
         }
-        addButton(
+        uiRenderer.addButton(
             "VIEW / SHARE LOGS",
             frame: CGRect(x: frame.minX + inset, y: frame.maxY - 110, width: contentWidth, height: 32),
             action: .openDiagnostics,
             style: .secondary,
             fontSize: 10
         )
-        addButton(
+        uiRenderer.addButton(
             resetDataArmed ? "CONFIRM RESET" : "RESET PROFILE",
             frame: CGRect(x: frame.minX + inset, y: frame.minY + 8, width: contentWidth, height: 32),
             action: .resetData,
@@ -3497,13 +3242,13 @@ private extension ArenaScene {
     func renderPreRun() {
         let layout = currentLandscapeLayout()
         renderRunHUD(in: layout)
-        addButton(
+        uiRenderer.addButton(
             "CAL",
             frame: CGRect(x: layout.safeRect.maxX - 112, y: layout.safeRect.maxY - 78, width: 48, height: 34),
             action: .openCalibrationPreview,
             style: .secondary
         )
-        addButton(
+        uiRenderer.addButton(
             "OPT",
             frame: CGRect(x: layout.safeRect.maxX - 54, y: layout.safeRect.maxY - 78, width: 54, height: 34),
             action: .openOptions,
@@ -3536,14 +3281,14 @@ private extension ArenaScene {
         glyph: ArenaControlGlyph? = nil
     ) {
         if let glyph {
-            addControlGlyph(
+            uiRenderer.addControlGlyph(
                 glyph,
                 at: CGPoint(x: frame.minX + 14, y: frame.midY),
                 radius: 6,
                 color: color
             )
         }
-        addLabel(
+        uiRenderer.addLabel(
             text,
             at: CGPoint(x: frame.midX + (glyph == nil ? 0 : 7), y: frame.midY),
             fontSize: 10,
@@ -3554,9 +3299,9 @@ private extension ArenaScene {
 
     func renderPause() {
         let layout = currentLandscapeLayout()
-        addScrim(alpha: 0.66)
+        uiRenderer.addScrim(alpha: 0.66)
         let panelFrame = pausePanelFrame(in: layout.safeRect)
-        addPanel(
+        uiRenderer.addPanel(
             frame: panelFrame,
             stroke: theme.playerAccentColor.withAlphaComponent(0.74),
             fill: theme.panelFillColor.withAlphaComponent(0.96),
@@ -3578,7 +3323,7 @@ private extension ArenaScene {
     }
 
     func renderPauseHeader(in panelFrame: CGRect) {
-        addLabel(
+        uiRenderer.addLabel(
             "PAUSED",
             at: CGPoint(x: panelFrame.midX, y: panelFrame.maxY - 28),
             fontSize: 24,
@@ -3587,14 +3332,14 @@ private extension ArenaScene {
         )
         let runSummary = "SCORE \(runController.score)   \(formatSurvivalTime(runController.survivalTime))"
             + "   BEST \(runProfile.bestScore)"
-        addLabel(
+        uiRenderer.addLabel(
             runSummary,
             at: CGPoint(x: panelFrame.midX, y: panelFrame.maxY - 52),
             fontSize: 9,
             color: theme.borderColor,
             alignment: .center
         )
-        addDividerLine(
+        uiRenderer.addDividerLine(
             from: CGPoint(x: panelFrame.minX + 14, y: panelFrame.maxY - 66),
             to: CGPoint(x: panelFrame.maxX - 14, y: panelFrame.maxY - 66),
             color: theme.playerAccentColor.withAlphaComponent(0.58)
@@ -3604,7 +3349,7 @@ private extension ArenaScene {
     func renderPauseControls(in panelFrame: CGRect) {
         let contentMinX = panelFrame.minX + 14
         let contentWidth = panelFrame.width - 28
-        addButton(
+        uiRenderer.addButton(
             "RESUME",
             frame: CGRect(x: contentMinX, y: panelFrame.maxY - 108, width: contentWidth, height: 42),
             action: .resume,
@@ -3614,7 +3359,7 @@ private extension ArenaScene {
         )
         let utilityGap: CGFloat = 8
         let utilityWidth = (contentWidth - utilityGap) / 2
-        addButton(
+        uiRenderer.addButton(
             "CALIBRATE",
             frame: CGRect(x: contentMinX, y: panelFrame.maxY - 150, width: utilityWidth, height: 34),
             action: .openCalibrationPreview,
@@ -3622,7 +3367,7 @@ private extension ArenaScene {
             glyph: .radar,
             fontSize: 10
         )
-        addButton(
+        uiRenderer.addButton(
             "OPTIONS",
             frame: CGRect(
                 x: contentMinX + utilityWidth + utilityGap,
@@ -3644,7 +3389,7 @@ private extension ArenaScene {
         let utilityGap: CGFloat = 8
         let utilityWidth = (contentWidth - utilityGap) / 2
         #if DEBUG
-        addButton(
+        uiRenderer.addButton(
             "DEV",
             frame: CGRect(
                 x: contentMinX + utilityWidth + utilityGap,
@@ -3659,7 +3404,7 @@ private extension ArenaScene {
         #else
         let endRunWidth = contentWidth
         #endif
-        addButton(
+        uiRenderer.addButton(
             "END RUN",
             frame: CGRect(
                 x: contentMinX,
@@ -3675,8 +3420,8 @@ private extension ArenaScene {
 
     func renderPostRun() {
         let layout = currentLandscapeLayout()
-        addScrim(alpha: 0.72)
-        addCornerAccents(
+        uiRenderer.addScrim(alpha: 0.72)
+        uiRenderer.addCornerAccents(
             frame: layout.safeRect,
             color: theme.playerAccentColor.withAlphaComponent(0.72)
         )
@@ -3688,8 +3433,14 @@ private extension ArenaScene {
             snapshot: lastDeathCollisionSnapshot,
             fallbackPosition: movementController.state.position
         )
-        renderPostRunHighlights(summary: summary, in: postRunHighlightsFrame(layout: layout))
-        renderPostRunButtons(layout: layout)
+        let highlights = Array(ArenaMenuContent.postRunHighlights(
+            summary: summary,
+            profile: runProfile,
+            previousBestScore: previousBestScore,
+            progressionResult: lastProgressionResult
+        ).dropFirst())
+        uiRenderer.addPostRunHighlights(highlights, frame: postRunHighlightsFrame(layout: layout))
+        uiRenderer.addPostRunButtons(layout: layout)
     }
 
     func postRunHighlightsFrame(layout: ArenaLandscapeUILayout) -> CGRect {
@@ -3705,21 +3456,21 @@ private extension ArenaScene {
     }
 
     func renderPostRunScore(summary: RunSummary?, layout: ArenaLandscapeUILayout) {
-        addLabel(
+        uiRenderer.addLabel(
             "RUN OVER",
             at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 34),
             fontSize: 28,
             color: theme.enemyColor,
             alignment: .left
         )
-        addLabel(
+        uiRenderer.addLabel(
             "\(summary?.score ?? runController.score)",
             at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 88),
             fontSize: 48,
             color: theme.playerColor,
             alignment: .left
         )
-        addLabel(
+        uiRenderer.addLabel(
             summary?.score ?? 0 > previousBestScore ? "NEW BEST" : "BEST \(runProfile.bestScore)",
             at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 126),
             fontSize: 11,
@@ -3732,103 +3483,6 @@ private extension ArenaScene {
         )
     }
 
-    func renderPostRunHighlights(summary: RunSummary?, in frame: CGRect) {
-        addPanel(
-            frame: frame,
-            stroke: theme.playerAccentColor.withAlphaComponent(0.54),
-            accent: theme.playerAccentColor.withAlphaComponent(0.72)
-        )
-        let highlights = Array(ArenaMenuContent.postRunHighlights(
-            summary: summary,
-            profile: runProfile,
-            previousBestScore: previousBestScore,
-            progressionResult: lastProgressionResult
-        ).dropFirst())
-        let compact = frame.height < 150
-        let topPadding: CGFloat = compact ? 16 : 22
-        let bottomPadding: CGFloat = compact ? 10 : 14
-        let availableHeight = max(0, frame.height - topPadding - bottomPadding)
-        let rowSpacing = highlights.count > 1
-            ? min(26, max(compact ? 14 : 18, availableHeight / CGFloat(highlights.count - 1)))
-            : 0
-
-        for (index, text) in highlights.enumerated() {
-            let marker = SKShapeNode(circleOfRadius: 2.5)
-            marker.position = CGPoint(
-                x: frame.minX + 14,
-                y: frame.maxY - topPadding - CGFloat(index) * rowSpacing
-            )
-            marker.zPosition = ArenaUIZPosition.label
-            marker.fillColor = index == 1 ? theme.pickupAmber : theme.playerAccentColor
-            marker.strokeColor = .clear
-            uiRoot.addChild(marker)
-            addLabel(
-                text,
-                at: CGPoint(x: frame.minX + 26, y: frame.maxY - topPadding - CGFloat(index) * rowSpacing),
-                fontSize: compact ? 10 : 12,
-                color: index == 1 ? theme.pickupAmber : theme.borderColor,
-                alignment: .left
-            )
-        }
-    }
-
-    func renderPostRunButtons(layout: ArenaLandscapeUILayout) {
-        let primaryWidth = min(190, layout.controlRect.width * 0.42)
-        let primaryFrame = CGRect(
-            x: layout.controlRect.maxX - primaryWidth,
-            y: layout.controlRect.minY,
-            width: primaryWidth,
-            height: 48
-        )
-        addButton(
-            "PLAY AGAIN",
-            frame: primaryFrame,
-            action: .playAgain,
-            style: .primary,
-            glyph: .play,
-            fontSize: 15
-        )
-        let navSpacing: CGFloat = 10
-        let navAvailableWidth = max(0, primaryFrame.minX - layout.controlRect.minX - 20)
-        let navButtonWidth = min(104, max(72, (navAvailableWidth - navSpacing * 2) / 3))
-        let buttonSize = CGSize(width: navButtonWidth, height: 36)
-        let navStartX = layout.controlRect.minX
-        addButton(
-            "MODES",
-            frame: CGRect(x: navStartX, y: layout.controlRect.minY, width: buttonSize.width, height: buttonSize.height),
-            action: .openModes,
-            style: .secondary,
-            glyph: .radar,
-            fontSize: 9
-        )
-        addButton(
-            "RANKS",
-            frame: CGRect(
-                x: navStartX + buttonSize.width + navSpacing,
-                y: layout.controlRect.minY,
-                width: buttonSize.width,
-                height: buttonSize.height
-            ),
-            action: .openClassicLeaderboard,
-            style: .secondary,
-            glyph: .ranks,
-            fontSize: 9
-        )
-        addButton(
-            "HOME",
-            frame: CGRect(
-                x: navStartX + (buttonSize.width + navSpacing) * 2,
-                y: layout.controlRect.minY,
-                width: buttonSize.width,
-                height: buttonSize.height
-            ),
-            action: .home,
-            style: .secondary,
-            glyph: .home,
-            fontSize: 9
-        )
-    }
-
     func renderGameCenterStatusMessage(
         at position: CGPoint,
         alignment: SKLabelHorizontalAlignmentMode
@@ -3837,7 +3491,7 @@ private extension ArenaScene {
             return
         }
 
-        addSmallLabel(
+        uiRenderer.addSmallLabel(
             statusMessage,
             at: position,
             color: theme.playerAccentColor,
@@ -4166,7 +3820,7 @@ private extension ArenaScene {
     }
 
     var calibrationText: String {
-        "\(presetDisplayTitle(tiltSettingsStore.settings.calibration.preset)) CALIBRATION"
+        "\(uiRenderer.presetDisplayTitle(tiltSettingsStore.settings.calibration.preset)) CALIBRATION"
     }
 
     func resetLocalDataOrArmConfirmation() {
@@ -4264,7 +3918,7 @@ private extension ArenaScene {
         uiRoot.addChild(label)
         readyStatusLabel = label
 
-        addLabel(
+        uiRenderer.addLabel(
             "HOLD TO LAUNCH",
             at: CGPoint(x: point.x, y: point.y + 30),
             fontSize: 10,
@@ -4394,7 +4048,7 @@ private extension ArenaScene {
 
     func addMenuChrome(title: String, layout: ArenaLandscapeUILayout) -> CGRect {
         addMenuBackdrop(layout: layout)
-        addBackButton(
+        uiRenderer.addBackButton(
             frame: CGRect(
                 x: layout.safeRect.minX + 14,
                 y: layout.safeRect.maxY - 48,
@@ -4402,13 +4056,13 @@ private extension ArenaScene {
                 height: 34
             )
         )
-        addTitle(title, at: CGPoint(x: layout.safeRect.minX + 68, y: layout.safeRect.maxY - 31))
-        addDividerLine(
+        uiRenderer.addTitle(title, at: CGPoint(x: layout.safeRect.minX + 68, y: layout.safeRect.maxY - 31))
+        uiRenderer.addDividerLine(
             from: CGPoint(x: layout.safeRect.minX + 14, y: layout.safeRect.maxY - 62),
             to: CGPoint(x: layout.safeRect.maxX - 14, y: layout.safeRect.maxY - 62),
             color: theme.panelStrokeColor.withAlphaComponent(0.72)
         )
-        addDividerLine(
+        uiRenderer.addDividerLine(
             from: CGPoint(x: layout.safeRect.minX + 68, y: layout.safeRect.maxY - 62),
             to: CGPoint(x: layout.safeRect.minX + 148, y: layout.safeRect.maxY - 62),
             color: theme.playerAccentColor.withAlphaComponent(0.9)
@@ -4434,593 +4088,11 @@ private extension ArenaScene {
         uiRoot.addChild(backdrop)
     }
 
-    func renderSelectedModeSummary(in frame: CGRect) {
-        guard let row = modeRowsByKind[selectedMode] else {
-            return
-        }
-
-        addPanel(
-            frame: frame,
-            stroke: theme.playerAccentColor.withAlphaComponent(0.62),
-            accent: theme.playerAccentColor.withAlphaComponent(0.85)
-        )
-        addSectionLabel("MISSION BRIEF", at: CGPoint(x: frame.minX + 14, y: frame.maxY - 24))
-        addLabel(
-            row.title,
-            at: CGPoint(x: frame.minX + 14, y: frame.maxY - 54),
-            fontSize: 18,
-            color: theme.playerColor,
-            alignment: .left
-        )
-        addSmallLabel(
-            row.subtitle.uppercased(),
-            at: CGPoint(x: frame.minX + 14, y: frame.maxY - 78),
-            color: theme.borderColor,
-            alignment: .left
-        )
-        let metadataY = frame.minY + 66
-        addLabel(
-            row.progressText,
-            at: CGPoint(x: frame.minX + 14, y: metadataY),
-            fontSize: 10,
-            color: theme.playerAccentColor,
-            alignment: .left
-        )
-        addButton(
-            "PLAY",
-            frame: CGRect(x: frame.minX + 14, y: frame.minY + 14, width: frame.width - 28, height: 40),
-            action: .play,
-            style: .primary
-        )
-    }
-
-    func renderActiveUnlockBanner(in frame: CGRect) {
-        addPanel(
-            frame: frame,
-            stroke: theme.playerAccentColor.withAlphaComponent(0.55),
-            accent: theme.playerAccentColor.withAlphaComponent(0.72)
-        )
-        addSectionLabel("NEXT UNLOCK", at: CGPoint(x: frame.minX + 14, y: frame.midY + 7))
-        addLabel(
-            ArenaMenuContent.activeUnlockText(profile: runProfile),
-            at: CGPoint(x: frame.minX + 132, y: frame.midY - 1),
-            fontSize: 13,
-            color: theme.playerAccentColor,
-            alignment: .left
-        )
-    }
-
-    func addModeRow(_ row: ArenaModeRow, frame: CGRect) {
-        let selected = row.kind == selectedMode
-        let detailFontSize: CGFloat = frame.width < 340 ? 9 : 11
-        let roleColor: SKColor
-        let glyph: ArenaControlGlyph
-        switch row.kind {
-        case .classic:
-            roleColor = theme.playerAccentColor
-            glyph = .radar
-        case .redline:
-            roleColor = theme.enemyColor
-            glyph = .ranks
-        case .daily:
-            roleColor = theme.pickupAmber
-            glyph = .award
-        }
-        addPanel(
-            frame: frame,
-            stroke: selected ? roleColor.withAlphaComponent(0.9) : theme.borderColor.withAlphaComponent(0.35),
-            fill: selected ? roleColor.withAlphaComponent(0.1) : theme.backgroundColor.withAlphaComponent(0.55),
-            accent: selected ? roleColor.withAlphaComponent(0.9) : nil
-        )
-        addControlGlyph(
-            glyph,
-            at: CGPoint(x: frame.minX + 20, y: frame.midY),
-            radius: 8,
-            color: row.isAvailable ? roleColor : theme.borderColor.withAlphaComponent(0.55)
-        )
-        addLabel(
-            row.title,
-            at: CGPoint(x: frame.minX + 38, y: frame.maxY - 16),
-            fontSize: 15,
-            color: row.isAvailable ? theme.playerColor : theme.borderColor.withAlphaComponent(0.75),
-            alignment: .left
-        )
-        addLabel(
-            truncatedMenuText(
-                row.subtitle,
-                fontSize: detailFontSize,
-                width: max(42, frame.width * 0.34)
-            ),
-            at: CGPoint(x: frame.minX + 38, y: frame.minY + 12),
-            fontSize: detailFontSize,
-            color: theme.borderColor,
-            alignment: .left
-        )
-        addSmallLabel(
-            row.statusText,
-            at: CGPoint(x: frame.maxX - (selected ? 30 : 14), y: frame.maxY - 16),
-            color: row.isAvailable ? roleColor : theme.borderColor,
-            alignment: .right
-        )
-        if selected {
-            addControlGlyph(
-                .check,
-                at: CGPoint(x: frame.maxX - 15, y: frame.maxY - 16),
-                radius: 5,
-                color: roleColor
-            )
-        }
-        addLabel(
-            row.progressText,
-            at: CGPoint(x: frame.maxX - 14, y: frame.minY + 12),
-            fontSize: detailFontSize,
-            color: theme.borderColor,
-            alignment: .right
-        )
-        uiHitTargets.append(ArenaControlHitTarget(action: .selectMode(row.kind), frame: frame))
-    }
-
-    func addAwardRow(_ row: ArenaAwardRow, frame: CGRect) {
-        let accentColor = row.isComplete ? theme.playerAccentColor : theme.pickupAmber
-        addPanel(
-            frame: frame,
-            stroke: accentColor.withAlphaComponent(row.isComplete ? 0.56 : 0.34),
-            fill: accentColor.withAlphaComponent(row.isComplete ? 0.04 : 0.025)
-        )
-        let fontSize: CGFloat = frame.width < 170 ? 9 : 11
-        addControlGlyph(
-            row.isComplete ? .check : .award,
-            at: CGPoint(x: frame.minX + 14, y: frame.maxY - 17),
-            radius: 6,
-            color: accentColor
-        )
-        addLabel(
-            row.title,
-            at: CGPoint(x: frame.minX + 28, y: frame.maxY - 17),
-            fontSize: fontSize,
-            color: row.isComplete ? theme.playerAccentColor : theme.playerColor,
-            alignment: .left
-        )
-        addLabel(
-            row.progressText,
-            at: CGPoint(x: frame.maxX - 12, y: frame.minY + 20),
-            fontSize: fontSize,
-            color: theme.borderColor,
-            alignment: .right
-        )
-        addProgressBar(
-            frame: CGRect(x: frame.minX + 12, y: frame.minY + 9, width: frame.width - 24, height: 5),
-            fraction: row.progressFraction,
-            color: accentColor
-        )
-    }
-
-    func addWeaponCodexRow(_ row: WeaponCodexRow, frame: CGRect) {
-        let strokeColor = row.isUnlocked
-            ? theme.playerAccentColor.withAlphaComponent(0.3)
-            : theme.borderColor.withAlphaComponent(0.28)
-        let fillColor = row.isUnlocked
-            ? theme.playerAccentColor.withAlphaComponent(0.06)
-            : theme.backgroundColor.withAlphaComponent(0.46)
-        addPanel(frame: frame, stroke: strokeColor, fill: fillColor)
-
-        let compact = frame.height < 42
-        let iconRadius = min(compact ? 9 : 12, max(7, frame.height * 0.27))
-        let iconPosition = CGPoint(x: frame.minX + 15, y: frame.midY)
-        addWeaponCodexIcon(kind: row.kind, position: iconPosition, radius: iconRadius, isUnlocked: row.isUnlocked)
-
-        let titleX = iconPosition.x + iconRadius + 8
-        let titleWidth = max(30, frame.maxX - titleX - 48)
-        addLabel(
-            truncatedMenuText(row.title, fontSize: compact ? 7.4 : 8.4, width: titleWidth),
-            at: CGPoint(x: titleX, y: frame.maxY - (compact ? 9 : 11)),
-            fontSize: compact ? 7.4 : 8.4,
-            color: row.isUnlocked ? theme.playerColor : theme.borderColor.withAlphaComponent(0.78),
-            alignment: .left
-        )
-
-        addLabel(
-            row.statusText,
-            at: CGPoint(x: frame.maxX - 8, y: frame.maxY - (compact ? 9 : 11)),
-            fontSize: compact ? 5.8 : 6.6,
-            color: row.isUnlocked ? theme.playerAccentColor : theme.borderColor.withAlphaComponent(0.72),
-            alignment: .right
-        )
-
-        addLabel(
-            truncatedMenuText(row.description.uppercased(), fontSize: compact ? 5.8 : 6.6, width: frame.maxX - titleX - 8),
-            at: CGPoint(x: titleX, y: frame.midY - 1),
-            fontSize: compact ? 5.8 : 6.6,
-            color: theme.playerColor.withAlphaComponent(row.isUnlocked ? 0.78 : 0.48),
-            alignment: .left
-        )
-
-        addLabel(
-            truncatedMenuText(row.unlockText, fontSize: compact ? 5.8 : 6.4, width: frame.maxX - titleX - 8),
-            at: CGPoint(x: titleX, y: frame.minY + (compact ? 7 : 9)),
-            fontSize: compact ? 5.8 : 6.4,
-            color: theme.playerAccentColor.withAlphaComponent(row.isUnlocked ? 0.82 : 0.52),
-            alignment: .left
-        )
-    }
-
-    func addWeaponCodexIcon(
-        kind: WeaponKind,
-        position: CGPoint,
-        radius: CGFloat,
-        isUnlocked: Bool
-    ) {
-        let color = weaponAccentColor(for: kind)
-        let ring = SKShapeNode(circleOfRadius: radius)
-        ring.position = position
-        ring.zPosition = ArenaUIZPosition.content
-        ring.fillColor = color.withAlphaComponent(isUnlocked ? 0.12 : 0.03)
-        ring.strokeColor = color.withAlphaComponent(isUnlocked ? 0.7 : 0.24)
-        ring.lineWidth = 0.9
-        uiRoot.addChild(ring)
-
-        let icon = SKSpriteNode(texture: WeaponSpriteSheet.texture(for: kind, role: .icon))
-        icon.position = position
-        icon.zPosition = ArenaUIZPosition.label
-        icon.size = CGSize(width: radius * 1.65, height: radius * 1.65)
-        icon.alpha = isUnlocked ? 0.92 : 0.35
-        icon.blendMode = .alpha
-        uiRoot.addChild(icon)
-    }
-
-    func weaponAccentColor(for kind: WeaponKind) -> SKColor {
-        switch kind {
-        case .shockwave, .flameTrail, .powerWave, .novaBomb:
-            return theme.pickupAmber
-        case .seekerSwarm, .chainLightning, .ricochetLance:
-            return theme.pickupBlue
-        case .freezeBurst, .gravityWell, .warpDash:
-            return theme.pickupViolet
-        case .razorShield:
-            return theme.playerAccentColor
-        }
-    }
-
-    func addToggle(title: String, isOn: Bool, frame: CGRect, action: ArenaControlAction) {
-        addButton(
-            "\(title) \(isOn ? "ON" : "OFF")",
-            frame: frame,
-            action: action,
-            style: isOn ? .primary : .secondary,
-            fontSize: 10
-        )
-        if isOn {
-            addSelectionIndicator(in: frame)
-        }
-    }
-
-    func addSelectionIndicator(in frame: CGRect) {
-        let position = CGPoint(x: frame.maxX - 11, y: frame.maxY - 10)
-        let ring = SKShapeNode(circleOfRadius: 6)
-        ring.position = position
-        ring.zPosition = ArenaUIZPosition.controlFill
-        ring.fillColor = theme.panelFillColor.withAlphaComponent(0.92)
-        ring.strokeColor = theme.playerAccentColor
-        ring.lineWidth = 1
-        uiRoot.addChild(ring)
-        addControlGlyph(.check, at: position, radius: 3.5, color: theme.playerAccentColor)
-    }
-
-    func addBackButton(frame: CGRect) {
-        addButton(
-            "<",
-            frame: frame,
-            action: .back,
-            style: .secondary
-        )
-    }
-
-    func addScrim(alpha: CGFloat) {
-        let scrim = SKShapeNode(rect: CGRect(origin: .zero, size: size))
-        scrim.zPosition = ArenaUIZPosition.scrim
-        let color = theme.kind == .darkTacticalRadar ? SKColor.black : theme.backgroundColor
-        scrim.fillColor = color.withAlphaComponent(alpha)
-        scrim.strokeColor = .clear
-        uiRoot.addChild(scrim)
-    }
-
-    func addPanel(
-        frame: CGRect,
-        stroke: SKColor? = nil,
-        fill: SKColor? = nil,
-        accent: SKColor? = nil
-    ) {
-        let panel = SKShapeNode(rect: frame, cornerRadius: 8)
-        panel.zPosition = ArenaUIZPosition.panel
-        panel.fillColor = fill ?? theme.panelFillColor
-        panel.strokeColor = stroke ?? theme.panelStrokeColor
-        panel.lineWidth = 0.75
-        uiRoot.addChild(panel)
-
-        if let accent {
-            addCornerAccents(frame: frame, color: accent)
-        }
-    }
-
-    func addCornerAccents(frame: CGRect, color: SKColor) {
-        let length = min(12, min(frame.width, frame.height) * 0.22)
-        let path = CGMutablePath()
-        path.move(to: CGPoint(x: frame.minX + 3, y: frame.maxY - length - 3))
-        path.addLine(to: CGPoint(x: frame.minX + 3, y: frame.maxY - 3))
-        path.addLine(to: CGPoint(x: frame.minX + length + 3, y: frame.maxY - 3))
-        path.move(to: CGPoint(x: frame.maxX - length - 3, y: frame.minY + 3))
-        path.addLine(to: CGPoint(x: frame.maxX - 3, y: frame.minY + 3))
-        path.addLine(to: CGPoint(x: frame.maxX - 3, y: frame.minY + length + 3))
-
-        let accents = SKShapeNode(path: path)
-        accents.zPosition = ArenaUIZPosition.controlFill
-        accents.strokeColor = color
-        accents.lineWidth = 0.9
-        accents.lineCap = .square
-        uiRoot.addChild(accents)
-    }
-
-    func addProgressBar(frame: CGRect, fraction: Double, color: SKColor? = nil) {
-        let background = SKShapeNode(rect: frame, cornerRadius: 2)
-        background.zPosition = ArenaUIZPosition.control
-        background.fillColor = theme.borderColor.withAlphaComponent(0.18)
-        background.strokeColor = .clear
-        uiRoot.addChild(background)
-
-        let fillWidth = max(0, frame.width * CGFloat(min(1, max(0, fraction))))
-        guard fillWidth > 0 else {
-            return
-        }
-
-        let fill = SKShapeNode(
-            rect: CGRect(x: frame.minX, y: frame.minY, width: fillWidth, height: frame.height),
-            cornerRadius: 2
-        )
-        fill.zPosition = ArenaUIZPosition.controlFill
-        fill.fillColor = (color ?? theme.playerAccentColor).withAlphaComponent(0.9)
-        fill.strokeColor = .clear
-        uiRoot.addChild(fill)
-    }
-
-    func addDividerLine(from start: CGPoint, to end: CGPoint, color: SKColor) {
-        let path = CGMutablePath()
-        path.move(to: start)
-        path.addLine(to: end)
-        let line = SKShapeNode(path: path)
-        line.zPosition = ArenaUIZPosition.panel
-        line.strokeColor = color
-        line.lineWidth = 1
-        uiRoot.addChild(line)
-    }
-
-    func addButton(
-        _ title: String,
-        frame: CGRect,
-        action: ArenaControlAction,
-        style: ArenaButtonStyle,
-        glyph: ArenaControlGlyph? = nil,
-        fontSize: CGFloat? = nil
-    ) {
-        let fill: SKColor
-        let stroke: SKColor
-        let text: SKColor
-
-        switch style {
-        case .primary:
-            fill = theme.playerAccentColor.withAlphaComponent(0.18)
-            stroke = theme.playerAccentColor.withAlphaComponent(0.82)
-            text = theme.playerColor
-        case .secondary:
-            fill = theme.borderColor.withAlphaComponent(0.07)
-            stroke = theme.borderColor.withAlphaComponent(0.32)
-            text = theme.playerColor.withAlphaComponent(0.8)
-        case .danger:
-            fill = theme.enemyColor.withAlphaComponent(0.1)
-            stroke = theme.enemyColor.withAlphaComponent(0.62)
-            text = theme.enemyColor.withAlphaComponent(0.9)
-        }
-
-        let button = SKShapeNode(rect: frame, cornerRadius: 7)
-        button.zPosition = ArenaUIZPosition.control
-        button.fillColor = fill
-        button.strokeColor = stroke
-        button.lineWidth = style == .primary ? 1.1 : 0.8
-        button.glowWidth = theme.kind == .darkTacticalRadar && style == .primary ? 0.45 : 0
-        uiRoot.addChild(button)
-
-        let compactGlyphLayout = glyph != nil && frame.width < 112
-        let resolvedFontSize = fontSize ?? (glyph == nil ? 14 : (compactGlyphLayout ? 10 : 16))
-        let labelX = glyph == nil ? frame.midX : frame.midX + (compactGlyphLayout ? 8 : 10)
-
-        if let glyph {
-            addControlGlyph(
-                glyph,
-                at: CGPoint(
-                    x: frame.minX + (compactGlyphLayout ? 14 : 24),
-                    y: frame.midY
-                ),
-                radius: compactGlyphLayout ? 7 : 10,
-                color: text
-            )
-        }
-
-        addLabel(
-            title,
-            at: CGPoint(x: labelX, y: frame.midY - 1),
-            fontSize: resolvedFontSize,
-            color: text,
-            alignment: .center
-        )
-        uiHitTargets.append(ArenaControlHitTarget(action: action, frame: frame))
-    }
-
-    func addControlGlyph(
-        _ glyph: ArenaControlGlyph,
-        at position: CGPoint,
-        radius: CGFloat,
-        color: SKColor
-    ) {
-        let root = SKNode()
-        root.position = position
-        root.zPosition = ArenaUIZPosition.label
-        uiRoot.addChild(root)
-
-        let path = CGMutablePath()
-        switch glyph {
-        case .play:
-            path.move(to: CGPoint(x: -radius * 0.55, y: -radius * 0.8))
-            path.addLine(to: CGPoint(x: radius * 0.8, y: 0))
-            path.addLine(to: CGPoint(x: -radius * 0.55, y: radius * 0.8))
-            path.closeSubpath()
-        case .radar:
-            for scale in [CGFloat(0.45), 0.9] {
-                path.addEllipse(in: CGRect(
-                    x: -radius * scale,
-                    y: -radius * scale,
-                    width: radius * scale * 2,
-                    height: radius * scale * 2
-                ))
-            }
-            path.move(to: CGPoint(x: 0, y: 0))
-            path.addLine(to: CGPoint(x: radius * 0.74, y: radius * 0.5))
-        case .award:
-            for index in 0..<10 {
-                let angle = -CGFloat.pi / 2 + CGFloat(index) * CGFloat.pi / 5
-                let pointRadius = index.isMultiple(of: 2) ? radius : radius * 0.42
-                let point = CGPoint(x: cos(angle) * pointRadius, y: sin(angle) * pointRadius)
-                if index == 0 {
-                    path.move(to: point)
-                } else {
-                    path.addLine(to: point)
-                }
-            }
-            path.closeSubpath()
-        case .weapon:
-            path.addEllipse(in: CGRect(x: -radius * 0.72, y: -radius * 0.72, width: radius * 1.44, height: radius * 1.44))
-            path.move(to: CGPoint(x: -radius, y: 0))
-            path.addLine(to: CGPoint(x: radius, y: 0))
-            path.move(to: CGPoint(x: 0, y: -radius))
-            path.addLine(to: CGPoint(x: 0, y: radius))
-        case .ranks:
-            for offset in [-radius * 0.42, radius * 0.2] {
-                path.move(to: CGPoint(x: -radius * 0.8, y: offset - radius * 0.2))
-                path.addLine(to: CGPoint(x: 0, y: offset + radius * 0.38))
-                path.addLine(to: CGPoint(x: radius * 0.8, y: offset - radius * 0.2))
-            }
-        case .settings:
-            for index in 0..<6 {
-                let angle = CGFloat(index) * CGFloat.pi / 3
-                let point = CGPoint(x: cos(angle) * radius, y: sin(angle) * radius)
-                if index == 0 {
-                    path.move(to: point)
-                } else {
-                    path.addLine(to: point)
-                }
-            }
-            path.closeSubpath()
-            path.addEllipse(in: CGRect(x: -radius * 0.28, y: -radius * 0.28, width: radius * 0.56, height: radius * 0.56))
-        case .home:
-            path.move(to: CGPoint(x: -radius, y: -radius * 0.05))
-            path.addLine(to: CGPoint(x: 0, y: radius * 0.86))
-            path.addLine(to: CGPoint(x: radius, y: -radius * 0.05))
-            path.move(to: CGPoint(x: -radius * 0.72, y: 0))
-            path.addLine(to: CGPoint(x: -radius * 0.72, y: -radius * 0.82))
-            path.addLine(to: CGPoint(x: radius * 0.72, y: -radius * 0.82))
-            path.addLine(to: CGPoint(x: radius * 0.72, y: 0))
-        case .check:
-            path.move(to: CGPoint(x: -radius * 0.82, y: 0))
-            path.addLine(to: CGPoint(x: -radius * 0.2, y: -radius * 0.62))
-            path.addLine(to: CGPoint(x: radius * 0.9, y: radius * 0.68))
-        }
-
-        let node = SKShapeNode(path: path)
-        node.strokeColor = color
-        node.fillColor = glyph == .play || glyph == .award ? color.withAlphaComponent(0.9) : .clear
-        node.lineWidth = max(1, radius * 0.15)
-        node.lineCap = .round
-        node.lineJoin = .round
-        root.addChild(node)
-    }
-
-    func addTitle(_ text: String, at position: CGPoint) {
-        addLabel(text, at: position, fontSize: 22, color: theme.playerColor, alignment: .left)
-    }
-
-    func addSmallLabel(
-        _ text: String,
-        at position: CGPoint,
-        color: SKColor,
-        alignment: SKLabelHorizontalAlignmentMode
-    ) {
-        addLabel(text, at: position, fontSize: 12, color: color, alignment: alignment)
-    }
-
-    func addSectionLabel(_ text: String, at position: CGPoint) {
-        addLabel(
-            text,
-            at: position,
-            fontSize: 10,
-            color: theme.borderColor.withAlphaComponent(0.82),
-            alignment: .left
-        )
-    }
-
-    func addLabel(
-        _ text: String,
-        at position: CGPoint,
-        fontSize: CGFloat,
-        color: SKColor,
-        alignment: SKLabelHorizontalAlignmentMode
-    ) {
-        uiRoot.addChild(makeLabel(text, at: position, fontSize: fontSize, color: color, alignment: alignment))
-    }
-
-    func makeLabel(
-        _ text: String,
-        at position: CGPoint,
-        fontSize: CGFloat,
-        color: SKColor,
-        alignment: SKLabelHorizontalAlignmentMode
-    ) -> SKLabelNode {
-        let label = SKLabelNode(fontNamed: fontSize >= 16 ? "Menlo-Bold" : "Menlo")
-        label.text = text
-        label.fontSize = fontSize
-        label.fontColor = color
-        label.horizontalAlignmentMode = alignment
-        label.verticalAlignmentMode = .center
-        label.position = position
-        label.zPosition = ArenaUIZPosition.label
-        return label
-    }
-
-    func presetTitle(_ preset: TiltCalibrationPreset) -> String {
-        switch preset {
-        case .standard:
-            return "STD"
-        case .flatTable:
-            return "TABLE"
-        case .reclined:
-            return "RECL"
-        case .custom:
-            return "CUSTOM"
-        }
-    }
-
-    func presetDisplayTitle(_ preset: TiltCalibrationPreset) -> String {
-        switch preset {
-        case .standard:
-            return "STANDARD"
-        case .flatTable:
-            return "TABLE"
-        case .reclined:
-            return "RECLINED"
-        case .custom:
-            return "CUSTOM"
-        }
-    }
 }
 
 #if DEBUG
+// MARK: - Test support
+
 extension ArenaScene {
     func prepareForVisualSnapshot(
         state: ArenaUISceneState,
@@ -5363,7 +4435,7 @@ extension ArenaScene {
     }
 
     var enemyNodeCountForTesting: Int {
-        enemyNodes.count
+        enemyRegistry.nodeCount
     }
 
     var playerPositionForTesting: CGPoint {
@@ -5445,7 +4517,7 @@ extension ArenaScene {
     }
 
     var classicLeaderboardButtonCountForTesting: Int {
-        uiHitTargets.filter { $0.action == .openClassicLeaderboard }.count
+        uiRenderer.hitTargets.filter { $0.action == .openClassicLeaderboard }.count
     }
 
     var gameCenterStatusMessageForTesting: String? {
@@ -5473,6 +4545,8 @@ extension ArenaScene {
     }
 }
 #endif
+
+// MARK: - Stateful weapon effects
 
 private extension ArenaScene {
     func activateShockwaveWave(
@@ -5648,9 +4722,8 @@ private extension ArenaScene {
         let pullDistance = state.pullRadius / CGFloat(pullDuration) * CGFloat(pullDelta)
 
         if pullDistance > 0 {
-            for index in enemies.indices where state.enemyIDs.contains(enemies[index].id) {
-                enemies[index].pullToward(state.center, distance: pullDistance)
-                enemyNodes[enemies[index].id]?.apply(enemies[index])
+            enemyRegistry.update(ids: state.enemyIDs) { enemy in
+                enemy.pullToward(state.center, distance: pullDistance)
             }
             destroyGravityWellCenterEnemies(state)
         }
@@ -5697,10 +4770,9 @@ private extension ArenaScene {
             return
         }
         var frozenEnemies: [ArenaEnemy] = []
-        for index in enemies.indices where enemyIDs.contains(enemies[index].id) {
-            enemies[index].freeze(duration: duration, thawGraceDuration: thawGraceDuration)
-            enemyNodes[enemies[index].id]?.apply(enemies[index])
-            frozenEnemies.append(enemies[index])
+        enemyRegistry.update(ids: enemyIDs) { enemy in
+            enemy.freeze(duration: duration, thawGraceDuration: thawGraceDuration)
+            frozenEnemies.append(enemy)
         }
         for enemy in WeaponImpactPlan.evenlySampled(frozenEnemies) {
             playFreezeAppliedEffect(at: enemy.position, radius: enemy.radius)
@@ -5779,11 +4851,6 @@ private extension ArenaScene {
     }
 }
 
-private struct ArenaControlHitTarget {
-    let action: ArenaControlAction
-    let frame: CGRect
-}
-
 private struct PendingNovaBombClear {
     let enemyIDs: Set<Int>
     var timeRemaining: TimeInterval
@@ -5815,68 +4882,6 @@ private struct DeveloperTuningFrames {
     let group: CGRect
     let subgroup: CGRect
     let parameters: CGRect
-}
-
-private enum ArenaControlAction: Equatable {
-    case play
-    case playAgain
-    case openModes
-    case openAwards
-    case openWeaponCodex
-    case openOptions
-    case openDeveloperTuning
-    case openCalibrationPreview
-    case home
-    case back
-    case selectMode(ArenaModeKind)
-    case resume
-    case calibrate
-    case endRun
-    case sensitivityDown
-    case sensitivityUp
-    case preset(TiltCalibrationPreset)
-    case toggleAudio
-    case toggleHaptics
-    case selectTheme(ArenaThemeKind)
-    case resetData
-    case openDiagnostics
-    case openClassicLeaderboard
-    case developerTuningPreviousPage
-    case developerTuningNextPage
-    case selectTuningGroup(String)
-    case selectTuningSubgroup(String)
-    case toggleDeveloperTuningChangedOnly
-    case adjustTuningParameter(String, GameTuningAdjustmentDirection)
-    case copyTuningParameters
-    case resetTuningParameters
-}
-
-private enum ArenaButtonStyle {
-    case primary
-    case secondary
-    case danger
-}
-
-private enum ArenaControlGlyph: Equatable {
-    case play
-    case radar
-    case award
-    case weapon
-    case ranks
-    case settings
-    case home
-    case check
-}
-
-private enum ArenaUIZPosition {
-    static let scrim: CGFloat = 0
-    static let preview: CGFloat = 4
-    static let content: CGFloat = 8
-    static let progress: CGFloat = 12
-    static let panel: CGFloat = 16
-    static let control: CGFloat = 24
-    static let controlFill: CGFloat = 25
-    static let label: CGFloat = 32
 }
 
 private extension GameCenterLeaderboardUnavailableReason {

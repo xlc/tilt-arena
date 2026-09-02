@@ -5,6 +5,17 @@ import XCTest
 
 final class GameViewControllerTests: XCTestCase {
     @MainActor
+    func testViewAppearanceUsesInjectedGameCenterClient() {
+        let gameCenterClient = RecordingGameCenterClient()
+        let controller = GameViewController(gameCenterClient: gameCenterClient)
+
+        controller.viewDidAppear(false)
+
+        XCTAssertEqual(gameCenterClient.authenticationRequests.count, 1)
+        XCTAssertFalse(gameCenterClient.authenticationRequests[0].allowsPrompt)
+    }
+
+    @MainActor
     func testSupportedOrientationsAreLandscapeOnly() {
         let controller = GameViewController()
 
@@ -340,18 +351,79 @@ final class GameViewControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testFinishedRunUsesInjectedGameCenterReporter() {
+        let suiteName = "GameViewControllerTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+        let gameCenterClient = RecordingGameCenterClient()
+        let scene = makeArenaScene(defaults: defaults, gameCenterReporter: gameCenterClient)
+
+        scene.prepareActiveRunForTesting()
+        scene.finishRunForTesting()
+
+        XCTAssertEqual(gameCenterClient.submittedRunScores.count, 1)
+        XCTAssertEqual(
+            gameCenterClient.achievementEvents,
+            [.runFinished(gameCenterClient.submittedRunScores[0])]
+        )
+    }
+
+    @MainActor
     private func makeArenaScene(
         size: CGSize = CGSize(width: 852, height: 393),
-        defaults: UserDefaults
+        defaults: UserDefaults,
+        gameCenterReporter: any GameCenterRunReporting = NoopGameCenterClient()
     ) -> ArenaScene {
         ArenaScene(
             size: size,
             tiltSettingsStore: TiltSettingsStore(defaults: defaults),
             runProfileStore: RunProfileStore(defaults: defaults),
             localOptionsStore: ArenaLocalOptionsStore(defaults: defaults),
-            gameTuningStore: GameTuningStore(defaults: defaults)
+            gameTuningStore: GameTuningStore(defaults: defaults),
+            gameCenterReporter: gameCenterReporter
         )
     }
+}
+
+@MainActor
+private final class RecordingGameCenterClient: GameCenterClient {
+    struct AuthenticationRequest {
+        let allowsPrompt: Bool
+    }
+
+    var menuStatus: GameCenterMenuStatus = .hidden
+    private(set) var authenticationRequests: [AuthenticationRequest] = []
+    private(set) var submittedRunScores: [RunSummary] = []
+    private(set) var achievementEvents: [GameCenterAchievementEvent] = []
+
+    func authenticate(
+        presenter: GameCenterAuthenticationPresenting?,
+        allowsPrompt: Bool
+    ) {
+        authenticationRequests.append(AuthenticationRequest(allowsPrompt: allowsPrompt))
+    }
+
+    func retryAuthentication(presenter: GameCenterAuthenticationPresenting?) {}
+
+    func presentClassicSurvivalLeaderboard(
+        presenter: GameCenterLeaderboardPresenting
+    ) -> GameCenterLeaderboardPresentationResult {
+        .presented
+    }
+
+    func submitRunScore(_ summary: RunSummary) {
+        submittedRunScores.append(summary)
+    }
+
+    func reportAchievementEvent(_ event: GameCenterAchievementEvent) {
+        achievementEvents.append(event)
+    }
+
+    func retryQueuedScores() {}
+
+    func retryQueuedAchievements() {}
 }
 
 private final class SafeAreaTestSKView: SKView {

@@ -6,6 +6,7 @@ enum ArenaAwardID: String, CaseIterable, Codable, Equatable {
     case scoreCrest
     case freezeShatter
     case dangerGrab
+    // swiftlint:disable:next inclusive_language
     case weaponMaster
     case survivor
 
