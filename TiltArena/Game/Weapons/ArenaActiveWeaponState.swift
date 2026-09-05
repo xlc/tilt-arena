@@ -71,7 +71,11 @@ struct ArenaTimeDilationState: Equatable {
             return false
         }
         timeRemaining = max(0, timeRemaining - max(0, deltaTime))
-        return timeRemaining == 0
+        guard timeRemaining == 0 else {
+            return false
+        }
+        clear()
+        return true
     }
 
     func enemySpeedMultiplier(for enemy: ArenaEnemy, playerPosition: CGPoint) -> CGFloat {

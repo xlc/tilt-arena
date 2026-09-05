@@ -339,6 +339,38 @@ final class ArenaSceneEnemyLifecycleTests: XCTestCase {
         XCTAssertTrue(scene.isPostWeaponSafeForTesting)
     }
 
+    func testTimeDilationSlowsEnemiesBelowAndAboveTheirSpeedCap() throws {
+        for speed: CGFloat in [40, 1_000] {
+            let normalScene = makeActiveScene()
+            let slowedScene = makeActiveScene()
+            let playerPosition = normalScene.playerPositionForTesting
+            let enemy = ArenaEnemy(
+                id: 203,
+                position: CGPoint(x: playerPosition.x + 60, y: playerPosition.y),
+                radius: 4,
+                speed: speed
+            )
+            normalScene.addEnemyForTesting(enemy)
+            slowedScene.addEnemyForTesting(enemy)
+            let normalNode = try XCTUnwrap(normalScene.children.compactMap { $0 as? EnemyNode }.first)
+            let slowedNode = try XCTUnwrap(slowedScene.children.compactMap { $0 as? EnemyNode }.first)
+            slowedScene.activateTimeDilationAuraForTesting(configuration: StartingWeaponConfiguration(
+                timeDilationRadius: 120,
+                timeDilationMaximumSlowFactor: 3,
+                timeDilationPushRadius: 0
+            ))
+
+            normalScene.updateActiveRunForTesting(deltaTime: 1.0 / 60)
+            slowedScene.updateActiveRunForTesting(deltaTime: 1.0 / 60)
+
+            let normalDistance = enemy.position.x - normalNode.position.x
+            let slowedDistance = enemy.position.x - slowedNode.position.x
+            XCTAssertGreaterThan(normalDistance, 0)
+            // Halfway into a factor-three aura, actual movement should be halved.
+            XCTAssertEqual(slowedDistance, normalDistance / 2, accuracy: 0.0001, "Base speed: \(speed)")
+        }
+    }
+
     func testFlameTrailResolvesBurnBeforeEnemyCanDamagePlayerOrQueueDuplicateBursts() {
         let scene = makeActiveScene()
         let playerPosition = scene.playerPositionForTesting

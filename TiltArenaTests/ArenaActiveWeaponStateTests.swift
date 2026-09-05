@@ -31,6 +31,23 @@ final class ArenaActiveWeaponStateTests: XCTestCase {
         XCTAssertEqual(state.invulnerabilityTimeRemaining, 1.5)
     }
 
+    func testTimeDilationOnlyMergesUpgradesWhileActive() {
+        var state = ArenaTimeDilationState()
+        let base = StartingWeaponConfiguration()
+        let charged = base.applying(chargeTier: .overcharged)
+
+        _ = state.activate(with: charged)
+        XCTAssertEqual(state.activate(with: base).timeDilationRadius, charged.timeDilationRadius)
+        XCTAssertFalse(state.advance(by: charged.timeDilationDuration / 2))
+        XCTAssertTrue(state.isActive)
+
+        XCTAssertTrue(state.advance(by: charged.timeDilationDuration))
+        XCTAssertFalse(state.isActive)
+        XCTAssertNil(state.configuration)
+        XCTAssertFalse(state.advance(by: 1))
+        XCTAssertEqual(state.activate(with: base), base)
+    }
+
     func testPostWeaponSafetyRejectsNonfiniteDurationAndExpires() {
         var state = ArenaPostWeaponSafetyState()
         state.grant(duration: .infinity)

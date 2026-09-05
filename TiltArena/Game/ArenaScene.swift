@@ -1008,14 +1008,15 @@ extension ArenaScene {
                 for: enemy.behavior.kind,
                 playerMaximumSpeed: playerMaximumSpeed
             )
+            let slowMultiplier = activeWeapons.timeDilation.enemySpeedMultiplier(
+                for: enemy,
+                playerPosition: playerPosition
+            )
             enemy.advance(
                 toward: playerPosition,
                 deltaTime: deltaTime,
-                externalSpeedMultiplier: runSpeedMultiplier * timeDilationEnemySpeedMultiplier(
-                    for: enemy,
-                    playerPosition: playerPosition
-                ),
-                maximumSpeed: maximumEnemySpeed
+                externalSpeedMultiplier: runSpeedMultiplier * slowMultiplier,
+                maximumSpeed: maximumEnemySpeed * slowMultiplier
             )
         }
     }
@@ -1722,10 +1723,6 @@ extension ArenaScene {
         activeWeapons.timeDilation.clear()
         timeDilationAuraNode?.removeFromParent()
         timeDilationAuraNode = nil
-    }
-
-    private func timeDilationEnemySpeedMultiplier(for enemy: ArenaEnemy, playerPosition: CGPoint) -> CGFloat {
-        activeWeapons.timeDilation.enemySpeedMultiplier(for: enemy, playerPosition: playerPosition)
     }
 
     private func fireRicochetLance(
