@@ -1331,14 +1331,15 @@ extension ArenaScene {
         weaponKind: WeaponKind?,
         finalizesWeaponClear: Bool = true
     ) -> Set<Int> {
-        let liveEnemyIDs = Set(enemies.map(\.id))
-        let enemyIDs = enemyIDs.intersection(liveEnemyIDs)
-
         guard !enemyIDs.isEmpty else {
             return []
         }
-
         let destroyedEnemies = enemies.filter { enemyIDs.contains($0.id) }
+        guard !destroyedEnemies.isEmpty else {
+            return []
+        }
+
+        let enemyIDs = Set(destroyedEnemies.map(\.id))
         let clearPositions = destroyedEnemies.map(\.position)
         let splitChildren = splitterChildren(from: destroyedEnemies, destroyedBy: weaponKind)
         let previousComboMultiplier = runController.comboMultiplier
@@ -1363,11 +1364,15 @@ extension ArenaScene {
                 clearPositions: clearPositions
             )
         }
-        playEnemyClearBursts(
-            at: clearPositions,
-            weaponKind: weaponKind,
-            comboMultiplier: runController.comboMultiplier
-        )
+        if weaponKind == .freezeBurst {
+            playFrozenShatterEffect(at: clearPositions, color: theme.playerColor)
+        } else {
+            playEnemyClearBursts(
+                at: clearPositions,
+                weaponKind: weaponKind,
+                comboMultiplier: runController.comboMultiplier
+            )
+        }
         if enemyIDs.count >= gameTuning.feedback.multiKillShakeThreshold {
             playScreenShake(
                 amplitude: gameTuning.feedback.multiKillShakeAmplitude,
@@ -4529,42 +4534,12 @@ private extension ArenaScene {
         let shatterIDs = Set(
             enemies
                 .filter {
-                    canShatterOnContact($0) && playerCircle.intersects($0.collisionCircle)
+                    $0.isShatterableFrozen && playerCircle.intersects($0.collisionCircle)
                 }
                 .map(\.id)
         )
 
-        guard !shatterIDs.isEmpty else {
-            return
-        }
-        let shatteredEnemies = enemies.filter { shatterIDs.contains($0.id) }
-        let splitChildren = splitterChildren(from: shatteredEnemies, destroyedBy: .freezeBurst)
-        let shatterPositions = shatteredEnemies.map(\.position)
-        playFrozenShatterEffect(at: shatterPositions, color: theme.playerColor)
-        let previousComboMultiplier = runController.comboMultiplier
-        let weaponComboEvent = runController.recordEnemyKills(count: shatterIDs.count, weaponKind: .freezeBurst)
-        reportGameCenterAchievementEvent(.enemyClear(
-            count: shatterIDs.count,
-            weaponKind: .freezeBurst,
-            maxCombo: runController.maxCombo
-        ))
-        playEnemyClearHaptics(killCount: shatterIDs.count, previousComboMultiplier: previousComboMultiplier)
-        playEnemyClearAudio(killCount: shatterIDs.count, previousComboMultiplier: previousComboMultiplier)
-        if let weaponComboEvent {
-            recordWeaponComboFeedback(
-                weaponComboEvent,
-                previousComboMultiplier: previousComboMultiplier,
-                clearPositions: shatterPositions
-            )
-        }
-        if shatterIDs.count >= gameTuning.feedback.multiKillShakeThreshold {
-            playScreenShake(
-                amplitude: gameTuning.feedback.multiKillShakeAmplitude,
-                duration: gameTuning.feedback.multiKillShakeDuration
-            )
-        }
-        removeEnemies(ids: shatterIDs)
-        addSplitterChildren(splitChildren)
+        destroyEnemies(ids: shatterIDs, weaponKind: .freezeBurst)
     }
 
     private func recordWeaponComboFeedback(
@@ -4586,10 +4561,6 @@ private extension ArenaScene {
 
         playAudio(.comboMilestone)
         playHaptic(.comboMilestone(multiplier: event.kind == .cascade ? 4 : 2))
-    }
-
-    func canShatterOnContact(_ enemy: ArenaEnemy) -> Bool {
-        enemy.isShatterableFrozen
     }
 }
 
