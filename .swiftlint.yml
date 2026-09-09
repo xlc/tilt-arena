@@ -13,6 +13,7 @@ identifier_name:
     - id
     - x
     - y
+    - z
 
 line_length:
   warning: 140

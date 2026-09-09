@@ -4,7 +4,6 @@ import XCTest
 final class TiltSettingsStoreTests: XCTestCase {
     private static let settingsKey = "tiltArena.tiltControlSettings"
     private static let initialCalibrationKey = "tiltArena.hasCapturedInitialTiltCalibration"
-    private static let calibrationSpaceVersionKey = "tiltArena.tiltCalibrationSpaceVersion"
 
     private var defaults: UserDefaults!
     private var suiteName: String!
@@ -46,7 +45,6 @@ final class TiltSettingsStoreTests: XCTestCase {
     func testCorruptSettingsResetCalibrationStateInsteadOfTrustingStaleFlag() {
         defaults.set(Data("not-json".utf8), forKey: Self.settingsKey)
         defaults.set(true, forKey: Self.initialCalibrationKey)
-        defaults.set(3, forKey: Self.calibrationSpaceVersionKey)
 
         let store = TiltSettingsStore(defaults: defaults)
 
@@ -105,80 +103,22 @@ final class TiltSettingsStoreTests: XCTestCase {
         XCTAssertEqual(store.settings, .defaults)
     }
 
-    func testLegacyCustomCalibrationMigratesToScreenSpaceDefaults() throws {
-        try writeLegacySettings(
-            TiltControlSettings(
-                calibration: .custom(neutralGravity: TiltGravityVector(x: 0.2, y: -0.4)),
-                sensitivity: 1.3
-            )
-        )
-
+    func testCalibrationDepthAndSensitivitySurviveReload() {
         let store = TiltSettingsStore(defaults: defaults)
+        let gravity = TiltGravityVector(x: 0, y: 0.8, z: 0.6)
+        store.recalibrate(using: gravity)
+        store.updateSensitivity(0.6)
 
+        let reloaded = TiltSettingsStore(defaults: defaults)
+        XCTAssertFalse(reloaded.needsInitialCalibration)
+        XCTAssertEqual(reloaded.settings.calibration.neutralGravity, gravity)
+        XCTAssertEqual(reloaded.settings.sensitivity, 0.6)
+    }
+
+    func testZeroGravityCannotCompleteCalibration() {
+        let store = TiltSettingsStore(defaults: defaults)
+        store.ensureInitialCalibration(using: TiltGravityVector(x: 0, y: 0, z: 0))
         XCTAssertTrue(store.needsInitialCalibration)
-        XCTAssertEqual(store.settings.calibration, TiltControlSettings.defaults.calibration)
-        XCTAssertEqual(store.settings.sensitivity, 1.3)
-    }
-
-    func testLegacyPresetCalibrationKeepsCapturedState() throws {
-        let legacySettings = TiltControlSettings(
-            calibration: .defaultCalibration(for: .flatTable),
-            sensitivity: 1.2
-        )
-        try writeLegacySettings(legacySettings)
-
-        let store = TiltSettingsStore(defaults: defaults)
-
-        XCTAssertFalse(store.needsInitialCalibration)
-        XCTAssertEqual(store.settings, legacySettings)
-    }
-
-    func testVersionTwoCustomCalibrationMigratesAfterScreenAxisFlip() throws {
-        try writeLegacySettings(
-            TiltControlSettings(
-                calibration: .custom(neutralGravity: TiltGravityVector(x: 0.2, y: -0.4)),
-                sensitivity: 1.3
-            ),
-            calibrationSpaceVersion: 2
-        )
-
-        let store = TiltSettingsStore(defaults: defaults)
-
-        XCTAssertTrue(store.needsInitialCalibration)
-        XCTAssertEqual(store.settings.calibration, TiltControlSettings.defaults.calibration)
-        XCTAssertEqual(store.settings.sensitivity, 1.3)
-        XCTAssertEqual(defaults.integer(forKey: Self.calibrationSpaceVersionKey), 3)
-    }
-
-    func testVersionTwoPresetCalibrationRefreshesAfterScreenAxisFlip() throws {
-        try writeLegacySettings(
-            TiltControlSettings(
-                calibration: TiltCalibration(
-                    preset: .standard,
-                    neutralGravity: TiltGravityVector(x: 0, y: -0.35)
-                ),
-                sensitivity: 1.2
-            ),
-            calibrationSpaceVersion: 2
-        )
-
-        let store = TiltSettingsStore(defaults: defaults)
-
-        XCTAssertFalse(store.needsInitialCalibration)
-        XCTAssertEqual(store.settings.calibration, .defaultCalibration(for: .standard))
-        XCTAssertEqual(store.settings.sensitivity, 1.2)
-        XCTAssertEqual(defaults.integer(forKey: Self.calibrationSpaceVersionKey), 3)
-    }
-
-    private func writeLegacySettings(
-        _ settings: TiltControlSettings,
-        calibrationSpaceVersion: Int? = nil
-    ) throws {
-        let data = try JSONEncoder().encode(settings)
-        defaults.set(data, forKey: Self.settingsKey)
-        defaults.set(true, forKey: Self.initialCalibrationKey)
-        if let calibrationSpaceVersion {
-            defaults.set(calibrationSpaceVersion, forKey: Self.calibrationSpaceVersionKey)
-        }
+        XCTAssertEqual(store.settings, .defaults)
     }
 }

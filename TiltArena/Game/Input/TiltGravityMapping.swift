@@ -43,9 +43,9 @@ enum TiltGravityMapper {
     ) -> TiltGravityVector {
         switch orientation {
         case .landscapeLeft:
-            return TiltGravityVector(x: rawGravity.y, y: -rawGravity.x)
+            return TiltGravityVector(x: rawGravity.y, y: -rawGravity.x, z: rawGravity.z)
         case .landscapeRight:
-            return TiltGravityVector(x: -rawGravity.y, y: rawGravity.x)
+            return TiltGravityVector(x: -rawGravity.y, y: rawGravity.x, z: rawGravity.z)
         }
     }
 }

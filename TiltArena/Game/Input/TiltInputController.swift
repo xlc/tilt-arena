@@ -123,7 +123,7 @@ final class TiltInputController {
             return nil
         }
 
-        let vector = TiltGravityVector(x: gravity.x, y: gravity.y)
+        let vector = TiltGravityVector(x: gravity.x, y: gravity.y, z: gravity.z)
         guard vector.isFinite else {
             transition(to: .invalidSample, level: .warning, event: "input.motion_sample_invalid")
             return nil

@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import simd
 
 enum TiltCalibrationPreset: String, CaseIterable, Codable {
     case standard
@@ -24,9 +25,25 @@ enum TiltCalibrationPreset: String, CaseIterable, Codable {
 struct TiltGravityVector: Codable, Equatable {
     var x: Double
     var y: Double
+    var z: Double
+
+    init(x: Double, y: Double, z: Double? = nil) {
+        self.x = x
+        self.y = y
+        self.z = z ?? -sqrt(max(0, 1 - x * x - y * y))
+    }
 
     var isFinite: Bool {
-        x.isFinite && y.isFinite
+        x.isFinite && y.isFinite && z.isFinite
+    }
+
+    var unitVector: SIMD3<Double>? {
+        let vector = SIMD3(x, y, z)
+        let length = simd_length(vector)
+        guard isFinite, length.isFinite, length > 0.000_001 else {
+            return nil
+        }
+        return vector / length
     }
 }
 

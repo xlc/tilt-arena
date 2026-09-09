@@ -63,6 +63,13 @@ final class TiltGravityMappingTests: XCTestCase {
         )
     }
 
+    func testBothLandscapeMappingsPreserveGravityDepthPastVertical() {
+        let gravity = TiltGravityVector(x: 0.3, y: 0.4, z: sqrt(0.75))
+        for orientation in [TiltScreenOrientation.landscapeLeft, .landscapeRight] {
+            XCTAssertEqual(TiltGravityMapper.screenGravity(from: gravity, orientation: orientation).z, gravity.z)
+        }
+    }
+
     func testReadoutFormatterUsesGameplayRowsForCalibrationUI() {
         let readout = TiltInputReadout(
             orientation: .landscapeLeft,
