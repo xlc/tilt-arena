@@ -90,9 +90,9 @@ final class ArenaMenuContentTests: XCTestCase {
         }
 
         let descriptions = Dictionary(uniqueKeysWithValues: rows.map { ($0.kind, $0.description) })
-        XCTAssertEqual(descriptions[.freezeBurst], "Freeze, then touch to shatter.")
+        XCTAssertEqual(descriptions[.freezeBurst], "Touch to shatter; no splits.")
         XCTAssertEqual(descriptions[.ricochetLance], "Beam bounces off arena walls.")
-        XCTAssertEqual(descriptions[.novaBomb], "Random 50%; charge clears more.")
+        XCTAssertEqual(descriptions[.novaBomb], "Random 50–100%; no splits.")
     }
 
     func testPostRunHighlightsReportNewAwardsAndNextUnlock() {

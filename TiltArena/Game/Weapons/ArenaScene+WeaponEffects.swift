@@ -176,6 +176,7 @@ extension ArenaScene {
     func playGravityWellEffect(
         at position: CGPoint,
         radius: CGFloat? = nil,
+        clearRadius: CGFloat? = nil,
         duration: TimeInterval? = nil
     ) {
         gravityWellEffectNode?.removeFromParent()
@@ -197,6 +198,9 @@ extension ArenaScene {
         )
         container.addChild(ring)
 
+        let clearRadius = WeaponRuntimeSafetyLimits.distance(clearRadius ?? weaponResolver.configuration.gravityWellClearRadius)
+        container.addChild(makeGravityClearBoundary(radius: clearRadius))
+
         let sprite = makeWeaponEffectSprite(kind: .gravityWell, size: radius * 1.42, zPosition: -1)
         sprite.alpha = 0.44
         sprite.setScale(0.92)
@@ -212,7 +216,7 @@ extension ArenaScene {
 
         for index in 0..<6 {
             let angle = CGFloat(index) * .pi / 3
-            let arm = SKShapeNode(path: Self.radialLinePath(innerRadius: 16, outerRadius: radius * 0.86, angle: angle))
+            let arm = SKShapeNode(path: Self.radialLinePath(innerRadius: clearRadius + 4, outerRadius: radius * 0.86, angle: angle))
             arm.strokeColor = theme.playerColor.withAlphaComponent(0.26)
             arm.lineWidth = 1.1
             arm.glowWidth = 0.8
@@ -226,11 +230,25 @@ extension ArenaScene {
             )
         )
         container.run(.repeatForever(.rotate(byAngle: -.pi * 1.5, duration: 0.9)), withKey: "gravity.spin")
-        let pulse = SKAction.group([
-            .scale(to: 0.22, duration: duration),
-            .fadeOut(withDuration: duration)
-        ])
-        container.run(.sequence([pulse, .removeFromParent()]), withKey: "gravity.collapse")
+        // The field and core keep their gameplay radii throughout the activation.
+        // Animate the arms through rotation, never shrink the collision guide.
+        container.run(.sequence([
+            .wait(forDuration: max(0, duration - 0.12)),
+            .fadeOut(withDuration: 0.12),
+            .removeFromParent()
+        ]), withKey: "gravity.collapse")
+    }
+
+    private func makeGravityClearBoundary(radius: CGFloat) -> SKShapeNode {
+        let boundary = makeEffectRing(
+            radius: radius,
+            strokeColor: theme.pickupViolet.withAlphaComponent(0.72),
+            fillColor: theme.pickupViolet.withAlphaComponent(0.08),
+            lineWidth: 1.4,
+            glowWidth: 0.5
+        )
+        boundary.name = "gravity.clearBoundary"
+        return boundary
     }
 
     func playGravityWellCollapseEffect(

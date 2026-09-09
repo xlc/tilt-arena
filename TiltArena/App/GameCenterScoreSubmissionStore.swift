@@ -220,17 +220,16 @@ enum GameCenterAchievementProgressMapper {
     }
 
     private static func runFinishedProgress(_ summary: RunSummary) -> [GameCenterAchievementProgress] {
-        guard summary.mode == .classic else {
-            return []
-        }
-
         var progress = [
             completed(.firstRun),
             milestone(.combo10, currentValue: Double(summary.maxCombo), targetValue: 10),
             milestone(.combo50, currentValue: Double(summary.maxCombo), targetValue: 50),
-            milestone(.survive60, currentValue: summary.survivalTime, targetValue: 60),
-            milestone(.score100000, currentValue: Double(summary.score), targetValue: 100_000)
+            milestone(.survive60, currentValue: summary.survivalTime, targetValue: 60)
         ]
+
+        if summary.mode == .classic {
+            progress.append(milestone(.score100000, currentValue: Double(summary.score), targetValue: 100_000))
+        }
 
         if summary.enemiesDestroyed > 0 {
             progress.append(completed(.firstEnemyClear))

@@ -9,6 +9,23 @@ import XCTest
 final class ArenaEffectSnapshotTests: XCTestCase {
     private let sceneSize = CGSize(width: 720, height: 420)
 
+    func testDarkGravityFieldBounds() throws {
+        assertSnapshot(of: try makeGravityFieldImage(themeKind: .darkTacticalRadar), as: .image(precision: 0.99))
+    }
+
+    func testWhiteGravityFieldBounds() throws {
+        assertSnapshot(of: try makeGravityFieldImage(themeKind: .whitePrecisionBoard), as: .image(precision: 0.99))
+    }
+
+    private func makeGravityFieldImage(themeKind: ArenaThemeKind) throws -> UIImage {
+        let scene = try makeScene(size: sceneSize)
+        return try SnapshotImageRenderer.render(scene: scene) {
+            scene.prepareEffectSnapshotForTesting(themeKind: themeKind)
+            scene.playGravityWellEffect(at: CGPoint(x: 359, y: 188.5), radius: 185.6, clearRadius: 35.2)
+            scene.revealWeaponEffectsForSnapshotTesting()
+        }
+    }
+
     func testDarkEffectMotionContactSheet() throws {
         assertSnapshot(
             of: try makeEffectMotionImage(themeKind: .darkTacticalRadar),
@@ -52,6 +69,15 @@ final class ArenaEffectSnapshotTests: XCTestCase {
             addTelegraphExample(to: scene, theme: themeKind.theme)
             addPickupExamples(to: scene, theme: themeKind.theme)
             addWeaponEffectExamples(to: scene)
+            scene.playGravityWellEffect(at: CGPoint(x: 359, y: 188.5), radius: 185.6, clearRadius: 35.2, duration: 1)
+            let field = try XCTUnwrap(scene.gravityWellEffectNode)
+            let core = try XCTUnwrap(field.childNode(withName: "gravity.clearBoundary") as? SKShapeNode)
+            scene.run(.sequence([.wait(forDuration: 0.5), .run {
+                XCTAssertEqual(field.xScale, 1, accuracy: 0.0001)
+                XCTAssertEqual(field.yScale, 1, accuracy: 0.0001)
+                XCTAssertEqual(core.path?.boundingBox.width ?? 0, 70.4, accuracy: 0.0001)
+                XCTAssertNotNil(field.parent)
+            }]), withKey: "gravity.bounds.check")
             let completed = expectation(description: "Effects complete in \(themeKind)")
             scene.run(.sequence([.wait(forDuration: 2.2), .run { completed.fulfill() }]), withKey: "preview.completion")
             if ProcessInfo.processInfo.environment["TILT_RECORD_EFFECT_PREVIEWS"] == "1" {

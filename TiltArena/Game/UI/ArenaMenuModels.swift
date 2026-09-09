@@ -30,14 +30,14 @@ struct ArenaMenuContent {
         .shockwave: "Growing ring clears threats.",
         .seekerSwarm: "Nearest targets; impact bursts.",
         .razorShield: "Orbiting blades, then burst.",
-        .freezeBurst: "Freeze, then touch to shatter.",
-        .gravityWell: "Pulls inward; clears center.",
+        .freezeBurst: "Touch to shatter; no splits.",
+        .gravityWell: "Pull + core clear; no splits.",
         .chainLightning: "Strike jumps between threats.",
         .flameTrail: "Boost, guard, damaging trail.",
         .warpDash: "Slows and pushes nearby foes.",
         .powerWave: "Charge, aim, clear a wide cone.",
         .ricochetLance: "Beam bounces off arena walls.",
-        .novaBomb: "Random 50%; charge clears more."
+        .novaBomb: "Random 50–100%; no splits."
     ]
 
     static func modeRows(profile: RunProfile, selectedMode: ArenaModeKind) -> [ArenaModeRow] {

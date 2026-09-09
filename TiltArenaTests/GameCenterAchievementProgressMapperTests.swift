@@ -3,6 +3,20 @@ import XCTest
 @testable import TiltArena
 
 final class GameCenterAchievementProgressMapperTests: XCTestCase {
+    func testGeneralMilestonesUseEveryModeButScoreMilestoneRemainsClassic() {
+        for mode in ArenaModeKind.allCases {
+            let summary = RunSummary(score: 50_000, survivalTime: 30, maxCombo: 25, enemiesDestroyed: 4,
+                                     bestWeapon: .shockwave, timestamp: Date(timeIntervalSince1970: 1), mode: mode)
+            let progress = mappedProgress(for: .runFinished(summary))
+            XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.firstRun.rawValue], 100)
+            XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.firstEnemyClear.rawValue], 100)
+            XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.combo10.rawValue], 100)
+            XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.combo50.rawValue], 50)
+            XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.survive60.rawValue], 50)
+            XCTAssertEqual(progress[GameCenterIdentifiers.Achievement.score100000.rawValue], mode == .classic ? 50 : nil)
+        }
+    }
+
     func testRunFinishedMapsMilestoneProgress() {
         let summary = RunSummary(
             score: 50_000,

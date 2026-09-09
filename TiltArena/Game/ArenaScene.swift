@@ -889,6 +889,7 @@ extension ArenaScene {
             playGravityWellEffect(
                 at: gravityWellState.center,
                 radius: gravityWellState.pullRadius,
+                clearRadius: gravityWellState.clearRadius,
                 duration: gravityWellState.totalTimeRemaining
             )
         }
@@ -3766,6 +3767,7 @@ private extension ArenaScene {
         playGravityWellEffect(
             at: center,
             radius: configuration.gravityWellRadius,
+            clearRadius: configuration.gravityWellClearRadius,
             duration: state.totalTimeRemaining
         )
         destroyGravityWellCenterEnemies(state)
