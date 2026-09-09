@@ -483,4 +483,13 @@ struct EnemySpawnFrame: Equatable {
     var telegraphsToShow: [EnemyTelegraph] = []
     var telegraphIDsToRemove: Set<Int> = []
     var runtimeCorrectionCount = 0
+    var capacityGates = EnemySpawnCapacityGates()
+}
+
+/// Gates found closed by enabled spawners during a step. This is availability
+/// exposure, not a count of missed enemies or population saturation.
+struct EnemySpawnCapacityGates: Equatable {
+    var enemy = false
+    var warning = false
+    var role = false
 }

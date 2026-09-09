@@ -45,12 +45,12 @@ extension EnemySpawnDirector {
         let projectedTrapCount = Set(activeAndNewEnemies.compactMap(\.paddleTrapID)).count + pendingPaddleTrapCount
 
         let hasEnemyCapacity = projectedEnemyCount + componentCount <= context.tuning.maxActiveEnemies
-            && projectedTrapCount < context.tuning.maxActivePaddleTraps
         guard advanceTelegraphTimer(
             for: .paddleTrap,
             interval: paddleTrapSpawnInterval,
             deltaTime: context.deltaTime,
-            hasEnemyCapacity: hasEnemyCapacity
+            hasEnemyCapacity: hasEnemyCapacity,
+            hasRoleCapacity: projectedTrapCount < context.tuning.maxActivePaddleTraps
         ) else {
             return
         }

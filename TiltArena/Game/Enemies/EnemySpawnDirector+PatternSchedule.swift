@@ -88,15 +88,20 @@ extension EnemySpawnDirector {
         for pattern: SpawnPattern,
         interval: TimeInterval,
         deltaTime: TimeInterval,
-        hasEnemyCapacity: Bool
+        hasEnemyCapacity: Bool,
+        hasRoleCapacity: Bool = true
     ) -> Bool {
         primeTimer(for: pattern, interval: interval)
 
         // Readiness ages even while capacity is occupied; blocking never restarts a cooldown.
         self[keyPath: pattern.timer] -= deltaTime
+        capacityGates.enemy = capacityGates.enemy || !hasEnemyCapacity
+        capacityGates.role = capacityGates.role || !hasRoleCapacity
+        capacityGates.warning = capacityGates.warning || pendingTelegraphSlotCount >= pendingTelegraphCapacity
         return self[keyPath: pattern.timer] <= 0
             && pendingTelegraphSlotCount < pendingTelegraphCapacity
             && hasEnemyCapacity
+            && hasRoleCapacity
     }
 
     mutating func completePattern(_ pattern: SpawnPattern, interval: TimeInterval, deltaTime: TimeInterval) {

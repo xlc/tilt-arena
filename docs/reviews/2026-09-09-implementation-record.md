@@ -66,7 +66,7 @@ Use another installed simulator ID if necessary. The `spawn-baseline.csv` XCTest
 
 **Remaining implementation and acceptance work, in order:**
 
-1. Finish P01's bounded run/per-weapon measurement accumulator: reconciled score categories, pickup age/tier, activation kill distribution, protection/control exposure, and pickup-to-death association. Existing diagnostic logging remains intact; those new summaries are not implemented in this pass.
+1. P01 measurement accumulation is now implemented: reconciled score categories, pickup age/tier, activation kill distribution, protection/control exposure, spawn gates and pickup-to-death association. See [measurement definitions](2026-09-09-balance-measurements.md). The matched encounter work below remains open.
 2. Build the named matched encounter comparisons in P10/P12 for all 11 weapons and three tiers. The current regressions establish mechanics; they do not constitute the complete comparison matrix or a weapon tier ranking.
 3. Run counterbalanced baseline/candidate sessions for P12–P15. Accept or reject each numerical change using the plan's criteria and update the retained-value table with results. Do not treat this table as completion of those experiments.
 4. Finish P16's aimed-charge/safety feedback evaluation and decide whether score-neutral graze feedback improves play. No graze mechanic or reward was added.
@@ -76,3 +76,5 @@ Use another installed simulator ID if necessary. The `spawn-baseline.csv` XCTest
 The complete plan remains the source for dependencies and acceptance criteria. The four originally reproduced defects and the additional confirmed behavior inconsistencies are fixed locally; the game has not yet passed the full human balance and release matrix.
 
 Final local validation: 592 XCTest cases passed with the extended sweep enabled; SwiftLint and `git diff --check` passed; the Release simulator build succeeded for arm64 and x86_64; all eight achievement artwork files passed the repository validator. Changed warnings, Gravity fields, codex, retry, HUD and world-layout snapshots were visually inspected. Physical-device input, sustained device performance, App Store Connect configuration and release verification remain outstanding.
+
+Follow-up measurement validation: 599 tests executed, one opt-in extended sweep skipped, zero failures. SwiftLint and diff whitespace checks passed. The review corrected a survival-overflow test that initially exercised the quotient guard and verified all summary fields survive diagnostic sanitization. This slice changes measurement plumbing, not tuning defaults.

@@ -24,12 +24,12 @@ extension EnemySpawnDirector {
         let projectedHunterDotCount = activeAndNewEnemies.filter(\.isHunterDot).count + pendingHunterDotCount
 
         let hasEnemyCapacity = projectedEnemyCount + 1 <= context.tuning.maxActiveEnemies
-            && projectedHunterDotCount < context.tuning.maxActiveHunterDots
         guard advanceTelegraphTimer(
             for: .hunterDot,
             interval: hunterDotSpawnInterval,
             deltaTime: context.deltaTime,
-            hasEnemyCapacity: hasEnemyCapacity
+            hasEnemyCapacity: hasEnemyCapacity,
+            hasRoleCapacity: projectedHunterDotCount < context.tuning.maxActiveHunterDots
         ) else {
             return
         }

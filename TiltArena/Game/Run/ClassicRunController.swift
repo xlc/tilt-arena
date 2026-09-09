@@ -87,6 +87,7 @@ struct ClassicRunController {
     private(set) var survivalTime: TimeInterval = 0
     private(set) var enemiesDestroyed = 0
     private(set) var score = 0
+    private(set) var scoreBreakdown = RunScoreBreakdown()
     private(set) var currentCombo = 0
     private(set) var maxCombo = 0
     private(set) var comboTimeRemaining: TimeInterval = 0
@@ -194,7 +195,7 @@ struct ClassicRunController {
         }
 
         creditedItemPickupIDs.insert(pickupID)
-        score = saturatedSum(score, max(0, configuration.itemPickupScore))
+        awardScore(max(0, configuration.itemPickupScore), category: \.pickups)
         return true
     }
 
@@ -215,6 +216,7 @@ struct ClassicRunController {
         survivalTime = 0
         enemiesDestroyed = 0
         score = 0
+        scoreBreakdown = RunScoreBreakdown()
         currentCombo = 0
         maxCombo = 0
         comboTimeRemaining = 0
@@ -267,7 +269,7 @@ struct ClassicRunController {
         let bonusIncrement = Double(newIntervals) * survivalBonusScorePerInterval()
         let updatedRemainder = survivalBonusRemainder + bonusIncrement
         guard updatedRemainder.isFinite, updatedRemainder < Double(Int.max) else {
-            score = Int.max
+            awardScore(Int.max, category: \.survival)
             survivalBonusRemainder = 0
             creditedSurvivalBonusIntervals = eligibleIntervals
             return
@@ -276,7 +278,7 @@ struct ClassicRunController {
         survivalBonusRemainder = max(0, updatedRemainder)
         let wholePoints = Int(survivalBonusRemainder)
         if wholePoints > 0 {
-            score = saturatedSum(score, wholePoints)
+            awardScore(wholePoints, category: \.survival)
             survivalBonusRemainder -= Double(wholePoints)
         }
         creditedSurvivalBonusIntervals = eligibleIntervals
@@ -291,7 +293,7 @@ struct ClassicRunController {
         let nextCombo = saturatedSum(currentCombo, 1)
         let (scoreIncrement, multiplicationOverflow) = max(0, scoreValue)
             .multipliedReportingOverflow(by: multiplier(forComboCount: nextCombo))
-        score = saturatedSum(score, multiplicationOverflow ? Int.max : scoreIncrement)
+        awardScore(multiplicationOverflow ? Int.max : scoreIncrement, category: \.kills)
         currentCombo = nextCombo
         maxCombo = max(maxCombo, currentCombo)
         comboTimeRemaining = configuration.comboWindow
@@ -338,4 +340,19 @@ struct ClassicRunController {
         let (sum, overflow) = lhs.addingReportingOverflow(rhs)
         return overflow ? Int.max : sum
     }
+
+    private mutating func awardScore(_ increment: Int, category: WritableKeyPath<RunScoreBreakdown, Int>) {
+        let previousScore = score
+        score = saturatedSum(score, max(0, increment))
+        // Credit only points actually awarded, including the final partial award at saturation.
+        scoreBreakdown[keyPath: category] += score - previousScore
+    }
+}
+
+struct RunScoreBreakdown: Equatable {
+    var kills = 0
+    var pickups = 0
+    var survival = 0
+
+    var total: Int { kills + pickups + survival }
 }

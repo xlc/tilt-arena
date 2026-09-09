@@ -12,6 +12,7 @@ extension EnemySpawnDirector {
         }
 
         guard projectedEnemyCount < context.tuning.maxActiveEnemies else {
+            capacityGates.enemy = true
             timeUntilNextChaser = max(timeUntilNextChaser, context.tuning.chaserSpawnInterval)
             return
         }
@@ -20,6 +21,7 @@ extension EnemySpawnDirector {
         let usesSpawnWarning = telegraphDuration(configuration.spawnWarningDuration) > 0
             && maxPendingSpawnWarnings > 0
         guard !usesSpawnWarning || pendingSpawnWarningCount < maxPendingSpawnWarnings else {
+            capacityGates.warning = true
             timeUntilNextChaser = max(timeUntilNextChaser, context.tuning.chaserSpawnInterval)
             return
         }

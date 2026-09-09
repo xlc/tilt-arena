@@ -27,12 +27,12 @@ extension EnemySpawnDirector {
         let projectedMineDotCount = activeAndNewEnemies.filter(\.isMineDot).count + pendingMineDotCount
 
         let hasEnemyCapacity = projectedEnemyCount + 1 <= context.tuning.maxActiveEnemies
-            && projectedMineDotCount < context.tuning.maxActiveMineDots
         guard advanceTelegraphTimer(
             for: .mineDot,
             interval: mineDotSpawnInterval,
             deltaTime: context.deltaTime,
-            hasEnemyCapacity: hasEnemyCapacity
+            hasEnemyCapacity: hasEnemyCapacity,
+            hasRoleCapacity: projectedMineDotCount < context.tuning.maxActiveMineDots
         ) else {
             return
         }

@@ -58,6 +58,7 @@ struct EnemySpawnDirector {
     var timeUntilNextPaddleTrap: TimeInterval = 0
     var enabledSpawnPatterns: Set<SpawnPattern> = []
     var pendingSpawns: [Int: PendingEnemySpawn] = [:]
+    var capacityGates = EnemySpawnCapacityGates()
     var pendingEnemyCount: Int {
         pendingSpawns.values.reduce(0) { $0 + $1.enemies.count }
     }
@@ -133,6 +134,7 @@ struct EnemySpawnDirector {
         playerPosition: CGPoint,
         pickupCircles: [CollisionCircle]
     ) -> EnemySpawnFrame {
+        capacityGates = EnemySpawnCapacityGates()
         let sanitizedTimerCount = sanitizeSpawnTimers()
         let clampedDelta = deltaTime.isFinite ? max(0, deltaTime) : 0
         let tuning = configuration.tuning(at: survivalTime)
@@ -161,6 +163,7 @@ struct EnemySpawnDirector {
             frame: &frame
         )
 
+        frame.capacityGates = capacityGates
         return frame
     }
 

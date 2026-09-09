@@ -42,11 +42,15 @@ struct WeaponComboEvent: Equatable {
 /// projectiles, trail segments, and frozen enemies; there is no run-long ledger.
 final class WeaponActivation: Hashable {
     let kind: WeaponKind
+    let chargeTier: WeaponPickupChargeTier
+    let measurementRunID: UUID?
     private(set) var killCount = 0
     private(set) var hasQualifiedClear = false
 
-    init(kind: WeaponKind) {
+    init(kind: WeaponKind, chargeTier: WeaponPickupChargeTier = .base, measurementRunID: UUID? = nil) {
         self.kind = kind
+        self.chargeTier = chargeTier
+        self.measurementRunID = measurementRunID
     }
 
     func recordKills(_ count: Int, minimum: Int) -> Bool {

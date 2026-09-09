@@ -19,6 +19,8 @@ extension EnemySpawnDirector {
         let activeSplitterCount = context.activeEnemies.filter(\.isSplitter).count
             + frame.newEnemies.filter(\.isSplitter).count
             + pendingSplitterCount
+        capacityGates.role = capacityGates.role || activeSplitterCount >= context.tuning.maxActiveSplitters
+        capacityGates.enemy = capacityGates.enemy || projectedEnemyCount >= context.tuning.maxActiveEnemies
         guard activeSplitterCount < context.tuning.maxActiveSplitters,
               projectedEnemyCount < context.tuning.maxActiveEnemies else {
             return
@@ -28,6 +30,7 @@ extension EnemySpawnDirector {
         let usesSpawnWarning = telegraphDuration(configuration.spawnWarningDuration) > 0
             && maxPendingSpawnWarnings > 0
         guard !usesSpawnWarning || pendingSpawnWarningCount < maxPendingSpawnWarnings else {
+            capacityGates.warning = true
             return
         }
 

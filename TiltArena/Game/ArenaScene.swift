@@ -109,6 +109,9 @@ final class ArenaScene: SKScene {
     private var debugStatsFrameCount = 0
 #endif
     private var diagnosticAccumulator = ArenaDiagnosticAccumulator()
+    private var balanceAccumulator = ArenaBalanceAccumulator()
+    private var balanceStartingUnlockCount = 0
+    private var balanceExperimentalTuning = false
     private let uiMargin: CGFloat = 24
     private var calibrationPreviewMovementController = PlayerMovementController()
     private var calibrationPreviewPlayerNode: PlayerCraftNode?
@@ -680,6 +683,7 @@ extension ArenaScene {
         hapticsController.prepare()
         show(.activeGameplay)
         runLogger.notice("run.started", metadata: [
+            "run_id": "\(balanceAccumulator.runID)",
             "mode": "\(runSession.selectedMode.rawValue)",
             "seed": "\(weaponRuntime.initialSeed)"
         ])
@@ -772,6 +776,9 @@ extension ArenaScene {
     }
 
     private func resetGameplayObjects() {
+        balanceAccumulator = ArenaBalanceAccumulator()
+        balanceStartingUnlockCount = runSession.selectedMode == .daily ? WeaponKind.allCases.count : runProfile.unlockedWeapons.count
+        balanceExperimentalTuning = gameTuning != .defaults
         runSession.resetGameplayTransition()
         applySelectedModeTuning()
         let runSequenceSeed = ArenaModeRules.sequenceSeed(for: runSession.selectedMode) ?? Int.random(in: 0...Int.max)
@@ -917,8 +924,10 @@ extension ArenaScene {
         playerPosition initialPlayerPosition: CGPoint,
         previousPlayerPosition: CGPoint
     ) {
+        guard runController.phase == .active else { return }
         var playerPosition = initialPlayerPosition
         let wasPlayerCollisionProtected = isPlayerCollisionProtected
+        balanceAccumulator.recordExposure(deltaTime: deltaTime, weapons: activeWeapons, enemies: enemies)
 
         runController.update(deltaTime: deltaTime)
         runSession.deathReplayTrace.record(time: runController.survivalTime, position: playerPosition)
@@ -964,6 +973,7 @@ extension ArenaScene {
             pickupCircles: pickupRegistry.collisionCircles
         )
 
+        balanceAccumulator.recordGates(frame.capacityGates, deltaTime: deltaTime)
         diagnosticAccumulator.recordSpawnCorrections(count: frame.runtimeCorrectionCount)
 
         removeEnemyTelegraphs(ids: frame.telegraphIDsToRemove)
@@ -972,9 +982,11 @@ extension ArenaScene {
     }
 
     private func addSpawnedEnemies(_ spawnedEnemies: [ArenaEnemy]) {
+        balanceAccumulator.recordSpawns(spawnedEnemies)
         diagnosticAccumulator.recordSpawn(count: spawnedEnemies.count)
 
         enemyRegistry.add(spawnedEnemies, to: gameplayRoot, theme: theme)
+        balanceAccumulator.recordPopulation(active: enemies.count, pending: spawnDirector.pendingEnemyCount)
     }
 
     private func showEnemyTelegraphs(_ telegraphs: [EnemyTelegraph]) {
@@ -1123,7 +1135,7 @@ extension ArenaScene {
         )
         let chargedConfiguration = plan.configuration
         let application = plan.application
-        let activation = WeaponActivation(kind: pickup.kind)
+        let activation = balanceAccumulator.recordPickup(pickup, at: runController.survivalTime)
         var log = application.log
 
         if let directionalDestroyedCount = performWeaponApplicationEffect(
@@ -1364,11 +1376,11 @@ extension ArenaScene {
         let splitChildren = splitterChildren(from: destroyedEnemies, destroyedBy: weaponKind)
         let previousComboMultiplier = runController.comboMultiplier
         let wasQualified = activation?.hasQualifiedClear ?? false
+        let previousActivationKills = activation?.killCount ?? 0
         let weaponComboEvent = runController.recordEnemyKills(
-            count: enemyIDs.count,
-            weaponKind: weaponKind,
-            activation: activation
+            count: enemyIDs.count, weaponKind: weaponKind, activation: activation
         )
+        if let activation { balanceAccumulator.recordKills(activation, previousCount: previousActivationKills) }
         let newlyQualified = !wasQualified && (activation?.hasQualifiedClear ?? false)
         let achievementClearCount = activation.map { newlyQualified ? $0.killCount : 1 } ?? enemyIDs.count
         reportGameCenterAchievementEvent(.enemyClear(
@@ -1792,6 +1804,7 @@ extension ArenaScene {
             return
         }
 
+        balanceAccumulator.deathRole = collision.enemyKind
         runLogger.notice("run.player_collision", metadata: [
             "allowsSwept": "\(allowsSweptCollision)",
             "enemies": "\(enemies.count)",
@@ -2915,7 +2928,15 @@ private extension ArenaScene {
             return
         }
 
+        for event in balanceAccumulator.events(
+            summary: summary, score: runController.scoreBreakdown,
+            experimental: balanceExperimentalTuning, arenaSize: currentGameplayBounds.size,
+            unlockedWeapons: balanceStartingUnlockCount
+        ) {
+            runLogger.info("\(event.name)", metadata: event.metadata)
+        }
         runLogger.notice("run.finished", metadata: [
+            "run_id": "\(balanceAccumulator.runID)",
             "mode": "\(summary.mode.rawValue)",
             "seed": "\(summary.sequenceSeed)",
             "rules_version": "\(summary.rulesVersion)",
@@ -3300,6 +3321,8 @@ extension ArenaScene {
     var enemiesForTesting: [ArenaEnemy] { enemies }
     var pickupsForTesting: [WeaponPickup] { pickups }
     var scoreForTesting: Int { runController.score }
+    var balanceForTesting: ArenaBalanceAccumulator { balanceAccumulator }
+    var scoreBreakdownForTesting: RunScoreBreakdown { runController.scoreBreakdown }
     var gameplayChildrenForTesting: [SKNode] { gameplayRoot.children }
 
     func screenPositionForTesting(_ point: CGPoint) -> CGPoint {
