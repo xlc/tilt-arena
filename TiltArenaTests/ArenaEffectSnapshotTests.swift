@@ -15,6 +15,51 @@ final class ArenaEffectSnapshotTests: XCTestCase {
         )
     }
 
+    func testWhiteEffectMotionContactSheet() throws {
+        assertSnapshot(of: try makeEffectMotionImage(themeKind: .whitePrecisionBoard), as: .image(precision: 0.99))
+    }
+
+    func testDarkCrowdedGameplay() throws {
+        assertSnapshot(of: try makeCrowdedGameplayImage(themeKind: .darkTacticalRadar), as: .image(precision: 0.99))
+    }
+
+    func testWhiteCrowdedGameplay() throws {
+        assertSnapshot(of: try makeCrowdedGameplayImage(themeKind: .whitePrecisionBoard), as: .image(precision: 0.99))
+    }
+
+    private func makeCrowdedGameplayImage(themeKind: ArenaThemeKind) throws -> UIImage {
+        let scene = ArenaScene(size: CGSize(width: 720, height: 360))
+        let theme = themeKind.theme
+        return try SnapshotImageRenderer.render(scene: scene) {
+            scene.prepareEffectSnapshotForTesting(themeKind: themeKind)
+            for index in 0..<96 {
+                let position = CGPoint(x: 42 + (index % 16) * 42, y: 50 + (index / 16) * 49 + (index % 3) * 6)
+                guard hypot(position.x - 246, position.y - 164) > 28 else { continue }
+                let behavior: EnemyBehavior = index.isMultiple(of: 5)
+                    ? .arrowRush(velocity: CGVector(dx: -40, dy: 15)) : .chaser
+                let enemy = ArenaEnemy(id: index, position: position, radius: 4, speed: 0, behavior: behavior)
+                scene.addChild(EnemyNode(enemy: enemy, theme: theme))
+            }
+            addTrailExample(to: scene, theme: theme)
+            addTelegraphExample(to: scene, theme: theme)
+            addPickupExamples(to: scene, theme: theme)
+            scene.playShockwaveEffect(at: CGPoint(x: 412, y: 190), radius: 78, duration: 0.28, holdDuration: 0.04)
+            scene.playFreezeBurstEffect(at: CGPoint(x: 552, y: 260), radius: 66, duration: 0.28)
+            scene.revealWeaponEffectsForSnapshotTesting()
+            // Stage the expanding fronts partway through travel for a deterministic crowded frame.
+            stageExpandedEffects(in: scene)
+        }
+    }
+
+    private func stageExpandedEffects(in node: SKNode) {
+        if let shape = node as? SKShapeNode,
+           let bounds = shape.path?.boundingBox,
+           bounds.width > 60, shape.xScale < 0.2 {
+            shape.setScale(0.7)
+        }
+        node.children.forEach { stageExpandedEffects(in: $0) }
+    }
+
     private func makeEffectMotionImage(themeKind: ArenaThemeKind) throws -> UIImage {
         let scene = ArenaScene(size: sceneSize)
         scene.scaleMode = .resizeFill

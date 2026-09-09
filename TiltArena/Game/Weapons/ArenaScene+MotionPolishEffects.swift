@@ -381,16 +381,7 @@ private extension ArenaScene {
     }
 
     func weaponEffectColor(for kind: WeaponKind?) -> SKColor {
-        switch kind {
-        case .some(.shockwave), .some(.flameTrail), .some(.powerWave), .some(.novaBomb):
-            return theme.pickupAmber
-        case .some(.seekerSwarm), .some(.gravityWell), .some(.warpDash):
-            return theme.pickupViolet
-        case .some(.razorShield), .some(.freezeBurst), .some(.chainLightning), .some(.ricochetLance):
-            return theme.pickupBlue
-        case .none:
-            return theme.enemyColor
-        }
+        kind.map { theme.weaponColor(for: $0) } ?? theme.enemyColor
     }
 
     static func enemyClearFlashAction(delay: TimeInterval) -> SKAction {

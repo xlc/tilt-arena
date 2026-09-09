@@ -67,39 +67,34 @@ enum WeaponKind: String, CaseIterable, Codable, Equatable {
 }
 
 struct WeaponSpriteSheet {
-    enum Role {
-        case icon
-        case effect
-    }
+    static let assetName = "WeaponGlyphs"
 
-    static let assetName = "WeaponSprites"
-    static let rowCount = 2
-    static var columnCount: Int { WeaponKind.allCases.count }
+    // Measured centers in the 1254px source; the generated sheet is not an exact grid.
+    private static let glyphCenters: [WeaponKind: CGPoint] = [
+        .shockwave: CGPoint(x: 182, y: 220),
+        .seekerSwarm: CGPoint(x: 487, y: 220),
+        .razorShield: CGPoint(x: 776, y: 221),
+        .freezeBurst: CGPoint(x: 1076, y: 222),
+        .gravityWell: CGPoint(x: 186, y: 521),
+        .chainLightning: CGPoint(x: 486, y: 514),
+        .flameTrail: CGPoint(x: 779, y: 516),
+        .warpDash: CGPoint(x: 1076, y: 516),
+        .powerWave: CGPoint(x: 187, y: 810),
+        .ricochetLance: CGPoint(x: 485, y: 801),
+        .novaBomb: CGPoint(x: 776, y: 806)
+    ]
 
-    static func column(for kind: WeaponKind) -> Int {
-        guard let column = WeaponKind.allCases.firstIndex(of: kind) else {
-            preconditionFailure("Missing sprite sheet column for \(kind.rawValue).")
+    static func textureRect(for kind: WeaponKind) -> CGRect {
+        guard let center = glyphCenters[kind] else {
+            preconditionFailure("Missing weapon glyph for \(kind.rawValue).")
         }
-        return column
-    }
-
-    static func textureRect(for kind: WeaponKind, role: Role) -> CGRect {
-        let cellWidth = 1 / CGFloat(columnCount)
-        let cellHeight = 1 / CGFloat(rowCount)
-        let rowFromTop: Int
-
-        switch role {
-        case .icon:
-            rowFromTop = 0
-        case .effect:
-            rowFromTop = 1
-        }
-
+        // Equal 300px crops preserve aspect ratio and transparent gutters around every glyph.
+        let extent: CGFloat = 1254
         return CGRect(
-            x: CGFloat(column(for: kind)) * cellWidth,
-            y: CGFloat(rowCount - rowFromTop - 1) * cellHeight,
-            width: cellWidth,
-            height: cellHeight
+            x: (center.x - 150) / extent,
+            y: 1 - (center.y + 150) / extent,
+            width: 300 / extent,
+            height: 300 / extent
         )
     }
 }

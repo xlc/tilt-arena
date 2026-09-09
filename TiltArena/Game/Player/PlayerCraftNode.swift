@@ -19,6 +19,9 @@ final class PlayerCraftNode: SKNode {
         super.init()
 
         zPosition = 20
+        bodyNode.zPosition = 0.1
+        coreNode.zPosition = 0.2
+        engineNode.zPosition = 0.3
 
         configureProgressArc(comboArcNode, lineWidth: 1.4, glowWidth: 0.8)
         configureProgressArc(weaponPrimerArcNode, lineWidth: 1.1, glowWidth: 0.6)
@@ -46,15 +49,14 @@ final class PlayerCraftNode: SKNode {
 
         bodyNode.fillColor = theme.playerColor
         bodyNode.strokeColor = theme.playerAccentColor
-        bodyNode.lineWidth = 2.15
+        bodyNode.lineWidth = 1.35
         bodyNode.lineJoin = .round
-        bodyNode.glowWidth = 1
+        bodyNode.glowWidth = theme.kind == .darkTacticalRadar ? 0.7 : 0
 
         coreNode.fillColor = theme.playerAccentColor
-        coreNode.strokeColor = theme.playerColor.withAlphaComponent(0.86)
-        coreNode.lineWidth = 0.95
+        coreNode.strokeColor = .clear
         coreNode.position = CGPoint(x: 0, y: -visualRadius * 0.03)
-        coreNode.glowWidth = 1.1
+        coreNode.glowWidth = 0.3
 
         engineNode.fillColor = theme.playerAccentColor.withAlphaComponent(0.66)
         engineNode.strokeColor = .clear

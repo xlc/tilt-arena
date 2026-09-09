@@ -18,7 +18,7 @@ extension ArenaScene {
         let ring = makeEffectRing(
             radius: radius,
             strokeColor: theme.pickupBlue.withAlphaComponent(0.66),
-            fillColor: theme.pickupBlue.withAlphaComponent(0.06),
+            fillColor: .clear,
             lineWidth: 1.6,
             glowWidth: 1.25
         )
@@ -80,7 +80,7 @@ extension ArenaScene {
     private func playFreezeShardSpokes(at position: CGPoint, radius: CGFloat, duration: TimeInterval) {
         for index in 0..<6 {
             let shard = SKShapeNode(path: Self.freezeShardPath(
-                innerRadius: radius * 0.16,
+                innerRadius: radius * 0.62,
                 outerRadius: radius * 0.88,
                 angle: CGFloat(index) * .pi / 3
             ))

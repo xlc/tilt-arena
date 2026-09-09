@@ -5,7 +5,7 @@ final class FlameTrailEffectNode: SKNode {
     private let glowNode = SKShapeNode()
     private let bodyNode = SKShapeNode()
     private let coreNode = SKShapeNode()
-    private let headSpriteNode = SKSpriteNode(texture: WeaponSpriteSheet.texture(for: .flameTrail, role: .effect))
+    private let headSpriteNode = SKSpriteNode(texture: WeaponSpriteSheet.texture(for: .flameTrail))
 
     init(theme: ArenaTheme) {
         super.init()
@@ -72,7 +72,8 @@ final class FlameTrailEffectNode: SKNode {
         coreNode.strokeColor = theme.playerColor.withAlphaComponent(0.5)
         coreNode.glowWidth = 0.45
 
-        headSpriteNode.colorBlendFactor = 0
+        headSpriteNode.color = theme.pickupAmber
+        headSpriteNode.colorBlendFactor = 1
     }
 
     private func clearTrail() {

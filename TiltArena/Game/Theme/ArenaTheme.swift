@@ -40,8 +40,8 @@ struct ArenaTheme {
 
     static let darkTacticalRadar = ArenaTheme(
         kind: .darkTacticalRadar,
-        backgroundColor: SKColor(red: 0.03, green: 0.07, blue: 0.11, alpha: 1.00),
-        gridColor: SKColor(red: 0.12, green: 0.35, blue: 0.48, alpha: 0.22),
+        backgroundColor: SKColor(red: 0.025, green: 0.045, blue: 0.075, alpha: 1.00),
+        gridColor: SKColor(red: 0.12, green: 0.35, blue: 0.48, alpha: 0.13),
         borderColor: SKColor(red: 0.42, green: 0.74, blue: 0.86, alpha: 0.86),
         panelFillColor: SKColor(red: 0.03, green: 0.07, blue: 0.11, alpha: 0.96),
         panelStrokeColor: SKColor(red: 0.37, green: 0.66, blue: 0.78, alpha: 0.35),
@@ -57,18 +57,29 @@ struct ArenaTheme {
     static let whitePrecisionBoard = ArenaTheme(
         kind: .whitePrecisionBoard,
         backgroundColor: SKColor(red: 0.95, green: 0.96, blue: 0.94, alpha: 1.00),
-        gridColor: SKColor(red: 0.37, green: 0.41, blue: 0.43, alpha: 0.20),
+        gridColor: SKColor(red: 0.37, green: 0.41, blue: 0.43, alpha: 0.10),
         borderColor: SKColor(red: 0.08, green: 0.10, blue: 0.11, alpha: 0.82),
         panelFillColor: SKColor(red: 1.00, green: 1.00, blue: 0.98, alpha: 0.98),
         panelStrokeColor: SKColor(red: 0.10, green: 0.12, blue: 0.13, alpha: 0.24),
         playerColor: SKColor(red: 0.10, green: 0.11, blue: 0.12, alpha: 1.00),
         playerAccentColor: SKColor(red: 0.09, green: 0.78, blue: 1.00, alpha: 1.00),
         enemyColor: SKColor(red: 1.00, green: 0.16, blue: 0.16, alpha: 1.00),
-        pickupAmber: SKColor(red: 1.00, green: 0.75, blue: 0.20, alpha: 1.00),
-        pickupBlue: SKColor(red: 0.16, green: 0.78, blue: 1.00, alpha: 1.00),
-        pickupViolet: SKColor(red: 0.55, green: 0.36, blue: 1.00, alpha: 1.00),
+        pickupAmber: SKColor(red: 0.70, green: 0.49, blue: 0.03, alpha: 1.00),
+        pickupBlue: SKColor(red: 0.02, green: 0.43, blue: 0.58, alpha: 1.00),
+        pickupViolet: SKColor(red: 0.43, green: 0.24, blue: 0.74, alpha: 1.00),
         flameTrailFillColor: SKColor(red: 1.00, green: 0.54, blue: 0.18, alpha: 0.26)
     )
+
+    func weaponColor(for kind: WeaponKind) -> SKColor {
+        switch kind {
+        case .shockwave, .flameTrail, .powerWave, .novaBomb:
+            return pickupAmber
+        case .seekerSwarm, .gravityWell, .warpDash:
+            return pickupViolet
+        case .razorShield, .freezeBurst, .chainLightning, .ricochetLance:
+            return pickupBlue
+        }
+    }
 
     func weaponComboColor(for family: WeaponComboFamily) -> SKColor {
         switch family {

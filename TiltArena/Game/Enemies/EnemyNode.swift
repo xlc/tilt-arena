@@ -6,7 +6,6 @@ final class EnemyNode: SKNode {
     private let bodyNode: SKShapeNode
     private let ringNode: SKShapeNode
     private let markerNode: SKShapeNode
-    private let highlightNode: SKShapeNode
     private var theme: ArenaTheme
     private var visualSignature: VisualSignature?
 
@@ -15,11 +14,13 @@ final class EnemyNode: SKNode {
         bodyNode = SKShapeNode()
         ringNode = SKShapeNode()
         markerNode = SKShapeNode()
-        highlightNode = SKShapeNode()
         self.theme = theme
         super.init()
 
         zPosition = 15
+        ringNode.zPosition = 0.1
+        bodyNode.zPosition = 0.2
+        markerNode.zPosition = 0.3
 
         dangerHaloNode.fillColor = .clear
         addChild(dangerHaloNode)
@@ -28,7 +29,6 @@ final class EnemyNode: SKNode {
         addChild(ringNode)
 
         addChild(bodyNode)
-        addChild(highlightNode)
         addChild(markerNode)
 
         apply(enemy)
@@ -81,8 +81,6 @@ private extension EnemyNode {
         dangerHaloNode.path = EnemyVisualGeometry.circlePath(radius: enemy.radius * 1.24)
         bodyNode.path = EnemyVisualGeometry.bodyPath(for: kind, radius: enemy.radius)
         ringNode.path = EnemyVisualGeometry.circlePath(radius: enemy.radius * 1.45)
-        highlightNode.path = EnemyVisualGeometry.circlePath(radius: enemy.radius * 0.22)
-        highlightNode.position = CGPoint(x: -enemy.radius * 0.24, y: enemy.radius * 0.28)
 
         if let markerPath = EnemyVisualGeometry.markerPath(
             for: kind,
@@ -96,7 +94,6 @@ private extension EnemyNode {
             markerNode.isHidden = true
         }
         markerNode.fillColor = .clear
-        highlightNode.strokeColor = .clear
         resetStateAnimations()
         applyBaseStyle()
         applyRoleStyle(kind)
@@ -110,131 +107,42 @@ private extension EnemyNode {
             applySplitProtectedStyle()
             startSplitProtectedAnimation()
         }
-
-        let isNormalChaser = kind == .chaser
-            && !enemy.isShatterableFrozen
-            && !enemy.isSplitProtected
-        dangerHaloNode.isHidden = isNormalChaser
-        ringNode.isHidden = isNormalChaser
-        highlightNode.isHidden = isNormalChaser
-
-        if isNormalChaser {
-            bodyNode.strokeColor = theme.enemyColor.withAlphaComponent(0.52)
-            bodyNode.lineWidth = 0.8
-            bodyNode.glowWidth = 0
-        }
     }
 
     func applyBaseStyle() {
-        dangerHaloNode.strokeColor = theme.playerColor.withAlphaComponent(0.58)
-        dangerHaloNode.lineWidth = 2
-        dangerHaloNode.glowWidth = 0.6
-        markerNode.strokeColor = theme.playerColor.withAlphaComponent(0.82)
-        markerNode.lineWidth = 1.8
+        // Solid silhouettes carry enemy identity; reserve halos for temporary states.
+        dangerHaloNode.isHidden = true
+        ringNode.isHidden = true
+        dangerHaloNode.glowWidth = 0
+        ringNode.glowWidth = 0
+        ringNode.strokeColor = theme.enemyColor
+        ringNode.lineWidth = 0.8
+        bodyNode.fillColor = theme.enemyColor
+        bodyNode.strokeColor = theme.enemyColor
+        bodyNode.lineWidth = 0.65
+        bodyNode.glowWidth = theme.kind == .darkTacticalRadar ? 0.3 : 0
+        markerNode.strokeColor = theme.backgroundColor.withAlphaComponent(0.85)
+        markerNode.lineWidth = 0.85
         markerNode.lineCap = .round
         markerNode.lineJoin = .round
-        markerNode.glowWidth = 0.45
-        ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.42)
-        ringNode.lineWidth = 1.1
-        ringNode.glowWidth = 0.45
-        bodyNode.fillColor = theme.enemyColor
-        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.82)
-        bodyNode.lineWidth = 1.5
-        bodyNode.glowWidth = 0.7
-        highlightNode.fillColor = theme.playerColor.withAlphaComponent(0.24)
-        highlightNode.isHidden = false
-        highlightNode.alpha = 1
+        markerNode.glowWidth = 0
     }
 
     func applyRoleStyle(_ kind: EnemyKind) {
         switch kind {
-        case .chaser:
-            break
-        case .formation:
-            applyFormationStyle()
-        case .arrowRush:
-            applyArrowRushStyle()
         case .mine:
-            applyMineStyle()
-        case .hunter:
-            applyHunterStyle()
-        case .paddleBar:
-            applyPaddleBarStyle()
-        case .paddlePuck:
-            applyPaddlePuckStyle()
+            ringNode.isHidden = false
+            bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.7)
         case .splitter:
-            applySplitterStyle()
-        case .splitterChild:
-            applySplitterChildStyle()
+            ringNode.isHidden = false
+            ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.6)
+        case .chaser, .formation, .arrowRush, .hunter, .paddleBar, .paddlePuck, .splitterChild:
+            break
         }
     }
 
-    func applyFormationStyle() {
-        ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.58)
-        ringNode.lineWidth = 1.25
-        bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.82)
-        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.66)
-        bodyNode.lineWidth = 1.25
-        bodyNode.glowWidth = 0.35
-    }
-    func applyArrowRushStyle() {
-        ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.76)
-        ringNode.lineWidth = 1.6
-        ringNode.glowWidth = 0.7
-        bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.94)
-        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.9)
-        bodyNode.lineWidth = 1.6
-        bodyNode.glowWidth = 0.85
-    }
-    func applyMineStyle() {
-        ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.78)
-        ringNode.lineWidth = 1.8
-        ringNode.glowWidth = 0.55
-        bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.48)
-        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.82)
-        bodyNode.glowWidth = 0.5
-    }
-    func applyHunterStyle() {
-        ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.76)
-        ringNode.lineWidth = 1.7
-        ringNode.glowWidth = 0.55
-        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.84)
-        bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.88)
-    }
-    func applyPaddleBarStyle() {
-        ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.62)
-        ringNode.lineWidth = 1.5
-        bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.58)
-        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.76)
-        bodyNode.glowWidth = 0.4
-    }
-    func applyPaddlePuckStyle() {
-        ringNode.strokeColor = theme.enemyColor.withAlphaComponent(0.72)
-        ringNode.lineWidth = 1.6
-        ringNode.glowWidth = 0.6
-        bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.9)
-        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.86)
-        bodyNode.glowWidth = 0.7
-    }
-    func applySplitterStyle() {
-        ringNode.strokeColor = theme.playerColor.withAlphaComponent(0.78)
-        ringNode.lineWidth = 1.8
-        ringNode.glowWidth = 0.7
-        bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.86)
-        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.9)
-        bodyNode.glowWidth = 0.8
-    }
-    func applySplitterChildStyle() {
-        ringNode.strokeColor = theme.playerColor.withAlphaComponent(0.48)
-        ringNode.lineWidth = 1.3
-        bodyNode.fillColor = theme.enemyColor.withAlphaComponent(0.76)
-        bodyNode.strokeColor = theme.playerColor.withAlphaComponent(0.72)
-        bodyNode.glowWidth = 0.45
-    }
-
     func applyFrozenStyle() {
-        dangerHaloNode.strokeColor = theme.playerColor.withAlphaComponent(0.62)
-        dangerHaloNode.lineWidth = 1.9
+        ringNode.isHidden = false
         ringNode.strokeColor = theme.pickupBlue.withAlphaComponent(0.72)
         ringNode.lineWidth = 1.8
         ringNode.glowWidth = 0.9
@@ -243,10 +151,11 @@ private extension EnemyNode {
         bodyNode.lineWidth = 1.7
         bodyNode.glowWidth = 1
         markerNode.strokeColor = theme.playerColor.withAlphaComponent(0.82)
-        highlightNode.fillColor = theme.playerColor.withAlphaComponent(0.36)
     }
 
     func applyThawingStyle() {
+        dangerHaloNode.isHidden = false
+        ringNode.isHidden = false
         dangerHaloNode.strokeColor = theme.playerColor.withAlphaComponent(0.42)
         dangerHaloNode.lineWidth = 1.7
         ringNode.strokeColor = theme.pickupBlue.withAlphaComponent(0.44)
@@ -257,10 +166,11 @@ private extension EnemyNode {
         bodyNode.lineWidth = 1.5
         bodyNode.glowWidth = 0.7
         markerNode.strokeColor = theme.playerColor.withAlphaComponent(0.62)
-        highlightNode.fillColor = theme.playerColor.withAlphaComponent(0.2)
     }
 
     func applySplitProtectedStyle() {
+        dangerHaloNode.isHidden = false
+        ringNode.isHidden = false
         dangerHaloNode.strokeColor = theme.playerColor.withAlphaComponent(0.36)
         dangerHaloNode.lineWidth = 1.4
         ringNode.strokeColor = theme.playerColor.withAlphaComponent(0.54)
@@ -271,7 +181,6 @@ private extension EnemyNode {
         bodyNode.lineWidth = 1.3
         bodyNode.glowWidth = 0.5
         markerNode.strokeColor = theme.playerColor.withAlphaComponent(0.58)
-        highlightNode.fillColor = theme.playerColor.withAlphaComponent(0.18)
     }
 
     func resetStateAnimations() {
@@ -279,7 +188,6 @@ private extension EnemyNode {
         bodyNode.removeAction(forKey: "enemy.thaw.body")
         ringNode.removeAction(forKey: "enemy.thaw.ring")
         markerNode.removeAction(forKey: "enemy.thaw.marker")
-        highlightNode.removeAction(forKey: "enemy.thaw.highlight")
         dangerHaloNode.removeAction(forKey: "enemy.split.halo")
         bodyNode.removeAction(forKey: "enemy.split.body")
         ringNode.removeAction(forKey: "enemy.split.ring")
@@ -287,7 +195,6 @@ private extension EnemyNode {
         bodyNode.alpha = 1
         ringNode.alpha = 1
         markerNode.alpha = 1
-        highlightNode.alpha = 1
         dangerHaloNode.setScale(1)
         ringNode.setScale(1)
     }
@@ -321,16 +228,11 @@ private extension EnemyNode {
                 .fadeAlpha(to: 0.86, duration: 0.11)
             ])
         ]))
-        let highlightPulse = SKAction.repeatForever(.sequence([
-            .fadeAlpha(to: 0.2, duration: 0.08),
-            .fadeAlpha(to: 0.58, duration: 0.08)
-        ]))
 
         dangerHaloNode.run(haloPulse, withKey: "enemy.thaw.halo")
         bodyNode.run(bodyPulse, withKey: "enemy.thaw.body")
         ringNode.run(ringPulse, withKey: "enemy.thaw.ring")
         markerNode.run(markerPulse, withKey: "enemy.thaw.marker")
-        highlightNode.run(highlightPulse, withKey: "enemy.thaw.highlight")
     }
 
     func startSplitProtectedAnimation() {

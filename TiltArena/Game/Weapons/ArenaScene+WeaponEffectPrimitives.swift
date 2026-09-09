@@ -146,10 +146,12 @@ extension ArenaScene {
     }
 
     func makeWeaponEffectSprite(kind: WeaponKind, size: CGFloat, zPosition: CGFloat = 17) -> SKSpriteNode {
-        let sprite = SKSpriteNode(texture: WeaponSpriteSheet.texture(for: kind, role: .effect))
-        let clampedSize = max(1, WeaponRuntimeSafetyLimits.distance(size))
+        let sprite = SKSpriteNode(texture: WeaponSpriteSheet.texture(for: kind))
+        // The traveling geometry shows coverage; the glyph only marks the activation.
+        let clampedSize = min(64, max(1, WeaponRuntimeSafetyLimits.distance(size)))
         sprite.size = CGSize(width: clampedSize, height: clampedSize)
-        sprite.colorBlendFactor = 0
+        sprite.color = theme.weaponColor(for: kind)
+        sprite.colorBlendFactor = 1
         sprite.blendMode = .alpha
         sprite.zPosition = zPosition
         return sprite

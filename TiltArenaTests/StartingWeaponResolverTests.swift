@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 @testable import TiltArena
 
@@ -32,24 +33,44 @@ final class StartingWeaponResolverTests: XCTestCase {
         XCTAssertLessThanOrEqual(configuration.shockwaveHoldDuration, configuration.shockwaveExpansionDuration)
     }
 
-    func testWeaponSpriteSheetMapsWeaponsToIconAndEffectRows() {
-        XCTAssertEqual(WeaponSpriteSheet.assetName, "WeaponSprites")
-        XCTAssertEqual(WeaponSpriteSheet.rowCount, 2)
-        XCTAssertEqual(WeaponSpriteSheet.columnCount, WeaponKind.allCases.count)
-
-        let cellWidth = 1 / CGFloat(WeaponKind.allCases.count)
-        for (column, kind) in WeaponKind.allCases.enumerated() {
-            let x = CGFloat(column) * cellWidth
-
-            XCTAssertEqual(WeaponSpriteSheet.column(for: kind), column)
-            XCTAssertEqual(
-                WeaponSpriteSheet.textureRect(for: kind, role: .icon),
-                CGRect(x: x, y: 0.5, width: cellWidth, height: 0.5)
-            )
-            XCTAssertEqual(
-                WeaponSpriteSheet.textureRect(for: kind, role: .effect),
-                CGRect(x: x, y: 0, width: cellWidth, height: 0.5)
-            )
+    @MainActor
+    func testWeaponSpriteSheetFramesContainGlyphsWithTransparentGutters() throws {
+        let image = try XCTUnwrap(UIImage(named: WeaponSpriteSheet.assetName)?.cgImage)
+        for kind in WeaponKind.allCases {
+            let frame = WeaponSpriteSheet.textureRect(for: kind)
+            XCTAssertTrue(CGRect(x: 0, y: 0, width: 1, height: 1).contains(frame))
+            let sourceRect = CGRect(
+                x: frame.minX * CGFloat(image.width),
+                y: (1 - frame.maxY) * CGFloat(image.height),
+                width: frame.width * CGFloat(image.width),
+                height: frame.height * CGFloat(image.height)
+            ).integral
+            let glyph = try XCTUnwrap(image.cropping(to: sourceRect))
+            let width = glyph.width
+            let height = glyph.height
+            var pixels = [UInt8](repeating: 0, count: width * height * 4)
+            try pixels.withUnsafeMutableBytes { buffer in
+                let context = try XCTUnwrap(CGContext(
+                    data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8,
+                    bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                ))
+                context.draw(glyph, in: CGRect(x: 0, y: 0, width: width, height: height))
+            }
+            var opaquePixels = 0
+            var borderAlpha: UInt8 = 0
+            for y in 0..<height {
+                for x in 0..<width {
+                    let alpha = pixels[(y * width + x) * 4 + 3]
+                    if alpha > 240 { opaquePixels += 1 }
+                    if x < 4 || y < 4 || x >= width - 4 || y >= height - 4 {
+                        borderAlpha = max(borderAlpha, alpha)
+                    }
+                }
+            }
+            XCTAssertGreaterThan(opaquePixels, 1_000, "Missing glyph: \(kind)")
+            XCTAssertLessThan(opaquePixels, width * height / 2, "Opaque background: \(kind)")
+            XCTAssertLessThan(borderAlpha, 8, "Clipped or bleeding glyph: \(kind)")
         }
     }
 

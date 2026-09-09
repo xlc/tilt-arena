@@ -348,7 +348,7 @@ extension ArenaUIRenderer {
         radius: CGFloat,
         isUnlocked: Bool
     ) {
-        let color = weaponAccentColor(for: kind)
+        let color = theme.weaponColor(for: kind)
         let ring = SKShapeNode(circleOfRadius: radius)
         ring.position = position
         ring.zPosition = ArenaUIZPosition.content
@@ -357,26 +357,15 @@ extension ArenaUIRenderer {
         ring.lineWidth = 0.9
         root.addChild(ring)
 
-        let icon = SKSpriteNode(texture: WeaponSpriteSheet.texture(for: kind, role: .icon))
+        let icon = SKSpriteNode(texture: WeaponSpriteSheet.texture(for: kind))
         icon.position = position
         icon.zPosition = ArenaUIZPosition.label
-        icon.size = CGSize(width: radius * 1.65, height: radius * 1.65)
+        icon.size = CGSize(width: radius * 2.45, height: radius * 2.45)
+        icon.color = color
+        icon.colorBlendFactor = 1
         icon.alpha = isUnlocked ? 0.92 : 0.35
         icon.blendMode = .alpha
         root.addChild(icon)
-    }
-
-    private func weaponAccentColor(for kind: WeaponKind) -> SKColor {
-        switch kind {
-        case .shockwave, .flameTrail, .powerWave, .novaBomb:
-            return theme.pickupAmber
-        case .seekerSwarm, .chainLightning, .ricochetLance:
-            return theme.pickupBlue
-        case .freezeBurst, .gravityWell, .warpDash:
-            return theme.pickupViolet
-        case .razorShield:
-            return theme.playerAccentColor
-        }
     }
 
     private func addPostRunNavigationButtons(layout: ArenaLandscapeUILayout, before primaryFrame: CGRect) {

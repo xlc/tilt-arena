@@ -22,7 +22,7 @@ extension ArenaScene {
         let ring = makeEffectRing(
             radius: radius,
             strokeColor: theme.pickupAmber.withAlphaComponent(0.95),
-            fillColor: theme.pickupAmber.withAlphaComponent(0.1),
+            fillColor: .clear,
             lineWidth: 2.6,
             glowWidth: 1.8
         )
@@ -32,9 +32,11 @@ extension ArenaScene {
         playWeaponEffectSprite(.shockwave, at: position, size: radius * 2.05, alpha: 0.42)
         playShockwaveEcho(at: position, radius: radius, duration: expansionDuration)
 
-        for index in 0..<12 {
-            let angle = CGFloat(index) * .pi / 6
-            let spoke = SKShapeNode(path: Self.radialLinePath(innerRadius: 10, outerRadius: radius, angle: angle))
+        for index in 0..<8 {
+            let angle = CGFloat(index) * .pi / 4
+            let spoke = SKShapeNode(path: Self.radialLinePath(
+                innerRadius: radius * 0.82, outerRadius: radius, angle: angle
+            ))
             spoke.position = position
             spoke.strokeColor = theme.pickupAmber.withAlphaComponent(0.38)
             spoke.lineWidth = 1
@@ -57,7 +59,7 @@ extension ArenaScene {
         ring.run(.sequence([
             .group([
                 .scale(to: 1, duration: expansionDuration),
-                .fadeAlpha(to: 0.18, duration: expansionDuration)
+                .fadeAlpha(to: 0.62, duration: expansionDuration)
             ]),
             .fadeOut(withDuration: fadeDuration),
             .removeFromParent()
@@ -68,7 +70,7 @@ extension ArenaScene {
         let echoDuration = max(0.01, duration * 0.78)
         let echo = makeEffectRing(
             radius: radius * 0.72, strokeColor: theme.playerColor.withAlphaComponent(0.42),
-            fillColor: theme.pickupAmber.withAlphaComponent(0.03), lineWidth: 1.2, glowWidth: 1.15
+            fillColor: .clear, lineWidth: 1.2, glowWidth: 0.65
         )
         echo.position = position
         echo.setScale(0.12)
@@ -91,7 +93,7 @@ extension ArenaScene {
         let ring = makeEffectRing(
             radius: radius,
             strokeColor: theme.pickupAmber.withAlphaComponent(0.92),
-            fillColor: theme.pickupAmber.withAlphaComponent(0.12),
+            fillColor: theme.pickupAmber.withAlphaComponent(0.03),
             lineWidth: 2.8,
             glowWidth: 1.95
         )
@@ -173,7 +175,7 @@ extension ArenaScene {
         let ring = makeEffectRing(
             radius: radius,
             strokeColor: theme.pickupViolet.withAlphaComponent(0.84),
-            fillColor: theme.pickupViolet.withAlphaComponent(0.12),
+            fillColor: theme.pickupViolet.withAlphaComponent(0.035),
             lineWidth: 2.2,
             glowWidth: 1.7
         )
@@ -395,7 +397,7 @@ extension ArenaScene {
         let ring = makeEffectRing(
             radius: clampedExplosionRadius,
             strokeColor: theme.pickupBlue.withAlphaComponent(0.95),
-            fillColor: theme.pickupBlue.withAlphaComponent(0.18),
+            fillColor: theme.pickupBlue.withAlphaComponent(0.035),
             lineWidth: 2.4,
             glowWidth: 1.7
         )

@@ -5,7 +5,7 @@ final class PlayerTrailNode: SKNode {
     private var points: [CGPoint] = []
     private var segmentNodes: [PlayerTrailSegmentNode] = []
     private var theme: ArenaTheme
-    private let maximumPoints = 22
+    private let maximumPoints = 16
 
     init(theme: ArenaTheme) {
         self.theme = theme
@@ -95,9 +95,9 @@ private final class PlayerTrailSegmentNode: SKNode {
         glowNode.fillColor = .clear
         glowNode.lineCap = .round
         glowNode.lineJoin = .round
-        glowNode.glowWidth = 1.05
+        glowNode.glowWidth = theme.kind == .darkTacticalRadar ? 0.8 : 0
 
-        coreNode.strokeColor = theme.playerAccentColor.withAlphaComponent(0.58)
+        coreNode.strokeColor = theme.playerAccentColor.withAlphaComponent(0.82)
         coreNode.fillColor = .clear
         coreNode.lineCap = .round
         coreNode.lineJoin = .round
@@ -111,13 +111,13 @@ private final class PlayerTrailSegmentNode: SKNode {
         path.move(to: start)
         path.addLine(to: end)
 
-        let widthFraction = 0.38 + clampedAge * 0.62
+        let widthFraction = 0.12 + clampedAge * 0.88
         glowNode.path = path
         glowNode.lineWidth = (3.6 + clampedSpeed * 2.4) * widthFraction
-        glowNode.alpha = 0.08 + clampedAge * 0.34
+        glowNode.alpha = clampedAge * clampedAge * 0.34
 
         coreNode.path = path
         coreNode.lineWidth = (1.5 + clampedSpeed * 1.6) * widthFraction
-        coreNode.alpha = 0.1 + clampedAge * 0.52
+        coreNode.alpha = clampedAge * clampedAge * 0.72
     }
 }

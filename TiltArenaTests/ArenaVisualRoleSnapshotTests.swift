@@ -42,6 +42,45 @@ final class ArenaVisualRoleSnapshotTests: XCTestCase {
         )
     }
 
+    func testActorDetailsStayVisibleWhenChildInsertionOrderChanges() throws {
+        for theme in [ArenaTheme.darkTacticalRadar, .whitePrecisionBoard] {
+            let expected = try makeVisualRolesImage(theme: theme, ignoresSiblingOrder: false)
+            let reordered = try makeVisualRolesImage(
+                theme: theme, ignoresSiblingOrder: false, reverseActorChildren: true
+            )
+            let difference = Snapshotting<UIImage, UIImage>.image(precision: 0.999).diffing.diff(expected, reordered)
+            XCTAssertNil(difference, "Actor details must stay above their fills in \(theme.kind).")
+        }
+    }
+
+    func testDarkPickupChargeStates() throws {
+        assertSnapshot(of: try makeChargeStatesImage(theme: .darkTacticalRadar), as: .image(precision: 0.99))
+    }
+
+    func testWhitePickupChargeStates() throws {
+        assertSnapshot(of: try makeChargeStatesImage(theme: .whitePrecisionBoard), as: .image(precision: 0.99))
+    }
+
+    private func makeChargeStatesImage(theme: ArenaTheme) throws -> UIImage {
+        try SnapshotImageRenderer.render(size: CGSize(width: 720, height: 240), backgroundColor: theme.backgroundColor) { scene in
+            let tiers: [WeaponPickupChargeTier] = [.base, .charged, .overcharged]
+            for (row, tier) in tiers.enumerated() {
+                let y = CGFloat(190 - row * 65)
+                addContactLabel(["BASE", "CHARGED", "OVERCHARGED"][row], at: CGPoint(x: 66, y: y), to: scene, theme: theme)
+                for (column, kind) in WeaponKind.allCases.enumerated() {
+                    let pickup = WeaponPickup(
+                        id: row * 11 + column,
+                        kind: kind,
+                        position: CGPoint(x: 145 + CGFloat(column) * 52, y: y),
+                        radius: 12,
+                        chargeTier: tier
+                    )
+                    scene.addChild(WeaponPickupNode(pickup: pickup, theme: theme))
+                }
+            }
+        }
+    }
+
     func testDirectionalEnemyHeadingTracksCurrentTravelVelocity() {
         assertHeading(
             for: .formationLine(velocity: CGVector(dx: 0, dy: 40), formationID: 1),
@@ -108,8 +147,14 @@ final class ArenaVisualRoleSnapshotTests: XCTestCase {
         XCTAssertEqual(node.zRotation, rotation, accuracy: 0.0001, label)
     }
 
-    private func makeVisualRolesImage(theme: ArenaTheme) throws -> UIImage {
-        try SnapshotImageRenderer.render(size: sceneSize, backgroundColor: theme.backgroundColor) { scene in
+    private func makeVisualRolesImage(
+        theme: ArenaTheme,
+        ignoresSiblingOrder: Bool = true,
+        reverseActorChildren: Bool = false
+    ) throws -> UIImage {
+        try SnapshotImageRenderer.render(
+            size: sceneSize, backgroundColor: theme.backgroundColor, ignoresSiblingOrder: ignoresSiblingOrder
+        ) { scene in
             scene.addChild(
                 ArenaThemeRenderer(theme: theme).makeArenaBackground(
                     size: sceneSize,
@@ -119,6 +164,14 @@ final class ArenaVisualRoleSnapshotTests: XCTestCase {
 
             addActorRow(to: scene, theme: theme)
             addEffectAndPickupRow(to: scene, theme: theme)
+            if reverseActorChildren {
+                // Exercise another legal order for siblings that share the same depth.
+                for actor in scene.children where actor is PlayerCraftNode || actor is EnemyNode || actor is WeaponPickupNode {
+                    let children = actor.children.reversed()
+                    actor.removeAllChildren()
+                    children.forEach(actor.addChild)
+                }
+            }
         }
     }
 

@@ -6,6 +6,7 @@ enum SnapshotImageRenderer {
     static func render(
         size: CGSize,
         backgroundColor: SKColor,
+        ignoresSiblingOrder: Bool = true,
         buildScene: (SKScene) -> Void
     ) throws -> UIImage {
         let scene = SKScene(size: size)
@@ -14,17 +15,19 @@ enum SnapshotImageRenderer {
         scene.scaleMode = .resizeFill
         buildScene(scene)
 
-        return try render(scene: scene)
+        return try render(scene: scene, ignoresSiblingOrder: ignoresSiblingOrder)
     }
 
     static func render(
         scene: SKScene,
+        ignoresSiblingOrder: Bool = true,
         beforeSnapshot: () -> Void = {}
     ) throws -> UIImage {
         let size = scene.size
         let view = SKView(frame: CGRect(origin: .zero, size: size))
         view.contentScaleFactor = 1
-        view.ignoresSiblingOrder = false
+        // Match the shipping renderer so snapshots exercise its draw-order rules.
+        view.ignoresSiblingOrder = ignoresSiblingOrder
         view.shouldCullNonVisibleNodes = false
 
         view.presentScene(scene)

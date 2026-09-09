@@ -44,7 +44,7 @@ final class ArenaThemeRenderer {
 
     private func makeGrid(in rect: CGRect) -> SKNode {
         let path = CGMutablePath()
-        let spacing: CGFloat = 48
+        let spacing: CGFloat = 64
 
         for x in Self.gridCoordinates(from: rect.minX, through: rect.maxX, preferredSpacing: spacing) {
             path.move(to: CGPoint(x: x, y: rect.minY))
@@ -68,11 +68,11 @@ final class ArenaThemeRenderer {
         let center = CGPoint(x: rect.midX, y: rect.midY)
         let maxRadius = min(rect.width, rect.height) * 0.48
 
-        for index in 1...4 {
-            let radius = maxRadius * CGFloat(index) / 4
+        for fraction in [0.78, 1.0] {
+            let radius = maxRadius * fraction
             let ring = SKShapeNode(circleOfRadius: radius)
             ring.position = center
-            ring.strokeColor = theme.gridColor.withAlphaComponent(0.48)
+            ring.strokeColor = theme.gridColor
             ring.lineWidth = 0.7
             ring.fillColor = .clear
             root.addChild(ring)
@@ -86,7 +86,7 @@ final class ArenaThemeRenderer {
         let center = CGPoint(x: rect.midX, y: rect.midY)
         let radius = min(rect.width, rect.height) * 0.46
 
-        for angle in stride(from: 0.0, to: Double.pi * 2, by: Double.pi / 8) {
+        for angle in stride(from: 0.0, to: Double.pi * 2, by: Double.pi / 2) {
             let inner = radius - 10
             let outer = radius + 4
             path.move(to: CGPoint(x: center.x + cos(angle) * inner, y: center.y + sin(angle) * inner))
@@ -94,7 +94,7 @@ final class ArenaThemeRenderer {
         }
 
         let node = SKShapeNode(path: path)
-        node.strokeColor = theme.gridColor.withAlphaComponent(0.62)
+        node.strokeColor = theme.gridColor
         node.lineWidth = 0.7
         node.lineCap = .square
         return node
@@ -102,13 +102,7 @@ final class ArenaThemeRenderer {
 
     private func makePrecisionBoardLines(in rect: CGRect) -> SKNode {
         let path = CGMutablePath()
-        let center = CGPoint(x: rect.midX, y: rect.midY)
-        let tickLength: CGFloat = 18
-
-        path.move(to: CGPoint(x: center.x, y: rect.minY))
-        path.addLine(to: CGPoint(x: center.x, y: rect.maxY))
-        path.move(to: CGPoint(x: rect.minX, y: center.y))
-        path.addLine(to: CGPoint(x: rect.maxX, y: center.y))
+        let tickLength: CGFloat = 8
 
         for x in Self.gridCoordinates(from: rect.minX, through: rect.maxX, preferredSpacing: 96) {
             path.move(to: CGPoint(x: x, y: rect.minY))
@@ -125,7 +119,7 @@ final class ArenaThemeRenderer {
         }
 
         let node = SKShapeNode(path: path)
-        node.strokeColor = theme.gridColor.withAlphaComponent(0.7)
+        node.strokeColor = theme.gridColor.withAlphaComponent(0.22)
         node.lineWidth = 0.7
         node.lineCap = .square
         return node
@@ -133,7 +127,7 @@ final class ArenaThemeRenderer {
 
     private func makeCornerBrackets(in rect: CGRect) -> SKNode {
         let path = CGMutablePath()
-        let length: CGFloat = min(42, min(rect.width, rect.height) * 0.12)
+        let length: CGFloat = min(18, min(rect.width, rect.height) * 0.08)
         let corners = [
             CGPoint(x: rect.minX, y: rect.minY),
             CGPoint(x: rect.minX, y: rect.maxY),
@@ -151,7 +145,7 @@ final class ArenaThemeRenderer {
         }
 
         let node = SKShapeNode(path: path)
-        node.strokeColor = theme.borderColor.withAlphaComponent(0.55)
+        node.strokeColor = theme.borderColor.withAlphaComponent(0.28)
         node.lineWidth = 1
         node.lineCap = .square
         return node
@@ -167,7 +161,7 @@ final class ArenaThemeRenderer {
 
         let border = SKShapeNode(rect: rect, cornerRadius: 6)
         border.strokeColor = theme.borderColor.withAlphaComponent(
-            theme.kind == .darkTacticalRadar ? 0.58 : 0.48
+            theme.kind == .darkTacticalRadar ? 0.34 : 0.36
         )
         border.lineWidth = 1
         border.fillColor = .clear
