@@ -9,6 +9,31 @@ import XCTest
 final class ArenaEffectSnapshotTests: XCTestCase {
     private let sceneSize = CGSize(width: 720, height: 420)
 
+    func testSeekerImpactsCompleteByTheReportedDeadlineAtEveryFrameRate() throws {
+        for (framesPerSecond, instant) in [(30, false), (60, false), (120, false), (120, true)] {
+            let harness = try ArenaBalanceHarness()
+            defer { harness.close() }
+            var tuning = ArenaBalanceVariant.baseline.tuning
+            if instant {
+                tuning.weaponEffectTiming.minimumTravelDuration = 0
+                tuning.weaponEffectTiming.maximumProjectileTravelDuration = 0
+            }
+            harness.scene.prepareBalanceRunForTesting(tuning: tuning, seed: 91)
+            let center = harness.scene.playerPositionForTesting
+            let targets = [
+                WeaponImpactTarget(id: 1, position: CGPoint(x: center.x + 100, y: center.y)),
+                WeaponImpactTarget(id: 2, position: CGPoint(x: center.x + 150, y: center.y))
+            ]
+            var impacts: [Int] = []
+            let deadline = harness.scene.playSeekerSwarmEffect(from: center, to: targets) { impacts.append($0.id) }
+            harness.step(at: 0)
+            // The callback may run on the first rendered frame after its scheduled deadline.
+            let frames = Int(ceil(deadline * Double(framesPerSecond))) + 1
+            for frame in 1...frames { harness.step(at: Double(frame) / Double(framesPerSecond)) }
+            XCTAssertEqual(impacts, targets.map(\.id), "\(framesPerSecond) fps")
+        }
+    }
+
     func testDarkGravityFieldBounds() throws {
         assertSnapshot(of: try makeGravityFieldImage(themeKind: .darkTacticalRadar), as: .image(precision: 0.99))
     }

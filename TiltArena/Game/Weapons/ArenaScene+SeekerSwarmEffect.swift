@@ -118,8 +118,8 @@ extension ArenaScene {
 
         return .sequence([
             .wait(forDuration: spec.delay),
-            .fadeAlpha(to: 1, duration: 0.02),
             .group([
+                .fadeAlpha(to: 1, duration: min(0.02, spec.duration)),
                 Self.seekAction(
                     from: spec.origin,
                     toward: spec.target,
@@ -135,11 +135,10 @@ extension ArenaScene {
                 if let trackedPosition = targetPosition(spec.target.id) {
                     impactTarget = WeaponImpactTarget(id: spec.target.id, position: trackedPosition)
                 }
+                onImpact(impactTarget)
                 self?.playSeekerExplosion(
                     at: impactTarget,
-                    delay: 0,
-                    configuration: spec.configuration,
-                    onImpact: onImpact
+                    configuration: spec.configuration
                 )
             },
             .removeFromParent()
@@ -156,8 +155,8 @@ extension ArenaScene {
     ) -> SKAction {
         var lastKnownPosition = target.position
 
-        return SKAction.customAction(withDuration: max(0.01, duration)) { node, elapsedTime in
-            let progress = min(1, max(0, elapsedTime / CGFloat(max(0.01, duration))))
+        return SKAction.customAction(withDuration: duration) { node, elapsedTime in
+            let progress = duration > 0 ? min(1, max(0, elapsedTime / CGFloat(duration))) : 1
             if let trackedPosition = targetPosition(target.id) {
                 lastKnownPosition = trackedPosition
             }
@@ -173,9 +172,7 @@ extension ArenaScene {
 
     private func playSeekerExplosion(
         at target: WeaponImpactTarget,
-        delay: TimeInterval,
-        configuration: StartingWeaponConfiguration,
-        onImpact: @escaping (WeaponImpactTarget) -> Void
+        configuration: StartingWeaponConfiguration
     ) {
         let radius = configuration.seekerExplosionRadius
         let holdDuration = configuration.seekerExplosionHoldDuration
@@ -190,13 +187,9 @@ extension ArenaScene {
         ring.alpha = 0
         ring.setScale(0.3)
         addWeaponEffectNode(ring)
-        playWeaponEffectSprite(.seekerSwarm, at: target.position, size: radius * 2.2, delay: delay, alpha: 0.58)
+        playWeaponEffectSprite(.seekerSwarm, at: target.position, size: radius * 2.2, alpha: 0.58)
 
         ring.run(.sequence([
-            .wait(forDuration: max(0, delay)),
-            .run {
-                onImpact(target)
-            },
             .group([
                 .fadeAlpha(to: 1, duration: 0.02),
                 .scale(to: 1, duration: 0.08)
@@ -210,12 +203,12 @@ extension ArenaScene {
             color: theme.pickupViolet,
             coreColor: theme.playerColor,
             radius: radius,
-            delay: delay
+            delay: 0
         )
-        playSeekerExplosionSpark(at: target.position, radius: radius, delay: delay)
+        playSeekerExplosionSpark(at: target.position, radius: radius)
     }
 
-    private func playSeekerExplosionSpark(at position: CGPoint, radius: CGFloat, delay: TimeInterval) {
+    private func playSeekerExplosionSpark(at position: CGPoint, radius: CGFloat) {
         let spark = SKShapeNode(path: Self.crossPath(radius: min(18, max(8, radius * 0.32))))
         spark.position = position
         spark.strokeColor = theme.playerColor.withAlphaComponent(0.74)
@@ -226,7 +219,6 @@ extension ArenaScene {
         addWeaponEffectNode(spark)
 
         spark.run(.sequence([
-            .wait(forDuration: max(0, delay)),
             .fadeAlpha(to: 1, duration: 0.02),
             .group([
                 .rotate(byAngle: .pi / 3, duration: 0.1),
