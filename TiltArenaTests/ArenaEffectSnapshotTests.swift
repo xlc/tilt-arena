@@ -108,7 +108,7 @@ final class ArenaEffectSnapshotTests: XCTestCase {
                 let behavior: EnemyBehavior = index.isMultiple(of: 5)
                     ? .arrowRush(velocity: CGVector(dx: -40, dy: 15)) : .chaser
                 let enemy = ArenaEnemy(id: index, position: position, radius: 4, speed: 0, behavior: behavior)
-                scene.addChild(EnemyNode(enemy: enemy, theme: theme))
+                scene.addGameplayNode(EnemyNode(enemy: enemy, theme: theme))
             }
             addTrailExample(to: scene, theme: theme)
             addTelegraphExample(to: scene, theme: theme)
@@ -162,7 +162,7 @@ final class ArenaEffectSnapshotTests: XCTestCase {
         )
     }
 
-    private func addTrailExample(to scene: SKScene, theme: ArenaTheme) {
+    private func addTrailExample(to scene: ArenaScene, theme: ArenaTheme) {
         let trail = PlayerTrailNode(theme: theme)
         trail.reset(to: CGPoint(x: 64, y: 104))
         [
@@ -172,7 +172,7 @@ final class ArenaEffectSnapshotTests: XCTestCase {
             CGPoint(x: 196, y: 166),
             CGPoint(x: 236, y: 158)
         ].forEach { trail.record(position: $0, speedFraction: 0.88) }
-        scene.addChild(trail)
+        scene.addGameplayNode(trail)
 
         let player = PlayerCraftNode(theme: theme, visualRadius: 15)
         player.apply(
@@ -182,10 +182,10 @@ final class ArenaEffectSnapshotTests: XCTestCase {
             ),
             speedFraction: 0.88
         )
-        scene.addChild(player)
+        scene.addGameplayNode(player)
     }
 
-    private func addTelegraphExample(to scene: SKScene, theme: ArenaTheme) {
+    private func addTelegraphExample(to scene: ArenaScene, theme: ArenaTheme) {
         let telegraph = EnemyTelegraph(
             id: 1,
             segments: [
@@ -193,7 +193,7 @@ final class ArenaEffectSnapshotTests: XCTestCase {
                 EnemyTelegraphSegment(start: CGPoint(x: 478, y: 150), end: CGPoint(x: 642, y: 90))
             ]
         )
-        scene.addChild(EnemyTelegraphNode(telegraph: telegraph, theme: theme))
+        scene.addGameplayNode(EnemyTelegraphNode(telegraph: telegraph, theme: theme))
     }
 
     private func addPickupExamples(to scene: ArenaScene, theme: ArenaTheme) {
@@ -212,7 +212,7 @@ final class ArenaEffectSnapshotTests: XCTestCase {
         )
 
         [basePickup, overchargedPickup].forEach { pickup in
-            scene.addChild(WeaponPickupNode(pickup: pickup, theme: theme))
+            scene.addGameplayNode(WeaponPickupNode(pickup: pickup, theme: theme))
         }
         scene.playPickupCollectionPop(for: basePickup)
     }

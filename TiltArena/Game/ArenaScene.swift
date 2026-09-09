@@ -51,6 +51,8 @@ final class ArenaScene: SKScene {
     private let hapticsController = ArenaHapticsController()
     private let audioController = ArenaAudioController()
     private var arenaRoot = SKNode()
+    private let gameplayRoot = SKCropNode()
+    private let gameplayOverlayRoot = SKNode()
     private let weaponEffectsRoot = SKNode()
     private let uiRenderer = ArenaUIRenderer()
     private var uiRoot: SKNode {
@@ -101,6 +103,7 @@ final class ArenaScene: SKScene {
     private var timeDilationAuraNode: SKNode?
     var powerWaveChargeNode: SKNode?
 #if DEBUG
+    var inputOverrideForTesting: CGVector?
     private let debugStatsLabel = SKLabelNode(fontNamed: "Menlo")
     private var debugStatsElapsed: TimeInterval = 0
     private var debugStatsFrameCount = 0
@@ -164,7 +167,7 @@ final class ArenaScene: SKScene {
         backgroundColor = theme.backgroundColor
         rebuildArena()
         configureWeaponEffectsRoot()
-        if flameTrailEffectNode.parent == nil { addChild(flameTrailEffectNode) }
+        if flameTrailEffectNode.parent == nil { addGameplayNode(flameTrailEffectNode) }
         configureUIRoot()
         configureDebugStats()
         placePlayer(resetPosition: true)
@@ -180,10 +183,7 @@ final class ArenaScene: SKScene {
         rebuildArena()
         let shouldResetPosition = playerNode == nil || uiState == .home
         placePlayer(resetPosition: shouldResetPosition, resetTrail: shouldResetPosition)
-        if uiState == .preRun {
-            readyStartPoint = movementController.state.position
-            readyHoldController.reset()
-        } else if uiState == .calibrationPreview {
+        if uiState == .calibrationPreview {
             resetCalibrationPreviewPosition()
         }
         layoutDebugStats()
@@ -315,10 +315,36 @@ extension ArenaScene {
     private func rebuildArena() {
         arenaRoot.removeFromParent()
         arenaRoot = ArenaThemeRenderer(theme: theme).makeArenaBackground(
-            size: size,
+            size: ArenaGeometry.logicalGameplayBounds.size,
             arenaRect: currentGameplayBounds
         )
-        addChild(arenaRoot)
+        addGameplayNode(arenaRoot)
+    }
+
+    func addGameplayNode(_ node: SKNode) {
+        configureGameplayTransform()
+        gameplayRoot.addChild(node)
+    }
+
+    private func configureGameplayTransform() {
+        let layout = currentLandscapeLayout()
+        if gameplayRoot.parent == nil { addChild(gameplayRoot) }
+        if gameplayRoot.maskNode == nil {
+            let mask = SKShapeNode(rect: currentGameplayBounds)
+            mask.fillColor = .white
+            mask.strokeColor = .clear
+            gameplayRoot.maskNode = mask
+        }
+        for root in [gameplayRoot as SKNode, gameplayOverlayRoot] {
+            root.position = layout.gameplayWorldFrame.origin
+            root.setScale(layout.gameplayWorldScale)
+        }
+    }
+
+    private func addGameplayOverlayNode(_ node: SKNode) {
+        configureGameplayTransform()
+        if gameplayOverlayRoot.parent == nil { uiRoot.addChild(gameplayOverlayRoot) }
+        gameplayOverlayRoot.addChild(node)
     }
 
     private func configureUIRoot() {
@@ -337,7 +363,7 @@ extension ArenaScene {
 
         weaponEffectsRoot.zPosition = 0
         weaponEffectsRoot.isPaused = false
-        addChild(weaponEffectsRoot)
+        addGameplayNode(weaponEffectsRoot)
     }
 
     func addWeaponEffectNode(_ node: SKNode) {
@@ -370,7 +396,7 @@ extension ArenaScene {
     private func ensurePlayerNodes() {
         if playerTrailNode == nil {
             let trailNode = PlayerTrailNode(theme: theme)
-            addChild(trailNode)
+            addGameplayNode(trailNode)
             playerTrailNode = trailNode
         }
 
@@ -379,7 +405,7 @@ extension ArenaScene {
                 theme: theme,
                 visualRadius: movementController.configuration.visualRadius
             )
-            addChild(craftNode)
+            addGameplayNode(craftNode)
             playerNode = craftNode
         }
     }
@@ -494,7 +520,7 @@ extension ArenaScene {
     }
 
     var currentGameplayBounds: CGRect {
-        currentLandscapeLayout().gameplayRect
+        ArenaGeometry.logicalGameplayBounds
     }
 
     var currentPlayableRect: CGRect {
@@ -585,6 +611,9 @@ extension ArenaScene {
     }
 
     private func movementInput(deltaTime: TimeInterval) -> CGVector {
+        #if DEBUG
+        if let inputOverrideForTesting { return inputOverrideForTesting }
+        #endif
         let tiltInput = tiltInputController.update(
             deltaTime: deltaTime,
             orientation: currentTiltScreenOrientation
@@ -944,11 +973,11 @@ extension ArenaScene {
     private func addSpawnedEnemies(_ spawnedEnemies: [ArenaEnemy]) {
         diagnosticAccumulator.recordSpawn(count: spawnedEnemies.count)
 
-        enemyRegistry.add(spawnedEnemies, to: self, theme: theme)
+        enemyRegistry.add(spawnedEnemies, to: gameplayRoot, theme: theme)
     }
 
     private func showEnemyTelegraphs(_ telegraphs: [EnemyTelegraph]) {
-        enemyRegistry.showTelegraphs(telegraphs, in: self, theme: theme)
+        enemyRegistry.showTelegraphs(telegraphs, in: gameplayRoot, theme: theme)
     }
 
     private func removeEnemyTelegraphs(ids telegraphIDs: Set<Int>) {
@@ -973,7 +1002,7 @@ extension ArenaScene {
             return
         }
 
-        let acceptedPickups = pickupRegistry.add(spawnedPickups, to: self, theme: theme)
+        let acceptedPickups = pickupRegistry.add(spawnedPickups, to: gameplayRoot, theme: theme)
         for pickup in acceptedPickups {
             weaponLogger.info("pickup.spawned", metadata: [
                 "id": "\(pickup.id)",
@@ -2011,6 +2040,7 @@ private extension ArenaScene {
     }
 
     func rebuildUI() {
+        gameplayOverlayRoot.removeAllChildren()
         uiRenderer.begin(theme: theme, sceneSize: size)
         runScoreLabel = nil
         runBestLabel = nil
@@ -2125,12 +2155,12 @@ private extension ArenaScene {
     func runHUDFrames(
         in layout: ArenaLandscapeUILayout
     ) -> (leading: CGRect, trailing: CGRect) {
-        let arenaBorderFrame = layout.gameplayRect.insetBy(
-            dx: ArenaGeometry.arenaBorderInset,
-            dy: ArenaGeometry.arenaBorderInset
+        let arenaBorderFrame = layout.gameplayWorldFrame.insetBy(
+            dx: ArenaGeometry.arenaBorderInset * layout.gameplayWorldScale,
+            dy: ArenaGeometry.arenaBorderInset * layout.gameplayWorldScale
         )
-        let playableRect = movementController.configuration.playableRect(in: layout.gameplayRect)
-        let marginBottom = max(playableRect.maxY, arenaBorderFrame.maxY)
+        let playableTop = layout.gameplayWorldFrame.minY + currentPlayableRect.maxY * layout.gameplayWorldScale
+        let marginBottom = max(playableTop, arenaBorderFrame.maxY)
         let safeTop = max(
             marginBottom,
             size.height - max(0, layout.safeAreaInsets.top)
@@ -2211,7 +2241,7 @@ private extension ArenaScene {
             statusMessage: currentGameCenterStatusMessage(),
             in: identityFrame
         )
-        addPreviewThreats(in: layout.gameplayRect)
+        addPreviewThreats(in: currentGameplayBounds)
         uiRenderer.addHomePlayButton(layout: layout, bottomButtonSize: bottomButtonSize)
         uiRenderer.addHomeNavigationButtons(layout: layout, buttonSize: bottomButtonSize)
         #if DEBUG
@@ -2932,7 +2962,7 @@ private extension ArenaScene {
         circle.fillColor = theme.playerAccentColor.withAlphaComponent(0.04)
         circle.lineWidth = 2
         circle.glowWidth = 1
-        uiRoot.addChild(circle)
+        addGameplayOverlayNode(circle)
 
         let progress = SKShapeNode(circleOfRadius: radius + 8)
         progress.position = point
@@ -2941,7 +2971,7 @@ private extension ArenaScene {
         progress.fillColor = .clear
         progress.lineWidth = 2
         progress.glowWidth = 0.65
-        uiRoot.addChild(progress)
+        addGameplayOverlayNode(progress)
         readyProgressRing = progress
 
         let label = SKLabelNode(fontNamed: "Menlo-Bold")
@@ -2951,16 +2981,18 @@ private extension ArenaScene {
         label.verticalAlignmentMode = .center
         label.position = CGPoint(x: point.x, y: point.y - 30)
         label.zPosition = ArenaUIZPosition.label
-        uiRoot.addChild(label)
+        addGameplayOverlayNode(label)
         readyStatusLabel = label
 
-        uiRenderer.addLabel(
+        let instruction = uiRenderer.makeLabel(
             readyHoldController.isRetry ? "GET READY" : "HOLD TO LAUNCH",
             at: CGPoint(x: point.x, y: point.y + 30),
             fontSize: 10,
             color: theme.playerAccentColor,
             alignment: .center
         )
+
+        addGameplayOverlayNode(instruction)
 
         for angle in stride(from: 0.0, to: Double.pi * 2, by: Double.pi / 2) {
             let tick = SKShapeNode(rectOf: CGSize(width: 3, height: 12), cornerRadius: 1)
@@ -2972,7 +3004,7 @@ private extension ArenaScene {
             tick.zPosition = ArenaUIZPosition.content
             tick.fillColor = theme.borderColor.withAlphaComponent(0.75)
             tick.strokeColor = .clear
-            uiRoot.addChild(tick)
+            addGameplayOverlayNode(tick)
         }
     }
 
@@ -3006,7 +3038,7 @@ private extension ArenaScene {
             dot.fillColor = theme.enemyColor.withAlphaComponent(0.5)
             dot.strokeColor = theme.enemyColor.withAlphaComponent(0.75)
             dot.lineWidth = 1
-            uiRoot.addChild(dot)
+            addGameplayOverlayNode(dot)
         }
 
         let pickup = SKShapeNode(circleOfRadius: 9)
@@ -3015,7 +3047,7 @@ private extension ArenaScene {
         pickup.fillColor = theme.pickupAmber.withAlphaComponent(0.25)
         pickup.strokeColor = theme.pickupAmber
         pickup.lineWidth = 2
-        uiRoot.addChild(pickup)
+        addGameplayOverlayNode(pickup)
     }
 
     func addDeathReplayTrace() {
@@ -3034,7 +3066,7 @@ private extension ArenaScene {
         line.strokeColor = theme.playerAccentColor.withAlphaComponent(0.3)
         line.lineWidth = 2
         line.glowWidth = theme.kind == .darkTacticalRadar ? 0.45 : 0
-        uiRoot.addChild(line)
+        addGameplayOverlayNode(line)
     }
 
     func addDeathClarityMarker(snapshot: DeathCollisionSnapshot?, fallbackPosition: CGPoint) {
@@ -3046,7 +3078,7 @@ private extension ArenaScene {
         ring.fillColor = .clear
         ring.lineWidth = 2
         ring.glowWidth = 0.85
-        uiRoot.addChild(ring)
+        addGameplayOverlayNode(ring)
 
         let crossPath = CGMutablePath()
         crossPath.move(to: CGPoint(x: position.x - 22, y: position.y))
@@ -3057,7 +3089,7 @@ private extension ArenaScene {
         cross.strokeColor = theme.enemyColor
         cross.lineWidth = 1.5
         cross.zPosition = ArenaUIZPosition.content
-        uiRoot.addChild(cross)
+        addGameplayOverlayNode(cross)
 
         guard let snapshot else {
             return
@@ -3070,7 +3102,7 @@ private extension ArenaScene {
         enemy.fillColor = theme.enemyColor.withAlphaComponent(0.09)
         enemy.lineWidth = 1.5
         enemy.glowWidth = theme.kind == .darkTacticalRadar ? 0.65 : 0
-        uiRoot.addChild(enemy)
+        addGameplayOverlayNode(enemy)
 
         let impactPath = CGMutablePath()
         impactPath.move(to: snapshot.playerPosition)
@@ -3079,7 +3111,7 @@ private extension ArenaScene {
         impactLine.zPosition = ArenaUIZPosition.content
         impactLine.strokeColor = theme.enemyColor.withAlphaComponent(0.55)
         impactLine.lineWidth = 1.2
-        uiRoot.addChild(impactLine)
+        addGameplayOverlayNode(impactLine)
     }
 
 }
@@ -3213,11 +3245,14 @@ extension ArenaScene {
         backgroundColor = theme.backgroundColor
         removeAllActions()
         removeAllChildren()
+        gameplayRoot.removeAllChildren()
+        playerNode = nil
+        playerTrailNode = nil
         arenaRoot = ArenaThemeRenderer(theme: theme).makeArenaBackground(
-            size: size,
+            size: ArenaGeometry.logicalGameplayBounds.size,
             arenaRect: currentGameplayBounds
         )
-        addChild(arenaRoot)
+        addGameplayNode(arenaRoot)
         clearWeaponEffectNodes()
     }
 
@@ -3235,7 +3270,7 @@ extension ArenaScene {
         }
     }
 
-    func prepareActiveRunForTesting() {
+    func prepareActiveRunForTesting(mode: ArenaModeKind = .classic) {
         localOptions = ArenaLocalOptions(
             audioEnabled: false,
             hapticsEnabled: false,
@@ -3243,6 +3278,8 @@ extension ArenaScene {
         )
         syncAudioOption()
         syncHapticsOption()
+        runSession.selectMode(mode)
+        applySelectedModeTuning()
         preparePreRun()
         startRun()
     }
@@ -3257,6 +3294,15 @@ extension ArenaScene {
 
     var pickupCountForTesting: Int {
         pickups.count
+    }
+
+    var enemiesForTesting: [ArenaEnemy] { enemies }
+    var pickupsForTesting: [WeaponPickup] { pickups }
+    var scoreForTesting: Int { runController.score }
+    var gameplayChildrenForTesting: [SKNode] { gameplayRoot.children }
+
+    func screenPositionForTesting(_ point: CGPoint) -> CGPoint {
+        gameplayRoot.convert(point, to: self)
     }
 
     func pauseRunForTesting() {
@@ -3306,7 +3352,7 @@ extension ArenaScene {
 
     func collectWeaponForTesting(_ kind: WeaponKind, id: Int = 1) {
         let pickup = WeaponPickup(id: id, kind: kind, position: movementController.state.position, radius: 8)
-        _ = pickupRegistry.add([pickup], to: self, theme: theme)
+        _ = pickupRegistry.add([pickup], to: gameplayRoot, theme: theme)
         _ = collectPickups(playerPosition: movementController.state.position)
     }
 

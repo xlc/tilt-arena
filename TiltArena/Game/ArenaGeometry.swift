@@ -3,6 +3,15 @@ import UIKit
 
 enum ArenaGeometry {
     static let arenaBorderInset: CGFloat = 14
+    static let logicalGameplayBounds = CGRect(x: 0, y: 0, width: 718, height: 377)
+
+    static func fittedGameplayRect(in availableRect: CGRect) -> CGRect {
+        guard availableRect.isFinite, availableRect.width > 0, availableRect.height > 0 else { return .zero }
+        let scale = min(availableRect.width / logicalGameplayBounds.width, availableRect.height / logicalGameplayBounds.height)
+        let size = CGSize(width: logicalGameplayBounds.width * scale, height: logicalGameplayBounds.height * scale)
+        return CGRect(x: availableRect.midX - size.width / 2, y: availableRect.midY - size.height / 2,
+                      width: size.width, height: size.height)
+    }
 
     static func squaredDistance(from lhs: CGPoint, to rhs: CGPoint) -> CGFloat {
         let dx = lhs.x - rhs.x

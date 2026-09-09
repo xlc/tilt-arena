@@ -21,10 +21,12 @@ enum SnapshotImageRenderer {
     static func render(
         scene: SKScene,
         ignoresSiblingOrder: Bool = true,
+        safeAreaInsets: UIEdgeInsets = .zero,
         beforeSnapshot: () -> Void = {}
     ) throws -> UIImage {
         let size = scene.size
-        let view = SKView(frame: CGRect(origin: .zero, size: size))
+        let view = SnapshotSafeAreaView(frame: CGRect(origin: .zero, size: size))
+        view.snapshotInsets = safeAreaInsets
         view.contentScaleFactor = 1
         // Match the shipping renderer so snapshots exercise its draw-order rules.
         view.ignoresSiblingOrder = ignoresSiblingOrder
@@ -50,6 +52,11 @@ enum SnapshotImageRenderer {
             sourceImage.draw(in: CGRect(origin: .zero, size: size))
         }
     }
+}
+
+private final class SnapshotSafeAreaView: SKView {
+    var snapshotInsets: UIEdgeInsets = .zero
+    override var safeAreaInsets: UIEdgeInsets { snapshotInsets }
 }
 
 private enum SnapshotRenderError: Error {

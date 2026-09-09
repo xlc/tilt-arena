@@ -3,6 +3,22 @@ import XCTest
 @testable import TiltArena
 
 final class ArenaLandscapeUILayoutTests: XCTestCase {
+    func testLogicalArenaFitsSmallAndLargePhonesWithoutStretching() {
+        for (size, insets) in [
+            (CGSize(width: 667, height: 375), UIEdgeInsets.zero),
+            (CGSize(width: 852, height: 393), UIEdgeInsets(top: 0, left: 59, bottom: 21, right: 59)),
+            (CGSize(width: 932, height: 430), UIEdgeInsets(top: 0, left: 59, bottom: 21, right: 59))
+        ] {
+            let layout = ArenaLandscapeUILayout(sceneSize: size, safeAreaInsets: insets, margin: 24)
+            let frame = layout.gameplayWorldFrame
+            XCTAssertTrue(layout.gameplayRect.insetBy(dx: -0.0001, dy: -0.0001).contains(frame))
+            XCTAssertEqual(frame.width / frame.height, 718 / 377.0, accuracy: 0.0001)
+            XCTAssertEqual(frame.midX, layout.gameplayRect.midX, accuracy: 0.0001)
+            XCTAssertEqual(frame.midY, layout.gameplayRect.midY, accuracy: 0.0001)
+            XCTAssertGreaterThanOrEqual(layout.gameplayWorldScale, 0.9)
+        }
+    }
+
     func testSafeRectHonorsLandscapeInsetsAndMargin() {
         let layout = ArenaLandscapeUILayout(
             sceneSize: CGSize(width: 852, height: 393),

@@ -8,6 +8,26 @@ import XCTest
 final class ArenaScreenSnapshotTests: XCTestCase {
     private let sceneSize = CGSize(width: 560, height: 280)
 
+    func testSmallPhoneLogicalArena() throws {
+        assertSnapshot(of: try makePhoneArenaImage(size: CGSize(width: 667, height: 375), insets: .zero),
+                       as: .image(precision: 0.99))
+    }
+
+    func testLargePhoneLogicalArena() throws {
+        assertSnapshot(of: try makePhoneArenaImage(size: CGSize(width: 932, height: 430),
+                                                 insets: UIEdgeInsets(top: 0, left: 59, bottom: 21, right: 59)),
+                       as: .image(precision: 0.99))
+    }
+
+    private func makePhoneArenaImage(size: CGSize, insets: UIEdgeInsets) throws -> UIImage {
+        let scene = try makeSnapshotScene()
+        scene.size = size
+        return try SnapshotImageRenderer.render(scene: scene, safeAreaInsets: insets) {
+            scene.prepareRunStateVisualSnapshot(state: .activeGameplay, profile: progressedProfile())
+            addGameplayFixture(to: scene, theme: scene.theme)
+        }
+    }
+
     func testDarkHomeScreen() throws {
         try assertScreenSnapshot(state: .home, themeKind: .darkTacticalRadar, testName: #function)
     }
@@ -215,7 +235,7 @@ final class ArenaScreenSnapshotTests: XCTestCase {
         scene.revealWeaponEffectsForSnapshotTesting()
     }
 
-    private func addTelegraphFixture(to scene: SKScene, bounds: CGRect, theme: ArenaTheme) {
+    private func addTelegraphFixture(to scene: ArenaScene, bounds: CGRect, theme: ArenaTheme) {
         let telegraph = EnemyTelegraph(
             id: 100,
             segments: [
@@ -229,10 +249,10 @@ final class ArenaScreenSnapshotTests: XCTestCase {
                 )
             ]
         )
-        scene.addChild(EnemyTelegraphNode(telegraph: telegraph, theme: theme))
+        scene.addGameplayNode(EnemyTelegraphNode(telegraph: telegraph, theme: theme))
     }
 
-    private func addEnemyFixture(to scene: SKScene, center: CGPoint, bounds: CGRect, theme: ArenaTheme) {
+    private func addEnemyFixture(to scene: ArenaScene, center: CGPoint, bounds: CGRect, theme: ArenaTheme) {
         let enemies = [
             ArenaEnemy(
                 id: 101,
@@ -263,10 +283,10 @@ final class ArenaScreenSnapshotTests: XCTestCase {
             )
         ]
 
-        enemies.forEach { scene.addChild(EnemyNode(enemy: $0, theme: theme)) }
+        enemies.forEach { scene.addGameplayNode(EnemyNode(enemy: $0, theme: theme)) }
     }
 
-    private func addPickupFixture(to scene: SKScene, center: CGPoint, theme: ArenaTheme) {
+    private func addPickupFixture(to scene: ArenaScene, center: CGPoint, theme: ArenaTheme) {
         let pickups = [
             WeaponPickup(
                 id: 201,
@@ -282,7 +302,7 @@ final class ArenaScreenSnapshotTests: XCTestCase {
             )
         ]
 
-        pickups.forEach { scene.addChild(WeaponPickupNode(pickup: $0, theme: theme)) }
+        pickups.forEach { scene.addGameplayNode(WeaponPickupNode(pickup: $0, theme: theme)) }
     }
 
     private func addEffectFixture(to scene: ArenaScene, center: CGPoint) {

@@ -25,6 +25,14 @@ struct ArenaLandscapeUILayout: Equatable {
         return safeRect.insetBy(dx: inset, dy: inset)
     }
 
+    var gameplayWorldFrame: CGRect {
+        ArenaGeometry.fittedGameplayRect(in: gameplayRect)
+    }
+
+    var gameplayWorldScale: CGFloat {
+        gameplayWorldFrame.width / ArenaGeometry.logicalGameplayBounds.width
+    }
+
     var lowerRightButtonFrame: CGRect {
         CGRect(x: controlRect.maxX - 156, y: controlRect.minY, width: 156, height: 48)
     }

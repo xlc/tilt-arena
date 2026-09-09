@@ -114,12 +114,14 @@ final class GameViewControllerTests: XCTestCase {
             return
         }
 
-        XCTAssertEqual(scene.movementController.state.position, CGPoint(x: 426, y: 196.5))
+        XCTAssertEqual(scene.movementController.state.position, CGPoint(x: 359, y: 188.5))
+        XCTAssertEqual(scene.screenPositionForTesting(scene.playerPositionForTesting), CGPoint(x: 426, y: 196.5))
 
         spriteView.testSafeAreaInsets = UIEdgeInsets(top: 0, left: 59, bottom: 21, right: 47)
         controller.viewSafeAreaInsetsDidChange()
 
-        XCTAssertEqual(scene.movementController.state.position, CGPoint(x: 432, y: 196.5))
+        XCTAssertEqual(scene.movementController.state.position, CGPoint(x: 359, y: 188.5))
+        XCTAssertEqual(scene.screenPositionForTesting(scene.playerPositionForTesting), CGPoint(x: 432, y: 196.5))
     }
 
     @MainActor
@@ -197,10 +199,13 @@ final class GameViewControllerTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(scene.runBestPositionForTesting), preRunBestPosition)
         XCTAssertEqual(frames.leading, preRunFrames.leading)
         XCTAssertEqual(frames.trailing, preRunFrames.trailing)
-        let arenaBorderFrame = scene.currentGameplayBounds.insetBy(
+        let logicalBorder = scene.currentGameplayBounds.insetBy(
             dx: ArenaGeometry.arenaBorderInset,
             dy: ArenaGeometry.arenaBorderInset
         )
+        let lower = scene.screenPositionForTesting(logicalBorder.origin)
+        let upper = scene.screenPositionForTesting(CGPoint(x: logicalBorder.maxX, y: logicalBorder.maxY))
+        let arenaBorderFrame = CGRect(x: lower.x, y: lower.y, width: upper.x - lower.x, height: upper.y - lower.y)
         XCTAssertFalse(frames.leading.intersects(arenaBorderFrame))
         XCTAssertFalse(frames.trailing.intersects(arenaBorderFrame))
         XCTAssertGreaterThanOrEqual(frames.leading.minY, arenaBorderFrame.maxY)

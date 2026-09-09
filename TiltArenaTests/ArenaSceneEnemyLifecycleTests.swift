@@ -4,6 +4,52 @@ import XCTest
 
 @MainActor
 final class ArenaSceneEnemyLifecycleTests: XCTestCase {
+    func testDailySimulationUsesTheSameWorldAcrossPhoneLayoutsAndResize() {
+        let small = ArenaScene(size: CGSize(width: 667, height: 375))
+        let large = ArenaScene(size: CGSize(width: 932, height: 430))
+        for scene in [small, large] {
+            scene.prepareActiveRunForTesting(mode: .daily)
+            scene.update(0)
+        }
+        XCTAssertEqual(small.currentGameplayBounds, large.currentGameplayBounds)
+        XCTAssertEqual(small.currentPlayableRect.size, CGSize(width: 658, height: 317))
+        for frame in 1...900 {
+            let angle = Double(frame) / 90
+            for scene in [small, large] {
+                scene.inputOverrideForTesting = CGVector(dx: cos(angle), dy: sin(angle))
+                if frame == 60 { scene.collectWeaponForTesting(.shockwave, id: 800) }
+                if frame == 120 { scene.collectWeaponForTesting(.freezeBurst, id: 801) }
+                scene.update(Double(frame) / 60)
+            }
+            if frame == 180 { large.size = CGSize(width: 852, height: 393) }
+            XCTAssertEqual(small.playerPositionForTesting, large.playerPositionForTesting)
+            XCTAssertEqual(small.enemiesForTesting.map(\.id), large.enemiesForTesting.map(\.id))
+            XCTAssertEqual(small.enemiesForTesting.map(\.position), large.enemiesForTesting.map(\.position))
+            XCTAssertEqual(small.enemiesForTesting.map(\.behavior), large.enemiesForTesting.map(\.behavior))
+            XCTAssertEqual(small.enemiesForTesting.map(\.frozenTimeRemaining), large.enemiesForTesting.map(\.frozenTimeRemaining))
+            XCTAssertEqual(small.pickupsForTesting, large.pickupsForTesting)
+            XCTAssertEqual(small.scoreForTesting, large.scoreForTesting)
+            XCTAssertEqual(small.uiStateForTesting, large.uiStateForTesting)
+        }
+        XCTAssertGreaterThanOrEqual(small.scoreForTesting, 100)
+        XCTAssertGreaterThan(small.runSurvivalTimeForTesting, 5)
+        XCTAssertNotEqual(small.screenPositionForTesting(small.playerPositionForTesting),
+                          large.screenPositionForTesting(large.playerPositionForTesting))
+    }
+
+    func testResizeDoesNotResetRetryOrMoveThePlayerInWorldSpace() {
+        let scene = makeActiveScene()
+        scene.finishRunForTesting()
+        scene.retryRunForTesting()
+        scene.update(0)
+        for frame in 1...30 { scene.update(Double(frame) / 60) }
+        let position = scene.playerPositionForTesting
+        scene.size = CGSize(width: 932, height: 430)
+        XCTAssertEqual(scene.playerPositionForTesting, position)
+        for frame in 31...46 { scene.update(Double(frame) / 60) }
+        XCTAssertEqual(scene.uiStateForTesting, .activeGameplay)
+    }
+
     func testGravityWellDestroysPickupLocationEnemyOnActivation() {
         let scene = makeActiveScene()
         let pickupPosition = CGPoint(x: 80, y: 90)
@@ -351,8 +397,8 @@ final class ArenaSceneEnemyLifecycleTests: XCTestCase {
             )
             normalScene.addEnemyForTesting(enemy)
             slowedScene.addEnemyForTesting(enemy)
-            let normalNode = try XCTUnwrap(normalScene.children.compactMap { $0 as? EnemyNode }.first)
-            let slowedNode = try XCTUnwrap(slowedScene.children.compactMap { $0 as? EnemyNode }.first)
+            let normalNode = try XCTUnwrap(normalScene.gameplayChildrenForTesting.compactMap { $0 as? EnemyNode }.first)
+            let slowedNode = try XCTUnwrap(slowedScene.gameplayChildrenForTesting.compactMap { $0 as? EnemyNode }.first)
             slowedScene.activateTimeDilationAuraForTesting(configuration: StartingWeaponConfiguration(
                 timeDilationRadius: 120,
                 timeDilationMaximumSlowFactor: 3,
