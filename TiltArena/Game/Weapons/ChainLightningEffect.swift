@@ -1,13 +1,14 @@
 import SpriteKit
 
 extension ArenaScene {
+    @discardableResult
     func playChainLightningEffect(
         from origin: CGPoint,
         through targets: [WeaponImpactTarget],
         configuration: StartingWeaponConfiguration? = nil,
         onImpact: ((Set<Int>) -> Void)? = nil,
         onComplete: (() -> Void)? = nil
-    ) {
+    ) -> TimeInterval {
         let configuration = (configuration ?? weaponResolver.configuration).sanitizedForRuntime()
         let accentColor = theme.weaponColor(for: .chainLightning)
         let coreColor = theme.playerColor
@@ -59,6 +60,7 @@ extension ArenaScene {
 
         travelActions.append(.removeFromParent())
         charge.run(.sequence(travelActions))
+        return targets.isEmpty ? 0 : impactDelays.last ?? 0
     }
 
     private static func chainTravelAction(

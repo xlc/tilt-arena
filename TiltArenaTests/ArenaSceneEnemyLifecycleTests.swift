@@ -482,6 +482,38 @@ final class ArenaSceneEnemyLifecycleTests: XCTestCase {
         XCTAssertFalse(scene.enemyIDsForTesting.contains(804))
     }
 
+    func testEveryWeaponProvidesImmediateCollectionGrace() {
+        for kind in WeaponKind.allCases {
+            let scene = makeActiveScene()
+            scene.collectWeaponForTesting(kind)
+            XCTAssertGreaterThanOrEqual(scene.postWeaponSafetyRemainingForTesting, 0.2, "\(kind)")
+        }
+    }
+
+    func testCollectionGraceRefreshesWithoutStackingDurations() {
+        let scene = makeActiveScene()
+        scene.collectWeaponForTesting(.shockwave)
+        scene.advancePostWeaponSafetyForTesting(deltaTime: 0.1)
+        scene.collectWeaponForTesting(.freezeBurst, id: 2)
+        XCTAssertEqual(scene.postWeaponSafetyRemainingForTesting, 0.2, accuracy: 0.0001)
+        scene.advancePostWeaponSafetyForTesting(deltaTime: 0.21)
+        XCTAssertFalse(scene.isPostWeaponSafeForTesting)
+    }
+
+    func testSeekerProtectionHasOneScheduledDeadlineThatImpactsCannotExtend() {
+        let scene = makeActiveScene()
+        let center = scene.playerPositionForTesting
+        let target = WeaponImpactTarget(id: 900, position: CGPoint(x: center.x + 100, y: center.y))
+        scene.addEnemyForTesting(ArenaEnemy(id: target.id, position: target.position, radius: 5, speed: 0))
+        scene.collectWeaponForTesting(.seekerSwarm)
+        let duration = scene.postWeaponSafetyRemainingForTesting
+        XCTAssertGreaterThan(duration, 0.5)
+        XCTAssertLessThanOrEqual(duration, 1.165)
+        scene.advancePostWeaponSafetyForTesting(deltaTime: duration + 0.01)
+        scene.resolveSeekerExplosionForTesting(at: target)
+        XCTAssertFalse(scene.isPostWeaponSafeForTesting)
+    }
+
     private func makeActiveScene() -> ArenaScene {
         let scene = ArenaScene(size: CGSize(width: 320, height: 240))
         scene.prepareActiveRunForTesting()

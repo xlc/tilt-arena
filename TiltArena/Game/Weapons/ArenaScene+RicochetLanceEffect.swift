@@ -1,16 +1,17 @@
 import SpriteKit
 
 extension ArenaScene {
+    @discardableResult
     func playRicochetLanceEffect(
         segments: [RicochetLanceSegment],
         targets: [WeaponImpactTarget],
         configuration: StartingWeaponConfiguration? = nil,
         onImpact: @escaping (Set<Int>) -> Void
-    ) {
+    ) -> TimeInterval {
         let configuration = (configuration ?? weaponResolver.configuration).sanitizedForRuntime()
         guard !segments.isEmpty else {
             runRicochetImpactBatch(targets, delay: 0, onImpact: onImpact)
-            return
+            return 0
         }
 
         var elapsed: TimeInterval = 0
@@ -25,7 +26,9 @@ extension ArenaScene {
             elapsed += travelDuration * 0.72
         }
 
-        runRicochetImpactBatch(targets, delay: elapsed + 0.04, onImpact: onImpact)
+        let impactTime = elapsed + 0.04
+        runRicochetImpactBatch(targets, delay: impactTime, onImpact: onImpact)
+        return targets.isEmpty ? 0 : impactTime
     }
 
     private func addRicochetBeam(

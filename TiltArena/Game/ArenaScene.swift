@@ -1072,6 +1072,7 @@ extension ArenaScene {
     }
 
     private func applyWeapon(_ pickup: WeaponPickup, playerPosition: CGPoint) {
+        activeWeapons.postWeaponSafety.grant(duration: gameTuning.feedback.pickupCollectionGrace)
         let plan = weaponRuntime.activationPlan(
             for: pickup,
             playerPosition: playerPosition,
@@ -1122,7 +1123,6 @@ extension ArenaScene {
             return nil
         case .ricochetLance:
             let destroyedCount = fireRicochetLance(from: playerPosition, configuration: configuration, activation: activation)
-            grantPostWeaponSafety(for: .ricochetLance)
             return destroyedCount
         default:
             performWeaponActivationEffect(
@@ -1153,7 +1153,6 @@ extension ArenaScene {
                 configuration: configuration,
                 activation: activation
             )
-            grantPostWeaponSafety(for: .seekerSwarm)
         case .razorShield:
             activateRazorShield(at: playerPosition, configuration: configuration, activation: activation)
         case .freezeBurstWave:
@@ -1162,7 +1161,6 @@ extension ArenaScene {
             activateGravityWell(at: playerPosition, configuration: configuration, activation: activation)
         case .chainLightning(let enemyIDs):
             playChainLightning(enemyIDs: enemyIDs, from: playerPosition, configuration: configuration, activation: activation)
-            grantPostWeaponSafety(for: .chainLightning)
         case .flameTrail:
             activateFlameTrail(at: playerPosition, chargeTier: chargeTier, activation: activation)
         case .timeDilationAura, .ricochetLance:
@@ -1186,7 +1184,7 @@ extension ArenaScene {
                 ArenaGeometry.squaredDistance(from: lhs.position, to: playerPosition)
                     < ArenaGeometry.squaredDistance(from: rhs.position, to: playerPosition)
             }
-        playSeekerSwarmEffect(
+        let lastImpact = playSeekerSwarmEffect(
             from: playerPosition,
             to: targets,
             configuration: configuration,
@@ -1197,6 +1195,7 @@ extension ArenaScene {
                 self?.resolveSeekerExplosion(at: target, resolver: resolver, activation: activation)
             }
         )
+        grantProjectileSafety(for: .seekerSwarm, lastImpact: lastImpact)
     }
 
     private func position(forEnemyID enemyID: Int) -> CGPoint? {
@@ -1212,7 +1211,6 @@ extension ArenaScene {
             weaponKind: .seekerSwarm,
             activation: activation
         )
-        grantPostWeaponSafety(for: .seekerSwarm)
     }
 
     private func playChainLightning(
@@ -1222,15 +1220,15 @@ extension ArenaScene {
         activation: WeaponActivation = WeaponActivation(kind: .chainLightning)
     ) {
         let targets = impactTargets(forEnemyIDs: enemyIDs)
-        playChainLightningEffect(
+        let lastImpact = playChainLightningEffect(
             from: playerPosition,
             through: targets,
             configuration: configuration,
             onImpact: { [weak self] enemyIDs in
                 self?.destroyEnemies(ids: enemyIDs, weaponKind: .chainLightning, activation: activation)
-                self?.grantPostWeaponSafety(for: .chainLightning)
             }
         )
+        grantProjectileSafety(for: .chainLightning, lastImpact: lastImpact)
     }
 
     private func playNovaBomb(
@@ -1590,6 +1588,13 @@ extension ArenaScene {
         activeWeapons.flameTrailProtection.isInvulnerable
     }
 
+    private func grantProjectileSafety(for kind: WeaponKind, lastImpact: TimeInterval) {
+        grantPostWeaponSafety(
+            for: kind,
+            minimumDuration: lastImpact + WeaponRuntimeSafetyLimits.duration(gameTuning.feedback.postWeaponSafetyDuration)
+        )
+    }
+
     private func grantPostWeaponSafety(
         for weaponKind: WeaponKind,
         minimumDuration: TimeInterval = 0
@@ -1705,15 +1710,15 @@ extension ArenaScene {
             configuration: configuration
         )
         let targets = impactTargets(forEnemyIDs: result.destroyedEnemyIDs)
-        playRicochetLanceEffect(
+        let lastImpact = playRicochetLanceEffect(
             segments: result.segments,
             targets: targets,
             configuration: configuration
         ) { [weak self] enemyIDs in
             self?.destroyEnemies(ids: enemyIDs, weaponKind: .ricochetLance, activation: activation)
-            self?.grantPostWeaponSafety(for: .ricochetLance)
         }
 
+        grantProjectileSafety(for: .ricochetLance, lastImpact: lastImpact)
         return targets.count
     }
 
@@ -3269,6 +3274,16 @@ extension ArenaScene {
             previousDamageableEnemyPositions: previousDamageableEnemyPositions,
             allowsSweptCollision: allowsSweptCollision
         )
+    }
+
+    func collectWeaponForTesting(_ kind: WeaponKind, id: Int = 1) {
+        let pickup = WeaponPickup(id: id, kind: kind, position: movementController.state.position, radius: 8)
+        _ = pickupRegistry.add([pickup], to: self, theme: theme)
+        _ = collectPickups(playerPosition: movementController.state.position)
+    }
+
+    var postWeaponSafetyRemainingForTesting: TimeInterval {
+        activeWeapons.postWeaponSafety.timeRemaining
     }
 
     func activateRazorShieldForTesting(configuration: StartingWeaponConfiguration) {

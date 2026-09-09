@@ -237,8 +237,8 @@ struct WeaponResolution: Equatable {
 }
 
 struct WeaponEffectTiming: Equatable {
-    // Visual timing shared by projectile and wave effects. These values should make
-    // effects readable; they do not decide which enemies are hit.
+    // Travel and impact timing shared by projectile and wave effects. Projectile
+    // protection uses the same schedule; target selection belongs to the resolver.
     var projectileSpeed: CGFloat = 520
     var waveSpeed: CGFloat = 620
     var minimumTravelDuration: TimeInterval = 0.08

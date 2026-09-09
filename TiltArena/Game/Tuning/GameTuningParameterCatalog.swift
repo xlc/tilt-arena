@@ -378,6 +378,7 @@ enum GameTuningParameterCatalog {
         specs.append(double("feedback.multiKillShakeDuration", "Feedback", "multi kill duration", \.feedback.multiKillShakeDuration, 0.01, 0, nil, 2))
         specs.append(double("feedback.razorShieldWarningLeadTime", "Feedback", "shield warning lead", \.feedback.razorShieldWarningLeadTime, 0.05, 0, nil, 2))
         specs.append(double("feedback.postWeaponSafetyDuration", "Feedback", "post weapon safe", \.feedback.postWeaponSafetyDuration, 0.05, 0, nil, 2))
+        specs.append(double("feedback.pickupCollectionGrace", "Feedback", "pickup grace", \.feedback.pickupCollectionGrace, 0.05, 0, 1, 2))
     }
 
     private static func cgFloat(

@@ -15,6 +15,7 @@ struct GameFeedbackTuningConfiguration: Equatable {
     var multiKillShakeDuration: TimeInterval = 0.14
     var razorShieldWarningLeadTime: TimeInterval = 0.75
     var postWeaponSafetyDuration: TimeInterval = 0.5
+    var pickupCollectionGrace: TimeInterval = 0.2
 }
 
 struct GameTuningConfiguration: Equatable {
@@ -26,7 +27,7 @@ struct GameTuningConfiguration: Equatable {
     var daily: GameModeTuningConfiguration
     // Weapon tuning entry points:
     // - startingWeapons: gameplay reach, duration, target counts, and clear strength.
-    // - weaponEffectTiming: shared visual travel timing only.
+    // - weaponEffectTiming: shared travel, impact, and projectile protection timing.
     // - flameTrail: fixed-speed burst, short invulnerability, and persistent segments.
     // Keep GameTuningParameterCatalog in sync when adding new public tuning knobs.
     var startingWeapons = StartingWeaponConfiguration()

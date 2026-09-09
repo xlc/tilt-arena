@@ -1,13 +1,15 @@
 import SpriteKit
 
 extension ArenaScene {
+    @discardableResult
     func playSeekerSwarmEffect(
         from origin: CGPoint,
         to targets: [WeaponImpactTarget],
         configuration: StartingWeaponConfiguration? = nil,
         targetPosition: @escaping (Int) -> CGPoint? = { _ in nil },
         onImpact: @escaping (WeaponImpactTarget) -> Void
-    ) {
+    ) -> TimeInterval {
+        var lastImpact: TimeInterval = 0
         let configuration = (configuration ?? weaponResolver.configuration).sanitizedForRuntime()
         for (index, target) in targets.enumerated() {
             let duration = seekerTravelDuration(
@@ -15,6 +17,7 @@ extension ArenaScene {
                 to: target.position,
                 configuration: configuration
             )
+            lastImpact = max(lastImpact, TimeInterval(index) * 0.035 + duration)
             playSeekerBolt(
                 SeekerBoltSpec(
                     origin: origin,
@@ -27,6 +30,7 @@ extension ArenaScene {
                 onImpact: onImpact
             )
         }
+        return lastImpact
     }
 
     private func seekerTravelDuration(
