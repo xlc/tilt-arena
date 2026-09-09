@@ -42,10 +42,17 @@ struct ArenaModeRules {
     static func progressText(for mode: ArenaModeKind, profile: RunProfile) -> String {
         switch mode {
         case .classic:
-            return "BEST \(profile.bestScore)"
+            return "BEST \(profile.competitiveRecord(for: .classic).bestScore)"
         case .redline:
-            return "\(min(profile.bestScore, redlineBestScoreRequirement))/\(redlineBestScoreRequirement) CLASSIC BEST"
+            if isAvailable(.redline, profile: profile) {
+                return "BEST \(profile.competitiveRecord(for: .redline).bestScore)"
+            }
+            let classicBest = profile.competitiveRecord(for: .classic).bestScore
+            return "\(min(classicBest, redlineBestScoreRequirement))/\(redlineBestScoreRequirement) CLASSIC BEST"
         case .daily:
+            if isAvailable(.daily, profile: profile) {
+                return "TODAY’S BEST \(profile.competitiveRecord(for: .daily).bestScore)"
+            }
             return "\(ArenaProgressionRules.unlockedWeapons(for: profile).count)/\(ArenaProgressionRules.allGameplayWeapons.count) WEAPONS"
         }
     }

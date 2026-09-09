@@ -67,9 +67,9 @@ enum ArenaProgressionRequirement: Equatable {
         case .totalEnemiesDestroyed:
             return profile.totalEnemiesDestroyed
         case .bestScore:
-            return profile.bestScore
+            return profile.lifetimeBestScore
         case .highestCombo:
-            return profile.highestCombo
+            return profile.lifetimeHighestCombo
         }
     }
 
@@ -134,7 +134,7 @@ struct ArenaProgressionRules {
     }
 
     static func isRedlineAvailable(profile: RunProfile) -> Bool {
-        profile.bestScore >= redlineBestScoreRequirement
+        profile.competitiveRecord(for: .classic).bestScore >= redlineBestScoreRequirement
     }
 
     static func isDailyAvailable(profile: RunProfile) -> Bool {
@@ -160,9 +160,9 @@ struct ArenaProgressionRules {
         if !isRedlineAvailable(profile: profile) {
             return unlockText(
                 title: "REDLINE",
-                progress: profile.bestScore,
+                progress: profile.competitiveRecord(for: .classic).bestScore,
                 target: redlineBestScoreRequirement,
-                label: "BEST"
+                label: "CLASSIC BEST"
             )
         }
 
@@ -175,10 +175,10 @@ struct ArenaProgressionRules {
 
         switch id {
         case .comboSpark:
-            progress = profile.highestCombo
+            progress = profile.lifetimeHighestCombo
             target = 10
         case .scoreCrest:
-            progress = profile.bestScore
+            progress = profile.lifetimeBestScore
             target = 5_000
         case .freezeShatter:
             progress = profile.totalEnemiesDestroyed
@@ -192,7 +192,7 @@ struct ArenaProgressionRules {
         case .survivor:
             target = 120
             let survivalTime = RunProfile.normalizedPersistedSurvivalTime(
-                profile.longestSurvivalTime
+                profile.lifetimeLongestSurvivalTime
             )
             progress = survivalTime >= TimeInterval(target)
                 ? target

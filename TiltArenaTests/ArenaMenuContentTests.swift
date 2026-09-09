@@ -11,7 +11,8 @@ final class ArenaMenuContentTests: XCTestCase {
         XCTAssertFalse(rows[1].isAvailable)
         XCTAssertFalse(rows[2].isAvailable)
 
-        profile.bestScore = 5_000
+        profile.lifetimeBestScore = 5_000
+        profile.modeRecords[.classic] = RunRecord(bestScore: 5_000)
         profile.totalEnemiesDestroyed = 300
         rows = ArenaMenuContent.modeRows(profile: profile, selectedMode: .classic)
 
@@ -20,7 +21,7 @@ final class ArenaMenuContentTests: XCTestCase {
         XCTAssertFalse(rows[2].isAvailable)
         XCTAssertEqual(rows[2].statusText, "LOCKED")
 
-        profile.highestCombo = 30
+        profile.lifetimeHighestCombo = 30
         rows = ArenaMenuContent.modeRows(profile: profile, selectedMode: .classic)
 
         XCTAssertTrue(rows[2].isAvailable)
@@ -35,22 +36,25 @@ final class ArenaMenuContentTests: XCTestCase {
         profile.totalEnemiesDestroyed = 50
         XCTAssertEqual(ArenaMenuContent.activeUnlockText(profile: profile), "NEXT GRAVITY WELL 50/100 KILLS")
 
-        profile.bestScore = 3_000
-        profile.highestCombo = 20
+        profile.lifetimeBestScore = 3_000
+        profile.modeRecords[.classic] = RunRecord(bestScore: 3_000)
+        profile.lifetimeHighestCombo = 20
         profile.totalEnemiesDestroyed = 300
         XCTAssertEqual(ArenaMenuContent.activeUnlockText(profile: profile), "NEXT RICOCHET LANCE 20/30 COMBO")
 
-        profile.highestCombo = 30
-        XCTAssertEqual(ArenaMenuContent.activeUnlockText(profile: profile), "REDLINE 3000/5000 BEST")
+        profile.lifetimeHighestCombo = 30
+        XCTAssertEqual(ArenaMenuContent.activeUnlockText(profile: profile), "REDLINE 3000/5000 CLASSIC BEST")
 
-        profile.bestScore = 5_000
+        profile.lifetimeBestScore = 5_000
+        profile.modeRecords[.classic] = RunRecord(bestScore: 5_000)
         XCTAssertEqual(ArenaMenuContent.activeUnlockText(profile: profile), "ALL LOCAL MODES READY")
     }
 
     func testAwardRowsUseProfileData() {
         var profile = RunProfile()
-        profile.bestScore = 2_500
-        profile.highestCombo = 8
+        profile.lifetimeBestScore = 2_500
+        profile.modeRecords[.classic] = RunRecord(bestScore: 2_500)
+        profile.lifetimeHighestCombo = 8
         profile.totalEnemiesDestroyed = 30
 
         let rows = ArenaMenuContent.awardRows(profile: profile)

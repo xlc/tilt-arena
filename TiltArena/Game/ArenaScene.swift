@@ -629,9 +629,12 @@ extension ArenaScene {
     }
 
     private func startRun() {
-        runController.start()
         readyHoldController.reset()
         resetActiveRun()
+        runController.start(context: ArenaRunContext(
+            mode: runSession.selectedMode,
+            sequenceSeed: weaponRuntime.initialSeed
+        ))
         audioController.resetEventLimiter()
         audioController.startMusic()
         hapticsController.prepare()
@@ -679,11 +682,11 @@ extension ArenaScene {
         }
 
         runSession.beginRunCompletion(
-            previousBestScore: runProfile.bestScore,
+            previousBestScore: selectedModeRecord.bestScore,
             collision: collision,
             transitionDuration: playFeedback ? 0.22 : nil
         )
-        runController.endRun(mode: runSession.selectedMode)
+        runController.endRun()
         clearWeaponEffectNodes(paused: true)
         activeWeapons.finishRun()
         powerWaveChargeNode = nil
@@ -1901,9 +1904,17 @@ extension ArenaScene {
         String(format: "%.1fs", time)
     }
 
+    private var selectedModeRecord: RunRecord {
+        let hasActiveContext = uiState == .activeGameplay || uiState == .pause || uiState == .postRun
+        return runProfile.competitiveRecord(
+            for: runSession.selectedMode,
+            seed: hasActiveContext ? runController.context.sequenceSeed : nil
+        )
+    }
+
     private func updateRunHUD() {
         runScoreLabel?.text = "SCORE \(runController.score)  \(formatSurvivalTime(runController.survivalTime))"
-        runBestLabel?.text = "BEST \(runProfile.bestScore)"
+        runBestLabel?.text = "\(runSession.selectedMode == .daily ? "DAILY BEST" : "BEST") \(selectedModeRecord.bestScore)"
     }
 
     private func updatePlayerComboEffect() {
@@ -2071,7 +2082,7 @@ private extension ArenaScene {
             renderRunHUD(in: currentLandscapeLayout())
         case .pause:
             let summary = "SCORE \(runController.score)   \(formatSurvivalTime(runController.survivalTime))"
-                + "   BEST \(runProfile.bestScore)"
+                + "   BEST \(selectedModeRecord.bestScore)"
             uiRenderer.renderPause(runSummary: summary, layout: currentLandscapeLayout())
         case .postRun:
             renderPostRun()
@@ -2195,7 +2206,8 @@ private extension ArenaScene {
             height: 108
         )
         uiRenderer.addHomeIdentity(
-            bestScore: runProfile.bestScore,
+            mode: runSession.selectedMode,
+            bestScore: selectedModeRecord.bestScore,
             statusMessage: currentGameCenterStatusMessage(),
             in: identityFrame
         )
@@ -2526,7 +2538,7 @@ private extension ArenaScene {
             alignment: .left
         )
         uiRenderer.addLabel(
-            summary?.score ?? 0 > runSession.previousBestScore ? "NEW BEST" : "BEST \(runProfile.bestScore)",
+            summary?.score ?? 0 > runSession.previousBestScore ? "NEW BEST" : "BEST \(selectedModeRecord.bestScore)",
             at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 126),
             fontSize: 11,
             color: theme.playerAccentColor,
@@ -2874,6 +2886,8 @@ private extension ArenaScene {
 
         runLogger.notice("run.finished", metadata: [
             "mode": "\(summary.mode.rawValue)",
+            "seed": "\(summary.sequenceSeed)",
+            "rules_version": "\(summary.rulesVersion)",
             "score": "\(summary.score)",
             "survivalTime": "\(summary.survivalTime)",
             "maxCombo": "\(summary.maxCombo)",
@@ -2898,9 +2912,9 @@ private extension ArenaScene {
                 theme: localOptions.themeKind.rawValue
             ),
             profile: DiagnosticProfileSnapshot(
-                bestScore: runProfile.bestScore,
-                highestCombo: runProfile.highestCombo,
-                longestSurvivalTime: runProfile.longestSurvivalTime,
+                bestScore: runProfile.lifetimeBestScore,
+                highestCombo: runProfile.lifetimeHighestCombo,
+                longestSurvivalTime: runProfile.lifetimeLongestSurvivalTime,
                 totalRuns: runProfile.totalRuns,
                 totalEnemiesDestroyed: runProfile.totalEnemiesDestroyed,
                 unlockedWeaponCount: runProfile.unlockedWeapons.count,
@@ -3130,7 +3144,7 @@ extension ArenaScene {
             show(.pause)
         case .postRun:
             prepareSeededRunVisualSnapshot(profile: profile, selectedMode: selectedMode)
-            finishSeededRunVisualSnapshot(profile: profile, selectedMode: selectedMode)
+            finishSeededRunVisualSnapshot(profile: profile)
             show(.postRun)
         case .home, .modeSelect, .awards, .weaponCodex, .options, .developerTuning, .calibrationPreview:
             show(state)
@@ -3139,23 +3153,23 @@ extension ArenaScene {
 
     private func prepareSeededRunVisualSnapshot(profile: RunProfile, selectedMode: ArenaModeKind) {
         self.runProfile = profile
-        runSession.prepareSnapshot(selectedMode: selectedMode, previousBestScore: profile.bestScore)
+        runSession.prepareSnapshot(
+            selectedMode: selectedMode,
+            previousBestScore: profile.competitiveRecord(for: selectedMode).bestScore
+        )
+        resetGameplayObjects()
         runController = ClassicRunController(configuration: runController.configuration)
-        runController.start()
+        runController.start(context: ArenaRunContext(mode: selectedMode, sequenceSeed: weaponRuntime.initialSeed))
         runController.update(deltaTime: 38.4)
         _ = runController.recordItemPickup(pickupID: 1)
         runController.recordEnemyKills(count: 14, weaponKind: .chainLightning)
         seedDeathReplayTraceForSnapshot()
-        resetGameplayObjects()
         placePlayer(resetPosition: true)
         resetPlayerFeedback()
     }
 
-    private func finishSeededRunVisualSnapshot(profile: RunProfile, selectedMode: ArenaModeKind) {
-        runController.endRun(
-            at: Date(timeIntervalSince1970: 1_800),
-            mode: selectedMode
-        )
+    private func finishSeededRunVisualSnapshot(profile: RunProfile) {
+        runController.endRun(at: Date(timeIntervalSince1970: 1_800))
         guard let summary = runController.finalizedSummary else {
             return
         }

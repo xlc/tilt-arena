@@ -386,7 +386,8 @@ final class ClassicRunControllerTests: XCTestCase {
                 maxCombo: 2,
                 enemiesDestroyed: 2,
                 bestWeapon: .seekerSwarm,
-                timestamp: timestamp
+                timestamp: timestamp,
+                startedAt: controller.context.startedAt
             )
         )
 

@@ -14,30 +14,6 @@ enum WeaponKind: String, CaseIterable, Codable, Equatable {
     case ricochetLance
     case novaBomb
 
-    init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        let rawValue = try container.decode(String.self)
-
-        if rawValue == "decoyBeacon" {
-            self = .powerWave
-            return
-        }
-
-        guard let value = WeaponKind(rawValue: rawValue) else {
-            throw DecodingError.dataCorruptedError(
-                in: container,
-                debugDescription: "Unknown weapon kind: \(rawValue)"
-            )
-        }
-
-        self = value
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        try container.encode(rawValue)
-    }
-
     var displayName: String {
         switch self {
         case .shockwave:

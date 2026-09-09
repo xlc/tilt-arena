@@ -26,6 +26,22 @@ struct ClassicRunConfiguration: Equatable {
     }
 }
 
+struct ArenaRunContext: Codable, Equatable {
+    static let currentRulesVersion = 1
+
+    let mode: ArenaModeKind
+    let sequenceSeed: Int
+    let startedAt: Date
+    let rulesVersion: Int
+
+    init(mode: ArenaModeKind = .classic, sequenceSeed: Int = 0, startedAt: Date = Date()) {
+        self.mode = mode
+        self.sequenceSeed = sequenceSeed
+        self.startedAt = startedAt
+        rulesVersion = Self.currentRulesVersion
+    }
+}
+
 struct RunSummary: Codable, Equatable {
     let score: Int
     let survivalTime: TimeInterval
@@ -35,15 +51,9 @@ struct RunSummary: Codable, Equatable {
     let timestamp: Date
     let mode: ArenaModeKind
 
-    private enum CodingKeys: String, CodingKey {
-        case score
-        case survivalTime
-        case maxCombo
-        case enemiesDestroyed
-        case bestWeapon
-        case timestamp
-        case mode
-    }
+    let sequenceSeed: Int
+    let startedAt: Date
+    let rulesVersion: Int
 
     init(
         score: Int,
@@ -52,7 +62,10 @@ struct RunSummary: Codable, Equatable {
         enemiesDestroyed: Int,
         bestWeapon: WeaponKind?,
         timestamp: Date,
-        mode: ArenaModeKind = .classic
+        mode: ArenaModeKind = .classic,
+        sequenceSeed: Int = 0,
+        startedAt: Date? = nil,
+        rulesVersion: Int = ArenaRunContext.currentRulesVersion
     ) {
         self.score = score
         self.survivalTime = survivalTime
@@ -61,23 +74,16 @@ struct RunSummary: Codable, Equatable {
         self.bestWeapon = bestWeapon
         self.timestamp = timestamp
         self.mode = mode
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        score = try container.decode(Int.self, forKey: .score)
-        survivalTime = try container.decode(TimeInterval.self, forKey: .survivalTime)
-        maxCombo = try container.decode(Int.self, forKey: .maxCombo)
-        enemiesDestroyed = try container.decode(Int.self, forKey: .enemiesDestroyed)
-        bestWeapon = try container.decodeIfPresent(WeaponKind.self, forKey: .bestWeapon)
-        timestamp = try container.decode(Date.self, forKey: .timestamp)
-        mode = try container.decodeIfPresent(ArenaModeKind.self, forKey: .mode) ?? .classic
+        self.sequenceSeed = sequenceSeed
+        self.startedAt = startedAt ?? timestamp.addingTimeInterval(-max(0, survivalTime))
+        self.rulesVersion = rulesVersion
     }
 }
 
 struct ClassicRunController {
     var configuration = ClassicRunConfiguration()
     private(set) var phase: ClassicRunPhase = .preRun
+    private(set) var context = ArenaRunContext()
     private(set) var survivalTime: TimeInterval = 0
     private(set) var enemiesDestroyed = 0
     private(set) var score = 0
@@ -96,7 +102,8 @@ struct ClassicRunController {
         self.configuration = configuration
     }
 
-    mutating func start() {
+    mutating func start(context: ArenaRunContext = ArenaRunContext()) {
+        self.context = context
         resetForActiveRun()
     }
 
@@ -116,7 +123,7 @@ struct ClassicRunController {
         phase = .active
     }
 
-    mutating func endRun(at timestamp: Date = Date(), mode: ArenaModeKind = .classic) {
+    mutating func endRun(at timestamp: Date = Date()) {
         guard phase == .active || phase == .paused else {
             return
         }
@@ -129,12 +136,15 @@ struct ClassicRunController {
             enemiesDestroyed: enemiesDestroyed,
             bestWeapon: bestWeapon,
             timestamp: timestamp,
-            mode: mode
+            mode: context.mode,
+            sequenceSeed: context.sequenceSeed,
+            startedAt: context.startedAt,
+            rulesVersion: context.rulesVersion
         )
     }
 
-    mutating func restart() {
-        resetForActiveRun()
+    mutating func restart(context: ArenaRunContext = ArenaRunContext()) {
+        start(context: context)
     }
 
     mutating func update(deltaTime: TimeInterval) {

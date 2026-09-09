@@ -106,15 +106,24 @@ final class ArenaScreenSnapshotTests: XCTestCase {
         try assertScreenSnapshot(state: .postRun, themeKind: .whitePrecisionBoard, testName: #function)
     }
 
+    func testDarkDailyPostRunScreen() throws {
+        try assertScreenSnapshot(state: .postRun, themeKind: .darkTacticalRadar, selectedMode: .daily, testName: #function)
+    }
+
+    func testWhiteDailyHomeScreen() throws {
+        try assertScreenSnapshot(state: .home, themeKind: .whitePrecisionBoard, selectedMode: .daily, testName: #function)
+    }
+
     private func assertScreenSnapshot(
         state: ArenaUISceneState,
         themeKind: ArenaThemeKind,
         precision: Float = 0.99,
+        selectedMode: ArenaModeKind = .classic,
         testName: String,
         line: UInt = #line
     ) throws {
         assertSnapshot(
-            of: try makeScreenImage(state: state, themeKind: themeKind),
+            of: try makeScreenImage(state: state, themeKind: themeKind, selectedMode: selectedMode),
             as: .image(precision: precision),
             file: #filePath,
             testName: testName,
@@ -122,7 +131,9 @@ final class ArenaScreenSnapshotTests: XCTestCase {
         )
     }
 
-    private func makeScreenImage(state: ArenaUISceneState, themeKind: ArenaThemeKind) throws -> UIImage {
+    private func makeScreenImage(
+        state: ArenaUISceneState, themeKind: ArenaThemeKind, selectedMode: ArenaModeKind
+    ) throws -> UIImage {
         let scene = try makeSnapshotScene()
         scene.scaleMode = .resizeFill
 
@@ -136,7 +147,8 @@ final class ArenaScreenSnapshotTests: XCTestCase {
                 scene.prepareRunStateVisualSnapshot(
                     state: state,
                     profile: progressedProfile(),
-                    localOptions: localOptions
+                    localOptions: localOptions,
+                    selectedMode: selectedMode
                 )
                 if state.usesGameplayFixture {
                     addGameplayFixture(to: scene, theme: themeKind.theme)
@@ -145,7 +157,8 @@ final class ArenaScreenSnapshotTests: XCTestCase {
                 scene.prepareForVisualSnapshot(
                     state: state,
                     profile: progressedProfile(),
-                    localOptions: localOptions
+                    localOptions: localOptions,
+                    selectedMode: selectedMode
                 )
             }
         }
@@ -170,9 +183,11 @@ final class ArenaScreenSnapshotTests: XCTestCase {
 
     private func progressedProfile() -> RunProfile {
         var profile = RunProfile()
-        profile.bestScore = 6_400
-        profile.highestCombo = 24
-        profile.longestSurvivalTime = 64.2
+        profile.modeRecords[.classic] = RunRecord(bestScore: 6_400, highestCombo: 24, longestSurvivalTime: 64.2, attempts: 18)
+        profile.dailyRecords[ArenaModeRules.dailySeed()] = RunRecord(bestScore: 300, attempts: 2)
+        profile.lifetimeBestScore = 6_400
+        profile.lifetimeHighestCombo = 24
+        profile.lifetimeLongestSurvivalTime = 64.2
         profile.totalRuns = 18
         profile.totalEnemiesDestroyed = 320
         profile.unlockedWeapons = Set(ArenaProgressionRules.allGameplayWeapons)

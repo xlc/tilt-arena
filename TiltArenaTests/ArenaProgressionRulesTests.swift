@@ -20,8 +20,9 @@ final class ArenaProgressionRulesTests: XCTestCase {
         ])
 
         profile.totalEnemiesDestroyed = 100
-        profile.bestScore = 1_500
-        profile.highestCombo = 20
+        profile.lifetimeBestScore = 1_500
+        profile.modeRecords[.classic] = RunRecord(bestScore: 1_500)
+        profile.lifetimeHighestCombo = 20
         XCTAssertEqual(ArenaProgressionRules.unlockedWeapons(for: profile), [
             .shockwave,
             .seekerSwarm,
@@ -33,7 +34,8 @@ final class ArenaProgressionRulesTests: XCTestCase {
         ])
 
         profile.totalEnemiesDestroyed = 300
-        profile.bestScore = 3_000
+        profile.lifetimeBestScore = 3_000
+        profile.modeRecords[.classic] = RunRecord(bestScore: 3_000)
         XCTAssertEqual(ArenaProgressionRules.unlockedWeapons(for: profile), [
             .shockwave,
             .seekerSwarm,
@@ -47,7 +49,7 @@ final class ArenaProgressionRulesTests: XCTestCase {
             .novaBomb
         ])
 
-        profile.highestCombo = 30
+        profile.lifetimeHighestCombo = 30
         XCTAssertEqual(ArenaProgressionRules.unlockedWeapons(for: profile), ArenaProgressionRules.allGameplayWeapons)
     }
 
@@ -76,8 +78,9 @@ final class ArenaProgressionRulesTests: XCTestCase {
         XCTAssertEqual(Set(daily.pickupSpawnConfiguration.weaponKindCycle), Set(ArenaProgressionRules.startingWeapons))
 
         profile.totalEnemiesDestroyed = 300
-        profile.bestScore = 3_000
-        profile.highestCombo = 30
+        profile.lifetimeBestScore = 3_000
+        profile.modeRecords[.classic] = RunRecord(bestScore: 3_000)
+        profile.lifetimeHighestCombo = 30
         classic = ArenaModeRules.runSettings(for: .classic, profile: profile)
         let fullyUnlockedDaily = ArenaModeRules.runSettings(for: .daily, profile: profile)
 
@@ -87,7 +90,8 @@ final class ArenaProgressionRulesTests: XCTestCase {
 
     func testRedlineKeepsModeCycleButFiltersLockedWeapons() {
         var profile = RunProfile()
-        profile.bestScore = ArenaProgressionRules.redlineBestScoreRequirement
+        profile.lifetimeBestScore = ArenaProgressionRules.redlineBestScoreRequirement
+        profile.modeRecords[.classic] = RunRecord(bestScore: ArenaProgressionRules.redlineBestScoreRequirement)
 
         var redline = ArenaModeRules.runSettings(for: .redline, profile: profile)
         XCTAssertEqual(Set(redline.pickupSpawnConfiguration.weaponKindCycle), [
@@ -101,7 +105,7 @@ final class ArenaProgressionRulesTests: XCTestCase {
         XCTAssertFalse(redline.pickupSpawnConfiguration.weaponKindCycle.contains(.novaBomb))
 
         profile.totalEnemiesDestroyed = 300
-        profile.highestCombo = 20
+        profile.lifetimeHighestCombo = 20
         redline = ArenaModeRules.runSettings(for: .redline, profile: profile)
 
         XCTAssertTrue(redline.pickupSpawnConfiguration.weaponKindCycle.contains(.flameTrail))

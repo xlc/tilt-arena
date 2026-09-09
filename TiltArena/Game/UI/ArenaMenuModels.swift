@@ -89,7 +89,8 @@ struct ArenaMenuContent {
             return ["NO RUN SUMMARY"]
         }
 
-        let bestText = summary.score > previousBestScore ? "NEW BEST" : "BEST \(profile.bestScore)"
+        let record = profile.competitiveRecord(for: summary.mode, seed: summary.sequenceSeed)
+        let bestText = summary.score > previousBestScore ? "NEW BEST" : "BEST \(record.bestScore)"
         var highlights = [
             bestText,
             "TIME \(formatTime(summary.survivalTime))",
@@ -97,6 +98,14 @@ struct ArenaMenuContent {
             "KILLS \(summary.enemiesDestroyed)",
             "WEAPON \(summary.bestWeapon?.displayName.uppercased() ?? "NONE")"
         ]
+
+        if summary.mode == .daily {
+            let delta = summary.score - previousBestScore
+            highlights.insert(
+                record.attempts <= 1 ? "FIRST DAILY ATTEMPT" : "\(delta >= 0 ? "+" : "")\(delta) VS PREVIOUS BEST",
+                at: 1
+            )
+        }
 
         if let unlockText = ArenaProgressionRules.unlockSummaryText(
             weapons: progressionResult?.newlyUnlockedWeapons ?? []

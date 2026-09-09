@@ -9,12 +9,14 @@ final class ArenaModeRulesTests: XCTestCase {
         XCTAssertFalse(ArenaModeRules.isAvailable(.redline, profile: profile))
         XCTAssertFalse(ArenaModeRules.isAvailable(.daily, profile: profile))
 
-        profile.bestScore = ArenaModeRules.redlineBestScoreRequirement
+        profile.lifetimeBestScore = ArenaModeRules.redlineBestScoreRequirement
+        profile.modeRecords[.classic] = RunRecord(bestScore: ArenaModeRules.redlineBestScoreRequirement)
         XCTAssertTrue(ArenaModeRules.isAvailable(.redline, profile: profile))
         XCTAssertFalse(ArenaModeRules.isAvailable(.daily, profile: profile))
 
-        profile.bestScore = 3_000
-        profile.highestCombo = 30
+        profile.lifetimeBestScore = 3_000
+        profile.modeRecords[.classic] = RunRecord(bestScore: 3_000)
+        profile.lifetimeHighestCombo = 30
         profile.totalEnemiesDestroyed = 300
         XCTAssertTrue(ArenaModeRules.isAvailable(.daily, profile: profile))
     }

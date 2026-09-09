@@ -1,19 +1,19 @@
 import SpriteKit
 
 extension ArenaUIRenderer {
-    func addHomeIdentity(bestScore: Int, statusMessage: String?, in frame: CGRect) {
+    func addHomeIdentity(mode: ArenaModeKind, bestScore: Int, statusMessage: String?, in frame: CGRect) {
         addTitle(
             "TILT ARENA",
             at: CGPoint(x: frame.minX + 14, y: frame.maxY - 22)
         )
         addSmallLabel(
-            "CLASSIC SURVIVAL",
+            mode.displayName.uppercased(),
             at: CGPoint(x: frame.minX + 14, y: frame.maxY - 48),
             color: theme.borderColor,
             alignment: .left
         )
         addSectionLabel(
-            "PERSONAL BEST",
+            mode == .daily ? "TODAY’S BEST" : "PERSONAL BEST",
             at: CGPoint(x: frame.minX + 14, y: frame.maxY - 70)
         )
         addLabel(
