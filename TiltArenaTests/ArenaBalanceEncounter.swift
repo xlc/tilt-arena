@@ -4,10 +4,21 @@ import Foundation
 
 enum ArenaBalanceEncounter: String, CaseIterable {
     case sparseChasers, densePack, crossingFormation, contestedMines, mixedThreats, latePressure
+    case approachingThreat, aimingLane
+
+    static let matrixCases: [Self] = [.sparseChasers, .densePack, .crossingFormation, .contestedMines, .mixedThreats, .latePressure]
 
     func enemies(center: CGPoint, seed: Int) -> [ArenaEnemy] {
         let phase = Double(seed % 17) / 17 * .pi * 2
         switch self {
+        case .approachingThreat:
+            return [ArenaEnemy(id: 10_000, position: CGPoint(x: center.x + 60, y: center.y), radius: 7, speed: 70)]
+        case .aimingLane:
+            return (0..<6).map { index in
+                ArenaEnemy(id: 10_000 + index,
+                           position: CGPoint(x: center.x + 110 + CGFloat(index % 3) * 25,
+                                             y: center.y - 18 + CGFloat(index / 3) * 36), radius: 7, speed: 30)
+            }
         case .sparseChasers:
             return ring(count: 6, radius: 135, speed: 55, center: center, phase: phase)
         case .densePack:
@@ -30,24 +41,28 @@ enum ArenaBalanceEncounter: String, CaseIterable {
             } + ring(count: 8, radius: 135, speed: 65, center: center, phase: phase + 0.2, firstID: 11_000)
         case .mixedThreats, .latePressure:
             let count = self == .mixedThreats ? 24 : 96
-            return (0..<count).map { index in
-                let angle = phase + Double(index) * 2.399_963
-                let radius: CGFloat = 70 + CGFloat(index % 6) * 13
-                let position = CGPoint(x: center.x + cos(angle) * radius * 1.5, y: center.y + sin(angle) * radius * 0.85)
-                let speed: CGFloat = self == .mixedThreats ? 70 : 105
-                let behavior: EnemyBehavior
-                switch index % 8 {
-                case 0: behavior = .mineDot
-                case 1: behavior = .splitter
-                case 2: behavior = .hunterDot(predictionLead: 0.35, previousTarget: nil)
-                case 3:
-                    behavior = .paddleTrapDot(trapID: index, velocity: CGVector(dx: 90, dy: 65),
-                                             bounds: CGRect(x: center.x - 260, y: center.y - 125, width: 520, height: 250),
-                                             remainingLifetime: 18)
-                default: behavior = .chaser
-                }
-                return ArenaEnemy(id: 10_000 + index, position: position, radius: 7, speed: speed, behavior: behavior)
+            let speed: CGFloat = self == .mixedThreats ? 70 : 105
+            return mixedEnemies(count: count, speed: speed, center: center, phase: phase)
+        }
+    }
+
+    private func mixedEnemies(count: Int, speed: CGFloat, center: CGPoint, phase: Double) -> [ArenaEnemy] {
+        return (0..<count).map { index in
+            let angle = phase + Double(index) * 2.399_963
+            let radius: CGFloat = 70 + CGFloat(index % 6) * 13
+            let position = CGPoint(x: center.x + cos(angle) * radius * 1.5, y: center.y + sin(angle) * radius * 0.85)
+            let behavior: EnemyBehavior
+            switch index % 8 {
+            case 0: behavior = .mineDot
+            case 1: behavior = .splitter
+            case 2: behavior = .hunterDot(predictionLead: 0.35, previousTarget: nil)
+            case 3:
+                behavior = .paddleTrapDot(trapID: index, velocity: CGVector(dx: 90, dy: 65),
+                                         bounds: CGRect(x: center.x - 260, y: center.y - 125, width: 520, height: 250),
+                                         remainingLifetime: 18)
+            default: behavior = .chaser
             }
+            return ArenaEnemy(id: 10_000 + index, position: position, radius: 7, speed: speed, behavior: behavior)
         }
     }
 
@@ -63,10 +78,14 @@ enum ArenaBalanceEncounter: String, CaseIterable {
 }
 
 enum ArenaBalanceRoute: String, CaseIterable {
-    case orbit, reverse
+    case orbit, reverse, steadyAim
+
+    static let matrixCases: [Self] = [.orbit, .reverse]
 
     func input(at time: TimeInterval) -> CGVector {
         switch self {
+        case .steadyAim:
+            return time < 2 ? CGVector(dx: 0.25, dy: 0) : CGVector(dx: cos(time), dy: sin(time) * 0.8)
         case .orbit:
             return CGVector(dx: cos(time * 1.3), dy: sin(time * 1.3) * 0.8)
         case .reverse:
@@ -77,7 +96,9 @@ enum ArenaBalanceRoute: String, CaseIterable {
 }
 
 enum ArenaBalanceVariant: String, CaseIterable {
-    case baseline, shortFreeze, shortFlame, quickPower
+    case baseline, shortFreeze, shortFlame, quickPower, fastShockwave, fastFreeze, responsiveShockwave, responsiveFreeze
+
+    static let initialMatrixCases: [Self] = [.baseline, .shortFreeze, .shortFlame, .quickPower]
 
     func applies(to weapon: WeaponKind?) -> Bool {
         switch self {
@@ -85,11 +106,21 @@ enum ArenaBalanceVariant: String, CaseIterable {
         case .shortFreeze: return weapon == .freezeBurst
         case .shortFlame: return weapon == .flameTrail
         case .quickPower: return weapon == .powerWave
+        case .fastShockwave, .responsiveShockwave: return weapon == .shockwave
+        case .fastFreeze, .responsiveFreeze: return weapon == .freezeBurst
         }
     }
 
     var tuning: GameTuningConfiguration {
         var tuning = GameTuningConfiguration.defaults
+        // Preserve the reviewed pre-experiment values when a candidate becomes a default.
+        tuning.startingWeapons.waveExpansionExponent = 1
+        tuning.startingWeapons.shockwaveExpansionDuration = 0.6
+        tuning.startingWeapons.freezeExpansionDuration = 0.8
+        tuning.startingWeapons.freezeDuration = 12
+        tuning.startingWeapons.powerWaveChargeDuration = 0.6
+        tuning.flameTrail.duration = 0.3
+        tuning.flameTrail.speedMultiplier = 5
         switch self {
         case .baseline: break
         case .shortFreeze: tuning.startingWeapons.freezeDuration = 8
@@ -97,6 +128,9 @@ enum ArenaBalanceVariant: String, CaseIterable {
             tuning.flameTrail.speedMultiplier = 4
             tuning.flameTrail.duration = 0.22
         case .quickPower: tuning.startingWeapons.powerWaveChargeDuration = 0.4
+        case .fastShockwave: tuning.startingWeapons.shockwaveExpansionDuration = 0.24
+        case .fastFreeze: tuning.startingWeapons.freezeExpansionDuration = 0.35
+        case .responsiveShockwave, .responsiveFreeze: tuning.startingWeapons.waveExpansionExponent = 3
         }
         // Fixed initial populations isolate weapon effects. Keep production movement,
         // collision, splitting, culling and status rules; suppress replenishment in every phase.

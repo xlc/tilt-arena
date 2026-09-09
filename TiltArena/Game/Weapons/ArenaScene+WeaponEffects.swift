@@ -11,12 +11,14 @@ extension ArenaScene {
         at position: CGPoint,
         radius: CGFloat? = nil,
         duration: TimeInterval,
-        holdDuration: TimeInterval
+        holdDuration: TimeInterval,
+        expansionExponent: Double? = nil
     ) {
         let radius = WeaponRuntimeSafetyLimits.distance(
             radius ?? weaponResolver.configuration.shockwaveRadius
         )
         let expansionDuration = max(0.01, WeaponRuntimeSafetyLimits.duration(duration))
+        let exponent = expansionExponent ?? weaponResolver.configuration.waveExpansionExponent
         let holdDuration = WeaponRuntimeSafetyLimits.duration(holdDuration)
         let fadeDuration = max(0.01, holdDuration)
         let ring = makeEffectRing(
@@ -27,7 +29,7 @@ extension ArenaScene {
             glowWidth: theme.kind == .darkTacticalRadar ? 1.4 : 0.3
         )
         ring.position = position
-        ring.setScale(0.08)
+        ring.setScale(0)
         let crest = makeEffectRing(
             radius: radius, strokeColor: theme.playerColor.withAlphaComponent(0.82),
             fillColor: .clear, lineWidth: 0.9, glowWidth: 0
@@ -42,7 +44,7 @@ extension ArenaScene {
 
         ring.run(.sequence([
             .group([
-                .scale(to: 1, duration: expansionDuration),
+                waveExpansionAction(duration: expansionDuration, exponent: exponent),
                 .fadeAlpha(to: 0.62, duration: expansionDuration)
             ]),
             .fadeOut(withDuration: fadeDuration),

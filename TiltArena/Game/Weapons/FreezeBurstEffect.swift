@@ -4,7 +4,8 @@ extension ArenaScene {
     func playFreezeBurstEffect(
         at position: CGPoint,
         radius: CGFloat? = nil,
-        duration: TimeInterval? = nil
+        duration: TimeInterval? = nil,
+        expansionExponent: Double? = nil
     ) {
         let radius = WeaponRuntimeSafetyLimits.distance(
             radius ?? weaponResolver.configuration.freezeBurstRadius
@@ -15,6 +16,7 @@ extension ArenaScene {
                 duration ?? weaponEffectTiming.waveDuration(radius: radius)
             )
         )
+        let exponent = expansionExponent ?? weaponResolver.configuration.waveExpansionExponent
         let ring = makeEffectRing(
             radius: radius,
             strokeColor: theme.pickupBlue.withAlphaComponent(0.88),
@@ -23,7 +25,7 @@ extension ArenaScene {
             glowWidth: theme.kind == .darkTacticalRadar ? 0.8 : 0
         )
         ring.position = position
-        ring.setScale(0.08)
+        ring.setScale(0)
         addWeaponEffectNode(ring)
         playWeaponEffectSprite(.freezeBurst, at: position, size: radius * 1.85, alpha: 0.44)
 
@@ -38,11 +40,11 @@ extension ArenaScene {
         innerRing.setScale(0.1)
         addWeaponEffectNode(innerRing)
 
-        playFreezeShardSpokes(at: position, radius: radius, duration: duration)
+        playFreezeShardSpokes(at: position, radius: radius, duration: duration, exponent: exponent)
 
         ring.run(.sequence([
             .group([
-                .scale(to: 1, duration: duration),
+                waveExpansionAction(duration: duration, exponent: exponent),
                 .fadeAlpha(to: 0.42, duration: duration)
             ]),
             .fadeOut(withDuration: 0.12),
@@ -78,7 +80,7 @@ extension ArenaScene {
         ]))
     }
 
-    private func playFreezeShardSpokes(at position: CGPoint, radius: CGFloat, duration: TimeInterval) {
+    private func playFreezeShardSpokes(at position: CGPoint, radius: CGFloat, duration: TimeInterval, exponent: Double) {
         let path = CGMutablePath()
         for index in 0..<6 {
             let angle = CGFloat(index) * .pi / 3
@@ -102,10 +104,10 @@ extension ArenaScene {
         shards.strokeColor = theme.playerColor.withAlphaComponent(0.72)
         shards.lineWidth = 0.8
         shards.zPosition = 18.1
-        shards.setScale(0.08)
+        shards.setScale(0)
         addWeaponEffectNode(shards)
         shards.run(.sequence([
-            .group([.scale(to: 1, duration: duration), .fadeAlpha(to: 0.5, duration: duration)]),
+            .group([waveExpansionAction(duration: duration, exponent: exponent), .fadeAlpha(to: 0.5, duration: duration)]),
             .fadeOut(withDuration: 0.14),
             .removeFromParent()
         ]))

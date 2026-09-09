@@ -96,6 +96,7 @@ final class GameTuningConfigurationTests: XCTestCase {
         XCTAssertTrue(classicSubgroups.contains("Pickups"))
         XCTAssertEqual(weaponSubgroups, [
             "Shockwave",
+            "Waves",
             "Seeker Swarm",
             "Razor Shield",
             "Freeze Burst",

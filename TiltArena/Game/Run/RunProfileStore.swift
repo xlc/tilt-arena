@@ -28,6 +28,7 @@ struct RunRecord: Codable, Equatable {
 }
 
 struct RunProfile: Codable, Equatable {
+    let rulesVersion: Int
     /// Persisted survival time feeds whole-second progression. `Double(Int.max)`
     /// rounds above `Int.max`, so its preceding representable value is the
     /// largest duration that can be converted without trapping.
@@ -46,6 +47,7 @@ struct RunProfile: Codable, Equatable {
     var dailyRecords: [Int: RunRecord] = [:]
 
     private enum CodingKeys: String, CodingKey {
+        case rulesVersion
         case lifetimeBestScore
         case lifetimeHighestCombo
         case lifetimeLongestSurvivalTime
@@ -59,10 +61,14 @@ struct RunProfile: Codable, Equatable {
         case dailyRecords
     }
 
-    init() {}
+    init() { rulesVersion = ArenaRunContext.currentRulesVersion }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        rulesVersion = try container.decode(Int.self, forKey: .rulesVersion)
+        guard rulesVersion == ArenaRunContext.currentRulesVersion else {
+            throw DecodingError.dataCorruptedError(forKey: .rulesVersion, in: container, debugDescription: "Unsupported game rules")
+        }
         lifetimeBestScore = try container.decode(Int.self, forKey: .lifetimeBestScore)
         lifetimeHighestCombo = try container.decode(Int.self, forKey: .lifetimeHighestCombo)
         lifetimeLongestSurvivalTime = try container.decode(TimeInterval.self, forKey: .lifetimeLongestSurvivalTime)

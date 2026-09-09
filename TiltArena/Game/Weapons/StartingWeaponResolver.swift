@@ -11,6 +11,8 @@ struct StartingWeaponConfiguration: Equatable {
     // - Duration/hold/delay values define how long the gameplay effect lasts or waits.
     // - Target limit/count/fraction values cap how many enemies a weapon may affect.
     var shockwaveRadius: CGFloat = 90
+    // Shared Shockwave/Freeze front response; 1 is linear, larger values clear nearby threats sooner.
+    var waveExpansionExponent: Double = 3
     // Time for the expanding damaging wave to reach shockwaveRadius.
     var shockwaveExpansionDuration: TimeInterval = 0.6
     // Extra time the wave remains active after reaching full radius.
@@ -62,7 +64,7 @@ struct StartingWeaponConfiguration: Equatable {
     // Maximum outward shove distance for close enemies.
     var timeDilationMaximumPushDistance: CGFloat = 180
     // Pre-fire aiming/charge time before the wave releases.
-    var powerWaveChargeDuration: TimeInterval = 0.6
+    var powerWaveChargeDuration: TimeInterval = 0.4
     // Length of the cone-shaped wave.
     var powerWaveRange: CGFloat = 160
     // Cone width in degrees; 360 becomes a full circle.
@@ -115,6 +117,7 @@ extension StartingWeaponConfiguration {
         var configuration = self
         configuration.shockwaveRadius = WeaponRuntimeSafetyLimits.distance(shockwaveRadius)
         configuration.shockwaveExpansionDuration = WeaponRuntimeSafetyLimits.duration(shockwaveExpansionDuration)
+        configuration.waveExpansionExponent = waveExpansionExponent.isFinite ? min(4, max(1, waveExpansionExponent)) : 1
         configuration.shockwaveHoldDuration = WeaponRuntimeSafetyLimits.duration(shockwaveHoldDuration)
         configuration.seekerTargetLimit = WeaponRuntimeSafetyLimits.count(seekerTargetLimit)
         configuration.seekerExplosionRadius = WeaponRuntimeSafetyLimits.distance(seekerExplosionRadius)

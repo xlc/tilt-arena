@@ -1,6 +1,6 @@
 Tilt Arena matched weapon results — 9 September 2026
 
-Validated 1,032 cases: six fixed encounters, two movement scripts, two seeds, all eleven weapons at three tiers, three targeted candidates, and 24 no-pickup controls. Each case runs at 60 Hz until collision or an 18-second cutoff. These are scripted comparisons, not player survival estimates.
+Validated 1,032 cases: 6 fixed encounters, 2 movement scripts, two seeds, 11 weapons at three tiers and three targeted candidates. The initial matrix includes 24 no-pickup controls. Each case runs at 60 Hz until collision or an 18-second cutoff. These are scripted comparisons, not player survival estimates.
 
 | Weapon / all tiers | Cases | Mean kills | Mean observed seconds (capped at 18) | Collision endings | Mean open-ray fraction |
 |---|---:|---:|---:|---:|---:|
@@ -43,4 +43,4 @@ Tier detail uses baseline tuning. Each tier contains 24 cases.
 
 Open-ray fraction samples eight 80-point straight paths from the player against currently harmful enemy bodies and arena bounds. It ignores enemy future movement and immunity, and is averaged only over observed frames. It measures local geometric obstruction, not guaranteed safe space. Early displacement is the maximum distance from the starting point in the first half-second.
 
-Initial enemy populations are fixed; ordinary spawning and pickup replenishment are disabled. Production movement, collision, splitting, status effects, culling and SpriteKit callbacks remain active. Mixed and late-pressure fixtures are stress populations, not samples from a natural three-minute run. The two scripts cannot adapt to a shorter charge or a different landing point. Surviving cases are censored at 18 seconds; aggregate values are not a weapon ranking or statistical evidence about people. Default changes require a recorded role-specific decision and phone playtesting.
+Initial enemy populations are fixed; ordinary spawning and pickup replenishment are disabled. Production movement, collision, splitting, status effects, culling and SpriteKit callbacks remain active. Mixed and late-pressure fixtures are stress populations, not samples from a natural three-minute run. The scripts cannot adapt to a shorter charge or a different landing point. Surviving cases are censored at 18 seconds; aggregate values are not a weapon ranking or statistical evidence about people. Local tuning decisions need a recorded role-specific rationale; physical-phone acceptance remains outstanding.

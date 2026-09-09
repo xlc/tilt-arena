@@ -48,13 +48,13 @@ final class ArenaBalanceEncounterTests: XCTestCase {
             throw XCTSkip("Set TILT_WEAPON_SWEEP=1 to export the matched encounter matrix.")
         }
         var results: [ArenaBalanceResult] = []
-        for encounter in ArenaBalanceEncounter.allCases {
-            for route in ArenaBalanceRoute.allCases {
+        for encounter in ArenaBalanceEncounter.matrixCases {
+            for route in ArenaBalanceRoute.matrixCases {
                 for seed in [91, 20_260_726] {
                     results.append(try run(ArenaBalanceCase(encounter: encounter, route: route, weapon: nil, seed: seed)))
                     for weapon in WeaponKind.allCases {
                         for tier in [WeaponPickupChargeTier.base, .charged, .overcharged] {
-                            for variant in ArenaBalanceVariant.allCases where variant.applies(to: weapon) {
+                            for variant in ArenaBalanceVariant.initialMatrixCases where variant.applies(to: weapon) {
                                 results.append(try run(ArenaBalanceCase(
                                     encounter: encounter, route: route, weapon: weapon, tier: tier, variant: variant, seed: seed
                                 )))
@@ -69,6 +69,57 @@ final class ArenaBalanceEncounterTests: XCTestCase {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let attachment = XCTAttachment(data: try encoder.encode(results), uniformTypeIdentifier: "public.json")
         attachment.name = "weapon-encounters.json"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    func testExpandingDefensiveWavesResolveBeforeThePlayerOutrunsThem() throws {
+        for (weapon, candidate) in [(WeaponKind.shockwave, ArenaBalanceVariant.responsiveShockwave), (.freezeBurst, .responsiveFreeze)] {
+            let baseline = try run(ArenaBalanceCase(encounter: .approachingThreat, weapon: weapon, duration: 2))
+            let changed = try run(ArenaBalanceCase(encounter: .approachingThreat, weapon: weapon, variant: candidate, duration: 2))
+            XCTAssertTrue(baseline.collision, "The old wave should reproduce the closing-enemy collision")
+            XCTAssertFalse(changed.collision, "The candidate must create the intended breathing room")
+            XCTAssertGreaterThan(changed.kills, baseline.kills)
+        }
+    }
+
+    func testPowerRemainsAnAimedClearWithShorterCharge() throws {
+        for framesPerSecond in [30, 60, 120] {
+            let baseline = try run(ArenaBalanceCase(encounter: .aimingLane, route: .steadyAim, weapon: .powerWave,
+                                                   framesPerSecond: framesPerSecond, duration: 2))
+            let changed = try run(ArenaBalanceCase(encounter: .aimingLane, route: .steadyAim, weapon: .powerWave,
+                                                  variant: .quickPower, framesPerSecond: framesPerSecond, duration: 2))
+            XCTAssertGreaterThan(baseline.kills, 0)
+            XCTAssertGreaterThanOrEqual(changed.kills, baseline.kills)
+            XCTAssertFalse(changed.collision)
+        }
+    }
+
+    func testExportResponseTimeComparisons() throws {
+        guard ProcessInfo.processInfo.environment["TILT_RESPONSE_SWEEP"] == "1" else {
+            throw XCTSkip("Set TILT_RESPONSE_SWEEP=1 for defensive-wave and aimed-charge comparisons.")
+        }
+        var results: [ArenaBalanceResult] = []
+        for encounter in ArenaBalanceEncounter.allCases {
+            for route in ArenaBalanceRoute.allCases {
+                for seed in [91, 20_260_726] {
+                    for tier in [WeaponPickupChargeTier.base, .charged, .overcharged] {
+                        for (weapon, candidate) in [(WeaponKind.shockwave, ArenaBalanceVariant.responsiveShockwave),
+                                                    (.freezeBurst, .responsiveFreeze), (.powerWave, .quickPower)] {
+                            for variant in [ArenaBalanceVariant.baseline, candidate] {
+                                results.append(try run(ArenaBalanceCase(encounter: encounter, route: route, weapon: weapon,
+                                                                        tier: tier, variant: variant, seed: seed)))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        XCTAssertEqual(results.count, 864)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let attachment = XCTAttachment(data: try encoder.encode(results), uniformTypeIdentifier: "public.json")
+        attachment.name = "wavefront-encounters.json"
         attachment.lifetime = .keepAlways
         add(attachment)
     }

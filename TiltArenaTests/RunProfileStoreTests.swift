@@ -70,6 +70,7 @@ final class RunProfileStoreTests: XCTestCase {
     func testPersistedNumericNormalizationPreservesValidFieldsAndRepairsOnce() throws {
         let originalData = Data("""
         {
+          "rulesVersion": \(ArenaRunContext.currentRulesVersion),
           "lifetimeBestScore": 4321,
           "lifetimeHighestCombo": -4,
           "lifetimeLongestSurvivalTime": 1e300,
@@ -221,6 +222,17 @@ final class RunProfileStoreTests: XCTestCase {
 
     func testIncompatibleDevelopmentProfileResetsInsteadOfMigrating() {
         defaults.set(Data("{\"bestScore\":9000}".utf8), forKey: "tiltArena.runProfile")
+        XCTAssertEqual(RunProfileStore(defaults: defaults).profile, RunProfile())
+        XCTAssertNil(defaults.data(forKey: "tiltArena.runProfile"))
+    }
+
+    func testPreviousRulesProfileResetsWithoutPreservingCompetitiveRecords() throws {
+        var profile = RunProfile()
+        profile.record(summary(score: 9_000, mode: .classic))
+        let data = try JSONEncoder().encode(profile)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        object["rulesVersion"] = ArenaRunContext.currentRulesVersion - 1
+        defaults.set(try JSONSerialization.data(withJSONObject: object), forKey: "tiltArena.runProfile")
         XCTAssertEqual(RunProfileStore(defaults: defaults).profile, RunProfile())
         XCTAssertNil(defaults.data(forKey: "tiltArena.runProfile"))
     }

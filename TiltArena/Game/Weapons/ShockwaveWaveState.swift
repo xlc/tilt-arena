@@ -15,6 +15,7 @@ struct ShockwaveWaveState: Equatable {
     let maximumRadius: CGFloat
     let expansionDuration: TimeInterval
     let holdDuration: TimeInterval
+    let expansionExponent: Double
     private(set) var elapsedTime: TimeInterval = 0
     private var destroyedEnemyIDs: Set<Int> = []
 
@@ -23,6 +24,7 @@ struct ShockwaveWaveState: Equatable {
         maximumRadius: CGFloat,
         expansionDuration: TimeInterval,
         holdDuration: TimeInterval,
+        expansionExponent: Double = 1,
         activation: WeaponActivation = WeaponActivation(kind: .shockwave)
     ) {
         self.activation = activation
@@ -30,6 +32,7 @@ struct ShockwaveWaveState: Equatable {
         self.maximumRadius = WeaponRuntimeSafetyLimits.distance(maximumRadius)
         self.expansionDuration = WeaponRuntimeSafetyLimits.duration(expansionDuration)
         self.holdDuration = WeaponRuntimeSafetyLimits.duration(holdDuration)
+        self.expansionExponent = expansionExponent
     }
 
     var isComplete: Bool {
@@ -74,8 +77,9 @@ struct ShockwaveWaveState: Equatable {
             return clampedMaximumRadius
         }
 
-        let progress = min(1, max(0, elapsedTime / clampedExpansionDuration))
-        return clampedMaximumRadius * CGFloat(progress)
+        return clampedMaximumRadius * WeaponWaveExpansion.progress(
+            elapsed: elapsedTime, duration: clampedExpansionDuration, exponent: expansionExponent
+        )
     }
 
     private var totalDuration: TimeInterval {

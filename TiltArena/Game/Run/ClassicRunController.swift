@@ -27,7 +27,7 @@ struct ClassicRunConfiguration: Equatable {
 }
 
 struct ArenaRunContext: Codable, Equatable {
-    static let currentRulesVersion = 1
+    static let currentRulesVersion = 2
 
     let mode: ArenaModeKind
     let sequenceSeed: Int

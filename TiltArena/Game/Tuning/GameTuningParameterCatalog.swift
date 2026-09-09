@@ -283,6 +283,7 @@ enum GameTuningParameterCatalog {
     private static func appendStartingWeaponClearParameters(to specs: inout [GameTuningParameterSpec]) {
         specs.append(cgFloat("startingWeapons.shockwaveRadius", WeaponKind.shockwave.displayName, "shockwave radius", \.startingWeapons.shockwaveRadius, 4, 0, nil, 1))
         specs.append(double("startingWeapons.shockwaveExpansionDuration", WeaponKind.shockwave.displayName, "shockwave expand", \.startingWeapons.shockwaveExpansionDuration, 0.05, 0, nil, 2))
+        specs.append(double("startingWeapons.waveExpansionExponent", "Waves", "wave response", \.startingWeapons.waveExpansionExponent, 0.25, 1, 4, 2))
         specs.append(double("startingWeapons.shockwaveHoldDuration", WeaponKind.shockwave.displayName, "shockwave hold", \.startingWeapons.shockwaveHoldDuration, 0.05, 0, nil, 2))
         specs.append(int("startingWeapons.seekerTargetLimit", WeaponKind.seekerSwarm.displayName, "seeker target limit", \.startingWeapons.seekerTargetLimit, 1, 0, nil))
         specs.append(cgFloat("startingWeapons.seekerExplosionRadius", WeaponKind.seekerSwarm.displayName, "seeker explosion", \.startingWeapons.seekerExplosionRadius, 2, 0, nil, 1))

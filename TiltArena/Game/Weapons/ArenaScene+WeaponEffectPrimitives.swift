@@ -1,6 +1,11 @@
 import SpriteKit
 
 extension ArenaScene {
+    func waveExpansionAction(duration: TimeInterval, exponent: Double) -> SKAction {
+        return .customAction(withDuration: duration) { node, elapsed in
+            node.setScale(WeaponWaveExpansion.progress(elapsed: TimeInterval(elapsed), duration: duration, exponent: exponent))
+        }
+    }
     func playTravelingBolt(
         from origin: CGPoint,
         to target: WeaponImpactTarget,

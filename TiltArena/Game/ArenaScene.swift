@@ -3657,6 +3657,7 @@ private extension ArenaScene {
                 maximumRadius: configuration.shockwaveRadius,
                 expansionDuration: configuration.shockwaveExpansionDuration,
                 holdDuration: configuration.shockwaveHoldDuration,
+                expansionExponent: configuration.waveExpansionExponent,
                 activation: activation
             )
         )
@@ -3664,7 +3665,8 @@ private extension ArenaScene {
             at: center,
             radius: configuration.shockwaveRadius,
             duration: configuration.shockwaveExpansionDuration,
-            holdDuration: configuration.shockwaveHoldDuration
+            holdDuration: configuration.shockwaveHoldDuration,
+            expansionExponent: configuration.waveExpansionExponent
         )
     }
 
@@ -3700,6 +3702,7 @@ private extension ArenaScene {
                 center: center,
                 maximumRadius: configuration.freezeBurstRadius,
                 duration: configuration.freezeExpansionDuration,
+                expansionExponent: configuration.waveExpansionExponent,
                 freezeDuration: configuration.freezeDuration,
                 thawGraceDuration: configuration.freezeThawGraceDuration,
                 activation: activation
@@ -3708,7 +3711,8 @@ private extension ArenaScene {
         playFreezeBurstEffect(
             at: center,
             radius: configuration.freezeBurstRadius,
-            duration: configuration.freezeExpansionDuration
+            duration: configuration.freezeExpansionDuration,
+            expansionExponent: configuration.waveExpansionExponent
         )
     }
 

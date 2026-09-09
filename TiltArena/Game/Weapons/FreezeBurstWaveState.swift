@@ -12,6 +12,7 @@ struct FreezeBurstWaveState: Equatable {
     let center: CGPoint
     let maximumRadius: CGFloat
     let duration: TimeInterval
+    let expansionExponent: Double
     let freezeDuration: TimeInterval
     let thawGraceDuration: TimeInterval
     private(set) var elapsedTime: TimeInterval = 0
@@ -21,6 +22,7 @@ struct FreezeBurstWaveState: Equatable {
         center: CGPoint,
         maximumRadius: CGFloat,
         duration: TimeInterval,
+        expansionExponent: Double = 1,
         freezeDuration: TimeInterval = StartingWeaponConfiguration().freezeDuration,
         thawGraceDuration: TimeInterval = StartingWeaponConfiguration().freezeThawGraceDuration,
         activation: WeaponActivation = WeaponActivation(kind: .freezeBurst)
@@ -29,6 +31,7 @@ struct FreezeBurstWaveState: Equatable {
         self.center = center
         self.maximumRadius = WeaponRuntimeSafetyLimits.distance(maximumRadius)
         self.duration = WeaponRuntimeSafetyLimits.duration(duration)
+        self.expansionExponent = expansionExponent
         self.freezeDuration = WeaponRuntimeSafetyLimits.duration(freezeDuration)
         self.thawGraceDuration = WeaponRuntimeSafetyLimits.duration(thawGraceDuration)
     }
@@ -78,7 +81,8 @@ struct FreezeBurstWaveState: Equatable {
             return clampedMaximumRadius
         }
 
-        let progress = min(1, max(0, elapsedTime / clampedDuration))
-        return clampedMaximumRadius * CGFloat(progress)
+        return clampedMaximumRadius * WeaponWaveExpansion.progress(
+            elapsed: elapsedTime, duration: clampedDuration, exponent: expansionExponent
+        )
     }
 }
