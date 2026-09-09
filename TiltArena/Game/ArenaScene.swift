@@ -1076,13 +1076,15 @@ extension ArenaScene {
         )
         let chargedConfiguration = plan.configuration
         let application = plan.application
+        let activation = WeaponActivation(kind: pickup.kind)
         var log = application.log
 
         if let directionalDestroyedCount = performWeaponApplicationEffect(
             application.effect,
             from: playerPosition,
             configuration: chargedConfiguration,
-            chargeTier: pickup.chargeTier
+            chargeTier: pickup.chargeTier,
+            activation: activation
         ) {
             log.destroyedCount = directionalDestroyedCount
         }
@@ -1108,14 +1110,15 @@ extension ArenaScene {
         _ effect: WeaponApplication.Effect,
         from playerPosition: CGPoint,
         configuration: StartingWeaponConfiguration,
-        chargeTier: WeaponPickupChargeTier
+        chargeTier: WeaponPickupChargeTier,
+        activation: WeaponActivation
     ) -> Int? {
         switch effect {
         case .timeDilationAura:
             activateTimeDilationAura(at: playerPosition, configuration: configuration)
             return nil
         case .ricochetLance:
-            let destroyedCount = fireRicochetLance(from: playerPosition, configuration: configuration)
+            let destroyedCount = fireRicochetLance(from: playerPosition, configuration: configuration, activation: activation)
             grantPostWeaponSafety(for: .ricochetLance)
             return destroyedCount
         default:
@@ -1123,7 +1126,8 @@ extension ArenaScene {
                 effect,
                 from: playerPosition,
                 configuration: configuration,
-                chargeTier: chargeTier
+                chargeTier: chargeTier,
+                activation: activation
             )
             return nil
         }
@@ -1133,42 +1137,45 @@ extension ArenaScene {
         _ effect: WeaponApplication.Effect,
         from playerPosition: CGPoint,
         configuration: StartingWeaponConfiguration,
-        chargeTier: WeaponPickupChargeTier
+        chargeTier: WeaponPickupChargeTier,
+        activation: WeaponActivation
     ) {
         switch effect {
         case .shockwaveWave:
-            activateShockwaveWave(at: playerPosition, configuration: configuration)
+            activateShockwaveWave(at: playerPosition, configuration: configuration, activation: activation)
         case .seekerSwarm(let enemyIDs):
             playSeekerSwarm(
                 enemyIDs: enemyIDs,
                 from: playerPosition,
-                configuration: configuration
+                configuration: configuration,
+                activation: activation
             )
             grantPostWeaponSafety(for: .seekerSwarm)
         case .razorShield:
-            activateRazorShield(at: playerPosition, configuration: configuration)
+            activateRazorShield(at: playerPosition, configuration: configuration, activation: activation)
         case .freezeBurstWave:
-            activateFreezeBurstWave(at: playerPosition, configuration: configuration)
+            activateFreezeBurstWave(at: playerPosition, configuration: configuration, activation: activation)
         case .gravityWell(let enemyIDs):
-            activateGravityWell(at: playerPosition, enemyIDs: enemyIDs, configuration: configuration)
+            activateGravityWell(at: playerPosition, enemyIDs: enemyIDs, configuration: configuration, activation: activation)
         case .chainLightning(let enemyIDs):
-            playChainLightning(enemyIDs: enemyIDs, from: playerPosition, configuration: configuration)
+            playChainLightning(enemyIDs: enemyIDs, from: playerPosition, configuration: configuration, activation: activation)
             grantPostWeaponSafety(for: .chainLightning)
         case .flameTrail:
-            activateFlameTrail(at: playerPosition, chargeTier: chargeTier)
+            activateFlameTrail(at: playerPosition, chargeTier: chargeTier, activation: activation)
         case .timeDilationAura, .ricochetLance:
             break
         case .powerWave:
-            activatePowerWave(at: playerPosition, configuration: configuration)
+            activatePowerWave(at: playerPosition, configuration: configuration, activation: activation)
         case .novaBomb(let enemyIDs):
-            playNovaBomb(enemyIDs: enemyIDs)
+            playNovaBomb(enemyIDs: enemyIDs, activation: activation)
         }
     }
 
     private func playSeekerSwarm(
         enemyIDs: Set<Int>,
         from playerPosition: CGPoint,
-        configuration: StartingWeaponConfiguration
+        configuration: StartingWeaponConfiguration,
+        activation: WeaponActivation = WeaponActivation(kind: .seekerSwarm)
     ) {
         let resolver = StartingWeaponResolver(configuration: configuration)
         let targets = impactTargets(forEnemyIDs: enemyIDs)
@@ -1184,7 +1191,7 @@ extension ArenaScene {
                 self?.position(forEnemyID: enemyID)
             },
             onImpact: { [weak self] target in
-                self?.resolveSeekerExplosion(at: target, resolver: resolver)
+                self?.resolveSeekerExplosion(at: target, resolver: resolver, activation: activation)
             }
         )
     }
@@ -1193,10 +1200,14 @@ extension ArenaScene {
         enemyRegistry.enemy(id: enemyID)?.position
     }
 
-    private func resolveSeekerExplosion(at target: WeaponImpactTarget, resolver: StartingWeaponResolver) {
+    private func resolveSeekerExplosion(
+        at target: WeaponImpactTarget, resolver: StartingWeaponResolver,
+        activation: WeaponActivation = WeaponActivation(kind: .seekerSwarm)
+    ) {
         destroyEnemies(
             ids: resolver.seekerExplosionTargets(center: target.position, enemies: enemies),
-            weaponKind: .seekerSwarm
+            weaponKind: .seekerSwarm,
+            activation: activation
         )
         grantPostWeaponSafety(for: .seekerSwarm)
     }
@@ -1204,44 +1215,24 @@ extension ArenaScene {
     private func playChainLightning(
         enemyIDs: [Int],
         from playerPosition: CGPoint,
-        configuration: StartingWeaponConfiguration
+        configuration: StartingWeaponConfiguration,
+        activation: WeaponActivation = WeaponActivation(kind: .chainLightning)
     ) {
         let targets = impactTargets(forEnemyIDs: enemyIDs)
-        var clearedEnemyIDs: Set<Int> = []
         playChainLightningEffect(
             from: playerPosition,
             through: targets,
             configuration: configuration,
             onImpact: { [weak self] enemyIDs in
-                guard let self else {
-                    return
-                }
-
-                clearedEnemyIDs.formUnion(self.destroyEnemies(
-                    ids: enemyIDs,
-                    weaponKind: .chainLightning,
-                    finalizesWeaponClear: false
-                ))
-                self.grantPostWeaponSafety(for: .chainLightning)
-            },
-            onComplete: { [weak self] in
-                guard let self else {
-                    return
-                }
-
-                let clearPositions = targets.compactMap { target in
-                    clearedEnemyIDs.contains(target.id) ? target.position : nil
-                }
-                self.recordCompletedWeaponClear(
-                    enemyIDs: clearedEnemyIDs,
-                    weaponKind: .chainLightning,
-                    clearPositions: clearPositions
-                )
+                self?.destroyEnemies(ids: enemyIDs, weaponKind: .chainLightning, activation: activation)
+                self?.grantPostWeaponSafety(for: .chainLightning)
             }
         )
     }
 
-    private func playNovaBomb(enemyIDs: Set<Int>) {
+    private func playNovaBomb(
+        enemyIDs: Set<Int>, activation: WeaponActivation = WeaponActivation(kind: .novaBomb)
+    ) {
         grantPostWeaponSafety(
             for: .novaBomb,
             minimumDuration: weaponEffectTiming.maximumWaveTravelDuration
@@ -1253,11 +1244,12 @@ extension ArenaScene {
             return
         }
         guard delay > 0 else {
-            destroyEnemies(ids: enemyIDs, weaponKind: .novaBomb)
+            destroyEnemies(ids: enemyIDs, weaponKind: .novaBomb, activation: activation)
             return
         }
 
         activeWeapons.pendingNovaBombClears.append(ArenaPendingNovaBombClear(
+            activation: activation,
             enemyIDs: enemyIDs,
             timeRemaining: delay
         ))
@@ -1279,7 +1271,7 @@ extension ArenaScene {
         let completedClears = activeWeapons.pendingNovaBombClears.filter { $0.timeRemaining == 0 }
         activeWeapons.pendingNovaBombClears.removeAll { $0.timeRemaining == 0 }
         for clear in completedClears {
-            destroyEnemies(ids: clear.enemyIDs, weaponKind: .novaBomb)
+            destroyEnemies(ids: clear.enemyIDs, weaponKind: .novaBomb, activation: clear.activation)
             grantPostWeaponSafety(for: .novaBomb)
         }
     }
@@ -1313,9 +1305,9 @@ extension ArenaScene {
     private func destroyEnemies(
         ids enemyIDs: Set<Int>,
         weaponKind: WeaponKind?,
-        finalizesWeaponClear: Bool = true
+        activation: WeaponActivation? = nil
     ) -> Set<Int> {
-        guard !enemyIDs.isEmpty else {
+        guard runController.phase == .active, !enemyIDs.isEmpty else {
             return []
         }
         let destroyedEnemies = enemies.filter { enemyIDs.contains($0.id) }
@@ -1327,18 +1319,17 @@ extension ArenaScene {
         let clearPositions = destroyedEnemies.map(\.position)
         let splitChildren = splitterChildren(from: destroyedEnemies, destroyedBy: weaponKind)
         let previousComboMultiplier = runController.comboMultiplier
+        let wasQualified = activation?.hasQualifiedClear ?? false
         let weaponComboEvent = runController.recordEnemyKills(
             count: enemyIDs.count,
             weaponKind: weaponKind,
-            recordsWeaponClear: finalizesWeaponClear
+            activation: activation
         )
-        if finalizesWeaponClear {
-            reportGameCenterAchievementEvent(.enemyClear(
-                count: enemyIDs.count,
-                weaponKind: weaponKind,
-                maxCombo: runController.maxCombo
-            ))
-        }
+        let newlyQualified = !wasQualified && (activation?.hasQualifiedClear ?? false)
+        let achievementClearCount = activation.map { newlyQualified ? $0.killCount : 1 } ?? enemyIDs.count
+        reportGameCenterAchievementEvent(.enemyClear(
+            count: achievementClearCount, weaponKind: weaponKind, maxCombo: runController.maxCombo
+        ))
         playEnemyClearHaptics(killCount: enemyIDs.count, previousComboMultiplier: previousComboMultiplier)
         playEnemyClearAudio(killCount: enemyIDs.count, previousComboMultiplier: previousComboMultiplier)
         if let weaponComboEvent {
@@ -1366,34 +1357,6 @@ extension ArenaScene {
         removeEnemies(ids: enemyIDs)
         addSplitterChildren(splitChildren)
         return enemyIDs
-    }
-
-    private func recordCompletedWeaponClear(
-        enemyIDs: Set<Int>,
-        weaponKind: WeaponKind,
-        clearPositions: [CGPoint]
-    ) {
-        guard !enemyIDs.isEmpty, runController.phase == .active else {
-            return
-        }
-
-        let previousComboMultiplier = runController.comboMultiplier
-        let weaponComboEvent = runController.recordWeaponClear(
-            killCount: enemyIDs.count,
-            weaponKind: weaponKind
-        )
-        reportGameCenterAchievementEvent(.enemyClear(
-            count: enemyIDs.count,
-            weaponKind: weaponKind,
-            maxCombo: runController.maxCombo
-        ))
-        if let weaponComboEvent {
-            recordWeaponComboFeedback(
-                weaponComboEvent,
-                previousComboMultiplier: previousComboMultiplier,
-                clearPositions: clearPositions
-            )
-        }
     }
 
     private func splitterChildren(
@@ -1442,9 +1405,10 @@ extension ArenaScene {
 
     private func activateRazorShield(
         at playerPosition: CGPoint,
-        configuration: StartingWeaponConfiguration
+        configuration: StartingWeaponConfiguration,
+        activation: WeaponActivation = WeaponActivation(kind: .razorShield)
     ) {
-        let resolvedConfiguration = activeWeapons.razorShield.activate(with: configuration)
+        let resolvedConfiguration = activeWeapons.razorShield.activate(with: configuration, activation: activation)
 
         razorShieldNode?.removeFromParent()
         razorShieldNode = nil
@@ -1522,7 +1486,7 @@ extension ArenaScene {
             enemies: enemies
         )
         let targets = impactTargets(forEnemyIDs: targetIDs)
-        destroyEnemies(ids: targetIDs, weaponKind: .razorShield)
+        destroyEnemies(ids: targetIDs, weaponKind: .razorShield, activation: activeWeapons.razorShield.activation)
         playRazorShieldImpactEffect(from: playerPosition, targets: targets)
 
         activeWeapons.razorShield.advance(by: deltaTime)
@@ -1537,6 +1501,7 @@ extension ArenaScene {
 
     private func triggerRazorShieldExpiryExplosion(at playerPosition: CGPoint) {
         let configuration = razorShieldConfiguration
+        let activation = activeWeapons.razorShield.activation
         let resolver = StartingWeaponResolver(configuration: configuration)
         let targetIDs = resolver.shieldExplosionTargets(
             playerPosition: playerPosition,
@@ -1549,7 +1514,7 @@ extension ArenaScene {
             explosionRadius: configuration.razorShieldExplosionRadius,
             targets: targets
         ) { [weak self] enemyIDs in
-            self?.destroyEnemies(ids: enemyIDs, weaponKind: .razorShield)
+            self?.destroyEnemies(ids: enemyIDs, weaponKind: .razorShield, activation: activation)
         }
     }
 
@@ -1589,14 +1554,24 @@ extension ArenaScene {
             enemies: enemies
         )
         let targets = impactTargets(forEnemyIDs: frame.burnedEnemyIDs)
-        destroyEnemies(ids: frame.burnedEnemyIDs, weaponKind: .flameTrail)
+        var remainingIDs = frame.burnedEnemyIDs
+        for segment in frame.segments {
+            guard let activation = segment.activation, let ids = frame.killsByActivation[activation] else { continue }
+            let claimedIDs = ids.intersection(remainingIDs)
+            destroyEnemies(ids: claimedIDs, weaponKind: .flameTrail, activation: activation)
+            remainingIDs.subtract(claimedIDs)
+        }
+        destroyEnemies(ids: remainingIDs, weaponKind: .flameTrail)
         playFlameTrailImpactEffect(at: targets)
         flameTrailEffectNode.apply(segments: frame.segments)
     }
 
-    private func activateFlameTrail(at playerPosition: CGPoint, chargeTier: WeaponPickupChargeTier = .base) {
+    private func activateFlameTrail(
+        at playerPosition: CGPoint, chargeTier: WeaponPickupChargeTier = .base,
+        activation: WeaponActivation = WeaponActivation(kind: .flameTrail)
+    ) {
         activeWeapons.flameTrail.configuration = gameTuning.flameTrail.applying(chargeTier: chargeTier)
-        activeWeapons.flameTrail.activate(at: playerPosition)
+        activeWeapons.flameTrail.activate(at: playerPosition, activation: activation)
         activeWeapons.flameTrailProtection.activate(
             configuration: activeWeapons.flameTrail.configuration,
             postWeaponSafetyDuration: gameTuning.feedback.postWeaponSafetyDuration
@@ -1716,7 +1691,8 @@ extension ArenaScene {
 
     private func fireRicochetLance(
         from playerPosition: CGPoint,
-        configuration: StartingWeaponConfiguration
+        configuration: StartingWeaponConfiguration,
+        activation: WeaponActivation = WeaponActivation(kind: .ricochetLance)
     ) -> Int {
         let result = RicochetLancePath.resolve(
             origin: playerPosition,
@@ -1731,7 +1707,7 @@ extension ArenaScene {
             targets: targets,
             configuration: configuration
         ) { [weak self] enemyIDs in
-            self?.destroyEnemies(ids: enemyIDs, weaponKind: .ricochetLance)
+            self?.destroyEnemies(ids: enemyIDs, weaponKind: .ricochetLance, activation: activation)
             self?.grantPostWeaponSafety(for: .ricochetLance)
         }
 
@@ -3361,19 +3337,23 @@ extension ArenaScene {
         removeEnemies(ids: [enemyID])
     }
 
-    func destroyEnemiesForTesting(ids enemyIDs: Set<Int>, weaponKind: WeaponKind) {
-        destroyEnemies(ids: enemyIDs, weaponKind: weaponKind)
+    func destroyEnemiesForTesting(
+        ids enemyIDs: Set<Int>, weaponKind: WeaponKind, activation: WeaponActivation? = nil
+    ) {
+        destroyEnemies(ids: enemyIDs, weaponKind: weaponKind, activation: activation)
     }
 
     func freezeEnemiesForTesting(
         ids enemyIDs: Set<Int>,
         duration: TimeInterval,
-        thawGraceDuration: TimeInterval = 0
+        thawGraceDuration: TimeInterval = 0,
+        activation: WeaponActivation = WeaponActivation(kind: .freezeBurst)
     ) {
         freezeEnemies(
             ids: enemyIDs,
             duration: duration,
-            thawGraceDuration: thawGraceDuration
+            thawGraceDuration: thawGraceDuration,
+            activation: activation
         )
     }
 
@@ -3524,14 +3504,16 @@ extension ArenaScene {
 private extension ArenaScene {
     func activateShockwaveWave(
         at center: CGPoint,
-        configuration: StartingWeaponConfiguration
+        configuration: StartingWeaponConfiguration,
+        activation: WeaponActivation = WeaponActivation(kind: .shockwave)
     ) {
         activeWeapons.shockwaveWaves.append(
             ShockwaveWaveState(
                 center: center,
                 maximumRadius: configuration.shockwaveRadius,
                 expansionDuration: configuration.shockwaveExpansionDuration,
-                holdDuration: configuration.shockwaveHoldDuration
+                holdDuration: configuration.shockwaveHoldDuration,
+                activation: activation
             )
         )
         playShockwaveEffect(
@@ -3551,7 +3533,7 @@ private extension ArenaScene {
         var didCompleteWave = false
         for var state in activeWeapons.shockwaveWaves {
             let frame = state.update(deltaTime: deltaTime, enemies: enemies)
-            destroyEnemies(ids: frame.destroyedEnemyIDs, weaponKind: .shockwave)
+            destroyEnemies(ids: frame.destroyedEnemyIDs, weaponKind: .shockwave, activation: state.activation)
             if !frame.isComplete {
                 activeStates.append(state)
             } else {
@@ -3566,7 +3548,8 @@ private extension ArenaScene {
 
     func activateFreezeBurstWave(
         at center: CGPoint,
-        configuration: StartingWeaponConfiguration
+        configuration: StartingWeaponConfiguration,
+        activation: WeaponActivation = WeaponActivation(kind: .freezeBurst)
     ) {
         activeWeapons.freezeBurstWaves.append(
             FreezeBurstWaveState(
@@ -3574,7 +3557,8 @@ private extension ArenaScene {
                 maximumRadius: configuration.freezeBurstRadius,
                 duration: configuration.freezeExpansionDuration,
                 freezeDuration: configuration.freezeDuration,
-                thawGraceDuration: configuration.freezeThawGraceDuration
+                thawGraceDuration: configuration.freezeThawGraceDuration,
+                activation: activation
             )
         )
         playFreezeBurstEffect(
@@ -3596,7 +3580,8 @@ private extension ArenaScene {
             freezeEnemies(
                 ids: frame.frozenEnemyIDs,
                 duration: state.freezeDuration,
-                thawGraceDuration: state.thawGraceDuration
+                thawGraceDuration: state.thawGraceDuration,
+                activation: state.activation
             )
             if !frame.isComplete {
                 activeStates.append(state)
@@ -3612,9 +3597,10 @@ private extension ArenaScene {
 
     func activatePowerWave(
         at position: CGPoint,
-        configuration: StartingWeaponConfiguration
+        configuration: StartingWeaponConfiguration,
+        activation: WeaponActivation = WeaponActivation(kind: .powerWave)
     ) {
-        activeWeapons.powerWave.activate(configuration: configuration)
+        activeWeapons.powerWave.activate(configuration: configuration, activation: activation)
         playPowerWaveChargeEffect(
             at: position,
             direction: activeWeapons.aimDirection.resolvedDirection(),
@@ -3627,6 +3613,7 @@ private extension ArenaScene {
             return
         }
 
+        let activation = activeWeapons.powerWave.activation
         let frame = activeWeapons.powerWave.update(
             deltaTime: deltaTime,
             playerPosition: playerPosition,
@@ -3655,8 +3642,9 @@ private extension ArenaScene {
             )
         }
 
-        destroyEnemies(ids: frame.destroyedEnemyIDs, weaponKind: .powerWave)
+        destroyEnemies(ids: frame.destroyedEnemyIDs, weaponKind: .powerWave, activation: activation)
         if frame.isComplete {
+            activeWeapons.powerWave.reset()
             grantPostWeaponSafety(for: .powerWave)
         }
     }
@@ -3664,7 +3652,8 @@ private extension ArenaScene {
     func activateGravityWell(
         at center: CGPoint,
         enemyIDs: Set<Int>,
-        configuration: StartingWeaponConfiguration
+        configuration: StartingWeaponConfiguration,
+        activation: WeaponActivation = WeaponActivation(kind: .gravityWell)
     ) {
         let state = GravityWellState(
             center: center,
@@ -3673,7 +3662,8 @@ private extension ArenaScene {
             activationDelayRemaining: configuration.gravityWellActivationDelay,
             pullRadius: configuration.gravityWellRadius,
             pullDuration: configuration.gravityWellPullDuration,
-            clearRadius: configuration.gravityWellClearRadius
+            clearRadius: configuration.gravityWellClearRadius,
+            activation: activation
         )
         activeWeapons.gravityWell = state
         playGravityWellEffect(
@@ -3711,7 +3701,8 @@ private extension ArenaScene {
     func destroyGravityWellCenterEnemies(_ state: GravityWellState) {
         destroyEnemies(
             ids: state.collapseTargets(enemies: enemies),
-            weaponKind: .gravityWell
+            weaponKind: .gravityWell,
+            activation: state.activation
         )
     }
 
@@ -3727,7 +3718,7 @@ private extension ArenaScene {
             clearRadius: state.clearRadius,
             targets: targets
         ) { [weak self] enemyIDs in
-            self?.destroyEnemies(ids: enemyIDs, weaponKind: .gravityWell)
+            self?.destroyEnemies(ids: enemyIDs, weaponKind: .gravityWell, activation: state.activation)
         }
         grantPostWeaponSafety(for: .gravityWell)
     }
@@ -3738,13 +3729,16 @@ private extension ArenaScene {
         gravityWellEffectNode = nil
     }
 
-    func freezeEnemies(ids enemyIDs: Set<Int>, duration: TimeInterval, thawGraceDuration: TimeInterval) {
+    func freezeEnemies(
+        ids enemyIDs: Set<Int>, duration: TimeInterval, thawGraceDuration: TimeInterval,
+        activation: WeaponActivation = WeaponActivation(kind: .freezeBurst)
+    ) {
         guard !enemyIDs.isEmpty, duration > 0 else {
             return
         }
         var frozenEnemies: [ArenaEnemy] = []
         enemyRegistry.update(ids: enemyIDs) { enemy in
-            enemy.freeze(duration: duration, thawGraceDuration: thawGraceDuration)
+            enemy.freeze(duration: duration, thawGraceDuration: thawGraceDuration, activation: activation)
             frozenEnemies.append(enemy)
         }
         for enemy in WeaponImpactPlan.evenlySampled(frozenEnemies) {
@@ -3765,7 +3759,14 @@ private extension ArenaScene {
                 .map(\.id)
         )
 
-        destroyEnemies(ids: shatterIDs, weaponKind: .freezeBurst)
+        let groups = Dictionary(grouping: enemies.filter { shatterIDs.contains($0.id) }, by: \.freezeActivation)
+        // Use enemy order for deterministic attribution when different freezes overlap.
+        var remainingIDs = shatterIDs
+        for enemy in enemies where remainingIDs.contains(enemy.id) {
+            let ids = Set((groups[enemy.freezeActivation] ?? []).map(\.id))
+            destroyEnemies(ids: ids, weaponKind: .freezeBurst, activation: enemy.freezeActivation)
+            remainingIDs.subtract(ids)
+        }
     }
 
     private func recordWeaponComboFeedback(

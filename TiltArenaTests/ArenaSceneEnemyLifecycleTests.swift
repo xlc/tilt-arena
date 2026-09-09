@@ -428,6 +428,34 @@ final class ArenaSceneEnemyLifecycleTests: XCTestCase {
         XCTAssertFalse(scene.isResolvingDeathForTesting)
     }
 
+    func testOverlappingWeaponEffectsCannotClaimTheSameEnemyTwice() {
+        let scene = makeActiveScene()
+        let first = WeaponActivation(kind: .seekerSwarm)
+        let second = WeaponActivation(kind: .chainLightning)
+        scene.addEnemyForTesting(ArenaEnemy(id: 700, position: .zero, radius: 8, speed: 0))
+        scene.destroyEnemiesForTesting(ids: [700], weaponKind: first.kind, activation: first)
+        scene.destroyEnemiesForTesting(ids: [700], weaponKind: second.kind, activation: second)
+        XCTAssertEqual(first.killCount, 1)
+        XCTAssertEqual(second.killCount, 0)
+        XCTAssertTrue(scene.enemyIDsForTesting.isEmpty)
+    }
+
+    func testFrozenContactShattersRetainOneActivationAcrossSeparateClears() {
+        let scene = makeActiveScene()
+        let activation = WeaponActivation(kind: .freezeBurst)
+        for enemyID in 701...702 {
+            scene.addEnemyForTesting(ArenaEnemy(
+                id: enemyID, position: scene.playerPositionForTesting, radius: 8, speed: 0
+            ))
+            scene.freezeEnemiesForTesting(ids: [enemyID], duration: 2, activation: activation)
+            scene.shatterFrozenContactEnemiesForTesting()
+        }
+        XCTAssertEqual(activation.killCount, 2)
+        XCTAssertTrue(activation.hasQualifiedClear)
+        scene.shatterFrozenContactEnemiesForTesting()
+        XCTAssertEqual(activation.killCount, 2)
+    }
+
     private func makeActiveScene() -> ArenaScene {
         let scene = ArenaScene(size: CGSize(width: 320, height: 240))
         scene.prepareActiveRunForTesting()

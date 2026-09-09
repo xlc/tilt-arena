@@ -2,6 +2,7 @@ import CoreGraphics
 import Foundation
 
 struct ArenaRazorShieldState: Equatable {
+    private(set) var activation: WeaponActivation?
     private(set) var timeRemaining: TimeInterval = 0
     private(set) var configuration: StartingWeaponConfiguration?
     private(set) var hasPlayedWarning = false
@@ -10,7 +11,11 @@ struct ArenaRazorShieldState: Equatable {
         configuration != nil || timeRemaining > 0
     }
 
-    mutating func activate(with incoming: StartingWeaponConfiguration) -> StartingWeaponConfiguration {
+    mutating func activate(
+        with incoming: StartingWeaponConfiguration,
+        activation: WeaponActivation = WeaponActivation(kind: .razorShield)
+    ) -> StartingWeaponConfiguration {
+        self.activation = activation
         let resolved = configuration?.mergingRazorShield(with: incoming) ?? incoming
         configuration = resolved
         timeRemaining = max(timeRemaining, max(0, incoming.razorShieldDuration))
@@ -41,6 +46,7 @@ struct ArenaRazorShieldState: Equatable {
     }
 
     mutating func clear() {
+        activation = nil
         timeRemaining = 0
         configuration = nil
         hasPlayedWarning = false
@@ -169,6 +175,7 @@ struct ArenaPostWeaponSafetyState: Equatable {
 }
 
 struct ArenaPendingNovaBombClear {
+    var activation = WeaponActivation(kind: .novaBomb)
     let enemyIDs: Set<Int>
     var timeRemaining: TimeInterval
 }

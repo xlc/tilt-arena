@@ -2,6 +2,25 @@ import XCTest
 @testable import TiltArena
 
 final class FlameTrailStateTests: XCTestCase {
+    func testRecollectionKeepsOldSegmentsAttributedToTheirOriginalPickup() {
+        let first = WeaponActivation(kind: .flameTrail)
+        let second = WeaponActivation(kind: .flameTrail)
+        var state = FlameTrailState(configuration: FlameTrailConfiguration(
+            duration: 0.1, segmentLifetime: 2, segmentRadius: 5, segmentSpacing: 10
+        ))
+        state.activate(at: .zero, activation: first)
+        _ = state.update(deltaTime: 0.1, playerPosition: CGPoint(x: 20, y: 0), enemies: [])
+        state.activate(at: CGPoint(x: 100, y: 0), activation: second)
+        let frame = state.update(deltaTime: 0, playerPosition: CGPoint(x: 100, y: 0), enemies: [
+            ArenaEnemy(id: 1, position: .zero, radius: 1, speed: 0),
+            ArenaEnemy(id: 2, position: CGPoint(x: 20, y: 0), radius: 1, speed: 0),
+            ArenaEnemy(id: 3, position: CGPoint(x: 100, y: 0), radius: 1, speed: 0)
+        ])
+        XCTAssertEqual(frame.killsByActivation[first], [1, 2])
+        XCTAssertEqual(frame.killsByActivation[second], [3])
+        XCTAssertEqual(frame.burnedEnemyIDs, [1, 2, 3])
+    }
+
     func testExtremeSegmentConfigurationStaysBoundedAndFinite() {
         var state = FlameTrailState(configuration: FlameTrailConfiguration(
             duration: 1,

@@ -2,6 +2,7 @@ import CoreGraphics
 import Foundation
 
 struct GravityWellState {
+    let activation: WeaponActivation
     let center: CGPoint
     let enemyIDs: Set<Int>
     let pullRadius: CGFloat
@@ -17,8 +18,10 @@ struct GravityWellState {
         activationDelayRemaining: TimeInterval = 0,
         pullRadius: CGFloat = StartingWeaponConfiguration().gravityWellRadius,
         pullDuration: TimeInterval = StartingWeaponConfiguration().gravityWellPullDuration,
-        clearRadius: CGFloat = StartingWeaponConfiguration().gravityWellClearRadius
+        clearRadius: CGFloat = StartingWeaponConfiguration().gravityWellClearRadius,
+        activation: WeaponActivation = WeaponActivation(kind: .gravityWell)
     ) {
+        self.activation = activation
         self.center = center
         self.enemyIDs = enemyIDs
         self.pullRadius = WeaponRuntimeSafetyLimits.distance(pullRadius)

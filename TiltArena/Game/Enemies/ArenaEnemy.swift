@@ -69,6 +69,7 @@ struct ArenaEnemy: Equatable, Identifiable {
     private(set) var movementTime: TimeInterval = 0
     var behavior: EnemyBehavior = .chaser
     var frozenTimeRemaining: TimeInterval = 0
+    private(set) var freezeActivation: WeaponActivation?
     var thawGraceTimeRemaining: TimeInterval = 0
     var thawGraceDuration: TimeInterval = 0
     var splitSpawnGraceTimeRemaining: TimeInterval = 0
@@ -162,12 +163,17 @@ struct ArenaEnemy: Equatable, Identifiable {
         !isShatterableFrozen && !isSplitProtected && !isPlayerCollisionGraceActive
     }
 
-    mutating func freeze(duration: TimeInterval, thawGraceDuration: TimeInterval = 0) {
+    mutating func freeze(
+        duration: TimeInterval, thawGraceDuration: TimeInterval = 0, activation: WeaponActivation? = nil
+    ) {
         let clampedDuration = EnemySpawnSafetyLimits.statusDuration(duration)
         guard clampedDuration > 0 else {
             return
         }
 
+        if clampedDuration >= frozenTimeRemaining {
+            freezeActivation = activation
+        }
         frozenTimeRemaining = max(EnemySpawnSafetyLimits.statusDuration(frozenTimeRemaining), clampedDuration)
         self.thawGraceDuration = max(
             EnemySpawnSafetyLimits.statusDuration(self.thawGraceDuration),
@@ -321,12 +327,14 @@ struct ArenaEnemy: Equatable, Identifiable {
             frozenTimeRemaining = max(0, frozenTimeRemaining - deltaTime)
             if frozenTimeRemaining == 0 {
                 thawGraceTimeRemaining = max(thawGraceTimeRemaining, thawGraceDuration)
+                if thawGraceTimeRemaining == 0 { freezeActivation = nil }
             }
             return true
         }
 
         if isThawing {
             thawGraceTimeRemaining = max(0, thawGraceTimeRemaining - deltaTime)
+            if thawGraceTimeRemaining == 0 { freezeActivation = nil }
             return true
         }
 

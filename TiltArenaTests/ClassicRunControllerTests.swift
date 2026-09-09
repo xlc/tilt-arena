@@ -222,37 +222,50 @@ final class ClassicRunControllerTests: XCTestCase {
         )
     }
 
-    func testStaggeredKillsCanRecordOneAggregatedWeaponClear() {
-        var configuration = ClassicRunConfiguration()
-        configuration.baseEnemyScore = 7
-        configuration.killsPerMultiplierStep = 100
-        var controller = ClassicRunController(configuration: configuration)
-
+    func testStaggeredKillsQualifyOnceAndLateHitsDoNotResetFamilyHistory() {
+        var controller = ClassicRunController()
         controller.start()
         controller.recordEnemyKills(count: 2, weaponKind: .shockwave)
-
-        XCTAssertNil(controller.recordEnemyKills(
-            count: 1,
-            weaponKind: .chainLightning,
-            recordsWeaponClear: false
-        ))
-        XCTAssertNil(controller.recordEnemyKills(
-            count: 1,
-            weaponKind: .chainLightning,
-            recordsWeaponClear: false
-        ))
+        let activation = WeaponActivation(kind: .chainLightning)
+        XCTAssertNil(controller.recordEnemyKills(count: 1, weaponKind: .chainLightning, activation: activation))
         XCTAssertEqual(controller.weaponComboPrimer?.family, .force)
-        XCTAssertEqual(controller.enemiesDestroyed, 4)
-        XCTAssertEqual(controller.score, 4 * configuration.baseEnemyScore)
-
-        let event = controller.recordWeaponClear(killCount: 2, weaponKind: .chainLightning)
-
+        let event = controller.recordEnemyKills(count: 1, weaponKind: .chainLightning, activation: activation)
         XCTAssertEqual(event?.kind, .synergy)
-        XCTAssertEqual(event?.previousFamily, .force)
-        XCTAssertEqual(event?.currentFamily, .seek)
-        XCTAssertEqual(controller.weaponComboPrimer?.family, .seek)
-        XCTAssertEqual(controller.enemiesDestroyed, 4)
-        XCTAssertEqual(controller.score, 4 * configuration.baseEnemyScore)
+        XCTAssertTrue(activation.hasQualifiedClear)
+        XCTAssertEqual(controller.recordEnemyKills(count: 2, weaponKind: .freezeBurst)?.kind, .cascade)
+        XCTAssertNil(controller.recordEnemyKills(count: 5, weaponKind: .chainLightning, activation: activation))
+        XCTAssertEqual(controller.weaponComboPrimer?.family, .control)
+        XCTAssertEqual(activation.killCount, 7)
+        XCTAssertEqual(controller.enemiesDestroyed, 11)
+    }
+
+    func testShockwaveClearRecognitionIsIndependentOfFrameRate() {
+        for rate in [30, 60, 120] {
+            var controller = ClassicRunController()
+            controller.start()
+            controller.recordEnemyKills(count: 2, weaponKind: .seekerSwarm)
+            var wave = ShockwaveWaveState(center: .zero, maximumRadius: 90, expansionDuration: 0.6, holdDuration: 0.2)
+            var enemies = [
+                ArenaEnemy(id: 1, position: CGPoint(x: 40, y: 0), radius: 2, speed: 0),
+                ArenaEnemy(id: 2, position: CGPoint(x: 42, y: 0), radius: 2, speed: 0)
+            ]
+            var events: [WeaponComboEventKind] = []
+            for _ in 0..<rate {
+                controller.update(deltaTime: 1 / Double(rate))
+                let frame = wave.update(deltaTime: 1 / Double(rate), enemies: enemies)
+                if let event = controller.recordEnemyKills(
+                    count: frame.destroyedEnemyIDs.count, weaponKind: .shockwave, activation: wave.activation
+                ) {
+                    events.append(event.kind)
+                }
+                enemies.removeAll { frame.destroyedEnemyIDs.contains($0.id) }
+            }
+            XCTAssertEqual(events, [.synergy], "\(rate) Hz")
+            XCTAssertEqual(wave.activation.killCount, 2)
+            XCTAssertEqual(controller.enemiesDestroyed, 4)
+            XCTAssertEqual(controller.score, 40)
+            XCTAssertEqual(controller.weaponComboPrimer?.family, .force)
+        }
     }
 
     func testWeaponComboDoesNotBonusSameFamilyOrSmallFollowupClear() {
@@ -268,7 +281,7 @@ final class ClassicRunControllerTests: XCTestCase {
         XCTAssertNil(controller.recordEnemyKills(count: 1, weaponKind: .seekerSwarm))
 
         XCTAssertEqual(controller.score, 5 * configuration.baseEnemyScore)
-        XCTAssertEqual(controller.weaponComboPrimer?.family, .seek)
+        XCTAssertEqual(controller.weaponComboPrimer?.family, .force)
     }
 
     func testWeaponComboCascadeAfterThreeDistinctFamiliesWithoutChangingScoreOrComboTimer() {

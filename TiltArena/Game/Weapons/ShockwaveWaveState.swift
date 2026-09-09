@@ -10,6 +10,7 @@ struct ShockwaveWaveFrame: Equatable {
 struct ShockwaveWaveState: Equatable {
     private static let timeEpsilon: TimeInterval = 0.000_001
 
+    let activation: WeaponActivation
     let center: CGPoint
     let maximumRadius: CGFloat
     let expansionDuration: TimeInterval
@@ -21,8 +22,10 @@ struct ShockwaveWaveState: Equatable {
         center: CGPoint,
         maximumRadius: CGFloat,
         expansionDuration: TimeInterval,
-        holdDuration: TimeInterval
+        holdDuration: TimeInterval,
+        activation: WeaponActivation = WeaponActivation(kind: .shockwave)
     ) {
+        self.activation = activation
         self.center = center
         self.maximumRadius = WeaponRuntimeSafetyLimits.distance(maximumRadius)
         self.expansionDuration = WeaponRuntimeSafetyLimits.duration(expansionDuration)

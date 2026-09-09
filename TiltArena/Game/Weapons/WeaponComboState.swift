@@ -38,6 +38,34 @@ struct WeaponComboEvent: Equatable {
     let currentFamily: WeaponComboFamily
 }
 
+/// Shared only by the effects created by one pickup. References expire with
+/// projectiles, trail segments, and frozen enemies; there is no run-long ledger.
+final class WeaponActivation: Hashable {
+    let kind: WeaponKind
+    private(set) var killCount = 0
+    private(set) var hasQualifiedClear = false
+
+    init(kind: WeaponKind) {
+        self.kind = kind
+    }
+
+    func recordKills(_ count: Int, minimum: Int) -> Bool {
+        let (total, overflow) = killCount.addingReportingOverflow(max(0, count))
+        killCount = overflow ? Int.max : total
+        guard !hasQualifiedClear, killCount >= max(2, minimum) else { return false }
+        hasQualifiedClear = true
+        return true
+    }
+
+    static func == (lhs: WeaponActivation, rhs: WeaponActivation) -> Bool {
+        lhs === rhs
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(ObjectIdentifier(self))
+    }
+}
+
 struct WeaponComboState: Equatable {
     private static let cascadeFamilyCount = 3
 
@@ -81,14 +109,13 @@ struct WeaponComboState: Equatable {
         killCount: Int,
         configuration: ClassicRunConfiguration
     ) -> WeaponComboEvent? {
+        guard killCount >= max(2, configuration.weaponComboMinimumKillCount) else { return nil }
         let currentFamily = kind.comboFamily
         let previousFamily = activePrimer?.family
         let previousChainFamilies = chainFamilies
-        let minimumKillCount = max(2, configuration.weaponComboMinimumKillCount)
         prime(currentFamily, window: configuration.weaponComboWindow)
 
         guard
-            killCount >= minimumKillCount,
             let previousFamily,
             previousFamily != currentFamily
         else {

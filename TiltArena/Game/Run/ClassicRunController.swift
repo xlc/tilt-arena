@@ -165,7 +165,7 @@ struct ClassicRunController {
     mutating func recordEnemyKills(
         count: Int,
         weaponKind: WeaponKind?,
-        recordsWeaponClear: Bool = true
+        activation: WeaponActivation? = nil
     ) -> WeaponComboEvent? {
         guard phase == .active else {
             return nil
@@ -180,19 +180,10 @@ struct ClassicRunController {
             recordKill(scoreValue: configuration.baseEnemyScore, weaponKind: weaponKind)
         }
 
-        guard recordsWeaponClear else {
-            return nil
+        if let activation {
+            guard activation.recordKills(killCount, minimum: configuration.weaponComboMinimumKillCount) else { return nil }
+            return recordWeaponCombo(killCount: activation.killCount, weaponKind: activation.kind)
         }
-
-        return recordWeaponClear(killCount: killCount, weaponKind: weaponKind)
-    }
-
-    @discardableResult
-    mutating func recordWeaponClear(killCount: Int, weaponKind: WeaponKind?) -> WeaponComboEvent? {
-        guard phase == .active, killCount > 0 else {
-            return nil
-        }
-
         return recordWeaponCombo(killCount: killCount, weaponKind: weaponKind)
     }
 

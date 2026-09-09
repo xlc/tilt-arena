@@ -19,6 +19,7 @@ struct PowerWaveFrame: Equatable {
 }
 
 struct PowerWaveState: Equatable {
+    private(set) var activation: WeaponActivation?
     private(set) var isCharging = false
     private(set) var chargeTimeRemaining: TimeInterval = 0
     private var waveState: PowerWaveWaveState?
@@ -28,7 +29,11 @@ struct PowerWaveState: Equatable {
         isCharging || waveState != nil
     }
 
-    mutating func activate(configuration: StartingWeaponConfiguration) {
+    mutating func activate(
+        configuration: StartingWeaponConfiguration,
+        activation: WeaponActivation = WeaponActivation(kind: .powerWave)
+    ) {
+        self.activation = activation
         let configuration = configuration.sanitizedForRuntime()
         isCharging = true
         activeConfiguration = configuration
@@ -37,6 +42,7 @@ struct PowerWaveState: Equatable {
     }
 
     mutating func reset() {
+        activation = nil
         isCharging = false
         chargeTimeRemaining = 0
         waveState = nil

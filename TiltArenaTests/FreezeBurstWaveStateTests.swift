@@ -3,6 +3,19 @@ import XCTest
 @testable import TiltArena
 
 final class FreezeBurstWaveStateTests: XCTestCase {
+    func testFreezeAttributionFollowsTheLongestEffectAndExpiresAfterThawGrace() {
+        let first = WeaponActivation(kind: .freezeBurst)
+        let second = WeaponActivation(kind: .freezeBurst)
+        var enemy = ArenaEnemy(id: 1, position: .zero, radius: 2, speed: 0)
+        enemy.freeze(duration: 2, thawGraceDuration: 0.5, activation: first)
+        enemy.freeze(duration: 1, thawGraceDuration: 0.5, activation: second)
+        XCTAssertTrue(enemy.freezeActivation === first)
+        enemy.advance(toward: .zero, deltaTime: 2)
+        XCTAssertTrue(enemy.freezeActivation === first)
+        enemy.advance(toward: .zero, deltaTime: 0.5)
+        XCTAssertNil(enemy.freezeActivation)
+    }
+
     func testWaveExpandsOverTimeAndCatchesLateEnemies() {
         var state = FreezeBurstWaveState(center: .zero, maximumRadius: 100, duration: 0.25)
         let earlyEnemy = enemy(id: 1, position: CGPoint(x: 15, y: 0))

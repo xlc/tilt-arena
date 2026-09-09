@@ -54,6 +54,7 @@ extension FlameTrailConfiguration {
 }
 
 struct FlameTrailSegment: Equatable, Identifiable {
+    var activation: WeaponActivation?
     let id: Int
     let position: CGPoint
     let radius: CGFloat
@@ -73,6 +74,7 @@ struct FlameTrailSegment: Equatable, Identifiable {
 }
 
 struct FlameTrailFrame: Equatable {
+    var killsByActivation: [WeaponActivation: Set<Int>] = [:]
     var burnedEnemyIDs: Set<Int> = []
     var segments: [FlameTrailSegment] = []
 }
@@ -87,6 +89,7 @@ struct FlameTrailState {
     }
     private(set) var timeRemaining: TimeInterval = 0
     private(set) var segments: [FlameTrailSegment] = []
+    private var activation: WeaponActivation?
     private var nextSegmentID = 1
     private var lastPlayerPosition: CGPoint?
     private var distanceSinceLastSegment: CGFloat = 0
@@ -95,7 +98,9 @@ struct FlameTrailState {
         runtimeConfiguration = configuration.sanitizedForRuntime()
     }
 
-    mutating func activate(at position: CGPoint) {
+    mutating func activate(
+        at position: CGPoint, activation: WeaponActivation = WeaponActivation(kind: .flameTrail)
+    ) {
         guard position.isFinite else {
             timeRemaining = 0
             return
@@ -110,14 +115,17 @@ struct FlameTrailState {
                     to: position
                 )
             } else {
+                self.activation = activation
                 appendSegment(at: position)
                 distanceSinceLastSegment = 0
             }
         }
+        self.activation = activation
         lastPlayerPosition = position
     }
 
     mutating func reset() {
+        activation = nil
         timeRemaining = 0
         segments.removeAll()
         nextSegmentID = 1
@@ -158,11 +166,17 @@ struct FlameTrailState {
             )
         }
         lastPlayerPosition = playerPosition
+        if timeRemaining == 0 { activation = nil }
 
-        return FlameTrailFrame(
-            burnedEnemyIDs: burnTargets(enemies: enemies),
-            segments: segments
-        )
+        var frame = FlameTrailFrame(segments: segments)
+        for enemy in enemies {
+            guard let segment = segments.first(where: { $0.collisionCircle.intersects(enemy.collisionCircle) }) else { continue }
+            frame.burnedEnemyIDs.insert(enemy.id)
+            if let activation = segment.activation {
+                frame.killsByActivation[activation, default: []].insert(enemy.id)
+            }
+        }
+        return frame
     }
 
     private mutating func expireSegments(deltaTime: TimeInterval) {
@@ -244,6 +258,7 @@ struct FlameTrailState {
         }
 
         segments.append(FlameTrailSegment(
+            activation: activation,
             id: nextSegmentID,
             position: position,
             radius: configuration.segmentRadius,
@@ -255,20 +270,6 @@ struct FlameTrailState {
         if segments.count > configuration.maxSegments {
             segments.removeFirst(segments.count - configuration.maxSegments)
         }
-    }
-
-    private func burnTargets(enemies: [ArenaEnemy]) -> Set<Int> {
-        guard !segments.isEmpty else {
-            return []
-        }
-
-        return Set(
-            enemies
-                .filter { enemy in
-                    segments.contains { $0.collisionCircle.intersects(enemy.collisionCircle) }
-                }
-                .map(\.id)
-        )
     }
 
     private mutating func trimSegmentsToLimit() {

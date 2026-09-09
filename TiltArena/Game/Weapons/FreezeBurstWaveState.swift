@@ -8,6 +8,7 @@ struct FreezeBurstWaveFrame: Equatable {
 }
 
 struct FreezeBurstWaveState: Equatable {
+    let activation: WeaponActivation
     let center: CGPoint
     let maximumRadius: CGFloat
     let duration: TimeInterval
@@ -21,8 +22,10 @@ struct FreezeBurstWaveState: Equatable {
         maximumRadius: CGFloat,
         duration: TimeInterval,
         freezeDuration: TimeInterval = StartingWeaponConfiguration().freezeDuration,
-        thawGraceDuration: TimeInterval = StartingWeaponConfiguration().freezeThawGraceDuration
+        thawGraceDuration: TimeInterval = StartingWeaponConfiguration().freezeThawGraceDuration,
+        activation: WeaponActivation = WeaponActivation(kind: .freezeBurst)
     ) {
+        self.activation = activation
         self.center = center
         self.maximumRadius = WeaponRuntimeSafetyLimits.distance(maximumRadius)
         self.duration = WeaponRuntimeSafetyLimits.duration(duration)
