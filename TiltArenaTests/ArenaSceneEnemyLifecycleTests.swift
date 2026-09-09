@@ -31,7 +31,7 @@ final class ArenaSceneEnemyLifecycleTests: XCTestCase {
             XCTAssertEqual(small.scoreForTesting, large.scoreForTesting)
             XCTAssertEqual(small.uiStateForTesting, large.uiStateForTesting)
         }
-        XCTAssertGreaterThanOrEqual(small.scoreForTesting, 100)
+        XCTAssertGreaterThanOrEqual(small.scoreBreakdownForTesting.pickups, 2 * ClassicRunConfiguration().itemPickupScore)
         XCTAssertGreaterThan(small.runSurvivalTimeForTesting, 5)
         XCTAssertNotEqual(small.screenPositionForTesting(small.playerPositionForTesting),
                           large.screenPositionForTesting(large.playerPositionForTesting))

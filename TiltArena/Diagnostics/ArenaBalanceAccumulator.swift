@@ -22,6 +22,15 @@ struct ArenaBalanceAccumulator {
     private(set) var slowSeconds: TimeInterval = 0
     private(set) var lastPickup: CollectedPickup?
     var deathRole: EnemyKind?
+    private(set) var synergies = 0
+    private(set) var cascades = 0
+
+    mutating func recordCombo(_ event: WeaponComboEvent) {
+        switch event.kind {
+        case .synergy: synergies += 1
+        case .cascade: cascades += 1
+        }
+    }
 
     mutating func recordPickup(_ pickup: WeaponPickup, at time: TimeInterval) -> WeaponActivation {
         var totals = weapons[pickup.kind, default: WeaponBalanceTotals()]

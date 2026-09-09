@@ -1,0 +1,179 @@
+#!/usr/bin/env python3
+"""Validate and summarize the 261-case production full-run XCTest attachment."""
+import argparse
+import collections
+import itertools
+import json
+import math
+import statistics
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('results', help='full-run-comparisons.json XCTest attachment')
+args = parser.parse_args()
+with open(args.results, encoding='utf-8') as source:
+    rows = json.load(source)
+
+profiles = ['fresh', 'partial', 'complete']
+policies = ['cycle', 'bankNova', 'parkTwo']
+variants = ['reference', 'shorterFreeze', 'shorterFlame', 'widerCombo', 'earlierClassic', 'shorterSafety', 'clearingScore']
+seeds = [7, 91, 20260726]
+key_fields = ['mode', 'profile', 'policy', 'variant', 'seed']
+
+
+def key(row):
+    return tuple(row[field] for field in key_fields)
+
+
+def validate_numbers(value):
+    if isinstance(value, dict):
+        return all(validate_numbers(item) for item in value.values())
+    if isinstance(value, list):
+        return all(validate_numbers(item) for item in value)
+    return not isinstance(value, (float, int)) or (math.isfinite(value) and value >= 0)
+
+
+expected = set(itertools.product(['classic'], profiles, policies, variants, seeds))
+cross_mode_variants = ['reference', 'shorterSafety', 'clearingScore']
+expected.update(itertools.product(['redline'], ['complete'], policies[:2], cross_mode_variants, seeds))
+expected.update(itertools.product(['daily'], ['fresh', 'complete'], policies, cross_mode_variants, seeds))
+indexed = {key(row): row for row in rows}
+if len(rows) != len(indexed) or set(indexed) != expected:
+    raise SystemExit(f'Incomplete or duplicate matrix: expected exactly {len(expected)} named cases.')
+for row in rows:
+    if not validate_numbers(row):
+        raise SystemExit(f'Nonfinite or negative measurement: {key(row)}')
+    if row['durationLimit'] != 180 or not (0 < row['observedSeconds'] <= 180.001):
+        raise SystemExit(f'Unexpected duration: {key(row)}')
+    if any(row[field] > row['observedSeconds'] + 0.001 for field in
+           ['protectedSeconds', 'shieldSeconds', 'capacityGateSeconds', 'warningGateSeconds']):
+        raise SystemExit(f'Invalid exposure: {key(row)}')
+    if row['score'] != sum(row[field] for field in ['killScore', 'pickupScore', 'survivalScore']):
+        raise SystemExit(f'Score does not reconcile: {key(row)}')
+    pickup_value = 10 if row['variant'] == 'clearingScore' else 50
+    if row['pickupScore'] != sum(row['tiers']) * pickup_value:
+        raise SystemExit(f'Pickup points do not match the candidate: {key(row)}')
+    if len(row['tiers']) != 3 or sum(row['tiers']) != sum(row['pickups'].values()):
+        raise SystemExit(f'Pickup tiers do not reconcile: {key(row)}')
+    if len(row['novaTiers']) != 3 or sum(row['novaTiers']) != row['pickups'].get('novaBomb', 0):
+        raise SystemExit(f'Nova tiers do not reconcile: {key(row)}')
+    if row['parkedPickupsCollected'] > sum(row['tiers']):
+        raise SystemExit(f'Impossible parked pickup count: {key(row)}')
+    if row['policy'] != 'parkTwo' and row['parkedPickupsCollected'] != 0:
+        raise SystemExit(f'Parking leaked across policies: {key(row)}')
+    if row['collision'] != (row['deathRole'] != 'none'):
+        raise SystemExit(f'Death attribution mismatch: {key(row)}')
+    if not row['collision'] and abs(row['observedSeconds'] - 180) > 0.001:
+        raise SystemExit(f'Run stopped before its cutoff: {key(row)}')
+
+# Daily must not depend on a personal profile. Scoring experiments change score only.
+for row in rows:
+    if row['mode'] == 'daily' and row['profile'] == 'fresh':
+        other = indexed[('daily', 'complete', row['policy'], row['variant'], row['seed'])]
+        fields = set(row) - {'profile'}
+    elif row['variant'] == 'widerCombo':
+        other = indexed[key(row)[:3] + ('reference', row['seed'])]
+        fields = set(row) - {'variant', 'score', 'killScore', 'maxCombo'}
+    elif row['variant'] == 'clearingScore':
+        other = indexed[key(row)[:3] + ('shorterSafety', row['seed'])]
+        fields = set(row) - {'variant', 'score', 'pickupScore'}
+    else:
+        continue
+    if any(abs(row[field] - other[field]) > 0.001 if isinstance(row[field], float)
+           else row[field] != other[field] for field in fields):
+        raise SystemExit(f'Expected paired invariance failed: {key(row)}')
+
+mean = lambda group, field: statistics.mean(row[field] for row in group)
+coverage = lambda row: row['protectedSeconds'] / row['observedSeconds'] * 100
+print('Tilt Arena full-run balance results — 9 September 2026\n')
+print('Validated 261 cases with real spawning, replenishing pickups, movement, collision, effects, '
+      'SpriteKit callbacks and scoring. Runs use a fixed 718 × 377 world at 60 Hz, ending on collision '
+      'or at 180 seconds. Each table row contains only three seeds. The deterministic controller '
+      'knows enemy positions, uses simple repulsion and wall avoidance, and does not model human '
+      'skill, timing, aim or learning. Paired scripts are correlated, not independent participants.\n')
+print('Reference tuning uses responsive exponent-3 waves and a 0.4-second Power charge, but retains '
+      '0.5-second post-weapon recovery. Candidates change one parameter group. Shorter safety is '
+      '0.3 seconds; immediate collection grace stays 0.2 seconds. The earlier-Classic candidate '
+      'enables roles at 20/40/60/80/100/120 seconds, including warmup formations at a 10-second '
+      'interval and pressure arrows at a 10-second interval, speed 150 and count 2. '
+      'Minimum-time gates alone cannot activate a role absent from its phase. Clearing-score tuning '
+      'combines shorter safety with 10 pickup points instead of 50; it keeps kill scoring unchanged.\n')
+for variant, title in [('reference', 'Reference pickup policies'), ('clearingScore', 'Accepted safety and pickup score')]:
+    print(f'**{title}.** Immunity is the mean per-run protected fraction, excluding shield-only protection. '
+          'Time is capped observed time, not an uncensored survival estimate.\n')
+    print('| Mode / profile / policy | Mean seconds | Mean score | Immunity | Mean pickups | Mean pickup age |')
+    print('|---|---:|---:|---:|---:|---:|')
+    for mode, profile, policy in itertools.product(['classic', 'redline', 'daily'], profiles, policies):
+        group = [row for row in rows if key(row)[:4] == (mode, profile, policy, variant)]
+        if not group:
+            continue
+        count = sum(sum(row['tiers']) for row in group)
+        age = sum(row['pickupAgeSum'] for row in group) / count if count else 0
+        print(f"| {mode} / {profile} / {policy} | {mean(group, 'observedSeconds'):.2f} | "
+              f"{mean(group, 'score'):.0f} | {statistics.mean(map(coverage, group)):.1f}% | {count/len(group):.1f} | {age:.2f} s |")
+    print()
+
+print('**Paired candidates.** Faster/slower/unchanged counts use a 0.001-second tolerance. '
+      'Ranges expose regressions hidden by averages. Clearing-score tuning is paired against shorter '
+      'safety; the other variants are paired against the reference.\n')
+print('| Mode / candidate | Pairs | Mean time change (range) | Faster / slower / unchanged deaths | Mean score change | Immunity change |')
+print('|---|---:|---:|---:|---:|---:|')
+for mode, variant in itertools.product(['classic', 'redline', 'daily'], variants[1:]):
+    group = [row for row in rows if row['mode'] == mode and row['variant'] == variant]
+    if not group:
+        continue
+    base_variant = 'shorterSafety' if variant == 'clearingScore' else 'reference'
+    base = [indexed[key(row)[:3] + (base_variant, row['seed'])] for row in group]
+    times = [a['observedSeconds'] - b['observedSeconds'] for a, b in zip(group, base)]
+    counts = [sum(t < -0.001 for t in times), sum(t > 0.001 for t in times), sum(abs(t) <= 0.001 for t in times)]
+    counts_text = ' / '.join(map(str, counts))
+    print(f"| {mode} / {variant} | {len(group)} | {statistics.mean(times):+.2f} s ({min(times):+.2f} to {max(times):+.2f}) | "
+          f"{counts_text} | {mean(group, 'score')-mean(base, 'score'):+.0f} | "
+          f"{statistics.mean(coverage(a)-coverage(b) for a,b in zip(group,base)):+.1f} pp |")
+
+accepted = [row for row in rows if row['variant'] == 'clearingScore']
+print('\n**Policy adherence and score composition under accepted tuning.** Banking can collect a '
+      'Nova accidentally before it matures, and avoidance can cross a parked pickup. These counts '
+      'prevent interpreting the scripts as perfect execution. +25 per synergy and +75 per cascade '
+      'are shadow calculations only; no family points were awarded and no strategy adapted to them.\n')
+print('| Mode / profile / policy | Nova base / charged / overcharged | Parked orbs collected | Kill / pickup / survival score | Shadow family addition |')
+print('|---|---:|---:|---:|---:|')
+for mode, profile, policy in itertools.product(['classic', 'redline', 'daily'], profiles, policies):
+    group = [row for row in accepted if key(row)[:3] == (mode, profile, policy)]
+    if not group:
+        continue
+    score = sum(row['score'] for row in group)
+    nova = ' / '.join(str(sum(row['novaTiers'][tier] for row in group)) for tier in range(3))
+    parts = ' / '.join(f"{sum(row[field] for row in group)/score*100:.1f}%" for field in ['killScore', 'pickupScore', 'survivalScore'])
+    shadow = sum(row['synergies'] * 25 + row['cascades'] * 75 for row in group) / score * 100
+    print(f"| {mode} / {profile} / {policy} | {nova} | {sum(row['parkedPickupsCollected'] for row in group)} | {parts} | +{shadow:.1f}% |")
+
+print('\n**Threat exposure with accepted tuning.** Counts are spawned bodies, so one paddle trap '
+      'contributes several bodies. Gate times measure checked admission gates being closed; '
+      'they are not missed-spawn counts.\n')
+print('| Mode / profile | Collision endings / cases | Death roles | Hunter / paddle bodies | Mean population / warning gate seconds |')
+print('|---|---:|---|---:|---:|')
+for mode, profile in itertools.product(['classic', 'redline', 'daily'], profiles):
+    group = [row for row in accepted if row['mode'] == mode and row['profile'] == profile]
+    if not group:
+        continue
+    roles = ', '.join(f'{name}: {count}' for name, count in sorted(collections.Counter(row['deathRole'] for row in group).items()))
+    hunters = sum(row['spawned'].get('hunter', 0) for row in group)
+    paddles = sum(count for row in group for role, count in row['spawned'].items() if role.startswith('paddle'))
+    print(f"| {mode} / {profile} | {sum(row['collision'] for row in group)} / {len(group)} | {roles} | "
+          f"{hunters} / {paddles} | {mean(group, 'capacityGateSeconds'):.2f} / {mean(group, 'warningGateSeconds'):.2f} |")
+print('\n**Score-gate check.** These are completed fresh-profile Classic runs, not human unlock '
+      'times. They confirm the unchanged thresholds are attainable by this controller on the new '
+      'scale. Progress is normally applied after a run, so the harness holds its supplied arsenal '
+      'fixed until that run ends.\n')
+print('| Policy | Cases reaching 1,500 / 3,000 / 5,000 points | Score range |')
+print('|---|---:|---:|')
+for policy in policies:
+    group = [row for row in accepted if row['mode'] == 'classic' and row['profile'] == 'fresh' and row['policy'] == policy]
+    counts = ' / '.join(str(sum(row['score'] >= gate for row in group)) for gate in [1500, 3000, 5000])
+    print(f"| {policy} | {counts} of {len(group)} | {min(row['score'] for row in group)}–{max(row['score'] for row in group)} |")
+print('\nDaily fresh and complete profiles matched on every measured outcome. Widening the combo '
+      'window changed score/combo only, and lowering pickup points changed score/pickup points only; '
+      'all other measured outcomes matched their paired configuration. '
+      'No result here establishes runs-to-unlock for a person, physical tilt comfort, visual '
+      'readability, or fairness for every strategy. See the accompanying decision record for '
+      'accepted defaults and retained rules.')

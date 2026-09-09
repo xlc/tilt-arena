@@ -114,6 +114,8 @@ enum ArenaBalanceVariant: String, CaseIterable {
     var tuning: GameTuningConfiguration {
         var tuning = GameTuningConfiguration.defaults
         // Preserve the reviewed pre-experiment values when a candidate becomes a default.
+        tuning.run.itemPickupScore = 50
+        tuning.feedback.postWeaponSafetyDuration = 0.5
         tuning.startingWeapons.waveExpansionExponent = 1
         tuning.startingWeapons.shockwaveExpansionDuration = 0.6
         tuning.startingWeapons.freezeExpansionDuration = 0.8

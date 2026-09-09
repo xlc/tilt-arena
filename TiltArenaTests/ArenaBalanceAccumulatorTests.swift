@@ -3,6 +3,31 @@ import XCTest
 @testable import TiltArena
 
 final class ArenaBalanceAccumulatorTests: XCTestCase {
+    @MainActor
+    func testFamilyCountersFollowQualifiedClearsAndResetWithTheRun() throws {
+        let harness = try ArenaBalanceHarness()
+        defer { harness.close() }
+        let scene = harness.scene
+        scene.prepareBalanceRunForTesting(tuning: .defaults, seed: 91)
+        let first = WeaponActivation(kind: .shockwave)
+        for (index, activation) in [first, WeaponActivation(kind: .seekerSwarm), WeaponActivation(kind: .razorShield)].enumerated() {
+            let ids = Set([100 + index * 2, 101 + index * 2])
+            for id in ids {
+                scene.addEnemyForTesting(ArenaEnemy(id: id, position: .zero, radius: 5, speed: 0))
+            }
+            scene.destroyEnemiesForTesting(ids: ids, weaponKind: activation.kind, activation: activation)
+        }
+        XCTAssertEqual(scene.balanceForTesting.synergies, 1)
+        XCTAssertEqual(scene.balanceForTesting.cascades, 1)
+        scene.addEnemyForTesting(ArenaEnemy(id: 106, position: .zero, radius: 5, speed: 0))
+        scene.destroyEnemiesForTesting(ids: [106], weaponKind: .shockwave, activation: first)
+        XCTAssertEqual(scene.balanceForTesting.synergies, 1, "An old activation cannot earn another family event")
+        XCTAssertEqual(scene.balanceForTesting.cascades, 1)
+        scene.prepareActiveRunForTesting()
+        XCTAssertEqual(scene.balanceForTesting.synergies, 0)
+        XCTAssertEqual(scene.balanceForTesting.cascades, 0)
+    }
+
     func testScoreBreakdownReconcilesActualAwardsAtSaturationAndRestart() {
         var configuration = ClassicRunConfiguration()
         configuration.baseEnemyScore = Int.max
@@ -12,9 +37,9 @@ final class ArenaBalanceAccumulatorTests: XCTestCase {
         run.recordItemPickup(pickupID: 1)
         run.update(deltaTime: 61)
         run.recordEnemyKills(count: 2, weaponKind: .shockwave)
-        XCTAssertEqual(run.scoreBreakdown.pickups, 50)
+        XCTAssertEqual(run.scoreBreakdown.pickups, 10)
         XCTAssertEqual(run.scoreBreakdown.survival, 1)
-        XCTAssertEqual(run.scoreBreakdown.kills, Int.max - 51)
+        XCTAssertEqual(run.scoreBreakdown.kills, Int.max - 11)
         XCTAssertEqual(run.scoreBreakdown.total, run.score)
         run.restart()
         XCTAssertEqual(run.scoreBreakdown, RunScoreBreakdown())

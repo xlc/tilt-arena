@@ -20,6 +20,7 @@ extension ArenaBalanceAccumulator {
             "kill_score": "\(score.kills)", "pickup_score": "\(score.pickups)", "survival_score": "\(score.survival)",
             "survival_s": "\(summary.survivalTime)", "max_combo": "\(summary.maxCombo)",
             "kills": "\(summary.enemiesDestroyed)", "death_role": "\(deathRole?.rawValue ?? "none")",
+            "synergies": "\(synergies)", "cascades": "\(cascades)",
             "end_reason": "\(deathRole == nil ? "ended" : "collision")",
             "run_band": "\(Self.runBand(summary.survivalTime))",
             "last_pickup": "\(lastPickup?.kind.rawValue ?? "none")",

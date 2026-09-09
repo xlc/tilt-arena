@@ -1,6 +1,6 @@
 Tilt Arena implementation record — 9 September 2026
 
-**The mechanics foundation is implemented. Numerical balance experiments and physical-phone acceptance remain open.** This record follows the [original review](/Users/xiliangchen/projects/tilt-arena/docs/reviews/2026-09-09-mechanics-balance-review.md) and [detailed improvement plan](/Users/xiliangchen/projects/tilt-arena/docs/reviews/2026-09-09-improvement-plan.md). Changes are local commits on master. Nothing has been pushed or released. Development data may reset; no migration or grandfathering was added.
+**The mechanics foundation and automated tuning pass are implemented. Physical-phone and human balance acceptance remain open.** This record follows the [original review](/Users/xiliangchen/projects/tilt-arena/docs/reviews/2026-09-09-mechanics-balance-review.md) and [detailed improvement plan](/Users/xiliangchen/projects/tilt-arena/docs/reviews/2026-09-09-improvement-plan.md). Changes are local commits on master. Nothing has been pushed or released. Development data may reset; no migration or grandfathering was added.
 
 Each code commit followed inspection, targeted regression checks, a review and correction pass, then validation. Changed visual references were inspected before acceptance. The review found additional problems during implementation: unsupported full-input directions in reclined calibration, misleading retry copy, a shrinking Gravity boundary, clipped codex explanations, and frame-dependent puck bounce travel. These received corrections instead of being accepted because the initial tests passed.
 
@@ -49,29 +49,27 @@ TEST_RUNNER_TILT_BALANCE_SWEEP=1 xcodebuild \
   -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO test
 ```
 
-Use another installed simulator ID if necessary. The `spawn-baseline.csv` XCTest attachment is emitted by `EnemySpawnDirectorBalanceTests.testExportExtendedSpawnBaseline`. Ordinary test runs skip only this extended export. The standard cadence regressions still run. Export the attachment using `xcrun xcresulttool export attachments --path <result.xcresult> --output-path <directory>`.
+Use another installed simulator ID if necessary. The `spawn-baseline.csv` XCTest attachment is emitted by `EnemySpawnDirectorBalanceTests.testExportExtendedSpawnBaseline`. At that baseline, ordinary test runs skipped only this extended export; the current suite also has opt-in weapon, response and full-run exports. The standard cadence regressions still run. Export the attachment using `xcrun xcresulttool export attachments --path <result.xcresult> --output-path <directory>`.
 
-**Retained values are provisional, not completed numerical experiments.** Restoring missing threats, allowing Gravity entrants, removing the speed penalty, and changing openings already alter difficulty. No additional blanket spawn-rate increase or weapon nerf was applied on top of those fixes.
+**Current decisions after automated comparisons.** Historical validation below records each slice. The current rules version is 3, with responsive waves, a 0.4-second Power charge, 0.3-second post-weapon recovery and 10-point pickups. See [response decisions](2026-09-09-response-decisions.md) and [full-run decisions](2026-09-09-full-run-decisions.md) for the tested alternatives and limits.
 
-| Balance question | Current decision | Evidence still needed |
+| Balance question | Current decision | Remaining evidence |
 |---|---|---|
-| Freeze lasts 12/14.4/16.8 seconds | Retain while comparing the proposed 8/9.6/11.2. | Whether shorter freezes leave enough time for intentional contact shatters and escape routes. |
-| Flame travels too far | Retain 5× for 0.3 seconds for the baseline; compare 4× for 0.22. | Current straight burst is 394.8 logical points, or 60% of width; candidate is 231.6, or 35.2%. Measure landing control and deaths after protection. |
-| Power Wave charge feels unsafe | Retain 0.6 seconds for the baseline; compare 0.4. | Pickup-to-death windows and deliberate aiming after collection grace. The wave still travels across the arena. |
-| Overcharged Nova dominates banking | Retain 50/75/100% until banking beats alternatives in matched encounters. | Immediate cycling, banking, and leaving unwanted pickups parked, with real survival and score composition. |
-| Family feedback should pay score | Retain cosmetic synergy/cascade and the 1.2-second ordinary combo window pending comparison. | Trial 1.6 seconds separately from +25/+75 family awards; quantify score composition and passive-chain effects. |
-| Classic introductions are too late | Retain 30/50/70/95/120/150-second gates after scheduler repair. | First-exposure deaths, run-length distribution, and repeated-route success; compare 20/40/60/80/100/120 only after baseline. |
-| Unlocks or Daily access delay variety | Retain current milestones and Daily's complete-arsenal gate. | Runs to unlock for new/intermediate players and participation delay. Common Daily rules are already independent of personal unlocks. |
-| Tilt smoothing feels sluggish | Retain 0.11 seconds; compare 0.08 on hardware. | Jitter, reversals, braking, comfort and attainable input on physical phones. |
+| Freeze hold and Flame burst | Retain Freeze 12/14.4/16.8 seconds and Flame 5× for 0.3 seconds after mixed candidate outcomes. | Deliberate shatters, burst landing and physical braking. |
+| Power response | Accept 0.4-second charge; aimed-clear tests still pass at 30/60/120 Hz. | Human aim correction and readability in crowded scenes. |
+| Generic protection | Accept 0.3-second recovery, retaining 0.2-second collection grace and projectile travel budgets. | Cycling still has substantial immunity; inspect understandable expiry and post-pickup deaths on phones. |
+| Score composition | Accept 10-point pickups; kills become the largest category in every tested policy group. Retain ordinary combo 1.2 seconds and score-neutral family celebrations. | Intentional connections and human routes on the new score scale. |
+| Nova banking and parking | Retain Nova 50/75/100% and weighted supply; neither policy beats cycling in this controller. | Other optimized policies and score-aware human choices; Redline scripts did not reach Nova. |
+| Earlier Classic roles | Reject the corrected 20/40/60/80/100/120 trial for now; shorter runs did not increase hunter/paddle exposure. | Human first-exposure comprehension and session distributions. |
+| Progression and Daily | Retain current gates; fresh scripted cycling still reaches score thresholds, and Daily remains profile-independent. | Human runs-to-unlock and Daily participation delay. |
+| Tilt smoothing | Retain 0.11 seconds. | Compare 0.08 on physical phones; no available iPhone was reported locally. |
 
-**Remaining implementation and acceptance work, in order:**
+**Remaining acceptance work, in order:**
 
-1. P01 measurement accumulation is now implemented: reconciled score categories, pickup age/tier, activation kill distribution, protection/control exposure, spawn gates and pickup-to-death association. See [measurement definitions](2026-09-09-balance-measurements.md). The matched encounter work below remains open.
-2. P12 now has a corrected 1,032-case matched matrix covering all 11 weapons and three tiers, two scripts, two seeds and three candidates. See [results](2026-09-09-weapon-results.md). P10 full-run pickup strategies, deliberate aiming follow-ups, and human role comparisons remain open; the matrix is not a weapon tier ranking.
-3. Run counterbalanced baseline/candidate sessions for P12–P15. Accept or reject each numerical change using the plan's criteria and update the retained-value table with results. Do not treat this table as completion of those experiments.
-4. Finish P16's aimed-charge/safety feedback evaluation and decide whether score-neutral graze feedback improves play. No graze mechanic or reward was added.
-5. Perform P17 physical-phone QA in both landscape orientations, both themes, supported postures and small/large layouts. Inspect overlapping warning exits, real tap-to-control retry time, and sustained crowded-frame performance. Simulator snapshots do not prove physical tilt comfort or human readability under motion.
-6. Apply the final achievement metadata in App Store Connect during release preparation. No account settings, uploads, leaderboard data or production state were changed here.
+1. Finish the restrained generic-protection cue and inspect its expiry, theme changes, pause, death and restart lifecycle.
+2. Perform the [physical-phone and human acceptance pass](2026-09-09-device-acceptance.md): input, aiming, landing control, threat readability, score choices, unlock pacing and sustained performance. Automated results do not establish human run lengths or comfort.
+3. Add graze, extra aim or charge-progress feedback only if those checks demonstrate a comprehension problem. No graze mechanic or score was added.
+4. Apply achievement metadata in App Store Connect during release preparation and validate real Game Center submission. No account settings, uploads, leaderboard data or production state were changed here.
 
 The complete plan remains the source for dependencies and acceptance criteria. The four originally reproduced defects and the additional confirmed behavior inconsistencies are fixed locally; the game has not yet passed the full human balance and release matrix.
 
@@ -82,3 +80,5 @@ Follow-up measurement validation: 599 tests executed, one opt-in extended sweep 
 Matched encounter follow-up: 604 tests executed with the weapon sweep enabled, one separate director sweep skipped, zero failures. Review found and fixed injected-enemy ID collisions with production splitter children before exporting the checked-in results. No numeric defaults changed in this slice.
 
 Response tuning is now implemented: shared exponent-3 Shockwave/Freeze fronts preserve their old radius and lifetime; Power charges in 0.4 seconds. Two 864-case experiments rejected shorter-lived waves and accepted responsive fronts. See [decisions and evidence](2026-09-09-response-decisions.md). Rules version 2 resets incompatible development profiles. The reviewed full suite executed 612 tests with three opt-in sweeps skipped and zero failures; both-theme front captures were inspected. Full-run balance and physical acceptance remain open.
+
+Full-run follow-up: the reviewed 261-case natural-spawn matrix passed, including the combined safety and scoring candidate. Default recovery is now 0.3 seconds and pickups award 10 points; incompatible rules-version-2 profiles reset under version 3. The complete regression suite ran 618 tests with four opt-in exports skipped; its sole failure was a layout-equivalence fixture's obsolete 100-point pickup assumption. That fixture now checks the credited pickup category against the configured award, and the affected lifecycle suite passed on recheck. SwiftLint, diff checks and eight malformed-data validator probes passed. The comparison and retained-rule rationale are in [full-run decisions](2026-09-09-full-run-decisions.md).

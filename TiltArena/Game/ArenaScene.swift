@@ -1391,6 +1391,7 @@ extension ArenaScene {
         playEnemyClearHaptics(killCount: enemyIDs.count, previousComboMultiplier: previousComboMultiplier)
         playEnemyClearAudio(killCount: enemyIDs.count, previousComboMultiplier: previousComboMultiplier)
         if let weaponComboEvent {
+            balanceAccumulator.recordCombo(weaponComboEvent)
             recordWeaponComboFeedback(
                 weaponComboEvent,
                 previousComboMultiplier: previousComboMultiplier,
@@ -3308,15 +3309,18 @@ extension ArenaScene {
         startRun(sequenceSeed: sequenceSeed)
     }
 
-    func prepareBalanceRunForTesting(tuning: GameTuningConfiguration, seed: Int, profile: RunProfile = RunProfile()) {
+    func prepareBalanceRunForTesting(
+        tuning: GameTuningConfiguration, seed: Int, profile: RunProfile = RunProfile(), mode: ArenaModeKind = .classic
+    ) {
         runProfile = profile
+        runProfileStore.profile = profile
         gameTuning = tuning
         applyGameTuning()
         rebuildArena()
         configureWeaponEffectsRoot()
         configureUIRoot()
         if flameTrailEffectNode.parent == nil { addGameplayNode(flameTrailEffectNode) }
-        prepareActiveRunForTesting(sequenceSeed: seed)
+        prepareActiveRunForTesting(mode: mode, sequenceSeed: seed)
         lastUpdateTime = nil
     }
 
@@ -3340,6 +3344,8 @@ extension ArenaScene {
     var enemiesForTesting: [ArenaEnemy] { enemies }
     var pickupsForTesting: [WeaponPickup] { pickups }
     var scoreForTesting: Int { runController.score }
+    var maxComboForTesting: Int { runController.maxCombo }
+    var enemiesDestroyedForTesting: Int { runController.enemiesDestroyed }
     var balanceForTesting: ArenaBalanceAccumulator { balanceAccumulator }
     var scoreBreakdownForTesting: RunScoreBreakdown { runController.scoreBreakdown }
     var gameplayChildrenForTesting: [SKNode] { gameplayRoot.children }

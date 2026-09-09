@@ -336,7 +336,7 @@ final class ClassicRunControllerTests: XCTestCase {
         XCTAssertTrue(controller.recordItemPickup(pickupID: 3))
         XCTAssertFalse(controller.recordItemPickup(pickupID: 3))
 
-        XCTAssertEqual(controller.score, 50)
+        XCTAssertEqual(controller.score, 10)
         XCTAssertEqual(controller.enemiesDestroyed, 0)
         XCTAssertEqual(controller.currentCombo, 0)
     }

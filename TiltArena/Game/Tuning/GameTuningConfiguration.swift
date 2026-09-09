@@ -14,7 +14,7 @@ struct GameFeedbackTuningConfiguration: Equatable {
     var multiKillShakeAmplitude: CGFloat = 3
     var multiKillShakeDuration: TimeInterval = 0.14
     var razorShieldWarningLeadTime: TimeInterval = 0.75
-    var postWeaponSafetyDuration: TimeInterval = 0.5
+    var postWeaponSafetyDuration: TimeInterval = 0.3
     var pickupCollectionGrace: TimeInterval = 0.2
 }
 

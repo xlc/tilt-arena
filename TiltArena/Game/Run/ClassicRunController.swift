@@ -12,7 +12,7 @@ struct ClassicRunConfiguration: Equatable {
     var playerVisualRadius: CGFloat = 12
     var playerHitRadiusScale: CGFloat = 0.40
     var baseEnemyScore = 10
-    var itemPickupScore = 50
+    var itemPickupScore = 10
     var comboWindow: TimeInterval = 1.2
     var killsPerMultiplierStep = 10
     var survivalBonusStartTime: TimeInterval = 60
@@ -27,7 +27,7 @@ struct ClassicRunConfiguration: Equatable {
 }
 
 struct ArenaRunContext: Codable, Equatable {
-    static let currentRulesVersion = 2
+    static let currentRulesVersion = 3
 
     let mode: ArenaModeKind
     let sequenceSeed: Int
