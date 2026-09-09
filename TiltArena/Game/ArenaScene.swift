@@ -111,7 +111,7 @@ final class ArenaScene: SKScene {
     private var diagnosticAccumulator = ArenaDiagnosticAccumulator()
     private var balanceAccumulator = ArenaBalanceAccumulator()
     private var balanceStartingUnlockCount = 0
-    private var balanceExperimentalTuning = false
+    private var isCustomRun = false
     private let uiMargin: CGFloat = 24
     private var calibrationPreviewMovementController = PlayerMovementController()
     private var calibrationPreviewPlayerNode: PlayerCraftNode?
@@ -756,7 +756,7 @@ extension ArenaScene {
         powerWaveChargeNode = nil
         timeDilationAuraNode = nil
         audioController.stopMusic()
-        let isNewBest = (runController.finalizedSummary?.score ?? runController.score) > runSession.previousBestScore
+        let isNewBest = !isCustomRun && (runController.finalizedSummary?.score ?? runController.score) > runSession.previousBestScore
         persistFinalRunIfNeeded()
         if playFeedback {
             playAudio(.death)
@@ -798,7 +798,7 @@ extension ArenaScene {
     private func resetGameplayObjects(sequenceSeed: Int? = nil) {
         balanceAccumulator = ArenaBalanceAccumulator()
         balanceStartingUnlockCount = runSession.selectedMode == .daily ? WeaponKind.allCases.count : runProfile.unlockedWeapons.count
-        balanceExperimentalTuning = gameTuning != .defaults
+        isCustomRun = gameTuning != .defaults
         runSession.resetGameplayTransition()
         applySelectedModeTuning()
         let runSequenceSeed = sequenceSeed
@@ -823,6 +823,9 @@ extension ArenaScene {
     }
 
     private func applyGameTuning(rebuildPlayerVisuals: Bool = false) {
+        if runController.phase == .active || runController.phase == .paused {
+            isCustomRun = isCustomRun || gameTuning != .defaults
+        }
         movementController.configuration = gameTuning.playerMovement
         calibrationPreviewMovementController.configuration = gameTuning.playerMovement
         var runConfiguration = gameTuning.run
@@ -1477,6 +1480,7 @@ extension ArenaScene {
     }
 
     private func reportGameCenterAchievementEvent(_ event: GameCenterAchievementEvent) {
+        guard !isCustomRun else { return }
         gameCenterReporter.reportAchievementEvent(event)
     }
 
@@ -2023,7 +2027,7 @@ extension ArenaScene {
     }
 
     private func persistFinalRunIfNeeded() {
-        guard runSession.needsFinalRunPersistence, let summary = runController.finalizedSummary else {
+        guard !isCustomRun, runSession.needsFinalRunPersistence, let summary = runController.finalizedSummary else {
             return
         }
 
@@ -2570,19 +2574,20 @@ private extension ArenaScene {
         )
         let summary = runController.finalizedSummary
 
-        renderPostRunScore(summary: summary, layout: layout)
         addDeathReplayTrace()
         addDeathClarityMarker(
             snapshot: runSession.lastDeathCollisionSnapshot,
             fallbackPosition: movementController.state.position
         )
-        let highlights = Array(ArenaMenuContent.postRunHighlights(
+        let highlights = ArenaMenuContent.postRunHighlights(
             summary: summary,
             profile: runProfile,
             previousBestScore: runSession.previousBestScore,
-            progressionResult: runSession.progressionResult
-        ).dropFirst())
-        uiRenderer.addPostRunHighlights(highlights, frame: postRunHighlightsFrame(layout: layout))
+            progressionResult: runSession.progressionResult,
+            isCustomRun: isCustomRun
+        )
+        renderPostRunScore(summary: summary, recordText: highlights[0], layout: layout)
+        uiRenderer.addPostRunHighlights(Array(highlights.dropFirst()), frame: postRunHighlightsFrame(layout: layout))
         uiRenderer.addPostRunButtons(layout: layout)
     }
 
@@ -2598,7 +2603,7 @@ private extension ArenaScene {
         )
     }
 
-    func renderPostRunScore(summary: RunSummary?, layout: ArenaLandscapeUILayout) {
+    func renderPostRunScore(summary: RunSummary?, recordText: String, layout: ArenaLandscapeUILayout) {
         uiRenderer.addLabel(
             "RUN OVER",
             at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 34),
@@ -2614,7 +2619,7 @@ private extension ArenaScene {
             alignment: .left
         )
         uiRenderer.addLabel(
-            summary?.score ?? 0 > runSession.previousBestScore ? "NEW BEST" : "BEST \(selectedModeRecord.bestScore)",
+            recordText,
             at: CGPoint(x: layout.safeRect.minX, y: layout.safeRect.maxY - 126),
             fontSize: 11,
             color: theme.playerAccentColor,
@@ -2962,7 +2967,7 @@ private extension ArenaScene {
 
         for event in balanceAccumulator.events(
             summary: summary, score: runController.scoreBreakdown,
-            experimental: balanceExperimentalTuning, arenaSize: currentGameplayBounds.size,
+            experimental: isCustomRun, arenaSize: currentGameplayBounds.size,
             unlockedWeapons: balanceStartingUnlockCount
         ) {
             runLogger.info("\(event.name)", metadata: event.metadata)

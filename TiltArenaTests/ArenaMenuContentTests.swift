@@ -119,5 +119,13 @@ final class ArenaMenuContentTests: XCTestCase {
         XCTAssertTrue(highlights.contains("UNLOCK FREEZE BURST"))
         XCTAssertTrue(highlights.contains("AWARDS COMBO SPARK, ENEMY SWEEP"))
         XCTAssertEqual(highlights.last, "NEXT GRAVITY WELL 50/100 KILLS")
+
+        let customHighlights = ArenaMenuContent.postRunHighlights(
+            summary: summary, profile: profile, previousBestScore: 500,
+            progressionResult: result, isCustomRun: true
+        )
+        XCTAssertEqual(customHighlights.first, "CUSTOM RUN · NOT SAVED")
+        XCTAssertTrue(customHighlights.contains("WEAPON SHOCKWAVE"))
+        XCTAssertFalse(customHighlights.contains { $0.hasPrefix("UNLOCK") || $0.hasPrefix("AWARDS") || $0.hasPrefix("NEXT") })
     }
 }

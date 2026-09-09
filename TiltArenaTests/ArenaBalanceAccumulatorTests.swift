@@ -4,6 +4,56 @@ import XCTest
 
 final class ArenaBalanceAccumulatorTests: XCTestCase {
     @MainActor
+    func testCustomTuningDoesNotSaveRecordsOrReportGameCenterAndResetsForTheNextRun() throws {
+        for startsCustom in [false, true] {
+            let suite = "ArenaCustomRunTests.\(UUID())"
+            let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+            defer { defaults.removePersistentDomain(forName: suite) }
+            let store = RunProfileStore(defaults: defaults)
+            let tuningStore = GameTuningStore(defaults: defaults)
+            if startsCustom {
+                var tuning = GameTuningConfiguration.defaults
+                tuning.run.itemPickupScore += 1
+                tuningStore.tuning = tuning
+            }
+            let reporter = CustomRunReporter()
+            let scene = ArenaScene(
+                size: CGSize(width: 718, height: 377),
+                tiltSettingsStore: TiltSettingsStore(defaults: defaults),
+                runProfileStore: store,
+                localOptionsStore: ArenaLocalOptionsStore(defaults: defaults),
+                gameTuningStore: tuningStore,
+                gameCenterReporter: reporter
+            )
+            scene.prepareActiveRunForTesting()
+            scene.pauseRunForTesting()
+            if !startsCustom { scene.adjustTuningParameterForTesting(id: "run.itemPickupScore", direction: .increase) }
+            scene.adjustTuningParameterForTesting(id: "run.itemPickupScore", direction: .decrease)
+            scene.resumeRunForTesting()
+            scene.collectWeaponForTesting(.shockwave)
+            scene.finishRunForTesting()
+
+            XCTAssertEqual(store.profile, RunProfile())
+            XCTAssertTrue(reporter.scores.isEmpty)
+            XCTAssertTrue(reporter.events.isEmpty)
+            if !startsCustom {
+                let image = try SnapshotImageRenderer.render(scene: scene)
+                let attachment = XCTAttachment(image: image)
+                attachment.name = "custom-run-not-saved"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+            }
+
+            scene.prepareActiveRunForTesting()
+            scene.collectWeaponForTesting(.shockwave)
+            scene.finishRunForTesting()
+            XCTAssertEqual(store.profile.totalRuns, 1)
+            XCTAssertEqual(reporter.scores.count, 1)
+            XCTAssertFalse(reporter.events.isEmpty)
+        }
+    }
+
+    @MainActor
     func testFamilyCountersFollowQualifiedClearsAndResetWithTheRun() throws {
         let harness = try ArenaBalanceHarness()
         defer { harness.close() }
@@ -193,4 +243,13 @@ final class ArenaBalanceAccumulatorTests: XCTestCase {
         XCTAssertTrue(scene.balanceForTesting.weapons.isEmpty)
         XCTAssertEqual(scene.balanceForTesting.protectedSeconds, 0)
     }
+}
+
+@MainActor
+private final class CustomRunReporter: GameCenterRunReporting {
+    var scores: [RunSummary] = []
+    var events: [GameCenterAchievementEvent] = []
+
+    func submitRunScore(_ summary: RunSummary) { scores.append(summary) }
+    func reportAchievementEvent(_ event: GameCenterAchievementEvent) { events.append(event) }
 }

@@ -52,15 +52,13 @@ extension ArenaUIRenderer {
             style: menu.changedCount == 0 ? .secondary : .danger
         )
 
-        if let developerTuningCopyConfirmation = menu.confirmation {
-            addLabel(
-                developerTuningCopyConfirmation,
-                at: CGPoint(x: layout.safeRect.maxX - 14, y: layout.safeRect.maxY - 66),
-                fontSize: 9,
-                color: theme.playerAccentColor,
-                alignment: .right
-            )
-        }
+        addLabel(
+            menu.confirmation ?? "TUNED RUNS ARE NOT SAVED",
+            at: CGPoint(x: layout.safeRect.maxX - 14, y: layout.safeRect.maxY - 66),
+            fontSize: 9,
+            color: theme.playerAccentColor,
+            alignment: .right
+        )
     }
 
     private func renderDeveloperTuningSelector(

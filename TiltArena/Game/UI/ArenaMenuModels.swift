@@ -83,14 +83,16 @@ struct ArenaMenuContent {
         summary: RunSummary?,
         profile: RunProfile,
         previousBestScore: Int,
-        progressionResult: ArenaProgressionResult? = nil
+        progressionResult: ArenaProgressionResult? = nil,
+        isCustomRun: Bool = false
     ) -> [String] {
         guard let summary else {
             return ["NO RUN SUMMARY"]
         }
 
         let record = profile.competitiveRecord(for: summary.mode, seed: summary.sequenceSeed)
-        let bestText = summary.score > previousBestScore ? "NEW BEST" : "BEST \(record.bestScore)"
+        let bestText = isCustomRun ? "CUSTOM RUN · NOT SAVED"
+            : summary.score > previousBestScore ? "NEW BEST" : "BEST \(record.bestScore)"
         var highlights = [
             bestText,
             "TIME \(formatTime(summary.survivalTime))",
@@ -98,6 +100,7 @@ struct ArenaMenuContent {
             "KILLS \(summary.enemiesDestroyed)",
             "WEAPON \(summary.bestWeapon?.displayName.uppercased() ?? "NONE")"
         ]
+        if isCustomRun { return highlights }
 
         if summary.mode == .daily {
             let delta = summary.score - previousBestScore
