@@ -3,7 +3,7 @@ import XCTest
 @testable import TiltArena
 
 final class EnemySpawnDirectorBalanceTests: XCTestCase {
-    private enum Threat: CaseIterable, Hashable {
+    private enum Threat: String, CaseIterable, Hashable {
         case chaser
         case formation
         case arrowRush
@@ -17,6 +17,8 @@ final class EnemySpawnDirectorBalanceTests: XCTestCase {
         var firstAppearance: [Threat: TimeInterval] = [:]
         var counts: [Threat: Int] = [:]
         var lateCounts: [Threat: Int] = [:]
+        var peakPopulation = 0
+        var secondsAtCapacity: TimeInterval = 0
     }
 
     private struct IntroductionWindow {
@@ -27,7 +29,7 @@ final class EnemySpawnDirectorBalanceTests: XCTestCase {
 
     private struct SimulationContext {
         let configuration: EnemySpawnConfiguration
-        let playableRect = CGRect(x: 97, y: 38, width: 658, height: 317)
+        let playableRect = ArenaGeometry.logicalGameplayBounds.insetBy(dx: 30, dy: 30)
         let deltaTime: TimeInterval
         let frameCount: Int
 
@@ -180,13 +182,41 @@ final class EnemySpawnDirectorBalanceTests: XCTestCase {
         }
     }
 
-    private func simulate(mode: ArenaModeKind, framesPerSecond: Int, duration: Int = 180) -> SpawnSummary {
+    func testExportExtendedSpawnBaseline() throws {
+        guard ProcessInfo.processInfo.environment["TILT_BALANCE_SWEEP"] == "1" else {
+            throw XCTSkip("Set TILT_BALANCE_SWEEP=1 for the 600-second balance sweep.")
+        }
+        var rows = [["mode", "seed", "fps", "duration_s", "residence_s", "role", "total_spawned",
+                     "spawned_after_180_s", "first_spawn_s", "peak_reserved_population", "seconds_at_capacity"].joined(separator: ",")]
+        for mode in [ArenaModeKind.classic, .redline] {
+            for seed in [20_260_726, 91] {
+                for residence: TimeInterval in [6, 20, 60] {
+                    let summary = simulate(mode: mode, framesPerSecond: 60, duration: 600,
+                                           simulatedClearDelay: residence, seed: seed)
+                    for role in Threat.allCases {
+                        let fields = [mode.rawValue, String(seed), "60", "600", String(residence), role.rawValue,
+                                      String(summary.counts[role, default: 0]), String(summary.lateCounts[role, default: 0]),
+                                      summary.firstAppearance[role].map { String(format: "%.3f", $0) } ?? "",
+                                      String(summary.peakPopulation), String(format: "%.3f", summary.secondsAtCapacity)]
+                        rows.append(fields.joined(separator: ","))
+                    }
+                }
+            }
+        }
+        let attachment = XCTAttachment(data: Data((rows.joined(separator: "\n") + "\n").utf8),
+                                       uniformTypeIdentifier: "public.comma-separated-values-text")
+        attachment.name = "spawn-baseline.csv"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    private func simulate(mode: ArenaModeKind, framesPerSecond: Int, duration: Int = 180,
+                          simulatedClearDelay: TimeInterval = 6, seed: Int = 20_260_726) -> SpawnSummary {
         let context = SimulationContext(mode: mode, framesPerSecond: framesPerSecond, duration: duration)
         var director = EnemySpawnDirector(
             configuration: context.configuration,
-            sequenceSeed: 20_260_726
+            sequenceSeed: seed
         )
-        let simulatedClearDelay: TimeInterval = 6
         var summary = SpawnSummary()
         var activeEnemies: [ArenaEnemy] = []
         var spawnTimes: [Int: TimeInterval] = [:]
@@ -212,6 +242,11 @@ final class EnemySpawnDirectorBalanceTests: XCTestCase {
                 }
             }
             activeEnemies.append(contentsOf: frame.newEnemies)
+            let reservedPopulation = activeEnemies.count + director.pendingEnemyCount
+            summary.peakPopulation = max(summary.peakPopulation, reservedPopulation)
+            let cap = context.configuration.tuning(at: survivalTime).maxActiveEnemies
+            XCTAssertLessThanOrEqual(reservedPopulation, cap)
+            if reservedPopulation == cap { summary.secondsAtCapacity += context.deltaTime }
 
             advancePopulation(
                 &activeEnemies,
