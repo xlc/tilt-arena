@@ -88,4 +88,13 @@ final class WeaponImpactPlanTests: XCTestCase {
 
         XCTAssertEqual(scene.weaponEffectNodeCountForTesting, 2)
     }
+
+    func testChargedActivationKeepsItsDrawingBudgetBounded() {
+        for tier in [WeaponPickupChargeTier.charged, .overcharged] {
+            let scene = ArenaScene(size: CGSize(width: 320, height: 240))
+            scene.playChargedWeaponActivationEffect(kind: .novaBomb, at: CGPoint(x: 160, y: 120), chargeTier: tier)
+
+            XCTAssertLessThanOrEqual(scene.weaponEffectNodeCountForTesting, 5)
+        }
+    }
 }

@@ -23,43 +23,59 @@ extension ArenaScene {
             radius: radius,
             strokeColor: theme.pickupAmber.withAlphaComponent(0.95),
             fillColor: .clear,
-            lineWidth: 2.6,
-            glowWidth: 1.8
+            lineWidth: 3.2,
+            glowWidth: theme.kind == .darkTacticalRadar ? 1.4 : 0.3
         )
         ring.position = position
         ring.setScale(0.08)
+        let crest = makeEffectRing(
+            radius: radius, strokeColor: theme.playerColor.withAlphaComponent(0.82),
+            fillColor: .clear, lineWidth: 0.9, glowWidth: 0
+        )
+        crest.zPosition = 0.1
+        ring.addChild(crest)
         addWeaponEffectNode(ring)
         playWeaponEffectSprite(.shockwave, at: position, size: radius * 2.05, alpha: 0.42)
         playShockwaveEcho(at: position, radius: radius, duration: expansionDuration)
 
-        for index in 0..<8 {
-            let angle = CGFloat(index) * .pi / 4
-            let spoke = SKShapeNode(path: Self.radialLinePath(
-                innerRadius: radius * 0.82, outerRadius: radius, angle: angle
-            ))
-            spoke.position = position
-            spoke.strokeColor = theme.pickupAmber.withAlphaComponent(0.38)
-            spoke.lineWidth = 1
-            spoke.glowWidth = 0.7
-            spoke.zPosition = 18
-            spoke.alpha = 0
-            addWeaponEffectNode(spoke)
-            spoke.run(.sequence([
-                .wait(forDuration: expansionDuration * 0.1),
-                .fadeAlpha(to: 0.55, duration: expansionDuration * 0.15),
-                .group([
-                    .fadeAlpha(to: 0.12, duration: expansionDuration * 0.75),
-                    .scale(to: 1.02, duration: expansionDuration * 0.75)
-                ]),
-                .fadeOut(withDuration: fadeDuration),
-                .removeFromParent()
-            ]))
-        }
+        playShockwaveSpokes(at: position, radius: radius, duration: expansionDuration, fadeDuration: fadeDuration)
 
         ring.run(.sequence([
             .group([
                 .scale(to: 1, duration: expansionDuration),
                 .fadeAlpha(to: 0.62, duration: expansionDuration)
+            ]),
+            .fadeOut(withDuration: fadeDuration),
+            .removeFromParent()
+        ]))
+    }
+
+    private func playShockwaveSpokes(
+        at position: CGPoint,
+        radius: CGFloat,
+        duration: TimeInterval,
+        fadeDuration: TimeInterval
+    ) {
+        let spokePath = CGMutablePath()
+        for index in 0..<8 {
+            let angle = CGFloat(index) * .pi / 4
+            spokePath.addPath(Self.radialLinePath(
+                innerRadius: radius * 0.86, outerRadius: radius, angle: angle
+            ))
+        }
+        let spokes = SKShapeNode(path: spokePath)
+        spokes.position = position
+        spokes.strokeColor = theme.pickupAmber.withAlphaComponent(0.72)
+        spokes.lineWidth = 1.3
+        spokes.lineCap = .round
+        spokes.zPosition = 17.5
+        spokes.setScale(0.08)
+        addWeaponEffectNode(spokes)
+        // Keep the accents on the visible wavefront throughout expansion.
+        spokes.run(.sequence([
+            .group([
+                .scale(to: 1, duration: duration),
+                .fadeAlpha(to: 0.25, duration: duration)
             ]),
             .fadeOut(withDuration: fadeDuration),
             .removeFromParent()

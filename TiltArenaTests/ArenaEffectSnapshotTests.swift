@@ -1,3 +1,4 @@
+import ImageIO
 import SnapshotTesting
 import SpriteKit
 import UIKit
@@ -27,8 +28,77 @@ final class ArenaEffectSnapshotTests: XCTestCase {
         assertSnapshot(of: try makeCrowdedGameplayImage(themeKind: .whitePrecisionBoard), as: .image(precision: 0.99))
     }
 
+    func testEffectsFinishPlaybackWithoutLeavingNodes() async throws {
+        let windowScene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: windowScene)
+        let controller = UIViewController()
+        let view = SKView(frame: CGRect(origin: .zero, size: sceneSize))
+        view.ignoresSiblingOrder = true
+        view.contentScaleFactor = 1
+        controller.view = view
+        window.rootViewController = controller
+        window.isHidden = false
+        defer {
+            view.presentScene(nil)
+            window.isHidden = true
+        }
+
+        for themeKind in [ArenaThemeKind.darkTacticalRadar, .whitePrecisionBoard] {
+            let scene = try makeScene(size: sceneSize)
+            scene.scaleMode = .aspectFit
+            view.presentScene(scene)
+            scene.prepareEffectSnapshotForTesting(themeKind: themeKind)
+            addTrailExample(to: scene, theme: themeKind.theme)
+            addTelegraphExample(to: scene, theme: themeKind.theme)
+            addPickupExamples(to: scene, theme: themeKind.theme)
+            addWeaponEffectExamples(to: scene)
+            let completed = expectation(description: "Effects complete in \(themeKind)")
+            scene.run(.sequence([.wait(forDuration: 2.2), .run { completed.fulfill() }]), withKey: "preview.completion")
+            if ProcessInfo.processInfo.environment["TILT_RECORD_EFFECT_PREVIEWS"] == "1" {
+                try await recordPlayback(scene: scene, view: view, name: "effects-\(themeKind)")
+            }
+            await fulfillment(of: [completed], timeout: 8)
+            XCTAssertEqual(scene.weaponEffectNodeCountForTesting, 0)
+        }
+    }
+
+    private func recordPlayback(scene: ArenaScene, view: SKView, name: String) async throws {
+        var frames: [(image: CGImage, time: TimeInterval)] = []
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: sceneSize, format: format)
+        // Capture between frames, outside SpriteKit's action evaluation.
+        for _ in 0..<40 {
+            try await Task.sleep(for: .milliseconds(40))
+            let texture = try XCTUnwrap(view.texture(from: scene))
+            let image = renderer.image { _ in
+                UIImage(cgImage: texture.cgImage()).draw(in: CGRect(origin: .zero, size: sceneSize))
+            }
+            frames.append((try XCTUnwrap(image.cgImage), CACurrentMediaTime()))
+        }
+        try attachPlayback(frames, name: name)
+    }
+
+    private func attachPlayback(_ frames: [(image: CGImage, time: TimeInterval)], name: String) throws {
+        let data = NSMutableData()
+        let destination = try XCTUnwrap(CGImageDestinationCreateWithData(data, "com.compuserve.gif" as CFString, frames.count, nil))
+        CGImageDestinationSetProperties(destination, [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFLoopCount: 0]] as CFDictionary)
+        for (index, frame) in frames.enumerated() {
+            let delay = index + 1 < frames.count ? frames[index + 1].time - frame.time : 0.12
+            CGImageDestinationAddImage(destination, frame.image, [
+                kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFDelayTime: max(0.02, delay)]
+            ] as CFDictionary)
+        }
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
+        let attachment = XCTAttachment(data: data as Data, uniformTypeIdentifier: "com.compuserve.gif")
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     private func makeCrowdedGameplayImage(themeKind: ArenaThemeKind) throws -> UIImage {
-        let scene = ArenaScene(size: CGSize(width: 720, height: 360))
+        let scene = try makeScene(size: CGSize(width: 720, height: 360))
         let theme = themeKind.theme
         return try SnapshotImageRenderer.render(scene: scene) {
             scene.prepareEffectSnapshotForTesting(themeKind: themeKind)
@@ -61,7 +131,7 @@ final class ArenaEffectSnapshotTests: XCTestCase {
     }
 
     private func makeEffectMotionImage(themeKind: ArenaThemeKind) throws -> UIImage {
-        let scene = ArenaScene(size: sceneSize)
+        let scene = try makeScene(size: sceneSize)
         scene.scaleMode = .resizeFill
 
         return try SnapshotImageRenderer.render(scene: scene) {
@@ -71,7 +141,25 @@ final class ArenaEffectSnapshotTests: XCTestCase {
             addPickupExamples(to: scene, theme: themeKind.theme)
             addWeaponEffectExamples(to: scene)
             scene.revealWeaponEffectsForSnapshotTesting()
+            stageExpandedEffects(in: scene)
         }
+    }
+
+    private func makeScene(size: CGSize) throws -> ArenaScene {
+        let suiteName = "TiltArena.ArenaEffectSnapshotTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        addTeardownBlock {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+        let localOptionsStore = ArenaLocalOptionsStore(defaults: defaults)
+        localOptionsStore.options = ArenaLocalOptions(audioEnabled: false, hapticsEnabled: false)
+        return ArenaScene(
+            size: size,
+            tiltSettingsStore: TiltSettingsStore(defaults: defaults),
+            runProfileStore: RunProfileStore(defaults: defaults),
+            localOptionsStore: localOptionsStore,
+            gameTuningStore: GameTuningStore(defaults: defaults)
+        )
     }
 
     private func addTrailExample(to scene: SKScene, theme: ArenaTheme) {
@@ -137,10 +225,11 @@ final class ArenaEffectSnapshotTests: XCTestCase {
         )
         scene.playShockwaveEffect(
             at: CGPoint(x: 150, y: 286),
+            radius: 110,
             duration: 0.28,
             holdDuration: 0.04
         )
-        scene.playFreezeBurstEffect(at: CGPoint(x: 344, y: 286), duration: 0.28)
+        scene.playFreezeBurstEffect(at: CGPoint(x: 344, y: 286), radius: 100, duration: 0.28)
         _ = scene.playTimeDilationAuraEffect(
             at: CGPoint(x: 552, y: 300),
             radius: 72,

@@ -17,10 +17,10 @@ extension ArenaScene {
         )
         let ring = makeEffectRing(
             radius: radius,
-            strokeColor: theme.pickupBlue.withAlphaComponent(0.66),
+            strokeColor: theme.pickupBlue.withAlphaComponent(0.88),
             fillColor: .clear,
-            lineWidth: 1.6,
-            glowWidth: 1.25
+            lineWidth: 1.8,
+            glowWidth: theme.kind == .darkTacticalRadar ? 0.8 : 0
         )
         ring.position = position
         ring.setScale(0.08)
@@ -43,8 +43,9 @@ extension ArenaScene {
         ring.run(.sequence([
             .group([
                 .scale(to: 1, duration: duration),
-                .fadeOut(withDuration: duration)
+                .fadeAlpha(to: 0.42, duration: duration)
             ]),
+            .fadeOut(withDuration: 0.12),
             .removeFromParent()
         ]))
         innerRing.run(.sequence([
@@ -78,34 +79,35 @@ extension ArenaScene {
     }
 
     private func playFreezeShardSpokes(at position: CGPoint, radius: CGFloat, duration: TimeInterval) {
-        for index in 0..<6 {
-            let shard = SKShapeNode(path: Self.freezeShardPath(
-                innerRadius: radius * 0.62,
-                outerRadius: radius * 0.88,
-                angle: CGFloat(index) * .pi / 3
-            ))
-            shard.position = position
-            shard.strokeColor = theme.playerColor.withAlphaComponent(0.5)
-            shard.lineWidth = 0.9
-            shard.lineCap = .round
-            shard.glowWidth = 0.65
-            shard.zPosition = 18
-            shard.alpha = 0
-            shard.setScale(0.08)
-            addWeaponEffectNode(shard)
-            shard.run(.sequence([
-                .wait(forDuration: duration * 0.08),
-                .group([.fadeAlpha(to: 0.62, duration: duration * 0.22), .scale(to: 1, duration: duration * 0.55)]),
-                .fadeOut(withDuration: duration * 0.25),
-                .removeFromParent()
-            ]))
-        }
-    }
-
-    private static func freezeShardPath(innerRadius: CGFloat, outerRadius: CGFloat, angle: CGFloat) -> CGPath {
         let path = CGMutablePath()
-        path.move(to: CGPoint(x: cos(angle) * innerRadius, y: sin(angle) * innerRadius))
-        path.addLine(to: CGPoint(x: cos(angle) * outerRadius, y: sin(angle) * outerRadius))
-        return path
+        for index in 0..<6 {
+            let angle = CGFloat(index) * .pi / 3
+            let direction = CGVector(dx: cos(angle), dy: sin(angle))
+            let normal = CGVector(dx: -direction.dy, dy: direction.dx)
+            path.move(to: CGPoint(x: direction.dx * radius * 0.94, y: direction.dy * radius * 0.94))
+            path.addLine(to: CGPoint(
+                x: (direction.dx * 0.74 + normal.dx * 0.035) * radius,
+                y: (direction.dy * 0.74 + normal.dy * 0.035) * radius
+            ))
+            path.addLine(to: CGPoint(x: direction.dx * radius * 0.6, y: direction.dy * radius * 0.6))
+            path.addLine(to: CGPoint(
+                x: (direction.dx * 0.74 - normal.dx * 0.035) * radius,
+                y: (direction.dy * 0.74 - normal.dy * 0.035) * radius
+            ))
+            path.closeSubpath()
+        }
+        let shards = SKShapeNode(path: path)
+        shards.position = position
+        shards.fillColor = theme.pickupBlue.withAlphaComponent(0.3)
+        shards.strokeColor = theme.playerColor.withAlphaComponent(0.72)
+        shards.lineWidth = 0.8
+        shards.zPosition = 18.1
+        shards.setScale(0.08)
+        addWeaponEffectNode(shards)
+        shards.run(.sequence([
+            .group([.scale(to: 1, duration: duration), .fadeAlpha(to: 0.5, duration: duration)]),
+            .fadeOut(withDuration: 0.14),
+            .removeFromParent()
+        ]))
     }
 }

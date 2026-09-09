@@ -71,18 +71,18 @@ extension ArenaScene {
         let ring = makeEffectRing(
             radius: baseRadius,
             strokeColor: color.withAlphaComponent(0.86),
-            fillColor: color.withAlphaComponent(0.1 + level * 0.02),
+            fillColor: .clear,
             lineWidth: 1.4 + level * 0.35,
             glowWidth: 1.1 + level * 0.35
         )
         ring.position = position
-        ring.zPosition = 21
+        ring.zPosition = 18.4
         ring.alpha = 0
         ring.setScale(0.34)
         addWeaponEffectNode(ring)
         ring.run(Self.chargedActivationRingAction(scale: chargeTier == .overcharged ? 1.38 : 1.22))
 
-        let sprite = makeWeaponEffectSprite(kind: kind, size: baseRadius * 1.18, zPosition: 22)
+        let sprite = makeWeaponEffectSprite(kind: kind, size: baseRadius * 0.85, zPosition: 18.6)
         sprite.position = position
         sprite.alpha = 0
         sprite.setScale(0.58)
@@ -108,7 +108,7 @@ extension ArenaScene {
             glowWidth: 1.25
         )
         overchargeRing.position = position
-        overchargeRing.zPosition = 20
+        overchargeRing.zPosition = 18.2
         overchargeRing.alpha = 0
         overchargeRing.setScale(0.28)
         addWeaponEffectNode(overchargeRing)
@@ -153,19 +153,20 @@ extension ArenaScene {
         radius: CGFloat,
         delay: TimeInterval
     ) {
-        playImpactResidueSplash(at: position, color: color, coreColor: coreColor, radius: radius, delay: delay)
+        playImpactResidueSplash(at: position, coreColor: coreColor, radius: radius, delay: delay)
 
         let shards = SKShapeNode(path: Self.motionPolishShardBurstPath(
-            innerRadius: radius * 0.32,
-            outerRadius: radius * 1.05
+            innerRadius: radius * 0.65,
+            outerRadius: radius * 1.3
         ))
         shards.position = position
-        shards.strokeColor = color.withAlphaComponent(0.46)
-        shards.lineWidth = 0.85
+        shards.strokeColor = color.withAlphaComponent(0.9)
+        shards.lineWidth = 1.25
         shards.lineCap = .round
-        shards.glowWidth = 0.5
-        shards.zPosition = 20
+        shards.glowWidth = theme.kind == .darkTacticalRadar ? 0.65 : 0
+        shards.zPosition = 19.2
         shards.alpha = 0
+        shards.setScale(0.35)
         addWeaponEffectNode(shards)
         shards.run(Self.motionPolishShardAction(delay: delay + 0.01))
     }
@@ -217,24 +218,28 @@ private extension ArenaScene {
         chargeTier: WeaponPickupChargeTier
     ) {
         let tickCount = chargeTier == .overcharged ? 12 : 8
+        let paths = [CGMutablePath(), CGMutablePath()]
         for index in 0..<tickCount {
             let angle = CGFloat(index) * (2 * .pi / CGFloat(tickCount))
-            let tick = SKShapeNode(path: Self.motionPolishRadialLinePath(
+            let isHighlight = chargeTier == .overcharged && index.isMultiple(of: 2)
+            paths[isHighlight ? 1 : 0].addPath(Self.radialLinePath(
                 innerRadius: radius * 0.74,
-                outerRadius: radius * (chargeTier == .overcharged ? 1.34 : 1.14),
+                outerRadius: radius * (chargeTier == .overcharged ? 1.24 : 1.08),
                 angle: angle
             ))
+        }
+        for (index, path) in paths.enumerated() where !path.isEmpty {
+            let tick = SKShapeNode(path: path)
             tick.position = position
-            tick.strokeColor = chargeTier == .overcharged && index.isMultiple(of: 2)
-                ? theme.playerColor.withAlphaComponent(0.74)
-                : color.withAlphaComponent(chargeTier == .overcharged ? 0.78 : 0.58)
+            tick.strokeColor = (index == 1 ? theme.playerColor : color).withAlphaComponent(0.84)
             tick.lineWidth = chargeTier == .overcharged ? 1.2 : 0.9
             tick.lineCap = .round
-            tick.glowWidth = chargeTier == .overcharged ? 0.85 : 0.55
-            tick.zPosition = 22
+            tick.glowWidth = theme.kind == .darkTacticalRadar ? 0.6 : 0
+            tick.zPosition = 18.8
             tick.alpha = 0
+            tick.setScale(0.55)
             addWeaponEffectNode(tick)
-            tick.run(Self.chargedActivationTickAction(delay: TimeInterval(index) * 0.004))
+            tick.run(Self.chargedActivationTickAction(delay: TimeInterval(index) * 0.02))
         }
     }
 
@@ -361,18 +366,23 @@ private extension ArenaScene {
 
     func playImpactResidueSplash(
         at position: CGPoint,
-        color: SKColor,
         coreColor: SKColor,
         radius: CGFloat,
         delay: TimeInterval
     ) {
-        let splash = makeEffectRing(
-            radius: radius * 1.42,
-            strokeColor: coreColor.withAlphaComponent(0.34),
-            fillColor: color.withAlphaComponent(0.05),
-            lineWidth: 0.9,
-            glowWidth: 0.65
-        )
+        let arcs = CGMutablePath()
+        for index in 0..<3 {
+            let start = CGFloat(index) * .pi * 2 / 3 + .pi / 8
+            arcs.move(to: CGPoint(x: cos(start) * radius, y: sin(start) * radius))
+            arcs.addArc(center: .zero, radius: radius, startAngle: start, endAngle: start + .pi / 3, clockwise: false)
+        }
+        let splash = SKShapeNode(path: arcs)
+        splash.strokeColor = coreColor.withAlphaComponent(0.58)
+        splash.fillColor = .clear
+        splash.lineWidth = 1
+        splash.glowWidth = 0.35
+        splash.zPosition = 18
+        splash.lineCap = .round
         splash.position = position
         splash.alpha = 0
         splash.setScale(0.5)
@@ -412,27 +422,23 @@ private extension ArenaScene {
     }
 
     static func motionPolishShardAction(delay: TimeInterval) -> SKAction {
-        .sequence([
+        let expansion = SKAction.scale(to: 1.45, duration: 0.22)
+        expansion.timingMode = .easeOut
+        return .sequence([
             .wait(forDuration: max(0, delay)),
-            .fadeAlpha(to: 0.86, duration: 0.02),
-            .group([.scale(to: 1.18, duration: 0.1), .fadeOut(withDuration: 0.1)]),
+            .fadeAlpha(to: 1, duration: 0.015),
+            .group([expansion, .fadeOut(withDuration: 0.22)]),
             .removeFromParent()
         ])
-    }
-
-    static func motionPolishRadialLinePath(innerRadius: CGFloat, outerRadius: CGFloat, angle: CGFloat) -> CGPath {
-        let path = CGMutablePath()
-        path.move(to: CGPoint(x: cos(angle) * innerRadius, y: sin(angle) * innerRadius))
-        path.addLine(to: CGPoint(x: cos(angle) * outerRadius, y: sin(angle) * outerRadius))
-        return path
     }
 
     static func motionPolishShardBurstPath(innerRadius: CGFloat, outerRadius: CGFloat) -> CGPath {
         let path = CGMutablePath()
         for index in 0..<6 {
             let angle = CGFloat(index) * .pi / 3 + .pi / 9
+            let length = outerRadius * (index.isMultiple(of: 2) ? 1 : 0.72)
             path.move(to: CGPoint(x: cos(angle) * innerRadius, y: sin(angle) * innerRadius))
-            path.addLine(to: CGPoint(x: cos(angle) * outerRadius, y: sin(angle) * outerRadius))
+            path.addLine(to: CGPoint(x: cos(angle) * length, y: sin(angle) * length))
         }
         return path
     }
@@ -486,12 +492,14 @@ private extension ArenaScene {
     }
 
     static func chargedActivationTickAction(delay: TimeInterval) -> SKAction {
-        .sequence([
+        let expansion = SKAction.scale(to: 1.28, duration: 0.18)
+        expansion.timingMode = .easeOut
+        return .sequence([
             .wait(forDuration: max(0, delay)),
             .fadeAlpha(to: 0.9, duration: 0.02),
             .group([
-                .scale(to: 1.2, duration: 0.1),
-                .fadeOut(withDuration: 0.11)
+                expansion,
+                .fadeOut(withDuration: 0.18)
             ]),
             .removeFromParent()
         ])

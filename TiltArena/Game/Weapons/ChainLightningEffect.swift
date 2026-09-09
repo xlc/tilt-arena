@@ -9,7 +9,7 @@ extension ArenaScene {
         onComplete: (() -> Void)? = nil
     ) {
         let configuration = (configuration ?? weaponResolver.configuration).sanitizedForRuntime()
-        let accentColor = theme.playerAccentColor
+        let accentColor = theme.weaponColor(for: .chainLightning)
         let coreColor = theme.playerColor
         let targetPositions = targets.isEmpty
             ? [randomChainFallbackTarget(from: origin, configuration: configuration)]
@@ -108,18 +108,20 @@ extension ArenaScene {
         accentColor: SKColor,
         coreColor: SKColor
     ) {
-        let segment = SKShapeNode(path: Self.chainSegmentPath(from: start, to: end))
-        segment.strokeColor = accentColor.withAlphaComponent(0.38)
-        segment.lineWidth = 3.4
-        segment.glowWidth = 1.35
+        let path = Self.chainSegmentPath(from: start, to: end)
+        let segment = SKShapeNode(path: path)
+        segment.strokeColor = accentColor.withAlphaComponent(0.8)
+        segment.lineWidth = 2.8
+        segment.glowWidth = theme.kind == .darkTacticalRadar ? 1.1 : 0
         segment.zPosition = 18
         segment.alpha = 0
         addWeaponEffectNode(segment)
 
-        let core = SKShapeNode(path: Self.chainSegmentPath(from: start, to: end))
-        core.strokeColor = coreColor.withAlphaComponent(0.72)
-        core.lineWidth = 1.1
-        core.glowWidth = 0.45
+        let core = SKShapeNode(path: path)
+        core.strokeColor = coreColor.withAlphaComponent(0.88)
+        core.lineWidth = 0.8
+        core.glowWidth = 0
+        core.zPosition = 0.1
         segment.addChild(core)
 
         segment.run(.sequence([
@@ -157,7 +159,7 @@ extension ArenaScene {
         onImpact: ((Set<Int>) -> Void)?,
         onComplete: (() -> Void)?
     ) {
-        let accentColor = theme.playerAccentColor
+        let accentColor = theme.weaponColor(for: .chainLightning)
         let coreColor = theme.playerColor
         let ring = SKShapeNode(circleOfRadius: 16)
         ring.position = position
@@ -169,7 +171,6 @@ extension ArenaScene {
         ring.alpha = 0
         ring.setScale(0.35)
         addWeaponEffectNode(ring)
-        playWeaponEffectSprite(.chainLightning, at: position, size: 34, delay: delay, alpha: 0.64)
 
         let core = SKShapeNode(path: Self.chainSparkPath(radius: 10))
         core.position = position
@@ -231,13 +232,18 @@ extension ArenaScene {
     private static func chainSegmentPath(from start: CGPoint, to end: CGPoint) -> CGPath {
         let path = CGMutablePath()
         path.move(to: start)
-        let midpoint = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2)
         let dx = end.x - start.x
         let dy = end.y - start.y
         let length = max(1, hypot(dx, dy))
-        let offset = min(12, length * 0.18)
+        let offset = min(9, length * 0.12)
         let normal = CGPoint(x: -dy / length * offset, y: dx / length * offset)
-        path.addLine(to: CGPoint(x: midpoint.x + normal.x, y: midpoint.y + normal.y))
+        for (index, bend) in [CGFloat(0.65), -0.85, 1, -0.55].enumerated() {
+            let progress = CGFloat(index + 1) / 5
+            path.addLine(to: CGPoint(
+                x: start.x + dx * progress + normal.x * bend,
+                y: start.y + dy * progress + normal.y * bend
+            ))
+        }
         path.addLine(to: end)
         return path
     }
