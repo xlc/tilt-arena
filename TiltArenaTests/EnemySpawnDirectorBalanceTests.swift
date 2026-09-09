@@ -3,7 +3,7 @@ import XCTest
 @testable import TiltArena
 
 final class EnemySpawnDirectorBalanceTests: XCTestCase {
-    private enum Threat: Hashable {
+    private enum Threat: CaseIterable, Hashable {
         case chaser
         case formation
         case arrowRush
@@ -16,6 +16,7 @@ final class EnemySpawnDirectorBalanceTests: XCTestCase {
     private struct SpawnSummary {
         var firstAppearance: [Threat: TimeInterval] = [:]
         var counts: [Threat: Int] = [:]
+        var lateCounts: [Threat: Int] = [:]
     }
 
     private struct IntroductionWindow {
@@ -26,7 +27,7 @@ final class EnemySpawnDirectorBalanceTests: XCTestCase {
 
     private struct SimulationContext {
         let configuration: EnemySpawnConfiguration
-        let playableRect = CGRect(x: 67, y: 8, width: 718, height: 377)
+        let playableRect = CGRect(x: 97, y: 38, width: 658, height: 317)
         let deltaTime: TimeInterval
         let frameCount: Int
 
@@ -39,17 +40,17 @@ final class EnemySpawnDirectorBalanceTests: XCTestCase {
         }
 
         var playerMaximumSpeed: CGFloat {
-            PlayerMovementConfiguration().maximumSpeed(in: playableRect)
+            PlayerMovementConfiguration().maximumSpeed(in: playableRect.insetBy(dx: -30, dy: -30))
         }
 
         var cullingRect: CGRect {
             playableRect.insetBy(dx: -configuration.cullingOutset, dy: -configuration.cullingOutset)
         }
 
-        init(mode: ArenaModeKind, framesPerSecond: Int) {
+        init(mode: ArenaModeKind, framesPerSecond: Int, duration: Int) {
             configuration = ArenaModeRules.runSettings(for: mode).enemySpawnConfiguration
             deltaTime = 1 / TimeInterval(framesPerSecond)
-            frameCount = 180 * framesPerSecond
+            frameCount = duration * framesPerSecond
         }
     }
 
@@ -128,8 +129,59 @@ final class EnemySpawnDirectorBalanceTests: XCTestCase {
         }
     }
 
-    private func simulate(mode: ArenaModeKind, framesPerSecond: Int) -> SpawnSummary {
-        let context = SimulationContext(mode: mode, framesPerSecond: framesPerSecond)
+    func testEveryThreatRecursAfterThreeMinutesWithoutPopulationPressure() {
+        for mode in [ArenaModeKind.classic, .redline] {
+            var director = EnemySpawnDirector(
+                configuration: ArenaModeRules.runSettings(for: mode).enemySpawnConfiguration,
+                sequenceSeed: 20_260_726
+            )
+            var lateCounts: [Threat: Int] = [:]
+            let playableRect = CGRect(x: 97, y: 38, width: 658, height: 317)
+            for frameIndex in 1...(360 * 60) {
+                let survivalTime = Double(frameIndex) / 60
+                let frame = director.update(
+                    deltaTime: 1.0 / 60,
+                    survivalTime: survivalTime,
+                    activeEnemies: [],
+                    playableRect: playableRect,
+                    playerPosition: CGPoint(x: playableRect.midX, y: playableRect.midY),
+                    pickupCircles: []
+                )
+                if survivalTime > 180 {
+                    for enemy in frame.newEnemies {
+                        lateCounts[threat(for: enemy), default: 0] += 1
+                    }
+                }
+            }
+            for threat in Threat.allCases {
+                XCTAssertGreaterThan(lateCounts[threat, default: 0], 1, "\(mode): \(threat) stopped recurring")
+            }
+        }
+    }
+
+    func testEveryThreatRecursWithResidentEnemiesAndIsStableAcrossFrameRates() {
+        for mode in [ArenaModeKind.classic, .redline] {
+            let tuning = ArenaModeRules.runSettings(for: mode).enemySpawnConfiguration.tuning(at: 360)
+            let batchSizes: [Threat: Int] = [
+                .chaser: 1, .formation: tuning.formationLaneCount - 1, .arrowRush: tuning.arrowRushEnemyCount,
+                .mine: 1, .hunter: 1, .paddleTrap: tuning.paddleTrapBarEnemyCount * 2 + 1, .splitter: 1
+            ]
+            let lowRate = simulate(mode: mode, framesPerSecond: 30, duration: 360)
+            let highRate = simulate(mode: mode, framesPerSecond: 120, duration: 360)
+            for threat in Threat.allCases {
+                XCTAssertGreaterThan(lowRate.lateCounts[threat, default: 0], 0, "\(mode): \(threat)")
+                XCTAssertGreaterThan(highRate.lateCounts[threat, default: 0], 0, "\(mode): \(threat)")
+                // A single pattern can straddle the window boundary at different frame rates.
+                XCTAssertEqual(
+                    lowRate.lateCounts[threat, default: 0], highRate.lateCounts[threat, default: 0],
+                    accuracy: batchSizes[threat, default: 1], "\(mode): \(threat) cadence drifted"
+                )
+            }
+        }
+    }
+
+    private func simulate(mode: ArenaModeKind, framesPerSecond: Int, duration: Int = 180) -> SpawnSummary {
+        let context = SimulationContext(mode: mode, framesPerSecond: framesPerSecond, duration: duration)
         var director = EnemySpawnDirector(
             configuration: context.configuration,
             sequenceSeed: 20_260_726
@@ -155,6 +207,9 @@ final class EnemySpawnDirectorBalanceTests: XCTestCase {
                 summary.firstAppearance[threat] = summary.firstAppearance[threat] ?? survivalTime
                 summary.counts[threat, default: 0] += 1
                 spawnTimes[enemy.id] = survivalTime
+                if survivalTime > 180 {
+                    summary.lateCounts[threat, default: 0] += 1
+                }
             }
             activeEnemies.append(contentsOf: frame.newEnemies)
 

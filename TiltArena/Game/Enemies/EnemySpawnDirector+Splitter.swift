@@ -14,13 +14,13 @@ extension EnemySpawnDirector {
         }
 
         primeTimer(for: .splitter, interval: splitterSpawnInterval)
+        timeUntilNextSplitter -= context.deltaTime
 
         let activeSplitterCount = context.activeEnemies.filter(\.isSplitter).count
             + frame.newEnemies.filter(\.isSplitter).count
             + pendingSplitterCount
         guard activeSplitterCount < context.tuning.maxActiveSplitters,
               projectedEnemyCount < context.tuning.maxActiveEnemies else {
-            delayNextSplitter(by: splitterSpawnInterval)
             return
         }
 
@@ -28,44 +28,22 @@ extension EnemySpawnDirector {
         let usesSpawnWarning = telegraphDuration(configuration.spawnWarningDuration) > 0
             && maxPendingSpawnWarnings > 0
         guard !usesSpawnWarning || pendingSpawnWarningCount < maxPendingSpawnWarnings else {
-            delayNextSplitter(by: splitterSpawnInterval)
             return
         }
 
-        timeUntilNextSplitter -= context.deltaTime
-        var projectedEnemyCount = projectedEnemyCount
-        var projectedSplitterCount = activeSplitterCount
-        var projectedSpawnWarningCount = pendingSpawnWarningCount
-
-        while timeUntilNextSplitter <= 0,
-              projectedEnemyCount < context.tuning.maxActiveEnemies,
-              projectedSplitterCount < context.tuning.maxActiveSplitters,
-              !usesSpawnWarning || projectedSpawnWarningCount < maxPendingSpawnWarnings {
-            guard let enemy = spawnSplitter(
-                in: context.playableRect,
-                avoiding: context.playerPosition,
-                pickupCircles: context.pickupCircles,
-                tuning: context.tuning
-            ) else {
-                timeUntilNextSplitter = splitterSpawnInterval
-                return
-            }
-
-            if appendSpawnCandidate(enemy, usesWarning: usesSpawnWarning, frame: &frame) {
-                projectedSpawnWarningCount += 1
-            }
-            projectedEnemyCount += 1
-            projectedSplitterCount += 1
-            timeUntilNextSplitter += splitterSpawnInterval
+        guard timeUntilNextSplitter <= 0 else { return }
+        guard let enemy = spawnSplitter(
+            in: context.playableRect,
+            avoiding: context.playerPosition,
+            pickupCircles: context.pickupCircles,
+            tuning: context.tuning
+        ) else {
+            timeUntilNextSplitter = splitterSpawnInterval
+            return
         }
 
-        if usesSpawnWarning, projectedSpawnWarningCount >= maxPendingSpawnWarnings {
-            delayNextSplitter(by: splitterSpawnInterval)
-        }
-    }
-
-    private mutating func delayNextSplitter(by interval: TimeInterval) {
-        timeUntilNextSplitter = max(timeUntilNextSplitter, interval)
+        _ = appendSpawnCandidate(enemy, usesWarning: usesSpawnWarning, frame: &frame)
+        completePattern(.splitter, interval: splitterSpawnInterval, deltaTime: context.deltaTime)
     }
 
     private func activeSplitterSpawnInterval(_ context: SpawnContext) -> TimeInterval? {

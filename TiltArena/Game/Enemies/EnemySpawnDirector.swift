@@ -154,39 +154,9 @@ struct EnemySpawnDirector {
             frame: &frame
         )
 
+        spawnPatterns(context: context, frame: &frame)
         spawnChasersIfNeeded(
             projectedEnemyCount: activeEnemyCount + frame.newEnemies.count + pendingEnemyCount,
-            context: context,
-            frame: &frame
-        )
-
-        spawnSplitterIfNeeded(
-            projectedEnemyCount: activeEnemyCount + frame.newEnemies.count + pendingEnemyCount, context: context, frame: &frame
-        )
-
-        spawnFormationTelegraphIfNeeded(
-            projectedEnemyCount: activeEnemyCount + frame.newEnemies.count + pendingEnemyCount,
-            context: context,
-            frame: &frame
-        )
-
-        spawnArrowRushTelegraphIfNeeded(
-            projectedEnemyCount: activeEnemyCount + frame.newEnemies.count + pendingEnemyCount,
-            context: context,
-            frame: &frame
-        )
-
-        spawnMineDotTelegraphIfNeeded(
-            context: context,
-            frame: &frame
-        )
-
-        spawnHunterDotTelegraphIfNeeded(
-            context: context,
-            frame: &frame
-        )
-
-        spawnPaddleTrapTelegraphIfNeeded(
             context: context,
             frame: &frame
         )
@@ -267,7 +237,7 @@ struct EnemySpawnDirector {
         return remainder >= 0 ? remainder : remainder + divisor
     }
 
-    private mutating func spawnFormationTelegraphIfNeeded(
+    mutating func spawnFormationTelegraphIfNeeded(
         projectedEnemyCount: Int,
         context: SpawnContext,
         frame: inout EnemySpawnFrame
@@ -306,7 +276,7 @@ struct EnemySpawnDirector {
 
         pendingSpawns[formation.telegraph.id] = formation
         frame.telegraphsToShow.append(formation.telegraph)
-        timeUntilNextFormation += formationSpawnInterval
+        completePattern(.formation, interval: formationSpawnInterval, deltaTime: context.deltaTime)
     }
 
     private mutating func makePendingFormation(

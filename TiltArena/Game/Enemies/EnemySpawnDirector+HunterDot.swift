@@ -46,7 +46,7 @@ extension EnemySpawnDirector {
 
         pendingSpawns[hunterDot.telegraph.id] = hunterDot
         frame.telegraphsToShow.append(hunterDot.telegraph)
-        timeUntilNextHunterDot += hunterDotSpawnInterval
+        completePattern(.hunterDot, interval: hunterDotSpawnInterval, deltaTime: context.deltaTime)
     }
 
     private mutating func makePendingHunterDot(

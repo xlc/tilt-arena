@@ -50,7 +50,7 @@ extension EnemySpawnDirector {
 
         pendingSpawns[mineDot.telegraph.id] = mineDot
         frame.telegraphsToShow.append(mineDot.telegraph)
-        timeUntilNextMineDot += mineDotSpawnInterval
+        completePattern(.mineDot, interval: mineDotSpawnInterval, deltaTime: context.deltaTime)
     }
 
     private mutating func makePendingMineDot(

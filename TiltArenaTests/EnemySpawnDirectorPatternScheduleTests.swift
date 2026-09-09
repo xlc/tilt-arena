@@ -47,45 +47,73 @@ final class EnemySpawnDirectorPatternScheduleTests: XCTestCase {
         XCTAssertEqual(chaosDirector.timeUntilNextPaddleTrap, 7.4, accuracy: 0.0001)
     }
 
-    func testEnemyCapacityPostponesEveryPatternUntilSlotsAreAvailable() {
+    func testEnemyCapacityKeepsPatternsDueWithoutAccumulatingCatchUpSpawns() {
         let configuration = allPatternConfiguration()
         var director = EnemySpawnDirector(configuration: configuration)
         let fullArena = (0..<configuration.warmup.maxActiveEnemies).map { index in
             ArenaEnemy(id: index, position: .zero, radius: 8, speed: 0)
         }
 
-        let blockedFrame = updateDirector(&director, deltaTime: 0.1, survivalTime: 0, activeEnemies: fullArena)
-
+        let blockedFrame = updateDirector(&director, deltaTime: 20, survivalTime: 0, activeEnemies: fullArena)
         XCTAssertTrue(blockedFrame.newEnemies.isEmpty)
         XCTAssertTrue(blockedFrame.telegraphsToShow.isEmpty)
-        assertTelegraphTimers(director, equal: 10)
+        for pattern in EnemySpawnDirector.SpawnPattern.allCases {
+            XCTAssertLessThan(director[keyPath: pattern.timer], 0)
+        }
+
+        let releasedFrame = updateDirector(&director, deltaTime: 0.1, survivalTime: 0)
+        XCTAssertEqual(releasedFrame.telegraphsToShow.count, 3) // Two patterns and one splitter warning.
+        XCTAssertEqual(director.pendingTelegraphSlotCount, 2)
+        XCTAssertEqual(director.pendingSplitterCount, 1)
+        XCTAssertEqual(director.timeUntilNextFormation, 10, accuracy: 0.0001)
         XCTAssertEqual(director.timeUntilNextSplitter, 10, accuracy: 0.0001)
+        XCTAssertEqual(director.timeUntilNextArrowRush, 10, accuracy: 0.0001)
 
-        let releasedFrame = updateDirector(&director, deltaTime: 0.25, survivalTime: 0)
-
-        XCTAssertTrue(releasedFrame.newEnemies.isEmpty)
-        XCTAssertTrue(releasedFrame.telegraphsToShow.isEmpty)
-        assertTelegraphTimers(director, equal: 9.75)
-        XCTAssertEqual(director.timeUntilNextSplitter, 9.75, accuracy: 0.0001)
+        _ = updateDirector(&director, deltaTime: 0.1, survivalTime: 0)
+        XCTAssertEqual(director.timeUntilNextFormation, 9.9, accuracy: 0.0001)
+        XCTAssertEqual(director.timeUntilNextSplitter, 9.9, accuracy: 0.0001)
     }
 
-    func testTelegraphCapacityPostponesPatternsWithoutBlockingSplitterWarnings() {
+    func testTelegraphCapacityDoesNotResetIntroductionsOrBlockSplitterWarnings() {
         var configuration = allPatternConfiguration()
         configuration.maxPendingEnemyTelegraphs = 0
         var director = EnemySpawnDirector(configuration: configuration)
 
-        let blockedFrame = updateDirector(&director, deltaTime: 0.1, survivalTime: 0)
+        let blockedFrame = updateDirector(&director, deltaTime: 3, survivalTime: 0)
+        XCTAssertEqual(blockedFrame.telegraphsToShow.count, 1)
+        XCTAssertEqual(director.pendingSplitterCount, 1)
+        XCTAssertEqual(director.timeUntilNextFormation, -1.5, accuracy: 0.0001)
+        XCTAssertEqual(director.timeUntilNextArrowRush, 0, accuracy: 0.0001)
 
-        XCTAssertTrue(blockedFrame.telegraphsToShow.isEmpty)
-        assertTelegraphTimers(director, equal: 10)
-        XCTAssertEqual(director.timeUntilNextSplitter, 2.9, accuracy: 0.0001)
+        director.configuration.maxPendingEnemyTelegraphs = 1
+        let releasedFrame = updateDirector(&director, deltaTime: 0.1, survivalTime: 0)
+        XCTAssertEqual(releasedFrame.telegraphsToShow.count, 1)
+        XCTAssertEqual(director.timeUntilNextFormation, 10, accuracy: 0.0001)
+        XCTAssertEqual(director.timeUntilNextArrowRush, -0.1, accuracy: 0.0001)
+    }
 
-        director.configuration.maxPendingEnemyTelegraphs = 2
-        let releasedFrame = updateDirector(&director, deltaTime: 0.25, survivalTime: 0)
+    func testOldestDuePaddleUsesCapacityBeforeFormationAndChasers() {
+        var configuration = allPatternConfiguration()
+        configuration.maxPendingEnemyTelegraphs = 1
+        configuration.warmup.maxActiveEnemies = configuration.warmup.paddleTrapBarEnemyCount * 2 + 1
+        configuration.warmup.chaserSpawnInterval = 0.1
+        var director = EnemySpawnDirector(configuration: configuration)
+        director.enabledSpawnPatterns = Set(EnemySpawnDirector.SpawnPattern.allCases)
+        director.timeUntilNextFormation = -1
+        director.timeUntilNextPaddleTrap = -5
 
-        XCTAssertTrue(releasedFrame.telegraphsToShow.isEmpty)
-        assertTelegraphTimers(director, equal: 9.75)
-        XCTAssertEqual(director.timeUntilNextSplitter, 2.65, accuracy: 0.0001)
+        _ = director.update(
+            deltaTime: 0.1,
+            survivalTime: 0,
+            activeEnemies: [],
+            playableRect: CGRect(x: 0, y: 0, width: 658, height: 317),
+            playerPosition: CGPoint(x: 329, y: 158.5),
+            pickupCircles: []
+        )
+        XCTAssertEqual(director.pendingPaddleTrapCount, 1)
+        XCTAssertEqual(director.pendingEnemyCount, configuration.warmup.maxActiveEnemies)
+        XCTAssertEqual(director.timeUntilNextFormation, -1.1, accuracy: 0.0001)
+        XCTAssertEqual(director.timeUntilNextPaddleTrap, 10, accuracy: 0.0001)
     }
 
     func testReenabledPatternsRestartTheirIntroductionDelays() {

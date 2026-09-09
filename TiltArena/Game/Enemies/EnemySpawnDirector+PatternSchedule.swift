@@ -42,6 +42,33 @@ extension EnemySpawnDirector {
         }
     }
 
+    mutating func spawnPatterns(context: SpawnContext, frame: inout EnemySpawnFrame) {
+        // Older due patterns get first use of shared capacity. Stable ties keep
+        // the seeded schedule deterministic. An unplaceable pattern cannot block others.
+        let patterns = SpawnPattern.allCases.enumerated().sorted { first, second in
+            let firstTimer = self[keyPath: first.element.timer]
+            let secondTimer = self[keyPath: second.element.timer]
+            return firstTimer == secondTimer ? first.offset < second.offset : firstTimer < secondTimer
+        }
+        for (_, pattern) in patterns {
+            let projectedCount = context.activeEnemies.count + frame.newEnemies.count + pendingEnemyCount
+            switch pattern {
+            case .formation:
+                spawnFormationTelegraphIfNeeded(projectedEnemyCount: projectedCount, context: context, frame: &frame)
+            case .splitter:
+                spawnSplitterIfNeeded(projectedEnemyCount: projectedCount, context: context, frame: &frame)
+            case .arrowRush:
+                spawnArrowRushTelegraphIfNeeded(projectedEnemyCount: projectedCount, context: context, frame: &frame)
+            case .mineDot:
+                spawnMineDotTelegraphIfNeeded(context: context, frame: &frame)
+            case .hunterDot:
+                spawnHunterDotTelegraphIfNeeded(context: context, frame: &frame)
+            case .paddleTrap:
+                spawnPaddleTrapTelegraphIfNeeded(context: context, frame: &frame)
+            }
+        }
+    }
+
     mutating func primeTimer(
         for pattern: SpawnPattern,
         interval: TimeInterval
@@ -65,14 +92,19 @@ extension EnemySpawnDirector {
     ) -> Bool {
         primeTimer(for: pattern, interval: interval)
 
-        // Capacity blocks postpone the next attempt without consuming this frame's time.
-        guard pendingTelegraphSlotCount < pendingTelegraphCapacity, hasEnemyCapacity else {
-            self[keyPath: pattern.timer] = max(self[keyPath: pattern.timer], interval)
-            return false
-        }
-
+        // Readiness ages even while capacity is occupied; blocking never restarts a cooldown.
         self[keyPath: pattern.timer] -= deltaTime
         return self[keyPath: pattern.timer] <= 0
+            && pendingTelegraphSlotCount < pendingTelegraphCapacity
+            && hasEnemyCapacity
+    }
+
+    mutating func completePattern(_ pattern: SpawnPattern, interval: TimeInterval, deltaTime: TimeInterval) {
+        let remaining = self[keyPath: pattern.timer]
+        // Preserve normal sub-frame overshoot, but discard blocked or long-frame
+        // debt so clearing capacity cannot release a burst of missed spawns.
+        let overshoot = remaining >= -deltaTime && remaining > -interval ? remaining : 0
+        self[keyPath: pattern.timer] = interval + overshoot
     }
 
     mutating func disablePattern(_ pattern: SpawnPattern) {

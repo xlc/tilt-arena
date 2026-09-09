@@ -46,7 +46,7 @@ extension EnemySpawnDirector {
 
         pendingSpawns[arrowRush.telegraph.id] = arrowRush
         frame.telegraphsToShow.append(arrowRush.telegraph)
-        timeUntilNextArrowRush += arrowRushSpawnInterval
+        completePattern(.arrowRush, interval: arrowRushSpawnInterval, deltaTime: context.deltaTime)
     }
 
     private mutating func makePendingArrowRush(

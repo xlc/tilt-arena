@@ -68,7 +68,7 @@ extension EnemySpawnDirector {
 
         pendingSpawns[paddleTrap.telegraph.id] = paddleTrap
         frame.telegraphsToShow.append(paddleTrap.telegraph)
-        timeUntilNextPaddleTrap += paddleTrapSpawnInterval
+        completePattern(.paddleTrap, interval: paddleTrapSpawnInterval, deltaTime: context.deltaTime)
     }
 
     private mutating func makePendingPaddleTrap(
