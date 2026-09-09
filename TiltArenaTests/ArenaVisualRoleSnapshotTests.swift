@@ -28,6 +28,48 @@ final class ArenaVisualRoleSnapshotTests: XCTestCase {
     private let sceneSize = CGSize(width: 720, height: 420)
     private let arenaRect = CGRect(x: 24, y: 32, width: 672, height: 364)
 
+    func testDarkGeneratedHazardWarnings() throws {
+        assertSnapshot(of: try makeHazardWarningsImage(theme: .darkTacticalRadar), as: .image(precision: 0.99))
+    }
+
+    func testWhiteGeneratedHazardWarnings() throws {
+        assertSnapshot(of: try makeHazardWarningsImage(theme: .whitePrecisionBoard), as: .image(precision: 0.99))
+    }
+
+    private func makeHazardWarningsImage(theme: ArenaTheme) throws -> UIImage {
+        try SnapshotImageRenderer.render(size: CGSize(width: 720, height: 280), backgroundColor: theme.backgroundColor) { scene in
+            for index in 0..<3 {
+                var configuration = EnemySpawnConfiguration()
+                configuration.patternIntroductionSpacing = 0
+                configuration.playerSafetyRadius = 20
+                configuration.paddleTrapPlayerSafetyRadius = 20
+                configuration.chaos = EnemyPhaseTuning(
+                    chaserSpawnInterval: 0, chaserSpeed: 0, maxActiveEnemies: 30,
+                    formationSpawnInterval: index == 0 ? 1 : nil, formationSpeed: 100, formationLaneCount: 5,
+                    mineDotSpawnInterval: index == 2 ? 1 : nil, maxActiveMineDots: 1,
+                    paddleTrapSpawnInterval: index == 1 ? 1 : nil, maxActivePaddleTraps: 1,
+                    paddleTrapLifetime: 7, paddleTrapBarEnemyCount: 4, paddleTrapDotSpeed: 145
+                )
+                var director = EnemySpawnDirector(configuration: configuration)
+                let frame = director.update(
+                    deltaTime: 0.1, survivalTime: 90, activeEnemies: [],
+                    playableRect: CGRect(x: 0, y: 0, width: 300, height: 300),
+                    playerPosition: CGPoint(x: 150, y: 150), pickupCircles: []
+                )
+                XCTAssertEqual(frame.telegraphsToShow.count, 1)
+                let root = SKNode()
+                root.position = CGPoint(x: 20 + CGFloat(index) * 240, y: 30)
+                root.setScale(0.7)
+                for warning in frame.telegraphsToShow {
+                    root.addChild(EnemyTelegraphNode(telegraph: warning, theme: theme))
+                }
+                scene.addChild(root)
+                addContactLabel(["DOTTED SWEEP", "PADDLE + PUCK", "MINE BODY"][index],
+                                at: CGPoint(x: 125 + CGFloat(index) * 240, y: 256), to: scene, theme: theme)
+            }
+        }
+    }
+
     func testDarkVisualRolesContactSheet() throws {
         assertSnapshot(
             of: try makeVisualRolesImage(theme: .darkTacticalRadar),

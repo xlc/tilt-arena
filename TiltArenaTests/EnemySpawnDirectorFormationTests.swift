@@ -19,7 +19,7 @@ final class EnemySpawnDirectorFormationTests: XCTestCase {
         )
 
         XCTAssertEqual(telegraphFrame.telegraphsToShow.count, 1)
-        XCTAssertEqual(telegraphFrame.telegraphsToShow[0].segments.count, 2)
+        XCTAssertEqual(telegraphFrame.telegraphsToShow[0].segments.count, 4)
         XCTAssertTrue(telegraphFrame.newEnemies.isEmpty)
 
         let waitingFrame = director.update(
@@ -44,6 +44,11 @@ final class EnemySpawnDirectorFormationTests: XCTestCase {
         )
 
         XCTAssertEqual(spawnFrame.telegraphIDsToRemove, [telegraphFrame.telegraphsToShow[0].id])
+        let warning = telegraphFrame.telegraphsToShow[0]
+        XCTAssertEqual(warning.bodies.map(\.radius), spawnFrame.newEnemies.map(\.radius))
+        XCTAssertEqual(warning.bodies.map { $0.center.y }, spawnFrame.newEnemies.map { $0.position.y })
+        XCTAssertEqual(warning.opening?.start.y, 142)
+        XCTAssertEqual(warning.opening?.end.y, 158)
         XCTAssertEqual(spawnFrame.newEnemies.count, 4)
         XCTAssertEqual(Set(spawnFrame.newEnemies.compactMap(\.formationID)), [1])
         XCTAssertFalse(spawnFrame.newEnemies.contains { abs($0.position.y - playerPosition.y) < 0.0001 })
@@ -56,7 +61,7 @@ final class EnemySpawnDirectorFormationTests: XCTestCase {
         let playableRect = CGRect(x: 0, y: 0, width: 300, height: 300)
         let pickupCircle = CollisionCircle(center: CGPoint(x: 0, y: 75), radius: 40)
 
-        _ = director.update(
+        let warningFrame = director.update(
             deltaTime: 0.1,
             survivalTime: 30,
             activeEnemies: [],
@@ -74,6 +79,8 @@ final class EnemySpawnDirectorFormationTests: XCTestCase {
             pickupCircles: [pickupCircle]
         )
 
+        XCTAssertEqual(warningFrame.telegraphsToShow[0].bodies.count, 3)
+        XCTAssertFalse(warningFrame.telegraphsToShow[0].bodies.contains { abs($0.center.y - 75) < 0.0001 })
         XCTAssertEqual(spawnFrame.newEnemies.count, 3)
         XCTAssertFalse(spawnFrame.newEnemies.contains { abs($0.position.y - 75) < 0.0001 })
     }

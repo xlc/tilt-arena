@@ -58,7 +58,8 @@ final class EnemySpawnDirectorMineDotTests: XCTestCase {
         )
 
         XCTAssertEqual(telegraphFrame.telegraphsToShow.count, 1)
-        XCTAssertGreaterThan(telegraphFrame.telegraphsToShow[0].segments.count, 8)
+        XCTAssertEqual(telegraphFrame.telegraphsToShow[0].segments.count, 4)
+        XCTAssertEqual(telegraphFrame.telegraphsToShow[0].bodies.count, 1)
         XCTAssertTrue(telegraphFrame.newEnemies.isEmpty)
 
         let waitingFrame = director.update(
@@ -85,6 +86,7 @@ final class EnemySpawnDirectorMineDotTests: XCTestCase {
         XCTAssertEqual(spawnFrame.telegraphIDsToRemove, [telegraphFrame.telegraphsToShow[0].id])
         XCTAssertEqual(spawnFrame.newEnemies.count, 1)
         var mineDot = spawnFrame.newEnemies[0]
+        XCTAssertEqual(telegraphFrame.telegraphsToShow[0].bodies, [mineDot.collisionCircle])
         let spawnPosition = mineDot.position
 
         mineDot.advance(toward: CGPoint(x: 0, y: 0), deltaTime: 2)

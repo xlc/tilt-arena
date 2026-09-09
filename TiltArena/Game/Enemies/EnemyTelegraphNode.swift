@@ -5,14 +5,27 @@ final class EnemyTelegraphNode: SKNode {
     private static let maximumDashCountPerSegment = 256
     private let glowNode: SKShapeNode
     private let lineNode: SKShapeNode
+    private let openingNode: SKShapeNode
 
     init(telegraph: EnemyTelegraph, theme: ArenaTheme) {
         let path = CGMutablePath()
         for segment in telegraph.segments {
             Self.appendDashes(from: segment.start, to: segment.end, to: path)
         }
+        for body in telegraph.bodies where body.center.isFinite && body.radius.isFinite && body.radius > 0 {
+            path.addEllipse(in: CGRect(
+                x: body.center.x - body.radius, y: body.center.y - body.radius,
+                width: body.radius * 2, height: body.radius * 2
+            ))
+        }
         glowNode = SKShapeNode(path: path)
         lineNode = SKShapeNode(path: path)
+        let openingPath = CGMutablePath()
+        if let opening = telegraph.opening {
+            openingPath.move(to: opening.start)
+            openingPath.addLine(to: opening.end)
+        }
+        openingNode = SKShapeNode(path: openingPath)
 
         super.init()
 
@@ -20,6 +33,7 @@ final class EnemyTelegraphNode: SKNode {
         applyTheme(theme)
         addChild(glowNode)
         addChild(lineNode)
+        addChild(openingNode)
         startWarningPulse()
     }
 
@@ -37,6 +51,11 @@ final class EnemyTelegraphNode: SKNode {
         lineNode.lineWidth = 1.9
         lineNode.glowWidth = 0.42
         lineNode.lineCap = .round
+        lineNode.fillColor = .clear
+        glowNode.fillColor = .clear
+        openingNode.strokeColor = theme.playerAccentColor.withAlphaComponent(0.7)
+        openingNode.lineWidth = 2
+        openingNode.lineCap = .round
     }
 
     private func startWarningPulse() {

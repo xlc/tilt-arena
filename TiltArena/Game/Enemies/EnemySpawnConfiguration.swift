@@ -258,8 +258,6 @@ struct EnemySpawnConfiguration: Equatable {
     var splitterChildGraceDuration: TimeInterval = 0.75
     var splitterChildPlayerSafetyRadius: CGFloat = 42
     var formationTelegraphDuration: TimeInterval = 1.1
-    var formationLineInset: CGFloat = 28
-    var formationGapScale: CGFloat = 0.85
     var formationSpawnOffset: CGFloat = 14
     var minimumFormationEnemyCount = 2
     var arrowRushTelegraphDuration: TimeInterval = 0.85
@@ -267,7 +265,7 @@ struct EnemySpawnConfiguration: Equatable {
     var arrowRushEnemySpacing: CGFloat = 24
     var minimumArrowRushEnemyCount = 2
     var mineDotTelegraphDuration: TimeInterval = 0.9
-    var mineDotTelegraphRadius: CGFloat = 24
+    var mineDotPlacementClearance: CGFloat = 24
     var mineDotPickupGuardDistance: CGFloat = 22
     var mineDotCandidateInset: CGFloat = 48
     var mineDotMinimumSpacing: CGFloat = 52
@@ -476,6 +474,8 @@ struct EnemyTelegraphSegment: Equatable {
 struct EnemyTelegraph: Equatable, Identifiable {
     let id: Int
     let segments: [EnemyTelegraphSegment]
+    var bodies: [CollisionCircle] = []
+    var opening: EnemyTelegraphSegment?
 }
 
 struct EnemySpawnFrame: Equatable {

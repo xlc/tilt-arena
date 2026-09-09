@@ -5,7 +5,6 @@ extension EnemySpawnDirector {
     private enum MineDotLayout {
         static let interiorColumnCount = 4
         static let interiorRowCount = 4
-        static let telegraphSegmentCount = 18
     }
 
     mutating func spawnMineDotTelegraphIfNeeded(
@@ -122,7 +121,8 @@ extension EnemySpawnDirector {
         enemy.startPlayerCollisionGrace(duration: configuration.spawnPlayerCollisionGraceDuration)
         let telegraph = EnemyTelegraph(
             id: nextTelegraphID,
-            segments: mineDotTelegraphSegments(center: position)
+            segments: mineSpawnMarkers(center: position, radius: enemy.radius),
+            bodies: [enemy.collisionCircle]
         )
 
         nextEnemyID += 1
@@ -202,7 +202,7 @@ extension EnemySpawnDirector {
     private func interiorMineDotCandidates(in playableRect: CGRect) -> [CGPoint] {
         let requestedInset = max(
             configuration.mineDotCandidateInset,
-            configuration.enemyRadius + configuration.mineDotTelegraphRadius
+            configuration.enemyRadius + configuration.mineDotPlacementClearance
         )
         let maxInset = max(0, min(playableRect.width, playableRect.height) / 2 - configuration.enemyRadius)
         let inset = min(requestedInset, maxInset)
@@ -243,26 +243,13 @@ extension EnemySpawnDirector {
         }
     }
 
-    private func mineDotTelegraphSegments(center: CGPoint) -> [EnemyTelegraphSegment] {
-        let radius = max(configuration.enemyRadius * 2, configuration.mineDotTelegraphRadius)
-        let segmentCount = max(8, MineDotLayout.telegraphSegmentCount)
-        let angleStep = CGFloat.pi * 2 / CGFloat(segmentCount)
-        let segmentCoverage: CGFloat = 0.58
-
-        return (0..<segmentCount).map { index in
-            let startAngle = CGFloat(index) * angleStep
-            let endAngle = startAngle + angleStep * segmentCoverage
-
-            return EnemyTelegraphSegment(
-                start: CGPoint(
-                    x: center.x + cos(startAngle) * radius,
-                    y: center.y + sin(startAngle) * radius
-                ),
-                end: CGPoint(
-                    x: center.x + cos(endAngle) * radius,
-                    y: center.y + sin(endAngle) * radius
+    private func mineSpawnMarkers(center: CGPoint, radius: CGFloat) -> [EnemyTelegraphSegment] {
+        [CGVector(dx: 1, dy: 0), CGVector(dx: -1, dy: 0), CGVector(dx: 0, dy: 1), CGVector(dx: 0, dy: -1)]
+            .map { direction in
+                EnemyTelegraphSegment(
+                    start: CGPoint(x: center.x + direction.dx * (radius + 4), y: center.y + direction.dy * (radius + 4)),
+                    end: CGPoint(x: center.x + direction.dx * (radius + 10), y: center.y + direction.dy * (radius + 10))
                 )
-            )
-        }
+            }
     }
 }

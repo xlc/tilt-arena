@@ -63,7 +63,7 @@ final class EnemySpawnDirectorPaddleTrapTests: XCTestCase {
         )
 
         XCTAssertEqual(telegraphFrame.telegraphsToShow.count, 1)
-        XCTAssertEqual(telegraphFrame.telegraphsToShow[0].segments.count, 3)
+        XCTAssertEqual(telegraphFrame.telegraphsToShow[0].segments.count, 1)
         XCTAssertTrue(telegraphFrame.newEnemies.isEmpty)
 
         let waitingFrame = director.update(
@@ -88,6 +88,7 @@ final class EnemySpawnDirectorPaddleTrapTests: XCTestCase {
         )
 
         XCTAssertEqual(spawnFrame.telegraphIDsToRemove, [telegraphFrame.telegraphsToShow[0].id])
+        XCTAssertEqual(telegraphFrame.telegraphsToShow[0].bodies, spawnFrame.newEnemies.map(\.collisionCircle))
         XCTAssertEqual(spawnFrame.newEnemies.count, 9)
         XCTAssertEqual(Set(spawnFrame.newEnemies.compactMap(\.paddleTrapID)), [1])
         XCTAssertEqual(spawnFrame.newEnemies.filter(\.isPaddleTrap).count, 9)

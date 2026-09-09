@@ -171,7 +171,9 @@ extension EnemySpawnDirector {
             timeRemaining: telegraphDuration(configuration.paddleTrapTelegraphDuration),
             requiredEnemyCount: enemies.count,
             enemies: enemies,
-            telegraph: EnemyTelegraph(id: telegraphID, segments: layout.telegraphSegments),
+            telegraph: EnemyTelegraph(
+                id: telegraphID, segments: layout.telegraphSegments, bodies: enemies.map(\.collisionCircle)
+            ),
             isSpawnWarning: false
         )
     }
@@ -257,8 +259,8 @@ extension EnemySpawnDirector {
             )
             dotVelocity = CGVector(dx: speed, dy: speed)
             bounceSegment = EnemyTelegraphSegment(
-                start: CGPoint(x: center.x, y: dotBounds.minY),
-                end: CGPoint(x: center.x, y: dotBounds.maxY)
+                start: center,
+                end: CGPoint(x: center.x + min(halfSpan, innerHalfGap), y: center.y + min(halfSpan, innerHalfGap))
             )
         case .vertical:
             dotBounds = CGRect(
@@ -269,8 +271,8 @@ extension EnemySpawnDirector {
             )
             dotVelocity = CGVector(dx: speed, dy: -speed)
             bounceSegment = EnemyTelegraphSegment(
-                start: CGPoint(x: dotBounds.minX, y: center.y),
-                end: CGPoint(x: dotBounds.maxX, y: center.y)
+                start: center,
+                end: CGPoint(x: center.x + min(halfSpan, innerHalfGap), y: center.y - min(halfSpan, innerHalfGap))
             )
         }
 
@@ -280,7 +282,7 @@ extension EnemySpawnDirector {
             dotPosition: center,
             dotVelocity: dotVelocity,
             dotBounds: dotBounds,
-            telegraphSegments: paddleTrapTelegraphSegments(bars: bars, bounceSegment: bounceSegment)
+            telegraphSegments: [bounceSegment]
         )
     }
 
@@ -308,17 +310,6 @@ extension EnemySpawnDirector {
         }
 
         return (firstBar, secondBar)
-    }
-
-    private func paddleTrapTelegraphSegments(
-        bars: (first: [CGPoint], second: [CGPoint]),
-        bounceSegment: EnemyTelegraphSegment
-    ) -> [EnemyTelegraphSegment] {
-        [
-            EnemyTelegraphSegment(start: bars.first[0], end: bars.first[bars.first.count - 1]),
-            EnemyTelegraphSegment(start: bars.second[0], end: bars.second[bars.second.count - 1]),
-            bounceSegment
-        ]
     }
 
     private func isSafePaddleTrapLayout(

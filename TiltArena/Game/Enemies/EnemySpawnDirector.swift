@@ -326,8 +326,7 @@ struct EnemySpawnDirector {
         let telegraph = formationTelegraph(
             id: telegraphID,
             direction: direction,
-            laneCount: laneCount,
-            gapLaneIndex: gapLaneIndex,
+            enemies: enemies,
             playableRect: playableRect
         )
 
@@ -343,19 +342,41 @@ struct EnemySpawnDirector {
     private func formationTelegraph(
         id: Int,
         direction: EdgeDirection,
-        laneCount: Int,
-        gapLaneIndex: Int,
+        enemies: [ArenaEnemy],
         playableRect: CGRect
     ) -> EnemyTelegraph {
-        EnemyTelegraph(
-            id: id,
-            segments: formationTelegraphSegments(
-                direction: direction,
-                laneCount: laneCount,
-                gapLaneIndex: gapLaneIndex,
-                playableRect: playableRect
+        let horizontal = direction.travelsHorizontally
+        let crossAxis = formationTelegraphCrossAxis(direction: direction, playableRect: playableRect)
+        let bodies = enemies.map { enemy in
+            CollisionCircle(
+                center: horizontal ? CGPoint(x: crossAxis, y: enemy.position.y)
+                    : CGPoint(x: enemy.position.x, y: crossAxis),
+                radius: enemy.radius
             )
-        )
+        }
+        let velocity = formationVelocity(direction: direction, speed: 30)
+        let segments = bodies.map { body in
+            EnemyTelegraphSegment(
+                start: body.center,
+                end: CGPoint(x: body.center.x + velocity.dx, y: body.center.y + velocity.dy)
+            )
+        }
+        // Mark only the widest gap in this sweep; other hazards may still occupy it.
+        let coordinates = bodies.map { horizontal ? $0.center.y : $0.center.x }.sorted()
+        let radius = configuration.enemyRadius
+        let start = horizontal ? playableRect.minY : playableRect.minX
+        let end = horizontal ? playableRect.maxY : playableRect.maxX
+        let gapStarts = [start] + coordinates.map { $0 + radius }
+        let gapEnds = coordinates.map { $0 - radius } + [end]
+        let widest = zip(gapStarts, gapEnds).max { $0.1 - $0.0 < $1.1 - $1.0 }
+        let opening = widest.flatMap { lower, upper -> EnemyTelegraphSegment? in
+            guard upper - lower > 24 else { return nil }
+            let center = (lower + upper) / 2
+            return formationTelegraphSegment(
+                direction: direction, crossAxis: crossAxis, start: center - 8, end: center + 8
+            )
+        }
+        return EnemyTelegraph(id: id, segments: segments, bodies: bodies, opening: opening)
     }
 
     private func makeFormationEnemy(
@@ -438,42 +459,6 @@ struct EnemySpawnDirector {
                 return CGPoint(x: coordinate, y: playableRect.maxY + configuration.enemyRadius + configuration.formationSpawnOffset)
             }
         }
-    }
-
-    private func formationTelegraphSegments(
-        direction: EdgeDirection,
-        laneCount: Int,
-        gapLaneIndex: Int,
-        playableRect: CGRect
-    ) -> [EnemyTelegraphSegment] {
-        let axisStart = direction.travelsHorizontally ? playableRect.minY : playableRect.minX
-        let axisEnd = direction.travelsHorizontally ? playableRect.maxY : playableRect.maxX
-        let axisLength = max(1, axisEnd - axisStart)
-        let inset = min(configuration.formationLineInset, axisLength / 4)
-        let laneSpacing = axisLength / CGFloat(max(1, laneCount - 1))
-        let gapCenter = laneCoordinate(
-            laneIndex: gapLaneIndex,
-            laneCount: laneCount,
-            direction: direction,
-            rect: playableRect
-        )
-        let gapHalfWidth = laneSpacing * configuration.formationGapScale / 2
-        let firstStart = axisStart + inset
-        let firstEnd = max(firstStart, gapCenter - gapHalfWidth)
-        let secondStart = min(axisEnd - inset, gapCenter + gapHalfWidth)
-        let secondEnd = axisEnd - inset
-        let crossAxis = formationTelegraphCrossAxis(direction: direction, playableRect: playableRect)
-        var segments: [EnemyTelegraphSegment] = []
-
-        if firstEnd > firstStart {
-            segments.append(formationTelegraphSegment(direction: direction, crossAxis: crossAxis, start: firstStart, end: firstEnd))
-        }
-
-        if secondEnd > secondStart {
-            segments.append(formationTelegraphSegment(direction: direction, crossAxis: crossAxis, start: secondStart, end: secondEnd))
-        }
-
-        return segments
     }
 
     private func formationTelegraphCrossAxis(direction: EdgeDirection, playableRect: CGRect) -> CGFloat {
