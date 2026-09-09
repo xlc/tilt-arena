@@ -8,6 +8,7 @@ struct ReadyStartHoldConfiguration: Equatable {
     static let maximumStartCircleRadius: CGFloat = 512
 
     var requiredDuration: TimeInterval = Self.defaultRequiredDuration
+    var retryDuration: TimeInterval = 0.75
     var startCircleRadius: CGFloat = Self.defaultStartCircleRadius
 
     var effectiveRequiredDuration: TimeInterval {
@@ -50,8 +51,21 @@ struct ReadyStartHoldState: Equatable {
 struct ReadyStartHoldController: Equatable {
     var configuration = ReadyStartHoldConfiguration()
     private(set) var state = ReadyStartHoldState()
+    private(set) var isRetry = false
+
+    var requiredDuration: TimeInterval {
+        isRetry ? ReadyStartHoldConfiguration.resolvedRequiredDuration(configuration.retryDuration)
+            : configuration.effectiveRequiredDuration
+    }
+
+    mutating func beginRetry() {
+        reset()
+        isRetry = true
+        state.isInsideCircle = true
+    }
 
     mutating func reset() {
+        isRetry = false
         state = ReadyStartHoldState()
     }
 
@@ -70,14 +84,14 @@ struct ReadyStartHoldController: Equatable {
         let dx = playerPosition.x - startPoint.x
         let dy = playerPosition.y - startPoint.y
         let squaredDistance = dx * dx + dy * dy
-        let isInside = squaredDistance.isFinite && squaredDistance <= radius * radius
+        let isInside = isRetry || (squaredDistance.isFinite && squaredDistance <= radius * radius)
 
         guard isInside else {
             state = ReadyStartHoldState(elapsed: 0, isInsideCircle: false, didComplete: false)
             return state
         }
 
-        let requiredDuration = configuration.effectiveRequiredDuration
+        let requiredDuration = self.requiredDuration
         let previousElapsed = state.elapsed.isFinite
             ? min(requiredDuration, max(0, state.elapsed))
             : 0

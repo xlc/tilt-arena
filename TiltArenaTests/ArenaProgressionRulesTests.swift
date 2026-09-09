@@ -69,13 +69,13 @@ final class ArenaProgressionRulesTests: XCTestCase {
         XCTAssertTrue(profile.unlockedWeapons.contains(.freezeBurst))
     }
 
-    func testPickupCyclesFilterToUnlockedWeapons() {
+    func testClassicFiltersLockedWeaponsWhileDailySuppliesTheCommonArsenal() {
         var profile = RunProfile()
 
         var classic = ArenaModeRules.runSettings(for: .classic, profile: profile)
         XCTAssertEqual(Set(classic.pickupSpawnConfiguration.weaponKindCycle), Set(ArenaProgressionRules.startingWeapons))
         let daily = ArenaModeRules.runSettings(for: .daily, profile: profile)
-        XCTAssertEqual(Set(daily.pickupSpawnConfiguration.weaponKindCycle), Set(ArenaProgressionRules.startingWeapons))
+        XCTAssertEqual(Set(daily.pickupSpawnConfiguration.weaponKindCycle), Set(WeaponKind.allCases))
 
         profile.totalEnemiesDestroyed = 300
         profile.lifetimeBestScore = 3_000
@@ -86,6 +86,7 @@ final class ArenaProgressionRulesTests: XCTestCase {
 
         XCTAssertEqual(Set(classic.pickupSpawnConfiguration.weaponKindCycle), Set(WeaponKind.allCases))
         XCTAssertEqual(Set(fullyUnlockedDaily.pickupSpawnConfiguration.weaponKindCycle), Set(WeaponKind.allCases))
+        XCTAssertEqual(daily.pickupSpawnConfiguration, fullyUnlockedDaily.pickupSpawnConfiguration)
     }
 
     func testRedlineKeepsModeCycleButFiltersLockedWeapons() {

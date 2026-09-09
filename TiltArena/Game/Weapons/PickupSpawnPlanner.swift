@@ -40,6 +40,7 @@ struct PickupSpawnConfiguration: Equatable {
     var playerClearance: CGFloat = 84
     var enemyClearance: CGFloat = 8
     var weaponKindCycle: [WeaponKind] = PickupSpawnConfiguration.defaultWeaponKindCycle
+    var guaranteedOpening: [WeaponKind] = []
 
     func chargeTier(for timeOnScreen: TimeInterval) -> WeaponPickupChargeTier {
         let age = WeaponRuntimeSafetyLimits.duration(timeOnScreen)
@@ -100,6 +101,9 @@ struct PickupSpawnPlanner {
 
     private(set) var nextPickupID = 1
     private var nextKindIndex = 0
+    private var openingCycle: [WeaponKind] = []
+    private var openingSourceCycle: [WeaponKind] = []
+    private var openingIndex = 0
     private var nextCandidateIndex = 0
     private var nextFallbackCandidateIndex = 0
     private var timeUntilNextSpawn: TimeInterval = 0
@@ -335,7 +339,16 @@ struct PickupSpawnPlanner {
     }
 
     private mutating func nextKind(configuration: PickupSpawnConfiguration) -> WeaponKind {
-        let kind = configuration.weaponKindCycle[nextKindIndex % configuration.weaponKindCycle.count]
+        if openingSourceCycle != configuration.weaponKindCycle {
+            openingCycle.removeAll()
+        }
+        let kind: WeaponKind
+        if openingIndex < openingCycle.count {
+            kind = openingCycle[openingIndex]
+            openingIndex += 1
+        } else {
+            kind = configuration.weaponKindCycle[nextKindIndex % configuration.weaponKindCycle.count]
+        }
         nextKindIndex = (nextKindIndex + 1) % configuration.weaponKindCycle.count
         return kind
     }
@@ -363,13 +376,31 @@ struct PickupSpawnPlanner {
     }
 
     private mutating func applySequenceSeed(_ seed: Int?, configuration: PickupSpawnConfiguration) {
-        guard let seed else {
-            return
+        if let seed {
+            nextKindIndex = positiveModulo(seed, max(1, configuration.weaponKindCycle.count))
+            nextCandidateIndex = positiveModulo(seed / 3, Self.candidatePositions.count)
+            nextFallbackCandidateIndex = positiveModulo(seed, Self.fallbackCandidateCount)
         }
+        prepareOpeningCycle(configuration: configuration)
+    }
 
-        nextKindIndex = positiveModulo(seed, max(1, configuration.weaponKindCycle.count))
-        nextCandidateIndex = positiveModulo(seed / 3, Self.candidatePositions.count)
-        nextFallbackCandidateIndex = positiveModulo(seed, Self.fallbackCandidateCount)
+    private mutating func prepareOpeningCycle(configuration: PickupSpawnConfiguration) {
+        openingIndex = 0
+        openingCycle.removeAll()
+        openingSourceCycle = configuration.weaponKindCycle
+        guard !openingSourceCycle.isEmpty, !configuration.guaranteedOpening.isEmpty else { return }
+
+        let offset = nextKindIndex % openingSourceCycle.count
+        var remaining = Array(openingSourceCycle[offset...]) + Array(openingSourceCycle[..<offset])
+        var required = Set(configuration.guaranteedOpening)
+        let opening = remaining.filter { required.remove($0) != nil }
+        for kind in opening {
+            if let index = remaining.firstIndex(of: kind) {
+                remaining.remove(at: index)
+            }
+        }
+        // Move existing occurrences to the front; the cycle's weights stay unchanged.
+        openingCycle = opening + remaining
     }
 
     private func positiveModulo(_ value: Int, _ divisor: Int) -> Int {

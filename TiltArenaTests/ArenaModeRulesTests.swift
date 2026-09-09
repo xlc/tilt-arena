@@ -2,6 +2,18 @@ import XCTest
 @testable import TiltArena
 
 final class ArenaModeRulesTests: XCTestCase {
+    func testDailyArsenalAndOpeningDoNotDependOnPersonalProgression() {
+        var complete = RunProfile()
+        complete.unlockedWeapons = Set(WeaponKind.allCases)
+        let date = Date(timeIntervalSince1970: 1_800_000_000)
+        let fresh = ArenaModeRules.runSettings(for: .daily, profile: RunProfile(), date: date)
+        let unlocked = ArenaModeRules.runSettings(for: .daily, profile: complete, date: date)
+        XCTAssertEqual(fresh, unlocked)
+        XCTAssertEqual(Set(fresh.pickupSpawnConfiguration.weaponKindCycle), Set(WeaponKind.allCases))
+        XCTAssertEqual(fresh.pickupSpawnConfiguration.guaranteedOpening, ArenaProgressionRules.startingWeapons)
+        XCTAssertTrue(ArenaModeRules.runSettings(for: .redline).pickupSpawnConfiguration.guaranteedOpening.isEmpty)
+    }
+
     func testAvailabilityUsesProgressionState() {
         var profile = RunProfile()
 

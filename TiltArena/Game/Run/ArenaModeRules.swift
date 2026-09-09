@@ -74,7 +74,7 @@ struct ArenaModeRules {
         case .classic:
             settings = ArenaModeRunSettings(
                 enemySpawnConfiguration: classicEnemySpawnConfiguration(),
-                pickupSpawnConfiguration: PickupSpawnConfiguration(),
+                pickupSpawnConfiguration: classicPickupSpawnConfiguration(),
                 sequenceSeed: runSequenceSeed
             )
         case .redline:
@@ -86,12 +86,12 @@ struct ArenaModeRules {
         case .daily:
             settings = ArenaModeRunSettings(
                 enemySpawnConfiguration: classicEnemySpawnConfiguration(),
-                pickupSpawnConfiguration: PickupSpawnConfiguration(),
+                pickupSpawnConfiguration: classicPickupSpawnConfiguration(),
                 sequenceSeed: runSequenceSeed
             )
         }
 
-        guard let profile else {
+        guard let profile, mode != .daily else {
             return settings
         }
 
@@ -285,6 +285,10 @@ struct ArenaModeRules {
             splitterSpeed: 186,
             maxActiveSplitters: 5
         )
+    }
+
+    private static func classicPickupSpawnConfiguration() -> PickupSpawnConfiguration {
+        PickupSpawnConfiguration(guaranteedOpening: ArenaProgressionRules.startingWeapons)
     }
 
     private static func redlinePickupSpawnConfiguration() -> PickupSpawnConfiguration {

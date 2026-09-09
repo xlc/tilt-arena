@@ -2,6 +2,18 @@ import XCTest
 @testable import TiltArena
 
 final class ReadyStartHoldControllerTests: XCTestCase {
+    func testRetryCountsDownWithoutRequiringAnotherHold() {
+        var controller = ReadyStartHoldController()
+        controller.beginRetry()
+        let outside = CGPoint(x: 1_000, y: 1_000)
+        XCTAssertFalse(controller.update(playerPosition: outside, startPoint: .zero, deltaTime: 0.74).didComplete)
+        XCTAssertTrue(controller.update(playerPosition: outside, startPoint: .zero, deltaTime: 0.01).didComplete)
+        controller.reset()
+        XCTAssertFalse(controller.isRetry)
+        XCTAssertEqual(controller.requiredDuration, 3)
+        XCTAssertFalse(controller.update(playerPosition: .zero, startPoint: .zero, deltaTime: 0.75).didComplete)
+    }
+
     func testHoldCompletesOnlyAfterRequiredTimeInsideCircle() {
         var controller = ReadyStartHoldController(
             configuration: ReadyStartHoldConfiguration(requiredDuration: 3, startCircleRadius: 10)

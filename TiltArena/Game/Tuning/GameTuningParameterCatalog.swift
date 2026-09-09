@@ -111,6 +111,7 @@ enum GameTuningParameterCatalog {
 
     private static func appendReadyStartParameters(to specs: inout [GameTuningParameterSpec]) {
         specs.append(double("readyStart.requiredDuration", "Ready", "required duration", \.readyStart.requiredDuration, 0.25, 0, nil, 2))
+        specs.append(double("readyStart.retryDuration", "Ready", "retry countdown", \.readyStart.retryDuration, 0.05, 0, 3, 2))
         specs.append(cgFloat("readyStart.startCircleRadius", "Ready", "start circle radius", \.readyStart.startCircleRadius, 2, 4, nil, 1))
     }
 

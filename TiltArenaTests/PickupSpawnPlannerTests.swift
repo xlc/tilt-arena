@@ -465,6 +465,42 @@ final class PickupSpawnPlannerTests: XCTestCase {
         )
     }
 
+    func testClassicOpeningGuaranteesStartersWithoutChangingCycleWeights() {
+        var complete = RunProfile()
+        complete.unlockedWeapons = Set(WeaponKind.allCases)
+        for profile in [RunProfile(), complete] {
+            let configuration = ArenaModeRules.runSettings(for: .classic, profile: profile).pickupSpawnConfiguration
+            let count = configuration.weaponKindCycle.count
+            for seed in 0..<26 {
+                let kinds = spawnKinds(count: count * 2, configuration: configuration, sequenceSeed: seed)
+                XCTAssertEqual(Set(kinds.prefix(3)), Set(ArenaProgressionRules.startingWeapons))
+                XCTAssertEqual(
+                    kinds.prefix(count).map(\.rawValue).sorted(), configuration.weaponKindCycle.map(\.rawValue).sorted()
+                )
+                var ordinary = configuration
+                ordinary.guaranteedOpening = []
+                let original = spawnKinds(count: count, configuration: ordinary, sequenceSeed: seed)
+                XCTAssertEqual(Array(kinds.suffix(count)), original)
+            }
+        }
+    }
+
+    func testFailedPlacementDoesNotConsumeTheGuaranteedOpening() {
+        let configuration = ArenaModeRules.runSettings(for: .classic).pickupSpawnConfiguration
+        var planner = PickupSpawnPlanner(configuration: configuration, sequenceSeed: 13)
+        let rect = CGRect(x: 0, y: 0, width: 658, height: 317)
+        XCTAssertNil(planner.spawnPickup(
+            in: rect, avoiding: .zero,
+            enemyCircles: [CollisionCircle(center: CGPoint(x: 329, y: 158), radius: 1_000)],
+            configuration: configuration
+        ))
+        let kinds = (0..<3).compactMap { _ in
+            planner.spawnPickup(in: rect, avoiding: .zero, enemyCircles: [], configuration: configuration)?.kind
+        }
+        XCTAssertEqual(Set(kinds), Set(ArenaProgressionRules.startingWeapons))
+        XCTAssertEqual(planner.nextPickupID, 4)
+    }
+
     func testDefaultKindCycleMakesLateControlWeaponsRareAndNovaBombLast() {
         let kinds = spawnKinds(
             count: PickupSpawnConfiguration.defaultWeaponKindCycle.count,

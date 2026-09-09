@@ -114,6 +114,15 @@ final class ArenaScreenSnapshotTests: XCTestCase {
         try assertScreenSnapshot(state: .home, themeKind: .whitePrecisionBoard, selectedMode: .daily, testName: #function)
     }
 
+    func testDarkRetryCountdownScreen() throws {
+        let scene = try makeSnapshotScene()
+        let image = try SnapshotImageRenderer.render(scene: scene) {
+            scene.prepareForVisualSnapshot(state: .home, profile: progressedProfile())
+            scene.prepareRetryForSnapshotTesting()
+        }
+        assertSnapshot(of: image, as: .image(precision: 0.99))
+    }
+
     private func assertScreenSnapshot(
         state: ArenaUISceneState,
         themeKind: ArenaThemeKind,

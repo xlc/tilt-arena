@@ -280,7 +280,12 @@ final class ArenaScene: SKScene {
     }
 
     func pauseActiveRunIfNeeded() {
-        pauseRun()
+        if uiState == .preRun {
+            readyHoldController.reset()
+            show(.home)
+        } else {
+            pauseRun()
+        }
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -514,12 +519,14 @@ extension ArenaScene {
     }
 
     private func updatePreRun(deltaTime: TimeInterval) {
-        let input = movementInput(deltaTime: deltaTime)
-        let state = movementController.update(input: input, deltaTime: deltaTime, arenaBounds: currentGameplayBounds)
-        applyPlayerState(state, resetTrail: false)
+        if !readyHoldController.isRetry {
+            let input = movementInput(deltaTime: deltaTime)
+            let state = movementController.update(input: input, deltaTime: deltaTime, arenaBounds: currentGameplayBounds)
+            applyPlayerState(state, resetTrail: false)
+        }
 
         let holdState = readyHoldController.update(
-            playerPosition: state.position,
+            playerPosition: movementController.state.position,
             startPoint: readyStartPoint,
             deltaTime: deltaTime
         )
@@ -614,11 +621,15 @@ extension ArenaScene {
         }
     }
 
-    private func preparePreRun() {
+    private func preparePreRun(isRetry: Bool = false) {
         runController = ClassicRunController(configuration: runController.configuration)
         runSession.preparePreRun()
         resetGameplayObjects()
         readyHoldController.reset()
+        if isRetry {
+            readyHoldController.beginRetry()
+            tiltInputController.resetSmoothedInput()
+        }
         placePlayer(resetPosition: true)
         readyStartPoint = movementController.state.position
         resetPlayerFeedback()
@@ -802,10 +813,12 @@ extension ArenaScene {
     private func applySelectedModeTuning() {
         let modeTuning = gameTuning.modeTuning(for: runSession.selectedMode)
         var tunedPickupConfiguration = modeTuning.pickupSpawnConfiguration
-        tunedPickupConfiguration.weaponKindCycle = ArenaProgressionRules.filteredWeaponCycle(
-            tunedPickupConfiguration.weaponKindCycle,
-            profile: runProfile
-        )
+        if runSession.selectedMode != .daily {
+            tunedPickupConfiguration.weaponKindCycle = ArenaProgressionRules.filteredWeaponCycle(
+                tunedPickupConfiguration.weaponKindCycle,
+                profile: runProfile
+            )
+        }
 
         spawnDirector.configuration = modeTuning.enemySpawnConfiguration
         pickupSpawnConfiguration = tunedPickupConfiguration.sanitizedForRuntime()
@@ -1961,6 +1974,9 @@ extension ArenaScene {
 
 private extension ArenaScene {
     func show(_ state: ArenaUISceneState) {
+        if uiState == .preRun, state != .preRun, state != .activeGameplay {
+            readyHoldController.reset()
+        }
         let transition = navigationState.transition(to: state)
         if transition.previous != transition.current {
             sceneLogger.info("scene.state_changed", metadata: [
@@ -2428,7 +2444,7 @@ private extension ArenaScene {
         )
         addReadyStartCircle(at: readyStartPoint)
         addStatusLabel(
-            "HOLD 3s TO START",
+            readyHoldController.isRetry ? "RESTARTING" : "HOLD TO START",
             frame: CGRect(x: layout.safeRect.midX - 82, y: layout.safeRect.minY, width: 164, height: 28),
             color: theme.playerAccentColor
         )
@@ -2603,8 +2619,8 @@ private extension ArenaScene {
         switch action {
         case .play where selectedModeIsAvailable:
             preparePreRun()
-        case .playAgain:
-            preparePreRun()
+        case .playAgain where uiState == .postRun:
+            preparePreRun(isRetry: true)
         case .openModes, .openAwards, .openWeaponCodex:
             openMenu(action)
         case .openOptions:
@@ -2939,7 +2955,7 @@ private extension ArenaScene {
         readyStatusLabel = label
 
         uiRenderer.addLabel(
-            "HOLD TO LAUNCH",
+            readyHoldController.isRetry ? "GET READY" : "HOLD TO LAUNCH",
             at: CGPoint(x: point.x, y: point.y + 30),
             fontSize: 10,
             color: theme.playerAccentColor,
@@ -2961,14 +2977,14 @@ private extension ArenaScene {
     }
 
     func updateReadyProgressDisplay(_ state: ReadyStartHoldState) {
-        let requiredDuration = readyHoldController.configuration.effectiveRequiredDuration
+        let requiredDuration = readyHoldController.requiredDuration
         let progress = state.progressFraction(requiredDuration: requiredDuration)
         readyProgressRing?.setScale(0.55 + CGFloat(progress) * 0.45)
         readyProgressRing?.alpha = 0.35 + CGFloat(progress) * 0.65
 
         if state.isInsideCircle {
             let remaining = max(0, requiredDuration - state.elapsed)
-            readyStatusLabel?.text = String(format: "HOLD %.1fs", remaining)
+            readyStatusLabel?.text = String(format: readyHoldController.isRetry ? "GO IN %.1fs" : "HOLD %.1fs", remaining)
         } else {
             readyStatusLabel?.text = "CENTER CRAFT"
         }
@@ -3229,6 +3245,18 @@ extension ArenaScene {
         syncHapticsOption()
         preparePreRun()
         startRun()
+    }
+
+    func retryRunForTesting() {
+        performNavigationAction(.playAgain)
+    }
+
+    func prepareRetryForSnapshotTesting() {
+        preparePreRun(isRetry: true)
+    }
+
+    var pickupCountForTesting: Int {
+        pickups.count
     }
 
     func pauseRunForTesting() {

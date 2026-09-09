@@ -514,6 +514,35 @@ final class ArenaSceneEnemyLifecycleTests: XCTestCase {
         XCTAssertFalse(scene.isPostWeaponSafeForTesting)
     }
 
+    func testRetryHasNoGameplayDuringCountdownAndIgnoresDuplicateTaps() {
+        let scene = makeActiveScene()
+        scene.finishRunForTesting()
+        scene.retryRunForTesting()
+        let startPosition = scene.playerPositionForTesting
+        scene.update(0)
+        for frame in 1...44 { scene.update(Double(frame) / 60) }
+        XCTAssertEqual(scene.uiStateForTesting, .preRun)
+        XCTAssertEqual(scene.runSurvivalTimeForTesting, 0)
+        XCTAssertTrue(scene.enemyIDsForTesting.isEmpty)
+        XCTAssertEqual(scene.pickupCountForTesting, 0)
+        XCTAssertEqual(scene.playerPositionForTesting, startPosition)
+        scene.retryRunForTesting()
+        for frame in 45...46 { scene.update(Double(frame) / 60) }
+        XCTAssertEqual(scene.uiStateForTesting, .activeGameplay)
+    }
+
+    func testBackgroundingCancelsPendingRetry() {
+        let scene = makeActiveScene()
+        scene.finishRunForTesting()
+        scene.retryRunForTesting()
+        scene.pauseActiveRunIfNeeded()
+        scene.update(0)
+        for frame in 1...300 { scene.update(Double(frame) / 60) }
+        XCTAssertEqual(scene.uiStateForTesting, .home)
+        XCTAssertEqual(scene.runSurvivalTimeForTesting, 0)
+        XCTAssertTrue(scene.enemyIDsForTesting.isEmpty)
+    }
+
     private func makeActiveScene() -> ArenaScene {
         let scene = ArenaScene(size: CGSize(width: 320, height: 240))
         scene.prepareActiveRunForTesting()
