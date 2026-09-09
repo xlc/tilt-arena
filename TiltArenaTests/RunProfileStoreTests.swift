@@ -78,7 +78,6 @@ final class RunProfileStoreTests: XCTestCase {
           "totalEnemiesDestroyed": 55,
           "unlockedWeapons": ["shockwave"],
           "earnedAwardIDs": [],
-          "dailyParticipationSeeds": [],
           "recentRuns": [],
           "modeRecords": [],
           "dailyRecords": {}
@@ -138,8 +137,9 @@ final class RunProfileStoreTests: XCTestCase {
 
         let reloadedProfile = RunProfileStore(defaults: defaults).profile
 
-        XCTAssertEqual(result.profile.dailyParticipationSeeds, [ArenaModeRules.dailySeed(for: timestamp)])
-        XCTAssertEqual(reloadedProfile.dailyParticipationSeeds, [ArenaModeRules.dailySeed(for: timestamp)])
+        let seed = ArenaModeRules.dailySeed(for: timestamp)
+        XCTAssertEqual(result.profile.competitiveRecord(for: .daily, seed: seed).attempts, 1)
+        XCTAssertEqual(reloadedProfile.dailyRecords, result.profile.dailyRecords)
         XCTAssertEqual(reloadedProfile.unlockedWeapons, Set(ArenaProgressionRules.allGameplayWeapons))
         XCTAssertTrue(reloadedProfile.earnedAwardIDs.contains(.comboSpark))
         XCTAssertTrue(reloadedProfile.earnedAwardIDs.contains(.weaponMaster))
@@ -193,7 +193,7 @@ final class RunProfileStoreTests: XCTestCase {
         XCTAssertEqual(completed.sequenceSeed, 20_260_909)
         XCTAssertEqual(completed.startedAt, startedAt)
         XCTAssertEqual(completed.rulesVersion, ArenaRunContext.currentRulesVersion)
-        XCTAssertEqual(profile.dailyParticipationSeeds, [20_260_909])
+        XCTAssertEqual(Set(profile.dailyRecords.keys), [20_260_909])
         XCTAssertEqual(profile.competitiveRecord(for: .daily, seed: 20_260_909).bestScore, 20)
         XCTAssertEqual(profile.competitiveRecord(for: .daily, seed: 20_260_910).bestScore, 0)
         XCTAssertEqual(profile.recentRuns.first, completed)

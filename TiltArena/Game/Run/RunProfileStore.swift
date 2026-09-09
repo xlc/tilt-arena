@@ -42,7 +42,6 @@ struct RunProfile: Codable, Equatable {
     var recentRuns: [RunSummary] = []
     var unlockedWeapons: Set<WeaponKind> = Set(ArenaProgressionRules.startingWeapons)
     var earnedAwardIDs: Set<ArenaAwardID> = []
-    var dailyParticipationSeeds: Set<Int> = []
     var modeRecords: [ArenaModeKind: RunRecord] = [:]
     var dailyRecords: [Int: RunRecord] = [:]
 
@@ -56,7 +55,6 @@ struct RunProfile: Codable, Equatable {
         case recentRuns
         case unlockedWeapons
         case earnedAwardIDs
-        case dailyParticipationSeeds
         case modeRecords
         case dailyRecords
     }
@@ -77,7 +75,6 @@ struct RunProfile: Codable, Equatable {
         recentRuns = try container.decode([RunSummary].self, forKey: .recentRuns)
         unlockedWeapons = try container.decode(Set<WeaponKind>.self, forKey: .unlockedWeapons)
         earnedAwardIDs = try container.decode(Set<ArenaAwardID>.self, forKey: .earnedAwardIDs)
-        dailyParticipationSeeds = try container.decode(Set<Int>.self, forKey: .dailyParticipationSeeds)
 
         modeRecords = try container.decode([ArenaModeKind: RunRecord].self, forKey: .modeRecords)
         dailyRecords = try container.decode([Int: RunRecord].self, forKey: .dailyRecords)
@@ -109,7 +106,6 @@ struct RunProfile: Codable, Equatable {
         recentRuns = Array(recentRuns.prefix(max(0, recentRunLimit)))
 
         if summary.mode == .daily {
-            dailyParticipationSeeds.insert(summary.sequenceSeed)
             dailyRecords[summary.sequenceSeed, default: RunRecord()].record(summary)
             for seed in dailyRecords.keys.sorted().dropLast(90) {
                 dailyRecords.removeValue(forKey: seed)
