@@ -62,7 +62,7 @@ extension ArenaScene {
         glowWidth: CGFloat,
         zPosition: CGFloat
     ) -> SKShapeNode {
-        let node = SKShapeNode(path: Self.ricochetLinePath(from: segment.start, to: segment.end))
+        let node = SKShapeNode(path: Self.linePath(from: segment.start, to: segment.end))
         node.strokeColor = color
         node.lineWidth = lineWidth
         node.lineCap = .round
@@ -171,12 +171,5 @@ extension ArenaScene {
             .fadeOut(withDuration: 0.08),
             .removeFromParent()
         ]))
-    }
-
-    private static func ricochetLinePath(from start: CGPoint, to end: CGPoint) -> CGPath {
-        let path = CGMutablePath()
-        path.move(to: start)
-        path.addLine(to: end)
-        return path
     }
 }

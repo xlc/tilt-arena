@@ -215,66 +215,44 @@ final class DiagnosticSystemReportStoreTests: XCTestCase {
         XCTAssertEqual(try reportFileURLs(), [firstURL])
     }
 
-    func testMetricKitCohortSelectsNewestReportsInNewestFirstOrder() {
-        let payloads = [
-            DatedPayloadFixture(id: "oldest", start: 1, end: 2),
-            DatedPayloadFixture(id: "newest", start: 9, end: 10),
-            DatedPayloadFixture(id: "middle", start: 4, end: 5),
-            DatedPayloadFixture(id: "same-end-older-start", start: 8, end: 10)
-        ]
-
-        let selected = MetricKitDiagnosticCollector.newestCohort(
-            payloads,
-            limit: 3,
-            periodStart: \.periodStart,
-            periodEnd: \.periodEnd
+    func testBytePrunePreservesReadableReportsUntilUnknownSizeCanBeRemoved() throws {
+        let originalStore = makeSystemStore()
+        let readablePayload = Data(#"{"period":1}"#.utf8)
+        let readableURL = try originalStore.persist(
+            payloadJSON: readablePayload,
+            periodStart: Date(timeIntervalSince1970: 1),
+            periodEnd: Date(timeIntervalSince1970: 2)
         )
-
-        XCTAssertEqual(
-            selected.map(\.id),
-            ["newest", "same-end-older-start", "middle"]
+        let unknownSizeURL = try originalStore.persist(
+            payloadJSON: Data(#"{"period":2}"#.utf8),
+            periodStart: Date(timeIntervalSince1970: 2),
+            periodEnd: Date(timeIntervalSince1970: 3)
         )
-    }
-
-    func testMetricKitSerializationSkipsNonFittingPayloadAndConsumesLaterSmallerPayload() {
-        let payloads = [
-            SerializedPayloadFixture(id: "newest", byteCount: 3),
-            SerializedPayloadFixture(id: "middle", byteCount: 4),
-            SerializedPayloadFixture(id: "oldest", byteCount: 1)
-        ]
-        var events: [String] = []
-
-        let summary = MetricKitDiagnosticCollector.consumeSerializedPayloads(
-            payloads,
-            maxTotalBytes: 5,
-            serialize: { payload in
-                events.append("serialize-\(payload.id)")
-                return Data(repeating: 0x78, count: payload.byteCount)
-            },
-            consume: { payload, _ in
-                events.append("consume-\(payload.id)")
-            }
-        )
-
-        XCTAssertEqual(
-            events,
-            [
-                "serialize-newest",
-                "consume-newest",
-                "serialize-middle",
-                "serialize-oldest",
-                "consume-oldest"
-            ]
-        )
-        XCTAssertEqual(
-            summary,
-            .init(
-                consumedPayloadCount: 2,
-                consumedBytes: 4,
-                skippedPayloadCount: 1,
-                didReachByteBudget: true
+        let configuration = DiagnosticSystemReportStore.Configuration(maxReportCount: 2, maxTotalBytes: readablePayload.count)
+        let blockedStore = makeSystemStore(
+            configuration: configuration,
+            fileManager: FaultInjectingFileManager(
+                shouldFailRemoval: { $0 == unknownSizeURL },
+                shouldFailAttributes: { $0 == unknownSizeURL.path }
             )
         )
+
+        let blockedSnapshot = try blockedStore.snapshot()
+        XCTAssertEqual(try reportFileURLs(), [readableURL, unknownSizeURL])
+        XCTAssertEqual(blockedSnapshot.reports.map(\.jsonData), [readablePayload])
+        XCTAssertGreaterThanOrEqual(blockedSnapshot.unreadableReportCount, 2)
+
+        let recoveredStore = makeSystemStore(
+            configuration: configuration,
+            fileManager: FaultInjectingFileManager(
+                shouldFailAttributes: { $0 == unknownSizeURL.path }
+            )
+        )
+        let recoveredSnapshot = try recoveredStore.snapshot()
+
+        XCTAssertEqual(try reportFileURLs(), [readableURL])
+        XCTAssertEqual(recoveredSnapshot.reports.map(\.jsonData), [readablePayload])
+        XCTAssertEqual(recoveredSnapshot.totalBytes, readablePayload.count)
     }
 
     func testFlatReportContainsChronologicalJSONLHealthAndRawSystemReport() throws {
@@ -536,23 +514,6 @@ final class DiagnosticSystemReportStoreTests: XCTestCase {
             line: 1
         )
     }
-}
-
-private struct DatedPayloadFixture {
-    let id: String
-    let periodStart: Date
-    let periodEnd: Date
-
-    init(id: String, start: TimeInterval, end: TimeInterval) {
-        self.id = id
-        periodStart = Date(timeIntervalSince1970: start)
-        periodEnd = Date(timeIntervalSince1970: end)
-    }
-}
-
-private struct SerializedPayloadFixture {
-    let id: String
-    let byteCount: Int
 }
 
 private final class FaultInjectingFileManager: FileManager, @unchecked Sendable {

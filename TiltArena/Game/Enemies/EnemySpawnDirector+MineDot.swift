@@ -14,19 +14,12 @@ extension EnemySpawnDirector {
     ) {
         guard context.deltaTime > 0 else { return }
         guard let mineDotSpawnInterval = context.tuning.mineDotSpawnInterval else {
-            disablePattern(.mineDot, timer: \.timeUntilNextMineDot)
+            disablePattern(.mineDot)
             return
         }
 
         guard mineDotSpawnInterval > 0, context.tuning.maxActiveMineDots > 0 else {
-            disablePattern(.mineDot, timer: \.timeUntilNextMineDot)
-            return
-        }
-
-        primeTimer(for: .mineDot, interval: mineDotSpawnInterval, timer: \.timeUntilNextMineDot)
-
-        guard pendingTelegraphSlotCount < pendingTelegraphCapacity else {
-            timeUntilNextMineDot = max(timeUntilNextMineDot, mineDotSpawnInterval)
+            disablePattern(.mineDot)
             return
         }
 
@@ -34,15 +27,14 @@ extension EnemySpawnDirector {
         let projectedEnemyCount = activeAndNewEnemies.count + pendingEnemyCount
         let projectedMineDotCount = activeAndNewEnemies.filter(\.isMineDot).count + pendingMineDotCount
 
-        guard projectedEnemyCount + 1 <= context.tuning.maxActiveEnemies,
-              projectedMineDotCount < context.tuning.maxActiveMineDots else {
-            timeUntilNextMineDot = max(timeUntilNextMineDot, mineDotSpawnInterval)
-            return
-        }
-
-        timeUntilNextMineDot -= context.deltaTime
-
-        guard timeUntilNextMineDot <= 0 else {
+        let hasEnemyCapacity = projectedEnemyCount + 1 <= context.tuning.maxActiveEnemies
+            && projectedMineDotCount < context.tuning.maxActiveMineDots
+        guard advanceTelegraphTimer(
+            for: .mineDot,
+            interval: mineDotSpawnInterval,
+            deltaTime: context.deltaTime,
+            hasEnemyCapacity: hasEnemyCapacity
+        ) else {
             return
         }
 

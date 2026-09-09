@@ -9,33 +9,25 @@ extension EnemySpawnDirector {
     ) {
         guard context.deltaTime > 0 else { return }
         guard let arrowRushSpawnInterval = context.tuning.arrowRushSpawnInterval else {
-            disablePattern(.arrowRush, timer: \.timeUntilNextArrowRush)
+            disablePattern(.arrowRush)
             return
         }
 
         let configuredEnemyCount = max(0, context.tuning.arrowRushEnemyCount)
         guard arrowRushSpawnInterval > 0, configuredEnemyCount > 0 else {
-            disablePattern(.arrowRush, timer: \.timeUntilNextArrowRush)
+            disablePattern(.arrowRush)
             return
         }
-
-        primeTimer(for: .arrowRush, interval: arrowRushSpawnInterval, timer: \.timeUntilNextArrowRush)
 
         let requiredEnemyCount = requiredArrowRushEnemyCount(configuredEnemyCount: configuredEnemyCount)
 
-        guard pendingTelegraphSlotCount < pendingTelegraphCapacity else {
-            timeUntilNextArrowRush = max(timeUntilNextArrowRush, arrowRushSpawnInterval)
-            return
-        }
-
-        guard projectedEnemyCount + requiredEnemyCount <= context.tuning.maxActiveEnemies else {
-            timeUntilNextArrowRush = max(timeUntilNextArrowRush, arrowRushSpawnInterval)
-            return
-        }
-
-        timeUntilNextArrowRush -= context.deltaTime
-
-        guard timeUntilNextArrowRush <= 0 else {
+        let hasEnemyCapacity = projectedEnemyCount + requiredEnemyCount <= context.tuning.maxActiveEnemies
+        guard advanceTelegraphTimer(
+            for: .arrowRush,
+            interval: arrowRushSpawnInterval,
+            deltaTime: context.deltaTime,
+            hasEnemyCapacity: hasEnemyCapacity
+        ) else {
             return
         }
 

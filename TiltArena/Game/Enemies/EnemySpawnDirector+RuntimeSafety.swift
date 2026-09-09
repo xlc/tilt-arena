@@ -30,14 +30,8 @@ extension EnemySpawnDirector {
     mutating func sanitizeSpawnTimers() -> Int {
         var sanitizedCount = 0
         let timers: [WritableKeyPath<EnemySpawnDirector, TimeInterval>] = [
-            \.timeUntilNextChaser,
-            \.timeUntilNextFormation,
-            \.timeUntilNextSplitter,
-            \.timeUntilNextArrowRush,
-            \.timeUntilNextMineDot,
-            \.timeUntilNextHunterDot,
-            \.timeUntilNextPaddleTrap
-        ]
+            \.timeUntilNextChaser
+        ] + SpawnPattern.allCases.map(\.timer)
         for timer in timers where !self[keyPath: timer].isFinite {
             self[keyPath: timer] = 0
             sanitizedCount += 1

@@ -274,29 +274,21 @@ struct EnemySpawnDirector {
     ) {
         guard context.deltaTime > 0 else { return }
         guard let formationSpawnInterval = context.tuning.formationSpawnInterval else {
-            disablePattern(.formation, timer: \.timeUntilNextFormation)
+            disablePattern(.formation)
             return
         }
 
         guard formationSpawnInterval > 0 else {
-            disablePattern(.formation, timer: \.timeUntilNextFormation)
+            disablePattern(.formation)
             return
         }
-        primeTimer(for: .formation, interval: formationSpawnInterval, timer: \.timeUntilNextFormation)
-
-        guard pendingTelegraphSlotCount < pendingTelegraphCapacity else {
-            timeUntilNextFormation = max(timeUntilNextFormation, formationSpawnInterval)
-            return
-        }
-
-        guard projectedEnemyCount + requiredFormationEnemyCount <= context.tuning.maxActiveEnemies else {
-            timeUntilNextFormation = max(timeUntilNextFormation, formationSpawnInterval)
-            return
-        }
-
-        timeUntilNextFormation -= context.deltaTime
-
-        guard timeUntilNextFormation <= 0 else {
+        let hasEnemyCapacity = projectedEnemyCount + requiredFormationEnemyCount <= context.tuning.maxActiveEnemies
+        guard advanceTelegraphTimer(
+            for: .formation,
+            interval: formationSpawnInterval,
+            deltaTime: context.deltaTime,
+            hasEnemyCapacity: hasEnemyCapacity
+        ) else {
             return
         }
 

@@ -47,6 +47,117 @@ final class EnemySpawnDirectorPatternScheduleTests: XCTestCase {
         XCTAssertEqual(chaosDirector.timeUntilNextPaddleTrap, 7.4, accuracy: 0.0001)
     }
 
+    func testEnemyCapacityPostponesEveryPatternUntilSlotsAreAvailable() {
+        let configuration = allPatternConfiguration()
+        var director = EnemySpawnDirector(configuration: configuration)
+        let fullArena = (0..<configuration.warmup.maxActiveEnemies).map { index in
+            ArenaEnemy(id: index, position: .zero, radius: 8, speed: 0)
+        }
+
+        let blockedFrame = updateDirector(&director, deltaTime: 0.1, survivalTime: 0, activeEnemies: fullArena)
+
+        XCTAssertTrue(blockedFrame.newEnemies.isEmpty)
+        XCTAssertTrue(blockedFrame.telegraphsToShow.isEmpty)
+        assertTelegraphTimers(director, equal: 10)
+        XCTAssertEqual(director.timeUntilNextSplitter, 10, accuracy: 0.0001)
+
+        let releasedFrame = updateDirector(&director, deltaTime: 0.25, survivalTime: 0)
+
+        XCTAssertTrue(releasedFrame.newEnemies.isEmpty)
+        XCTAssertTrue(releasedFrame.telegraphsToShow.isEmpty)
+        assertTelegraphTimers(director, equal: 9.75)
+        XCTAssertEqual(director.timeUntilNextSplitter, 9.75, accuracy: 0.0001)
+    }
+
+    func testTelegraphCapacityPostponesPatternsWithoutBlockingSplitterWarnings() {
+        var configuration = allPatternConfiguration()
+        configuration.maxPendingEnemyTelegraphs = 0
+        var director = EnemySpawnDirector(configuration: configuration)
+
+        let blockedFrame = updateDirector(&director, deltaTime: 0.1, survivalTime: 0)
+
+        XCTAssertTrue(blockedFrame.telegraphsToShow.isEmpty)
+        assertTelegraphTimers(director, equal: 10)
+        XCTAssertEqual(director.timeUntilNextSplitter, 2.9, accuracy: 0.0001)
+
+        director.configuration.maxPendingEnemyTelegraphs = 2
+        let releasedFrame = updateDirector(&director, deltaTime: 0.25, survivalTime: 0)
+
+        XCTAssertTrue(releasedFrame.telegraphsToShow.isEmpty)
+        assertTelegraphTimers(director, equal: 9.75)
+        XCTAssertEqual(director.timeUntilNextSplitter, 2.65, accuracy: 0.0001)
+    }
+
+    func testReenabledPatternsRestartTheirIntroductionDelays() {
+        let configuration = allPatternConfiguration()
+        var director = EnemySpawnDirector(configuration: configuration)
+        _ = updateDirector(&director, deltaTime: 0.5, survivalTime: 0)
+
+        director.configuration.warmup = disabledPhaseTuning(maxActiveEnemies: 80)
+        _ = updateDirector(&director, deltaTime: 0.1, survivalTime: 0)
+
+        assertTelegraphTimers(director, equal: 0)
+        XCTAssertEqual(director.timeUntilNextSplitter, 0)
+
+        director.configuration.warmup = configuration.warmup
+        let reenabledFrame = updateDirector(&director, deltaTime: 0.1, survivalTime: 0)
+
+        XCTAssertTrue(reenabledFrame.newEnemies.isEmpty)
+        XCTAssertTrue(reenabledFrame.telegraphsToShow.isEmpty)
+        XCTAssertEqual(director.timeUntilNextFormation, 1.4, accuracy: 0.0001)
+        XCTAssertEqual(director.timeUntilNextSplitter, 2.9, accuracy: 0.0001)
+        XCTAssertEqual(director.timeUntilNextArrowRush, 2.9, accuracy: 0.0001)
+        XCTAssertEqual(director.timeUntilNextMineDot, 4.4, accuracy: 0.0001)
+        XCTAssertEqual(director.timeUntilNextHunterDot, 5.9, accuracy: 0.0001)
+        XCTAssertEqual(director.timeUntilNextPaddleTrap, 7.4, accuracy: 0.0001)
+    }
+
+    func testSuccessfulTelegraphPreservesCountdownOvershoot() {
+        var configuration = EnemySpawnConfiguration()
+        configuration.patternIntroductionSpacing = 0
+        configuration.warmup = disabledPhaseTuning(maxActiveEnemies: 20)
+        configuration.warmup.formationSpawnInterval = 10
+        configuration.warmup.formationSpeed = 100
+        var director = EnemySpawnDirector(configuration: configuration)
+
+        let frame = updateDirector(&director, deltaTime: 0.3, survivalTime: 0)
+
+        XCTAssertEqual(frame.telegraphsToShow.count, 1)
+        XCTAssertEqual(director.timeUntilNextFormation, 9.7, accuracy: 0.0001)
+    }
+
+    private func allPatternConfiguration() -> EnemySpawnConfiguration {
+        var configuration = EnemySpawnConfiguration()
+        configuration.warmup = configuration.chaos
+        configuration.warmup.chaserSpawnInterval = 0
+        configuration.warmup.maxActiveEnemies = 80
+        configuration.warmup.formationSpawnInterval = 10
+        configuration.warmup.splitterSpawnInterval = 10
+        configuration.warmup.arrowRushSpawnInterval = 10
+        configuration.warmup.mineDotSpawnInterval = 10
+        configuration.warmup.hunterDotSpawnInterval = 10
+        configuration.warmup.paddleTrapSpawnInterval = 10
+        return configuration
+    }
+
+    private func assertTelegraphTimers(
+        _ director: EnemySpawnDirector,
+        equal expected: TimeInterval,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let timers = [
+            director.timeUntilNextFormation,
+            director.timeUntilNextArrowRush,
+            director.timeUntilNextMineDot,
+            director.timeUntilNextHunterDot,
+            director.timeUntilNextPaddleTrap
+        ]
+        for timer in timers {
+            XCTAssertEqual(timer, expected, accuracy: 0.0001, file: file, line: line)
+        }
+    }
+
     private func disabledPhaseTuning(maxActiveEnemies: Int) -> EnemyPhaseTuning {
         EnemyPhaseTuning(
             chaserSpawnInterval: 0,
@@ -61,12 +172,13 @@ final class EnemySpawnDirectorPatternScheduleTests: XCTestCase {
     private func updateDirector(
         _ director: inout EnemySpawnDirector,
         deltaTime: TimeInterval,
-        survivalTime: TimeInterval
+        survivalTime: TimeInterval,
+        activeEnemies: [ArenaEnemy] = []
     ) -> EnemySpawnFrame {
         director.update(
             deltaTime: deltaTime,
             survivalTime: survivalTime,
-            activeEnemies: [],
+            activeEnemies: activeEnemies,
             playableRect: CGRect(x: 0, y: 0, width: 300, height: 300),
             playerPosition: CGPoint(x: 150, y: 150),
             pickupCircles: []

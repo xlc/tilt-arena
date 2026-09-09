@@ -173,7 +173,7 @@ final class GameCenterService: GameCenterClient {
             return
         }
 
-        submitScore(submission, queueRecoverableFailure: true)
+        submitScore(submission)
     }
 
     func reportAchievementEvent(_ event: GameCenterAchievementEvent) {
@@ -198,7 +198,7 @@ final class GameCenterService: GameCenterClient {
             return
         }
 
-        submitAchievements(progress, queueRecoverableFailure: true)
+        submitAchievements(progress)
     }
 
     func retryQueuedScores() {
@@ -365,10 +365,7 @@ final class GameCenterService: GameCenterClient {
         retryQueuedAchievements()
     }
 
-    private func submitScore(
-        _ submission: GameCenterScoreSubmission,
-        queueRecoverableFailure: Bool
-    ) {
+    private func submitScore(_ submission: GameCenterScoreSubmission) {
         localPlayer.submitScore(
             submission.score,
             context: submission.context,
@@ -381,8 +378,7 @@ final class GameCenterService: GameCenterClient {
             if let error {
                 self.handleScoreSubmissionFailure(
                     submission,
-                    error: error,
-                    queueRecoverableFailure: queueRecoverableFailure
+                    error: error
                 )
                 return
             }
@@ -396,8 +392,7 @@ final class GameCenterService: GameCenterClient {
 
     private func handleScoreSubmissionFailure(
         _ submission: GameCenterScoreSubmission,
-        error: Error,
-        queueRecoverableFailure: Bool
+        error: Error
     ) {
         let nsError = error as NSError
         let metadata = GameCenterLogMetadata.scoreSubmission(
@@ -408,7 +403,7 @@ final class GameCenterService: GameCenterClient {
             ]
         )
 
-        guard queueRecoverableFailure, GameCenterFailurePolicy.shouldQueue(error) else {
+        guard GameCenterFailurePolicy.shouldQueue(error) else {
             logger.warning("game_center.score_submit_failed", error: error, metadata: metadata)
             return
         }
@@ -428,10 +423,7 @@ final class GameCenterService: GameCenterClient {
         ))
     }
 
-    private func submitAchievements(
-        _ progress: [GameCenterAchievementProgress],
-        queueRecoverableFailure: Bool
-    ) {
+    private func submitAchievements(_ progress: [GameCenterAchievementProgress]) {
         achievementProgressStore.enqueue(progress)
         localPlayer.reportAchievements(progress) { [weak self] error in
             guard let self else {
@@ -441,8 +433,7 @@ final class GameCenterService: GameCenterClient {
             if let error {
                 self.handleAchievementSubmissionFailure(
                     progress,
-                    error: error,
-                    queueRecoverableFailure: queueRecoverableFailure
+                    error: error
                 )
                 return
             }
@@ -454,8 +445,7 @@ final class GameCenterService: GameCenterClient {
 
     private func handleAchievementSubmissionFailure(
         _ progress: [GameCenterAchievementProgress],
-        error: Error,
-        queueRecoverableFailure: Bool
+        error: Error
     ) {
         var metadata = GameCenterLogMetadata.achievementProgress(progress)
         let nsError = error as NSError
@@ -464,7 +454,7 @@ final class GameCenterService: GameCenterClient {
             "code": "\(nsError.code)"
         ]) { _, new in new }
 
-        guard queueRecoverableFailure, GameCenterFailurePolicy.shouldQueue(error) else {
+        guard GameCenterFailurePolicy.shouldQueue(error) else {
             achievementProgressStore.removeProgress(withAchievementIDs: Set(progress.map(\.achievementID)))
             logger.warning("game_center.achievement_submit_failed", error: error, metadata: metadata)
             return

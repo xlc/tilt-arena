@@ -8,21 +8,14 @@ extension EnemySpawnDirector {
     ) {
         guard context.deltaTime > 0 else { return }
         guard let hunterDotSpawnInterval = context.tuning.hunterDotSpawnInterval else {
-            disablePattern(.hunterDot, timer: \.timeUntilNextHunterDot)
+            disablePattern(.hunterDot)
             return
         }
 
         guard hunterDotSpawnInterval > 0,
               context.tuning.maxActiveHunterDots > 0,
               context.tuning.hunterDotSpeed > 0 else {
-            disablePattern(.hunterDot, timer: \.timeUntilNextHunterDot)
-            return
-        }
-
-        primeTimer(for: .hunterDot, interval: hunterDotSpawnInterval, timer: \.timeUntilNextHunterDot)
-
-        guard pendingTelegraphSlotCount < pendingTelegraphCapacity else {
-            timeUntilNextHunterDot = max(timeUntilNextHunterDot, hunterDotSpawnInterval)
+            disablePattern(.hunterDot)
             return
         }
 
@@ -30,15 +23,14 @@ extension EnemySpawnDirector {
         let projectedEnemyCount = activeAndNewEnemies.count + pendingEnemyCount
         let projectedHunterDotCount = activeAndNewEnemies.filter(\.isHunterDot).count + pendingHunterDotCount
 
-        guard projectedEnemyCount + 1 <= context.tuning.maxActiveEnemies,
-              projectedHunterDotCount < context.tuning.maxActiveHunterDots else {
-            timeUntilNextHunterDot = max(timeUntilNextHunterDot, hunterDotSpawnInterval)
-            return
-        }
-
-        timeUntilNextHunterDot -= context.deltaTime
-
-        guard timeUntilNextHunterDot <= 0 else {
+        let hasEnemyCapacity = projectedEnemyCount + 1 <= context.tuning.maxActiveEnemies
+            && projectedHunterDotCount < context.tuning.maxActiveHunterDots
+        guard advanceTelegraphTimer(
+            for: .hunterDot,
+            interval: hunterDotSpawnInterval,
+            deltaTime: context.deltaTime,
+            hasEnemyCapacity: hasEnemyCapacity
+        ) else {
             return
         }
 

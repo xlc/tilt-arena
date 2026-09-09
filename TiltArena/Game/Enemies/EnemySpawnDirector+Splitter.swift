@@ -9,11 +9,11 @@ extension EnemySpawnDirector {
     ) {
         guard context.deltaTime > 0 else { return }
         guard let splitterSpawnInterval = activeSplitterSpawnInterval(context) else {
-            disablePattern(.splitter, timer: \.timeUntilNextSplitter)
+            disablePattern(.splitter)
             return
         }
 
-        primeTimer(for: .splitter, interval: splitterSpawnInterval, timer: \.timeUntilNextSplitter)
+        primeTimer(for: .splitter, interval: splitterSpawnInterval)
 
         let activeSplitterCount = context.activeEnemies.filter(\.isSplitter).count
             + frame.newEnemies.filter(\.isSplitter).count

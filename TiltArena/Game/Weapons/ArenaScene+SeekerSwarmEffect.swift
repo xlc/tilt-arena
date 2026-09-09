@@ -73,7 +73,7 @@ extension ArenaScene {
     }
 
     private func makeSeekerTrail(from origin: CGPoint, to target: CGPoint) -> SKShapeNode {
-        let trail = SKShapeNode(path: Self.seekerLinePath(from: origin, to: target))
+        let trail = SKShapeNode(path: Self.linePath(from: origin, to: target))
         trail.strokeColor = theme.pickupViolet.withAlphaComponent(0.22)
         trail.lineWidth = 0.9
         trail.glowWidth = 0.65
@@ -162,7 +162,7 @@ extension ArenaScene {
                 y: origin.y + (lastKnownPosition.y - origin.y) * progress
             )
             node.position = projectilePosition
-            trail.path = seekerLinePath(from: origin, to: projectilePosition)
+            trail.path = linePath(from: origin, to: projectilePosition)
             updateImpactTarget(WeaponImpactTarget(id: target.id, position: lastKnownPosition))
         }
     }
@@ -212,7 +212,7 @@ extension ArenaScene {
     }
 
     private func playSeekerExplosionSpark(at position: CGPoint, radius: CGFloat, delay: TimeInterval) {
-        let spark = SKShapeNode(path: Self.seekerCrossPath(radius: min(18, max(8, radius * 0.32))))
+        let spark = SKShapeNode(path: Self.crossPath(radius: min(18, max(8, radius * 0.32))))
         spark.position = position
         spark.strokeColor = theme.playerColor.withAlphaComponent(0.74)
         spark.lineWidth = 1.1
@@ -231,22 +231,6 @@ extension ArenaScene {
             .fadeOut(withDuration: 0.08),
             .removeFromParent()
         ]))
-    }
-
-    private static func seekerLinePath(from start: CGPoint, to end: CGPoint) -> CGPath {
-        let path = CGMutablePath()
-        path.move(to: start)
-        path.addLine(to: end)
-        return path
-    }
-
-    private static func seekerCrossPath(radius: CGFloat) -> CGPath {
-        let path = CGMutablePath()
-        path.move(to: CGPoint(x: -radius, y: 0))
-        path.addLine(to: CGPoint(x: radius, y: 0))
-        path.move(to: CGPoint(x: 0, y: -radius))
-        path.addLine(to: CGPoint(x: 0, y: radius))
-        return path
     }
 }
 

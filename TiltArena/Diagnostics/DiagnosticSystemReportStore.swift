@@ -353,26 +353,12 @@ final class DiagnosticSystemReportStore: @unchecked Sendable {
             sizedReports,
             byteLimit: configuration.maxTotalBytes
         ) {
-            let unknownSizeReports = sizedReports.filter { $0.bytes == nil }
-            if !unknownSizeReports.isEmpty {
-                guard let removalIndex = sizedReports.firstIndex(where: {
-                    $0.bytes == nil
-                        && !failedRemovals.contains($0.url)
-                }) else {
-                    break
-                }
-                let report = sizedReports[removalIndex]
-                if removeReportIfPossible(report.url) {
-                    sizedReports.remove(at: removalIndex)
-                } else {
-                    failedRemovals.insert(report.url)
-                    failureCount += 1
-                }
-                continue
-            }
-
+            // An unknown size prevents proving the quota is met. Resolve those
+            // entries first, retaining known-size reports if none can be removed.
+            let hasUnknownSize = sizedReports.contains { $0.bytes == nil }
             let removalIndex = sizedReports.firstIndex {
-                !failedRemovals.contains($0.url)
+                (!hasUnknownSize || $0.bytes == nil)
+                    && !failedRemovals.contains($0.url)
             }
             guard let removalIndex else {
                 break

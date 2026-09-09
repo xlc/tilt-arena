@@ -68,11 +68,9 @@ enum RicochetLancePath {
             WeaponRuntimeSafetyLimits.maximumRicochetBounceCount,
             max(0, maximumBounces)
         )
-        var remainingSegments = maximumBounces + 1
-        var remainingBounces = maximumBounces
         var segments: [RicochetLanceSegment] = []
 
-        while remainingSegments > 0 {
+        for segmentIndex in 0...maximumBounces {
             direction = reflectedIfLeavingBounds(direction, from: start, in: playableRect)
 
             let hit = nextBoundaryHit(from: start, direction: direction, in: playableRect)
@@ -88,12 +86,7 @@ enum RicochetLancePath {
             if ArenaGeometry.squaredDistance(from: start, to: end) > epsilon * epsilon {
                 segments.append(RicochetLanceSegment(start: start, end: end))
             }
-            remainingSegments -= 1
-
-            guard
-                remainingSegments > 0,
-                remainingBounces > 0
-            else {
+            guard segmentIndex < maximumBounces else {
                 break
             }
 
@@ -105,7 +98,6 @@ enum RicochetLancePath {
                 direction.dy = -direction.dy
             }
             direction = resolvedDirection(direction)
-            remainingBounces -= 1
         }
 
         return segments

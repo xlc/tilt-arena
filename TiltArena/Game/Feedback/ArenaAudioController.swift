@@ -33,23 +33,48 @@ enum ArenaAudioEvent: Equatable {
 
 enum ArenaAudioCueCatalog {
     static func cue(for event: ArenaAudioEvent) -> ArenaAudioCue {
+        cue(forFamily: family(for: event))
+    }
+
+    static func cue(forFamily family: ArenaAudioCueFamily) -> ArenaAudioCue {
+        switch family {
+        case .pickup:
+            return ArenaAudioCue(family: family, frequency: 760, duration: 0.07, volume: 0.16, cooldown: 0.04)
+        case .majorEnemyClear:
+            return ArenaAudioCue(family: family, frequency: 210, duration: 0.18, volume: 0.24, cooldown: 0.18)
+        case .enemyClear:
+            return ArenaAudioCue(family: family, frequency: 360, duration: 0.05, volume: 0.12, cooldown: 0.08)
+        case .comboMilestone:
+            return ArenaAudioCue(family: family, frequency: 860, duration: 0.11, volume: 0.2, cooldown: 0.16)
+        case .shieldWarning:
+            return ArenaAudioCue(family: family, frequency: 540, duration: 0.08, volume: 0.16, cooldown: 0.35)
+        case .shieldExpired:
+            return ArenaAudioCue(family: family, frequency: 260, duration: 0.13, volume: 0.2, cooldown: 0.2)
+        case .death:
+            return ArenaAudioCue(family: family, frequency: 120, duration: 0.28, volume: 0.34, cooldown: 0.3)
+        case .newBest:
+            return ArenaAudioCue(family: family, frequency: 1_280, duration: 0.16, volume: 0.22, cooldown: 0.25)
+        }
+    }
+
+    private static func family(for event: ArenaAudioEvent) -> ArenaAudioCueFamily {
         switch event {
         case .pickup:
-            return ArenaAudioCue(family: .pickup, frequency: 760, duration: 0.07, volume: 0.16, cooldown: 0.04)
+            return .pickup
         case let .enemyClear(count) where count >= 8:
-            return ArenaAudioCue(family: .majorEnemyClear, frequency: 210, duration: 0.18, volume: 0.24, cooldown: 0.18)
+            return .majorEnemyClear
         case .enemyClear:
-            return ArenaAudioCue(family: .enemyClear, frequency: 360, duration: 0.05, volume: 0.12, cooldown: 0.08)
+            return .enemyClear
         case .comboMilestone:
-            return ArenaAudioCue(family: .comboMilestone, frequency: 860, duration: 0.11, volume: 0.2, cooldown: 0.16)
+            return .comboMilestone
         case .shieldWarning:
-            return ArenaAudioCue(family: .shieldWarning, frequency: 540, duration: 0.08, volume: 0.16, cooldown: 0.35)
+            return .shieldWarning
         case .shieldExpired:
-            return ArenaAudioCue(family: .shieldExpired, frequency: 260, duration: 0.13, volume: 0.2, cooldown: 0.2)
+            return .shieldExpired
         case .death:
-            return ArenaAudioCue(family: .death, frequency: 120, duration: 0.28, volume: 0.34, cooldown: 0.3)
+            return .death
         case .newBest:
-            return ArenaAudioCue(family: .newBest, frequency: 1_280, duration: 0.16, volume: 0.22, cooldown: 0.25)
+            return .newBest
         }
     }
 }
@@ -100,12 +125,6 @@ struct ArenaAudioReadinessEpisodeGate {
 
 @MainActor
 final class ArenaAudioController {
-    private static let maximumGeneratedBufferBytes = 8 * 1_024 * 1_024
-    private static let maximumGeneratedBufferFrames = AVAudioFrameCount(
-        maximumGeneratedBufferBytes / MemoryLayout<Float>.size
-    )
-    private static let longestGeneratedBufferDuration: TimeInterval = 2
-
     var isEnabled = true {
         didSet {
             if !isEnabled {
@@ -138,19 +157,16 @@ final class ArenaAudioController {
     ) {
         self.sampleRate = sampleRate
         self.logger = logger
-        let maximumSampleRate = Double(Self.maximumGeneratedBufferFrames)
-            / Self.longestGeneratedBufferDuration
-        format = sampleRate.isFinite && sampleRate > 0 && sampleRate <= maximumSampleRate
-            ? AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)
-            : nil
-        guard format != nil else {
+        let synthesizer = ArenaAudioBufferSynthesizer(sampleRate: sampleRate)
+        format = synthesizer?.format
+        guard let synthesizer else {
             logger.error("audio.format_unavailable", metadata: [
                 "sampleRate": "\(sampleRate)"
             ])
             return
         }
 
-        buildBuffers()
+        buildBuffers(using: synthesizer)
     }
 
     func startMusic() {
@@ -290,9 +306,9 @@ final class ArenaAudioController {
         }
     }
 
-    private func buildBuffers() {
+    private func buildBuffers(using synthesizer: ArenaAudioBufferSynthesizer) {
         effectBuffers = Dictionary(uniqueKeysWithValues: ArenaAudioCueFamily.allCases.compactMap { family in
-            guard let buffer = makeEffectBuffer(for: family) else {
+            guard let buffer = synthesizer.makeEffectBuffer(for: family) else {
                 logger.error("audio.effect_buffer_unavailable", metadata: [
                     "family": "\(family.rawValue)"
                 ])
@@ -301,88 +317,10 @@ final class ArenaAudioController {
 
             return (family, buffer)
         })
-        musicBuffer = makeMusicBuffer()
+        musicBuffer = synthesizer.makeMusicBuffer()
         if musicBuffer == nil {
             logger.error("audio.music_buffer_unavailable")
         }
-    }
-
-    private func makeEffectBuffer(for family: ArenaAudioCueFamily) -> AVAudioPCMBuffer? {
-        guard let format else {
-            return nil
-        }
-
-        let cue = catalogCue(for: family)
-        guard let frameCount = audioFrameCount(duration: cue.duration) else {
-            return nil
-        }
-        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
-            return nil
-        }
-
-        buffer.frameLength = frameCount
-        guard let channel = buffer.floatChannelData?[0] else {
-            return nil
-        }
-
-        for frame in 0..<Int(frameCount) {
-            let time = Double(frame) / sampleRate
-            let progress = Double(frame) / Double(max(1, Int(frameCount) - 1))
-            let envelope = max(0, 1 - progress)
-            let bend = pitchBend(for: family, progress: progress)
-            let tone = sin(2 * .pi * cue.frequency * bend * time)
-            let overtone = 0.35 * sin(2 * .pi * cue.frequency * 2.01 * bend * time)
-            channel[frame] = Float((tone + overtone) * envelope * Double(cue.volume))
-        }
-
-        return buffer
-    }
-
-    private func makeMusicBuffer() -> AVAudioPCMBuffer? {
-        guard let format else {
-            return nil
-        }
-
-        let duration = 2.0
-        guard let frameCount = audioFrameCount(duration: duration) else {
-            return nil
-        }
-        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
-            return nil
-        }
-
-        buffer.frameLength = frameCount
-        guard let channel = buffer.floatChannelData?[0] else {
-            return nil
-        }
-
-        let beatDuration = 0.125
-        let bassFrequencies = [110.0, 146.83, 164.81, 196.0]
-        for frame in 0..<Int(frameCount) {
-            let time = Double(frame) / sampleRate
-            let beat = Int(time / beatDuration)
-            let beatProgress = (time.truncatingRemainder(dividingBy: beatDuration)) / beatDuration
-            let bass = sin(2 * .pi * bassFrequencies[beat % bassFrequencies.count] * time)
-            let pulse = sin(2 * .pi * (beat.isMultiple(of: 4) ? 880 : 660) * time)
-            let envelope = exp(-beatProgress * 9)
-            let kick = beat.isMultiple(of: 4) ? sin(2 * .pi * 70 * time) * exp(-beatProgress * 16) : 0
-            channel[frame] = Float((bass * 0.09 + pulse * 0.06 + kick * 0.16) * envelope)
-        }
-
-        return buffer
-    }
-
-    private func audioFrameCount(duration: TimeInterval) -> AVAudioFrameCount? {
-        let frameCount = duration * sampleRate
-        guard
-            frameCount.isFinite,
-            frameCount >= 1,
-            frameCount <= Double(Self.maximumGeneratedBufferFrames)
-        else {
-            return nil
-        }
-
-        return AVAudioFrameCount(frameCount.rounded(.down))
     }
 
     private func fallbackPlaybackTime() -> TimeInterval {
@@ -393,39 +331,5 @@ final class ArenaAudioController {
 
         fallbackClock += 0.03
         return fallbackClock
-    }
-
-    private func catalogCue(for family: ArenaAudioCueFamily) -> ArenaAudioCue {
-        switch family {
-        case .pickup:
-            return ArenaAudioCueCatalog.cue(for: .pickup)
-        case .enemyClear:
-            return ArenaAudioCueCatalog.cue(for: .enemyClear(count: 1))
-        case .majorEnemyClear:
-            return ArenaAudioCueCatalog.cue(for: .enemyClear(count: 8))
-        case .comboMilestone:
-            return ArenaAudioCueCatalog.cue(for: .comboMilestone)
-        case .shieldWarning:
-            return ArenaAudioCueCatalog.cue(for: .shieldWarning)
-        case .shieldExpired:
-            return ArenaAudioCueCatalog.cue(for: .shieldExpired)
-        case .death:
-            return ArenaAudioCueCatalog.cue(for: .death)
-        case .newBest:
-            return ArenaAudioCueCatalog.cue(for: .newBest)
-        }
-    }
-
-    private func pitchBend(for family: ArenaAudioCueFamily, progress: Double) -> Double {
-        switch family {
-        case .pickup, .newBest:
-            return 1 + progress * 0.5
-        case .death, .shieldExpired:
-            return 1 - progress * 0.45
-        case .majorEnemyClear:
-            return 0.8 + progress * 0.9
-        case .enemyClear, .comboMilestone, .shieldWarning:
-            return 1
-        }
     }
 }

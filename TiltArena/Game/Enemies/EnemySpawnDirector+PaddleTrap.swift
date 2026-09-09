@@ -26,7 +26,7 @@ extension EnemySpawnDirector {
     ) {
         guard context.deltaTime > 0 else { return }
         guard let paddleTrapSpawnInterval = context.tuning.paddleTrapSpawnInterval else {
-            disablePattern(.paddleTrap, timer: \.timeUntilNextPaddleTrap)
+            disablePattern(.paddleTrap)
             return
         }
 
@@ -36,14 +36,7 @@ extension EnemySpawnDirector {
               context.tuning.paddleTrapLifetime > 0,
               componentCount > 0,
               context.tuning.paddleTrapDotSpeed > 0 else {
-            disablePattern(.paddleTrap, timer: \.timeUntilNextPaddleTrap)
-            return
-        }
-
-        primeTimer(for: .paddleTrap, interval: paddleTrapSpawnInterval, timer: \.timeUntilNextPaddleTrap)
-
-        guard pendingTelegraphSlotCount < pendingTelegraphCapacity else {
-            timeUntilNextPaddleTrap = max(timeUntilNextPaddleTrap, paddleTrapSpawnInterval)
+            disablePattern(.paddleTrap)
             return
         }
 
@@ -51,15 +44,14 @@ extension EnemySpawnDirector {
         let projectedEnemyCount = activeAndNewEnemies.count + pendingEnemyCount
         let projectedTrapCount = Set(activeAndNewEnemies.compactMap(\.paddleTrapID)).count + pendingPaddleTrapCount
 
-        guard projectedEnemyCount + componentCount <= context.tuning.maxActiveEnemies,
-              projectedTrapCount < context.tuning.maxActivePaddleTraps else {
-            timeUntilNextPaddleTrap = max(timeUntilNextPaddleTrap, paddleTrapSpawnInterval)
-            return
-        }
-
-        timeUntilNextPaddleTrap -= context.deltaTime
-
-        guard timeUntilNextPaddleTrap <= 0 else {
+        let hasEnemyCapacity = projectedEnemyCount + componentCount <= context.tuning.maxActiveEnemies
+            && projectedTrapCount < context.tuning.maxActivePaddleTraps
+        guard advanceTelegraphTimer(
+            for: .paddleTrap,
+            interval: paddleTrapSpawnInterval,
+            deltaTime: context.deltaTime,
+            hasEnemyCapacity: hasEnemyCapacity
+        ) else {
             return
         }
 

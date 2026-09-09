@@ -272,7 +272,7 @@ final class MetricKitDiagnosticCollector: NSObject, MXMetricManagerSubscriber, @
 
         for (index, payload) in payloads.enumerated() {
             guard remainingBytes > 0 else {
-                skippedPayloadCount = payloads.count - index
+                skippedPayloadCount += payloads.count - index
                 didReachByteBudget = true
                 break
             }

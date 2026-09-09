@@ -596,27 +596,8 @@ extension ArenaScene {
 
     private func resetCalibrationPreviewPosition() {
         calibrationPreviewMovementController.configuration = movementController.configuration
-        let previewBounds = currentCalibrationPreviewBounds
-        var state = calibrationPreviewMovementController.reset(in: previewBounds)
-        let targetPosition = calibrationPreviewStartPosition(in: previewBounds)
-        let offset = CGVector(
-            dx: targetPosition.x - state.position.x,
-            dy: targetPosition.y - state.position.y
-        )
-        if offset.length > 0 {
-            state = calibrationPreviewMovementController.dash(
-                direction: offset,
-                distance: offset.length,
-                arenaBounds: previewBounds
-            )
-            state = calibrationPreviewMovementController.update(input: .zero, deltaTime: 0, arenaBounds: previewBounds)
-        }
+        let state = calibrationPreviewMovementController.reset(in: currentCalibrationPreviewBounds)
         applyCalibrationPreviewState(state, resetTrail: true)
-    }
-
-    private func calibrationPreviewStartPosition(in arenaBounds: CGRect) -> CGPoint {
-        let playableRect = calibrationPreviewMovementController.configuration.playableRect(in: arenaBounds)
-        return CGPoint(x: playableRect.midX, y: playableRect.midY)
     }
 
     private func applyCalibrationPreviewState(_ state: PlayerMovementState, resetTrail: Bool) {
@@ -2048,13 +2029,29 @@ private extension ArenaScene {
         case .home:
             renderHome()
         case .modeSelect:
-            renderModeSelect()
+            uiRenderer.renderModeSelect(
+                rows: ArenaMenuContent.modeRows(profile: runProfile, selectedMode: runSession.selectedMode),
+                selectedMode: runSession.selectedMode,
+                layout: currentLandscapeLayout()
+            )
         case .awards:
-            renderAwards()
+            uiRenderer.renderAwards(
+                rows: ArenaMenuContent.awardRows(profile: runProfile),
+                unlockText: ArenaMenuContent.activeUnlockText(profile: runProfile),
+                layout: currentLandscapeLayout()
+            )
         case .weaponCodex:
-            renderWeaponCodex()
+            uiRenderer.renderWeaponCodex(
+                rows: ArenaMenuContent.weaponCodexRows(profile: runProfile),
+                layout: currentLandscapeLayout()
+            )
         case .options:
-            renderOptions()
+            uiRenderer.renderOptions(
+                settings: tiltSettingsStore.settings,
+                options: localOptions,
+                resetDataArmed: navigationState.isResetDataArmed,
+                layout: currentLandscapeLayout()
+            )
         case .developerTuning:
             renderDeveloperTuning()
         case .calibrationPreview:
@@ -2073,7 +2070,9 @@ private extension ArenaScene {
         case .activeGameplay:
             renderRunHUD(in: currentLandscapeLayout())
         case .pause:
-            renderPause()
+            let summary = "SCORE \(runController.score)   \(formatSurvivalTime(runController.survivalTime))"
+                + "   BEST \(runProfile.bestScore)"
+            uiRenderer.renderPause(runSummary: summary, layout: currentLandscapeLayout())
         case .postRun:
             renderPostRun()
         default:
@@ -2195,9 +2194,13 @@ private extension ArenaScene {
             width: min(178, layout.safeRect.width * 0.36),
             height: 108
         )
-        renderHomeIdentity(in: identityFrame)
+        uiRenderer.addHomeIdentity(
+            bestScore: runProfile.bestScore,
+            statusMessage: currentGameCenterStatusMessage(),
+            in: identityFrame
+        )
         addPreviewThreats(in: layout.gameplayRect)
-        renderHomePlayButton(layout: layout, bottomButtonSize: bottomButtonSize)
+        uiRenderer.addHomePlayButton(layout: layout, bottomButtonSize: bottomButtonSize)
         uiRenderer.addHomeNavigationButtons(layout: layout, buttonSize: bottomButtonSize)
         #if DEBUG
         uiRenderer.addButton(
@@ -2209,557 +2212,18 @@ private extension ArenaScene {
         #endif
     }
 
-    func renderHomeIdentity(in frame: CGRect) {
-        uiRenderer.addTitle(
-            "TILT ARENA",
-            at: CGPoint(x: frame.minX + 14, y: frame.maxY - 22)
-        )
-        uiRenderer.addSmallLabel(
-            "CLASSIC SURVIVAL",
-            at: CGPoint(x: frame.minX + 14, y: frame.maxY - 48),
-            color: theme.borderColor,
-            alignment: .left
-        )
-        uiRenderer.addSectionLabel(
-            "PERSONAL BEST",
-            at: CGPoint(x: frame.minX + 14, y: frame.maxY - 70)
-        )
-        uiRenderer.addLabel(
-            "\(runProfile.bestScore)",
-            at: CGPoint(x: frame.minX + 14, y: frame.minY + 19),
-            fontSize: 26,
-            color: theme.playerAccentColor,
-            alignment: .left
-        )
-        renderGameCenterStatusMessage(
-            at: CGPoint(x: frame.minX + 14, y: frame.minY - 12),
-            alignment: .left
-        )
-    }
-
-    func renderHomePlayButton(layout: ArenaLandscapeUILayout, bottomButtonSize: CGSize) {
-        let playFrame = CGRect(
-            x: layout.controlRect.maxX - 164,
-            y: layout.controlRect.minY + bottomButtonSize.height + 16,
-            width: 164,
-            height: 56
-        )
-        uiRenderer.addButton(
-            "PLAY",
-            frame: playFrame,
-            action: .play,
-            style: .primary,
-            glyph: .play,
-            fontSize: 18
-        )
-    }
-
-    func renderModeSelect() {
-        let layout = currentLandscapeLayout()
-        let contentFrame = addMenuChrome(title: "SELECT MODE", layout: layout)
-
-        let rows = ArenaMenuContent.modeRows(profile: runProfile, selectedMode: runSession.selectedMode)
-        let detailWidth = min(168, contentFrame.width * 0.34)
-        let columnGap: CGFloat = 14
-        let rowWidth = max(0, contentFrame.width - detailWidth - columnGap)
-        let rowSpacing: CGFloat = 8
-        let availableRowHeight = (
-            contentFrame.height - CGFloat(max(0, rows.count - 1)) * rowSpacing
-        ) / CGFloat(max(1, rows.count))
-        let rowHeight = min(
-            50,
-            max(40, availableRowHeight)
-        )
-        let rowStartY = contentFrame.maxY - rowHeight
-
-        for (index, row) in rows.enumerated() {
-            let frame = CGRect(
-                x: contentFrame.minX,
-                y: rowStartY - CGFloat(index) * (rowHeight + rowSpacing),
-                width: rowWidth,
-                height: rowHeight
-            )
-            uiRenderer.addModeRow(row, selected: row.kind == runSession.selectedMode, frame: frame)
-        }
-
-        let detailFrame = CGRect(
-            x: contentFrame.maxX - detailWidth,
-            y: contentFrame.minY,
-            width: detailWidth,
-            height: contentFrame.height
-        )
-        if let selectedRow = modeRowsByKind[runSession.selectedMode] {
-            uiRenderer.addSelectedModeSummary(row: selectedRow, frame: detailFrame)
-        }
-    }
-
-    func renderAwards() {
-        let layout = currentLandscapeLayout()
-        let contentFrame = addMenuChrome(title: "AWARDS", layout: layout)
-
-        let rows = ArenaMenuContent.awardRows(profile: runProfile)
-        let unlockFrame = CGRect(
-            x: contentFrame.minX,
-            y: contentFrame.maxY - 42,
-            width: contentFrame.width,
-            height: 42
-        )
-        uiRenderer.addActiveUnlockBanner(
-            text: ArenaMenuContent.activeUnlockText(profile: runProfile),
-            frame: unlockFrame
-        )
-
-        let columnCount = 3
-        let columnGap: CGFloat = 10
-        let rowSpacing: CGFloat = 8
-        let columnWidth = max(
-            0,
-            (contentFrame.width - CGFloat(columnCount - 1) * columnGap) / CGFloat(columnCount)
-        )
-        let awardTopY = unlockFrame.minY - 12
-        let rowHeight = min(46, max(34, (awardTopY - contentFrame.minY - rowSpacing) / 2))
-
-        for (index, row) in rows.enumerated() {
-            let column = index % columnCount
-            let rowIndex = index / columnCount
-            let frame = CGRect(
-                x: contentFrame.minX + CGFloat(column) * (columnWidth + columnGap),
-                y: awardTopY - rowHeight - CGFloat(rowIndex) * (rowHeight + rowSpacing),
-                width: columnWidth,
-                height: rowHeight
-            )
-            uiRenderer.addAwardRow(row, frame: frame)
-        }
-    }
-
-    func renderWeaponCodex() {
-        let layout = currentLandscapeLayout()
-        let contentFrame = addMenuChrome(title: "WEAPON CODEX", layout: layout)
-        let rows = ArenaMenuContent.weaponCodexRows(profile: runProfile)
-
-        let columnCount = 3
-        let columnGap: CGFloat = 8
-        let rowGap: CGFloat = 8
-        let rowCount = Int(ceil(Double(rows.count) / Double(columnCount)))
-        let columnWidth = max(
-            0,
-            (contentFrame.width - CGFloat(columnCount - 1) * columnGap) / CGFloat(columnCount)
-        )
-        let rowHeight = max(
-            34,
-            (
-                contentFrame.height - CGFloat(max(0, rowCount - 1)) * rowGap
-            ) / CGFloat(max(1, rowCount))
-        )
-
-        for (index, row) in rows.enumerated() {
-            let column = index % columnCount
-            let rowIndex = index / columnCount
-            let frame = CGRect(
-                x: contentFrame.minX + CGFloat(column) * (columnWidth + columnGap),
-                y: contentFrame.maxY - rowHeight - CGFloat(rowIndex) * (rowHeight + rowGap),
-                width: columnWidth,
-                height: rowHeight
-            )
-            uiRenderer.addWeaponCodexRow(row, frame: frame)
-        }
-    }
-
-    func renderOptions() {
-        let layout = currentLandscapeLayout()
-        let contentFrame = addMenuChrome(title: "OPTIONS", layout: layout)
-
-        let columnGap: CGFloat = 8
-        let controlWidth = max(184, contentFrame.width * 0.42)
-        let feedbackWidth = max(112, contentFrame.width * 0.24)
-        let displayWidth = max(0, contentFrame.width - controlWidth - feedbackWidth - columnGap * 2)
-        let controlFrame = CGRect(
-            x: contentFrame.minX,
-            y: contentFrame.minY,
-            width: controlWidth,
-            height: contentFrame.height
-        )
-        let feedbackFrame = CGRect(
-            x: controlFrame.maxX + columnGap,
-            y: contentFrame.minY,
-            width: feedbackWidth,
-            height: contentFrame.height
-        )
-        let displayFrame = CGRect(
-            x: feedbackFrame.maxX + columnGap,
-            y: contentFrame.minY,
-            width: displayWidth,
-            height: contentFrame.height
-        )
-        uiRenderer.addPanel(frame: controlFrame, accent: theme.playerAccentColor.withAlphaComponent(0.58))
-        uiRenderer.addPanel(frame: feedbackFrame)
-        uiRenderer.addPanel(frame: displayFrame)
-
-        renderTiltOptions(in: controlFrame)
-        renderFeedbackOptions(in: feedbackFrame)
-        renderDisplayDataOptions(in: displayFrame)
-    }
-
     func renderDeveloperTuning() {
-        let layout = currentLandscapeLayout()
-        let contentFrame = addMenuChrome(title: "DEV TUNING", layout: layout)
-        let changedCount = gameTuning.changedParameters().count
-
-        renderDeveloperTuningHeaderActions(layout: layout, changedCount: changedCount)
-
-        let menu = currentDeveloperTuningMenu()
-        let frames = developerTuningFrames(in: contentFrame)
-        renderDeveloperTuningSelector(
-            title: "GROUP",
-            items: menu.groups,
-            selected: menu.selectedGroup,
-            frame: frames.group,
-            action: { .selectTuningGroup($0) }
-        )
-        renderDeveloperTuningSelector(
-            title: "SUBGROUP",
-            items: menu.subgroups,
-            selected: menu.selectedSubgroup,
-            frame: frames.subgroup,
-            action: { .selectTuningSubgroup($0) }
-        )
-        renderDeveloperTuningParameterList(
-            menu.parameters,
-            selectedGroup: menu.selectedGroup,
-            selectedSubgroup: menu.selectedSubgroup,
-            frame: frames.parameters
+        uiRenderer.renderDeveloperTuning(
+            menu: currentDeveloperTuningMenu(),
+            tuning: gameTuning,
+            layout: currentLandscapeLayout()
         )
     }
 
-    func renderDeveloperTuningHeaderActions(layout: ArenaLandscapeUILayout, changedCount: Int) {
-        uiRenderer.addButton(
-            "COPY",
-            frame: CGRect(x: layout.safeRect.maxX - 246, y: layout.safeRect.maxY - 48, width: 66, height: 34),
-            action: .copyTuningParameters,
-            style: changedCount == 0 ? .secondary : .primary
-        )
-        uiRenderer.addButton(
-            navigationState.developerTuning.showsChangedOnly ? "CHANGED" : "ALL",
-            frame: CGRect(x: layout.safeRect.maxX - 174, y: layout.safeRect.maxY - 48, width: 98, height: 34),
-            action: .toggleDeveloperTuningChangedOnly,
-            style: navigationState.developerTuning.showsChangedOnly ? .primary : .secondary
-        )
-        uiRenderer.addButton(
-            "RESET",
-            frame: CGRect(x: layout.safeRect.maxX - 68, y: layout.safeRect.maxY - 48, width: 54, height: 34),
-            action: .resetTuningParameters,
-            style: changedCount == 0 ? .secondary : .danger
-        )
-
-        if let developerTuningCopyConfirmation = navigationState.developerTuning.confirmation {
-            uiRenderer.addLabel(
-                developerTuningCopyConfirmation,
-                at: CGPoint(x: layout.safeRect.maxX - 14, y: layout.safeRect.maxY - 66),
-                fontSize: 9,
-                color: theme.playerAccentColor,
-                alignment: .right
-            )
-        }
-    }
-
-    private func developerTuningFrames(in contentFrame: CGRect) -> DeveloperTuningFrames {
-        let columnGap: CGFloat = contentFrame.width < 620 ? 8 : 12
-        let groupWidth = min(126, max(102, contentFrame.width * 0.2))
-        let subgroupWidth = min(148, max(116, contentFrame.width * 0.23))
-        let group = CGRect(
-            x: contentFrame.minX,
-            y: contentFrame.minY,
-            width: groupWidth,
-            height: contentFrame.height
-        )
-        let subgroup = CGRect(
-            x: group.maxX + columnGap,
-            y: contentFrame.minY,
-            width: subgroupWidth,
-            height: contentFrame.height
-        )
-        let parameters = CGRect(
-            x: subgroup.maxX + columnGap,
-            y: contentFrame.minY,
-            width: max(0, contentFrame.maxX - subgroup.maxX - columnGap),
-            height: contentFrame.height
-        )
-
-        return DeveloperTuningFrames(group: group, subgroup: subgroup, parameters: parameters)
-    }
-
-    func developerTuningPageSize(in frame: CGRect) -> Int {
-        let usableHeight = max(0, frame.height - 76)
-        return max(1, Int(floor(usableHeight / developerTuningRowHeight(in: frame))))
-    }
-
-    func developerTuningRowHeight(in frame: CGRect) -> CGFloat {
-        frame.height < 230 ? 28 : 32
-    }
-
-    private func currentDeveloperTuningMenu() -> DeveloperTuningMenu {
-        let groups = GameTuningParameterCatalog.groupNames(
-            changedOnly: navigationState.developerTuning.showsChangedOnly,
-            tuning: gameTuning
-        )
-        guard let selectedGroup = navigationState.developerTuning.reconcileGroups(groups) else {
-            return DeveloperTuningMenu(
-                groups: groups,
-                selectedGroup: nil,
-                subgroups: [],
-                selectedSubgroup: nil,
-                parameters: []
-            )
-        }
-
-        let subgroups = GameTuningParameterCatalog.subgroupNames(
-            in: selectedGroup,
-            changedOnly: navigationState.developerTuning.showsChangedOnly,
-            tuning: gameTuning
-        )
-        guard let selectedSubgroup = navigationState.developerTuning.reconcileSubgroups(subgroups) else {
-            return DeveloperTuningMenu(
-                groups: groups,
-                selectedGroup: selectedGroup,
-                subgroups: subgroups,
-                selectedSubgroup: nil,
-                parameters: []
-            )
-        }
-
-        let parameters = GameTuningParameterCatalog.parameters(
-            in: selectedGroup,
-            subgroup: selectedSubgroup,
-            changedOnly: navigationState.developerTuning.showsChangedOnly,
-            tuning: gameTuning
-        )
-
-        return DeveloperTuningMenu(
-            groups: groups,
-            selectedGroup: selectedGroup,
-            subgroups: subgroups,
-            selectedSubgroup: selectedSubgroup,
-            parameters: parameters
-        )
-    }
-
-    func renderDeveloperTuningSelector(
-        title: String,
-        items: [String],
-        selected: String?,
-        frame: CGRect,
-        action: (String) -> ArenaControlAction
-    ) {
-        uiRenderer.addPanel(frame: frame)
-        uiRenderer.addSectionLabel(title, at: CGPoint(x: frame.minX + 10, y: frame.maxY - 15))
-
-        guard !items.isEmpty else {
-            uiRenderer.addLabel(
-                "NONE",
-                at: CGPoint(x: frame.minX + 10, y: frame.maxY - 42),
-                fontSize: 9,
-                color: theme.borderColor.withAlphaComponent(0.75),
-                alignment: .left
-            )
-            return
-        }
-
-        let headerHeight: CGFloat = 22
-        let bottomPadding: CGFloat = 6
-        let rowGap: CGFloat = 2
-        let rowHeight = min(
-            28,
-            max(
-                10,
-                (
-                    frame.height - headerHeight - bottomPadding - CGFloat(max(0, items.count - 1)) * rowGap
-                ) / CGFloat(items.count)
-            )
-        )
-        let rowFontSize = min(10, max(6.8, rowHeight * 0.42))
-
-        for (index, item) in items.enumerated() {
-            let rowFrame = CGRect(
-                x: frame.minX + 6,
-                y: frame.maxY - headerHeight - CGFloat(index + 1) * rowHeight - CGFloat(index) * rowGap,
-                width: frame.width - 12,
-                height: rowHeight
-            )
-            let isSelected = item == selected
-            uiRenderer.addPanel(
-                frame: rowFrame,
-                stroke: isSelected ? theme.playerAccentColor.withAlphaComponent(0.85) : theme.borderColor.withAlphaComponent(0.26),
-                fill: isSelected ? theme.playerAccentColor.withAlphaComponent(0.11) : theme.backgroundColor.withAlphaComponent(0.28)
-            )
-            uiRenderer.addLabel(
-                uiRenderer.truncatedText(item.uppercased(), fontSize: rowFontSize, width: rowFrame.width - 14),
-                at: CGPoint(x: rowFrame.minX + 7, y: rowFrame.midY),
-                fontSize: rowFontSize,
-                color: isSelected ? theme.playerAccentColor : theme.playerColor.withAlphaComponent(0.82),
-                alignment: .left
-            )
-            uiRenderer.addHitTarget(action: action(item), frame: rowFrame)
-        }
-    }
-
-    func renderDeveloperTuningParameterList(
-        _ parameters: [GameTuningParameterSpec],
-        selectedGroup: String?,
-        selectedSubgroup: String?,
-        frame: CGRect
-    ) {
-        uiRenderer.addPanel(frame: frame)
-
-        let changedCount = gameTuning.changedParameters().count
-        renderDeveloperTuningParameterHeader(
-            selectedGroup: selectedGroup,
-            selectedSubgroup: selectedSubgroup,
-            frame: frame,
-            changedCount: changedCount
-        )
-
-        guard !parameters.isEmpty else {
-            renderDeveloperTuningEmptyParameterList(in: frame)
-            return
-        }
-
-        let pageSize = developerTuningPageSize(in: frame)
-        let pageCount = max(1, Int(ceil(Double(parameters.count) / Double(pageSize))))
-        navigationState.developerTuning.clampPage(lastPageIndex: pageCount - 1)
-
-        renderDeveloperTuningPageControls(
-            pageCount: pageCount,
-            parameterCount: parameters.count,
-            frame: frame
-        )
-        renderDeveloperTuningRows(parameters, pageSize: pageSize, frame: frame)
-    }
-
-    func renderDeveloperTuningParameterHeader(
-        selectedGroup: String?,
-        selectedSubgroup: String?,
-        frame: CGRect,
-        changedCount: Int
-    ) {
-        let heading = [selectedGroup, selectedSubgroup].compactMap { $0 }.joined(separator: " / ")
-        let headingText = heading.isEmpty ? "NO PARAMETERS" : heading.uppercased()
-        uiRenderer.addLabel(
-            uiRenderer.truncatedText(headingText, fontSize: 10, width: frame.width - 116),
-            at: CGPoint(x: frame.minX + 10, y: frame.maxY - 17),
-            fontSize: 10,
-            color: theme.playerColor,
-            alignment: .left
-        )
-        uiRenderer.addLabel(
-            "\(changedCount) CHANGED",
-            at: CGPoint(x: frame.maxX - 10, y: frame.maxY - 17),
-            fontSize: 8,
-            color: changedCount == 0 ? theme.borderColor : theme.playerAccentColor,
-            alignment: .right
-        )
-    }
-
-    func renderDeveloperTuningEmptyParameterList(in frame: CGRect) {
-        uiRenderer.addLabel(
-            navigationState.developerTuning.showsChangedOnly ? "NO CHANGED PARAMETERS" : "NO PARAMETERS",
-            at: CGPoint(x: frame.midX, y: frame.midY),
-            fontSize: 11,
-            color: theme.borderColor.withAlphaComponent(0.78),
-            alignment: .center
-        )
-    }
-
-    func renderDeveloperTuningPageControls(pageCount: Int, parameterCount: Int, frame: CGRect) {
-        let controlsY = frame.maxY - 46
-        uiRenderer.addButton(
-            "<",
-            frame: CGRect(x: frame.minX + 10, y: controlsY - 13, width: 34, height: 26),
-            action: .developerTuningPreviousPage,
-            style: navigationState.developerTuning.pageIndex == 0 ? .secondary : .primary
-        )
-        uiRenderer.addButton(
-            ">",
-            frame: CGRect(x: frame.minX + 52, y: controlsY - 13, width: 34, height: 26),
-            action: .developerTuningNextPage,
-            style: navigationState.developerTuning.pageIndex + 1 >= pageCount ? .secondary : .primary
-        )
-        uiRenderer.addLabel(
-            "PAGE \(navigationState.developerTuning.pageIndex + 1)/\(pageCount)  \(parameterCount) VALUES",
-            at: CGPoint(x: frame.minX + 98, y: controlsY),
-            fontSize: 8,
-            color: theme.borderColor,
-            alignment: .left
-        )
-    }
-
-    func renderDeveloperTuningRows(
-        _ parameters: [GameTuningParameterSpec],
-        pageSize: Int,
-        frame: CGRect
-    ) {
-        let pageStart = navigationState.developerTuning.pageIndex * pageSize
-        let pageEnd = min(parameters.count, pageStart + pageSize)
-        let visibleParameters = Array(parameters[pageStart..<pageEnd])
-        let rowHeight = developerTuningRowHeight(in: frame)
-        let rowStartY = frame.maxY - 68
-        for (index, parameter) in visibleParameters.enumerated() {
-            let rowFrame = CGRect(
-                x: frame.minX + 8,
-                y: rowStartY - CGFloat(index + 1) * rowHeight,
-                width: frame.width - 16,
-                height: rowHeight - 4
-            )
-            renderDeveloperTuningRow(parameter, frame: rowFrame)
-        }
-    }
-
-    func renderDeveloperTuningRow(_ parameter: GameTuningParameterSpec, frame: CGRect) {
-        let isChanged = gameTuning.isChanged(parameter)
-        uiRenderer.addPanel(
-            frame: frame,
-            stroke: isChanged ? theme.playerAccentColor.withAlphaComponent(0.62) : theme.borderColor.withAlphaComponent(0.28),
-            fill: isChanged ? theme.playerAccentColor.withAlphaComponent(0.08) : theme.backgroundColor.withAlphaComponent(0.42)
-        )
-
-        let compact = frame.width < 320
-        if isChanged {
-            uiRenderer.addLabel(
-                "*",
-                at: CGPoint(x: frame.minX + 10, y: frame.midY),
-                fontSize: 11,
-                color: theme.playerAccentColor,
-                alignment: .left
-            )
-        }
-        let titleFontSize: CGFloat = compact ? 8 : 9
-        let titleX = frame.minX + (isChanged ? 24 : 12)
-        let titleMaxWidth = max(44, frame.maxX - titleX - 124)
-        uiRenderer.addLabel(
-            uiRenderer.truncatedText(parameter.title.uppercased(), fontSize: titleFontSize, width: titleMaxWidth),
-            at: CGPoint(x: titleX, y: frame.midY),
-            fontSize: titleFontSize,
-            color: theme.playerColor,
-            alignment: .left
-        )
-        uiRenderer.addLabel(
-            parameter.displayValue(in: gameTuning),
-            at: CGPoint(x: frame.maxX - 90, y: frame.midY),
-            fontSize: 10,
-            color: theme.playerAccentColor,
-            alignment: .right
-        )
-        uiRenderer.addButton(
-            "-",
-            frame: CGRect(x: frame.maxX - 78, y: frame.midY - 12, width: 32, height: 24),
-            action: .adjustTuningParameter(parameter.id, .decrease),
-            style: .secondary
-        )
-        uiRenderer.addButton(
-            "+",
-            frame: CGRect(x: frame.maxX - 38, y: frame.midY - 12, width: 32, height: 24),
-            action: .adjustTuningParameter(parameter.id, .increase),
-            style: .secondary
-        )
+    func currentDeveloperTuningMenu() -> ArenaDeveloperTuningMenu {
+        let contentFrame = uiRenderer.menuContentFrame(layout: currentLandscapeLayout())
+        let layout = ArenaDeveloperTuningLayout(contentFrame: contentFrame)
+        return navigationState.developerTuning.menu(tuning: gameTuning, pageSize: layout.pageSize)
     }
 
     func renderCalibrationPreview() {
@@ -2919,21 +2383,6 @@ private extension ArenaScene {
         ))
     }
 
-    func renderTiltOptions(in frame: CGRect) {
-        let inset: CGFloat = 10
-        uiRenderer.addSectionLabel("CONTROL", at: CGPoint(x: frame.minX + inset, y: frame.maxY - 18))
-        uiRenderer.addButton(
-            "CALIBRATE",
-            frame: CGRect(x: frame.minX + inset, y: frame.maxY - 58, width: frame.width - inset * 2, height: 32),
-            action: .openCalibrationPreview,
-            style: .primary,
-            glyph: .radar,
-            fontSize: 12
-        )
-        let settings = tiltSettingsStore.settings
-        uiRenderer.addTiltSettingsControls(settings: settings, in: frame, style: .options)
-    }
-
     func renderTiltReadout(in frame: CGRect) {
         tiltReadoutValueLabels.removeAll()
         let rows = TiltReadoutFormatter.gameplayRows(
@@ -2964,68 +2413,6 @@ private extension ArenaScene {
         }
 
         updateTiltReadoutDisplay()
-    }
-
-    func renderFeedbackOptions(in frame: CGRect) {
-        let inset: CGFloat = 10
-        uiRenderer.addSectionLabel("FEEDBACK", at: CGPoint(x: frame.minX + inset, y: frame.maxY - 18))
-        uiRenderer.addToggle(
-            title: "AUDIO",
-            isOn: localOptions.audioEnabled,
-            frame: CGRect(x: frame.minX + inset, y: frame.maxY - 72, width: frame.width - inset * 2, height: 40),
-            action: .toggleAudio
-        )
-        uiRenderer.addToggle(
-            title: "HAPTICS",
-            isOn: localOptions.hapticsEnabled,
-            frame: CGRect(x: frame.minX + inset, y: frame.maxY - 122, width: frame.width - inset * 2, height: 40),
-            action: .toggleHaptics
-        )
-    }
-
-    func renderDisplayDataOptions(in frame: CGRect) {
-        let inset: CGFloat = 10
-        let contentWidth = max(0, frame.width - inset * 2)
-        let rowSpacing: CGFloat = 6
-        uiRenderer.addSectionLabel("DISPLAY & DATA", at: CGPoint(x: frame.minX + inset, y: frame.maxY - 18))
-        let themeKinds = ArenaThemeKind.allCases
-        let themeButtonWidth = max(
-            0,
-            (contentWidth - CGFloat(max(0, themeKinds.count - 1)) * rowSpacing) / CGFloat(themeKinds.count)
-        )
-        for (index, themeKind) in themeKinds.enumerated() {
-            let buttonFrame = CGRect(
-                x: frame.minX + inset + CGFloat(index) * (themeButtonWidth + rowSpacing),
-                y: frame.maxY - 68,
-                width: themeButtonWidth,
-                height: 34
-            )
-            let isSelected = localOptions.themeKind == themeKind
-            uiRenderer.addButton(
-                themeKind.shortTitle,
-                frame: buttonFrame,
-                action: .selectTheme(themeKind),
-                style: isSelected ? .primary : .secondary,
-                fontSize: 10
-            )
-            if isSelected {
-                uiRenderer.addSelectionIndicator(in: buttonFrame)
-            }
-        }
-        uiRenderer.addButton(
-            "VIEW / SHARE LOGS",
-            frame: CGRect(x: frame.minX + inset, y: frame.maxY - 110, width: contentWidth, height: 32),
-            action: .openDiagnostics,
-            style: .secondary,
-            fontSize: 10
-        )
-        uiRenderer.addButton(
-            navigationState.isResetDataArmed ? "CONFIRM RESET" : "RESET PROFILE",
-            frame: CGRect(x: frame.minX + inset, y: frame.minY + 8, width: contentWidth, height: 32),
-            action: .resetData,
-            style: .danger,
-            fontSize: 10
-        )
     }
 
     func renderPreRun() {
@@ -3083,127 +2470,6 @@ private extension ArenaScene {
             fontSize: 10,
             color: color,
             alignment: .center
-        )
-    }
-
-    func renderPause() {
-        let layout = currentLandscapeLayout()
-        uiRenderer.addScrim(alpha: 0.66)
-        let panelFrame = pausePanelFrame(in: layout.safeRect)
-        uiRenderer.addPanel(
-            frame: panelFrame,
-            stroke: theme.playerAccentColor.withAlphaComponent(0.74),
-            fill: theme.panelFillColor.withAlphaComponent(0.96),
-            accent: theme.playerAccentColor.withAlphaComponent(0.9)
-        )
-        renderPauseHeader(in: panelFrame)
-        renderPauseControls(in: panelFrame)
-    }
-
-    func pausePanelFrame(in safeRect: CGRect) -> CGRect {
-        let panelWidth = min(286, safeRect.width * 0.58)
-        let panelHeight = min(204, safeRect.height - 20)
-        return CGRect(
-            x: safeRect.midX - panelWidth / 2,
-            y: safeRect.midY - panelHeight / 2,
-            width: panelWidth,
-            height: panelHeight
-        )
-    }
-
-    func renderPauseHeader(in panelFrame: CGRect) {
-        uiRenderer.addLabel(
-            "PAUSED",
-            at: CGPoint(x: panelFrame.midX, y: panelFrame.maxY - 28),
-            fontSize: 24,
-            color: theme.playerColor,
-            alignment: .center
-        )
-        let runSummary = "SCORE \(runController.score)   \(formatSurvivalTime(runController.survivalTime))"
-            + "   BEST \(runProfile.bestScore)"
-        uiRenderer.addLabel(
-            runSummary,
-            at: CGPoint(x: panelFrame.midX, y: panelFrame.maxY - 52),
-            fontSize: 9,
-            color: theme.borderColor,
-            alignment: .center
-        )
-        uiRenderer.addDividerLine(
-            from: CGPoint(x: panelFrame.minX + 14, y: panelFrame.maxY - 66),
-            to: CGPoint(x: panelFrame.maxX - 14, y: panelFrame.maxY - 66),
-            color: theme.playerAccentColor.withAlphaComponent(0.58)
-        )
-    }
-
-    func renderPauseControls(in panelFrame: CGRect) {
-        let contentMinX = panelFrame.minX + 14
-        let contentWidth = panelFrame.width - 28
-        uiRenderer.addButton(
-            "RESUME",
-            frame: CGRect(x: contentMinX, y: panelFrame.maxY - 108, width: contentWidth, height: 42),
-            action: .resume,
-            style: .primary,
-            glyph: .play,
-            fontSize: 16
-        )
-        let utilityGap: CGFloat = 8
-        let utilityWidth = (contentWidth - utilityGap) / 2
-        uiRenderer.addButton(
-            "CALIBRATE",
-            frame: CGRect(x: contentMinX, y: panelFrame.maxY - 150, width: utilityWidth, height: 34),
-            action: .openCalibrationPreview,
-            style: .secondary,
-            glyph: .radar,
-            fontSize: 10
-        )
-        uiRenderer.addButton(
-            "OPTIONS",
-            frame: CGRect(
-                x: contentMinX + utilityWidth + utilityGap,
-                y: panelFrame.maxY - 150,
-                width: utilityWidth,
-                height: 34
-            ),
-            action: .openOptions,
-            style: .secondary,
-            glyph: .settings,
-            fontSize: 10
-        )
-        renderPauseFooter(in: panelFrame)
-    }
-
-    func renderPauseFooter(in panelFrame: CGRect) {
-        let contentMinX = panelFrame.minX + 14
-        let contentWidth = panelFrame.width - 28
-        let utilityGap: CGFloat = 8
-        let utilityWidth = (contentWidth - utilityGap) / 2
-        #if DEBUG
-        uiRenderer.addButton(
-            "DEV",
-            frame: CGRect(
-                x: contentMinX + utilityWidth + utilityGap,
-                y: panelFrame.minY + 12,
-                width: utilityWidth,
-                height: 32
-            ),
-            action: .openDeveloperTuning,
-            style: .secondary
-        )
-        let endRunWidth = utilityWidth
-        #else
-        let endRunWidth = contentWidth
-        #endif
-        uiRenderer.addButton(
-            "END RUN",
-            frame: CGRect(
-                x: contentMinX,
-                y: panelFrame.minY + 12,
-                width: endRunWidth,
-                height: 32
-            ),
-            action: .endRun,
-            style: .danger,
-            fontSize: 11
         )
     }
 
@@ -3276,14 +2542,9 @@ private extension ArenaScene {
         at position: CGPoint,
         alignment: SKLabelHorizontalAlignmentMode
     ) {
-        guard let statusMessage = currentGameCenterStatusMessage() else {
-            return
-        }
-
-        uiRenderer.addSmallLabel(
-            statusMessage,
+        uiRenderer.addGameCenterStatusMessage(
+            currentGameCenterStatusMessage(),
             at: position,
-            color: theme.playerAccentColor,
             alignment: alignment
         )
     }
@@ -3466,13 +2727,8 @@ private extension ArenaScene {
     }
 
     func advanceDeveloperTuningPage() {
-        let pageSize = developerTuningPageSize(in: menuContentFrame(layout: currentLandscapeLayout()))
-        let parameters = currentDeveloperTuningMenu().parameters
-        let pageCount = max(
-            1,
-            Int(ceil(Double(parameters.count) / Double(pageSize)))
-        )
-        navigationState.developerTuning.moveToNextPage(lastPageIndex: pageCount - 1)
+        let menu = currentDeveloperTuningMenu()
+        navigationState.developerTuning.moveToNextPage(lastPageIndex: menu.pageCount - 1)
         rebuildUI()
     }
 
@@ -3810,48 +3066,6 @@ private extension ArenaScene {
         impactLine.strokeColor = theme.enemyColor.withAlphaComponent(0.55)
         impactLine.lineWidth = 1.2
         uiRoot.addChild(impactLine)
-    }
-
-    func addMenuChrome(title: String, layout: ArenaLandscapeUILayout) -> CGRect {
-        addMenuBackdrop(layout: layout)
-        uiRenderer.addBackButton(
-            frame: CGRect(
-                x: layout.safeRect.minX + 14,
-                y: layout.safeRect.maxY - 48,
-                width: 42,
-                height: 34
-            )
-        )
-        uiRenderer.addTitle(title, at: CGPoint(x: layout.safeRect.minX + 68, y: layout.safeRect.maxY - 31))
-        uiRenderer.addDividerLine(
-            from: CGPoint(x: layout.safeRect.minX + 14, y: layout.safeRect.maxY - 62),
-            to: CGPoint(x: layout.safeRect.maxX - 14, y: layout.safeRect.maxY - 62),
-            color: theme.panelStrokeColor.withAlphaComponent(0.72)
-        )
-        uiRenderer.addDividerLine(
-            from: CGPoint(x: layout.safeRect.minX + 68, y: layout.safeRect.maxY - 62),
-            to: CGPoint(x: layout.safeRect.minX + 148, y: layout.safeRect.maxY - 62),
-            color: theme.playerAccentColor.withAlphaComponent(0.9)
-        )
-
-        return menuContentFrame(layout: layout)
-    }
-
-    func menuContentFrame(layout: ArenaLandscapeUILayout) -> CGRect {
-        CGRect(
-            x: layout.safeRect.minX + 14,
-            y: layout.safeRect.minY + 16,
-            width: max(0, layout.safeRect.width - 28),
-            height: max(0, layout.safeRect.height - 76)
-        )
-    }
-
-    func addMenuBackdrop(layout: ArenaLandscapeUILayout) {
-        let backdrop = SKShapeNode(rect: layout.safeRect, cornerRadius: 10)
-        backdrop.zPosition = ArenaUIZPosition.scrim
-        backdrop.fillColor = theme.panelFillColor
-        backdrop.strokeColor = .clear
-        uiRoot.addChild(backdrop)
     }
 
 }
@@ -4246,9 +3460,7 @@ extension ArenaScene {
     }
 
     var devTuningPageCountForTesting: Int {
-        let pageSize = developerTuningPageSize(in: menuContentFrame(layout: currentLandscapeLayout()))
-        let parameters = currentDeveloperTuningMenu().parameters
-        return max(1, Int(ceil(Double(parameters.count) / Double(pageSize))))
+        currentDeveloperTuningMenu().pageCount
     }
 
     var playerHitRadiusForTesting: CGFloat {
@@ -4576,20 +3788,6 @@ private struct PlayerCollisionMotion {
     let playerStart: CGPoint
     let previousDamageableEnemyPositions: [Int: CGPoint]
     let allowsSweptCollision: Bool
-}
-
-private struct DeveloperTuningMenu {
-    let groups: [String]
-    let selectedGroup: String?
-    let subgroups: [String]
-    let selectedSubgroup: String?
-    let parameters: [GameTuningParameterSpec]
-}
-
-private struct DeveloperTuningFrames {
-    let group: CGRect
-    let subgroup: CGRect
-    let parameters: CGRect
 }
 
 private extension GameCenterLeaderboardUnavailableReason {
