@@ -733,6 +733,7 @@ extension ArenaScene {
         runController.endRun()
         clearWeaponEffectNodes(paused: true)
         activeWeapons.finishRun()
+        updatePlayerCollisionProtection()
         powerWaveChargeNode = nil
         timeDilationAuraNode = nil
         audioController.stopMusic()
@@ -866,6 +867,7 @@ extension ArenaScene {
         playerNode?.removeAllActions()
         playerNode?.alpha = 1
         playerNode?.setScale(1)
+        playerNode?.applyCollisionProtection(false, theme: theme)
     }
 
     private func applyThemeChange() {
@@ -1154,6 +1156,7 @@ extension ArenaScene {
             at: playerPosition,
             chargeTier: pickup.chargeTier
         )
+        updatePlayerCollisionProtection()
 
         let logicalTargetCount = max(log.destroyedCount, log.frozenCount, log.gravityTargetCount)
         weaponLogger.notice("weapon.resolved", metadata: [
@@ -1669,6 +1672,7 @@ extension ArenaScene {
         }
 
         activeWeapons.postWeaponSafety.grant(duration: duration)
+        updatePlayerCollisionProtection()
         weaponLogger.debug("weapon.postSafety", metadata: [
             "kind": "\(weaponKind.rawValue)",
             "duration": "\(duration)"
@@ -1961,6 +1965,7 @@ extension ArenaScene {
     }
 
     private func updatePlayerComboEffect() {
+        updatePlayerCollisionProtection()
         let showsComboEffect = uiState == .activeGameplay || uiState == .pause
         let weaponPrimer = showsComboEffect ? runController.weaponComboPrimer : nil
         let comboProgress = showsComboEffect
@@ -1980,6 +1985,11 @@ extension ArenaScene {
             theme: theme,
             isPaused: uiState == .pause
         )
+    }
+
+    private func updatePlayerCollisionProtection() {
+        let showsGameplay = uiState == .activeGameplay || uiState == .pause
+        playerNode?.applyCollisionProtection(showsGameplay && isPlayerCollisionProtected, theme: theme)
     }
 
     private func normalizedEffectProgress(
@@ -3466,6 +3476,10 @@ extension ArenaScene {
 
     var isPostWeaponSafeForTesting: Bool {
         isPostWeaponSafe
+    }
+
+    var showsCollisionProtectionForTesting: Bool {
+        playerNode?.showsCollisionProtection ?? false
     }
 
     func addWeaponEffectNodeForTesting(_ node: SKNode) {

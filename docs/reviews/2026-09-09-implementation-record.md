@@ -66,10 +66,9 @@ Use another installed simulator ID if necessary. The `spawn-baseline.csv` XCTest
 
 **Remaining acceptance work, in order:**
 
-1. Finish the restrained generic-protection cue and inspect its expiry, theme changes, pause, death and restart lifecycle.
-2. Perform the [physical-phone and human acceptance pass](2026-09-09-device-acceptance.md): input, aiming, landing control, threat readability, score choices, unlock pacing and sustained performance. Automated results do not establish human run lengths or comfort.
-3. Add graze, extra aim or charge-progress feedback only if those checks demonstrate a comprehension problem. No graze mechanic or score was added.
-4. Apply achievement metadata in App Store Connect during release preparation and validate real Game Center submission. No account settings, uploads, leaderboard data or production state were changed here.
+1. Perform the [physical-phone and human acceptance pass](2026-09-09-device-acceptance.md): input, aiming, landing control, threat readability, score choices, unlock pacing and sustained performance. Automated results do not establish human run lengths or comfort.
+2. Add graze, extra aim or charge-progress feedback only if those checks demonstrate a comprehension problem. No graze mechanic or score was added.
+3. Apply achievement metadata in App Store Connect during release preparation and validate real Game Center submission. No account settings, uploads, leaderboard data or production state were changed here.
 
 The complete plan remains the source for dependencies and acceptance criteria. The four originally reproduced defects and the additional confirmed behavior inconsistencies are fixed locally; the game has not yet passed the full human balance and release matrix.
 
@@ -82,3 +81,7 @@ Matched encounter follow-up: 604 tests executed with the weapon sweep enabled, o
 Response tuning is now implemented: shared exponent-3 Shockwave/Freeze fronts preserve their old radius and lifetime; Power charges in 0.4 seconds. Two 864-case experiments rejected shorter-lived waves and accepted responsive fronts. See [decisions and evidence](2026-09-09-response-decisions.md). Rules version 2 resets incompatible development profiles. The reviewed full suite executed 612 tests with three opt-in sweeps skipped and zero failures; both-theme front captures were inspected. Full-run balance and physical acceptance remain open.
 
 Full-run follow-up: the reviewed 261-case natural-spawn matrix passed, including the combined safety and scoring candidate. Default recovery is now 0.3 seconds and pickups award 10 points; incompatible rules-version-2 profiles reset under version 3. The complete regression suite ran 618 tests with four opt-in exports skipped; its sole failure was a layout-equivalence fixture's obsolete 100-point pickup assumption. That fixture now checks the credited pickup category against the configured award, and the affected lifecycle suite passed on recheck. SwiftLint, diff checks and eight malformed-data validator probes passed. The comparison and retained-rule rationale are in [full-run decisions](2026-09-09-full-run-decisions.md).
+
+The protection cue is implemented. Collision immunity changes the existing craft into a hollow arrow with a strong contrasting outline; vulnerable movement restores the solid fill. It adds no node, ring, blink or scoring rule. The cue covers collection grace, projectile recovery and Flame immunity while keeping Razor and slow effects distinct. Review added explicit cleanup at the start of the death transition. Tests verify expiry, pause/resume, death, restart, theme application and unchanged node count. [Dark](2026-09-09-protection-dark.png) and [white](2026-09-09-protection-white.png) captures were inspected at full and 85% scale. Actual moving-device comprehension remains part of the phone pass.
+
+Final verification after these changes: **621 tests executed, four opt-in exports skipped, zero failures**; SwiftLint and diff checks passed; the final Release simulator build succeeded. The opt-in measurements were run separately and their checked-in attachments validated. One final test launch hit the simulator's temporary Busy/preflight state; the retry completed normally without a simulator reset. No physical iPhone was available. All work remains committed locally on master; nothing was pushed or released.

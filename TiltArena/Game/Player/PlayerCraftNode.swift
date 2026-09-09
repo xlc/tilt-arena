@@ -9,6 +9,7 @@ final class PlayerCraftNode: SKNode {
     private let coreNode: SKShapeNode
     private let engineNode: SKShapeNode
     private let visualRadius: CGFloat
+    private(set) var showsCollisionProtection = false
 
     init(theme: ArenaTheme, visualRadius: CGFloat) {
         outlineNode = SKShapeNode(path: Self.makeBodyPath(radius: visualRadius * 1.13))
@@ -62,6 +63,21 @@ final class PlayerCraftNode: SKNode {
         engineNode.strokeColor = .clear
         engineNode.position = CGPoint(x: 0, y: -visualRadius * 0.54)
         engineNode.glowWidth = 0.85
+        updateProtectionSurface(theme)
+    }
+
+    func applyCollisionProtection(_ isProtected: Bool, theme: ArenaTheme) {
+        guard showsCollisionProtection != isProtected else { return }
+        showsCollisionProtection = isProtected
+        updateProtectionSurface(theme)
+    }
+
+    private func updateProtectionSurface(_ theme: ArenaTheme) {
+        // A hollow craft with a strong outline signals immunity without another ring
+        // or a color-only distinction. Keep the core and motion accent visible.
+        outlineNode.strokeColor = showsCollisionProtection
+            ? theme.playerColor : theme.backgroundColor.withAlphaComponent(0.88)
+        bodyNode.fillColor = showsCollisionProtection ? theme.backgroundColor : theme.playerColor
     }
 
     func applyComboEffect(
