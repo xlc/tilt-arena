@@ -671,9 +671,9 @@ extension ArenaScene {
         ])
     }
 
-    private func startRun() {
+    private func startRun(sequenceSeed: Int? = nil) {
         readyHoldController.reset()
-        resetActiveRun()
+        resetActiveRun(sequenceSeed: sequenceSeed)
         runController.start(context: ArenaRunContext(
             mode: runSession.selectedMode,
             sequenceSeed: weaponRuntime.initialSeed
@@ -768,20 +768,22 @@ extension ArenaScene {
         show(.postRun)
     }
 
-    private func resetActiveRun() {
+    private func resetActiveRun(sequenceSeed: Int? = nil) {
         runSession.prepareNewRun()
-        resetGameplayObjects()
+        resetGameplayObjects(sequenceSeed: sequenceSeed)
         placePlayer(resetPosition: true)
         resetPlayerFeedback()
     }
 
-    private func resetGameplayObjects() {
+    private func resetGameplayObjects(sequenceSeed: Int? = nil) {
         balanceAccumulator = ArenaBalanceAccumulator()
         balanceStartingUnlockCount = runSession.selectedMode == .daily ? WeaponKind.allCases.count : runProfile.unlockedWeapons.count
         balanceExperimentalTuning = gameTuning != .defaults
         runSession.resetGameplayTransition()
         applySelectedModeTuning()
-        let runSequenceSeed = ArenaModeRules.sequenceSeed(for: runSession.selectedMode) ?? Int.random(in: 0...Int.max)
+        let runSequenceSeed = sequenceSeed
+            ?? ArenaModeRules.sequenceSeed(for: runSession.selectedMode)
+            ?? Int.random(in: 0...Int.max)
         weaponRuntime.prepareRun(sequenceSeed: runSequenceSeed)
         enemyRegistry.reset()
         spawnDirector.reset(sequenceSeed: runSequenceSeed)
@@ -3292,7 +3294,7 @@ extension ArenaScene {
         }
     }
 
-    func prepareActiveRunForTesting(mode: ArenaModeKind = .classic) {
+    func prepareActiveRunForTesting(mode: ArenaModeKind = .classic, sequenceSeed: Int? = nil) {
         localOptions = ArenaLocalOptions(
             audioEnabled: false,
             hapticsEnabled: false,
@@ -3303,7 +3305,24 @@ extension ArenaScene {
         runSession.selectMode(mode)
         applySelectedModeTuning()
         preparePreRun()
-        startRun()
+        startRun(sequenceSeed: sequenceSeed)
+    }
+
+    func prepareBalanceRunForTesting(tuning: GameTuningConfiguration, seed: Int, profile: RunProfile = RunProfile()) {
+        runProfile = profile
+        gameTuning = tuning
+        applyGameTuning()
+        rebuildArena()
+        configureWeaponEffectsRoot()
+        configureUIRoot()
+        if flameTrailEffectNode.parent == nil { addGameplayNode(flameTrailEffectNode) }
+        prepareActiveRunForTesting(sequenceSeed: seed)
+        lastUpdateTime = nil
+    }
+
+    func seedBalanceEnemiesForTesting(_ enemies: [ArenaEnemy]) {
+        spawnDirector.nextEnemyID = max(spawnDirector.nextEnemyID, (enemies.map(\.id).max() ?? 0) + 1)
+        addSpawnedEnemies(enemies)
     }
 
     func retryRunForTesting() {
@@ -3374,8 +3393,10 @@ extension ArenaScene {
         )
     }
 
-    func collectWeaponForTesting(_ kind: WeaponKind, id: Int = 1) {
-        let pickup = WeaponPickup(id: id, kind: kind, position: movementController.state.position, radius: 8)
+    func collectWeaponForTesting(_ kind: WeaponKind, id: Int = 1, tier: WeaponPickupChargeTier = .base) {
+        let age: TimeInterval = tier == .base ? 0 : (tier == .charged ? 3 : 6)
+        let pickup = WeaponPickup(id: id, kind: kind, position: movementController.state.position,
+                                  radius: 8, timeOnScreen: age, chargeTier: tier)
         _ = pickupRegistry.add([pickup], to: gameplayRoot, theme: theme)
         _ = collectPickups(playerPosition: movementController.state.position)
     }

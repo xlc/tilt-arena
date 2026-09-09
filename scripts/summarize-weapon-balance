@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""Validate and summarize the XCTest matched weapon encounter attachment."""
+import argparse
+import itertools
+import json
+import math
+import statistics
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('results', help='weapon-encounters.json XCTest attachment')
+args = parser.parse_args()
+with open(args.results, encoding='utf-8') as source:
+    rows = json.load(source)
+
+weapons = ['shockwave', 'seekerSwarm', 'razorShield', 'freezeBurst', 'gravityWell',
+           'chainLightning', 'flameTrail', 'warpDash', 'powerWave', 'ricochetLance', 'novaBomb']
+encounters = ['sparseChasers', 'densePack', 'crossingFormation', 'contestedMines', 'mixedThreats', 'latePressure']
+candidates = {'freezeBurst': 'shortFreeze', 'flameTrail': 'shortFlame', 'powerWave': 'quickPower'}
+key_fields = ['encounter', 'route', 'seed', 'weapon', 'tier', 'variant']
+def key(row):
+    return tuple(row[field] for field in key_fields)
+
+expected = set()
+for encounter, route, seed in itertools.product(encounters, ['orbit', 'reverse'], [91, 20260726]):
+    expected.add((encounter, route, seed, 'none', 0, 'baseline'))
+    for weapon, tier in itertools.product(weapons, range(3)):
+        expected.add((encounter, route, seed, weapon, tier, 'baseline'))
+        if weapon in candidates:
+            expected.add((encounter, route, seed, weapon, tier, candidates[weapon]))
+indexed = {key(row): row for row in rows}
+if len(indexed) != len(rows) or set(indexed) != expected:
+    raise SystemExit('Incomplete or duplicate matrix: expected exactly 1,032 named cases.')
+for row in rows:
+    if any(isinstance(value, (float, int)) and not math.isfinite(value) for value in row.values()):
+        raise SystemExit(f'Nonfinite measurement: {key(row)}')
+    if not (0 <= row['protectedSeconds'] <= row['observedSeconds'] + 0.001 <= row['durationLimit'] + 0.002):
+        raise SystemExit(f'Invalid duration accounting: {key(row)}')
+    if row['framesPerSecond'] != 60 or row['durationLimit'] != 18:
+        raise SystemExit(f'Unexpected comparison conditions: {key(row)}')
+    if not 0 <= row['openRouteFraction'] <= 1 or row['kills'] < 0 or row['score'] < 0:
+        raise SystemExit(f'Invalid outcome: {key(row)}')
+
+mean = lambda group, field: statistics.mean(row[field] for row in group)
+print('Tilt Arena matched weapon results — 9 September 2026\n')
+print('Validated 1,032 cases: six fixed encounters, two movement scripts, two seeds, all eleven weapons '
+      'at three tiers, three targeted candidates, and 24 no-pickup controls. Each case runs at 60 Hz '
+      'until collision or an 18-second cutoff. These are scripted comparisons, not player survival estimates.\n')
+print('| Weapon / all tiers | Cases | Mean kills | Mean observed seconds (capped at 18) | Collision endings | Mean open-ray fraction |')
+print('|---|---:|---:|---:|---:|---:|')
+for weapon in ['none'] + weapons:
+    group = [row for row in rows if row['weapon'] == weapon and row['variant'] == 'baseline']
+    print(f"| {weapon} | {len(group)} | {mean(group, 'kills'):.2f} | {mean(group, 'observedSeconds'):.2f} | "
+          f"{sum(row['collision'] for row in group)} | {mean(group, 'openRouteFraction'):.3f} |")
+print('\nCandidate differences are paired against the same encounter, route, seed, weapon and tier. '
+      'Positive observed-time changes mean the script lasted longer within the cutoff.\n')
+print('| Candidate | Pairs | Mean kill change | Mean observed-time change | More / fewer collision endings | Mean early displacement change |')
+print('|---|---:|---:|---:|---:|---:|')
+for weapon, candidate in candidates.items():
+    group = [row for row in rows if row['variant'] == candidate]
+    baseline = [indexed[key(row)[:-1] + ('baseline',)] for row in group]
+    more = sum(a['collision'] and not b['collision'] for a, b in zip(group, baseline))
+    fewer = sum(b['collision'] and not a['collision'] for a, b in zip(group, baseline))
+    print(f"| {candidate} | {len(group)} | {mean(group, 'kills') - mean(baseline, 'kills'):+.2f} | "
+          f"{mean(group, 'observedSeconds') - mean(baseline, 'observedSeconds'):+.2f} s | {more} / {fewer} | "
+          f"{mean(group, 'earlyDisplacement') - mean(baseline, 'earlyDisplacement'):+.2f} points |")
+print('\nTier detail uses baseline tuning. Each tier contains 24 cases.\n')
+print('| Weapon | Mean kills base / charged / overcharged | Mean observed seconds base / charged / overcharged |')
+print('|---|---|---|')
+for weapon in weapons:
+    groups = [[row for row in rows if row['weapon'] == weapon and row['tier'] == tier and row['variant'] == 'baseline']
+              for tier in range(3)]
+    kills = ' / '.join(f"{mean(group, 'kills'):.2f}" for group in groups)
+    times = ' / '.join(f"{mean(group, 'observedSeconds'):.2f}" for group in groups)
+    print(f'| {weapon} | {kills} | {times} |')
+print('\nOpen-ray fraction samples eight 80-point straight paths from the player against currently harmful '
+      'enemy bodies and arena bounds. It ignores enemy future movement and immunity, and is averaged only '
+      'over observed frames. It measures local geometric obstruction, not guaranteed safe space. Early '
+      'displacement is the maximum distance from the starting point in the first half-second.\n')
+print('Initial enemy populations are fixed; ordinary spawning and pickup replenishment are disabled. '
+      'Production movement, collision, splitting, status effects, culling and SpriteKit callbacks remain '
+      'active. Mixed and late-pressure fixtures are stress populations, not samples from a natural '
+      'three-minute run. The two scripts cannot adapt to a shorter charge or a different landing point. '
+      'Surviving cases are censored at 18 seconds; aggregate values are not a weapon ranking or statistical '
+      'evidence about people. Default changes require a recorded role-specific decision and phone playtesting.')

@@ -28,3 +28,28 @@ scripts/tilt-logs cat | jq -c 'select(.message | startswith("run.balance"))'
 Comparisons must match mode, seed, profile, arena and tuning. Experimental currently distinguishes overrides from defaults; retain the exact tuning configuration alongside each experiment's results. The deterministic harness must record named candidates and use isolated profiles and a no-op Game Center reporter.
 
 Validation covers actual score saturation, survival overflow, delayed activation histograms, old-run rejection, protection overlap, control duration, independent population/warning gates, metadata sanitization limits, and scene-level pickup kills, pause, completion and restart. Diagnostics failure behavior remains covered by the existing log-store regression suite.
+
+The matched harness is now implemented in `ArenaBalanceEncounterTests`. It drives the production scene and SpriteKit actions with `SKRenderer.update(atTime:)` using a monotonic system-time origin. A zero-based time origin failed the probe and was discarded. It does not draw frames or replace projectile callbacks with synchronous target deletion. Every case gets isolated preferences and a no-op Game Center client.
+
+The first matrix exposed duplicate IDs when fixture enemies and later splitter children overlapped. Fixture seeding now advances the director's ID allocator past the entire injected population; a regression preserves unrelated enemies and both children. Only the corrected export is checked in. The final run executed 604 tests, with the separate long director sweep skipped, zero failures, and no enemy-ID invariant events. SwiftLint and diff whitespace checks passed.
+
+Reproduce the 1,032 cases:
+
+```sh
+TEST_RUNNER_TILT_WEAPON_SWEEP=1 xcodebuild \
+  -project TiltArena.xcodeproj -scheme TiltArena -configuration Debug \
+  -sdk iphonesimulator \
+  -destination 'platform=iOS Simulator,id=AA706A81-B950-477D-8FAB-B8836EBD57E0,arch=arm64' \
+  -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO \
+  -only-testing:TiltArenaTests/ArenaBalanceEncounterTests test
+```
+
+Export the `weapon-encounters.json` attachment from `ArenaBalanceEncounterTests/testExportMatchedWeaponComparisons()` with `xcresulttool export attachments --test-id`, then run:
+
+```sh
+scripts/summarize-weapon-balance docs/reviews/2026-09-09-weapon-encounters.json
+```
+
+The summarizer rejects missing or duplicate cases, nonfinite metrics, mismatched conditions and invalid exposure bounds. [Raw results](2026-09-09-weapon-encounters.json) and [generated comparison tables](2026-09-09-weapon-results.md) include no-pickup controls and explicit methodological limits.
+
+Initial numerical decisions: reject the shorter Freeze proposal for now (five additional collision endings, no removed collision endings, and lower capped observed survival). Retain Flame pending landing-control playtests: the shorter burst changes displacement but barely changes capped survival across these scripts. Investigate Power's 0.4-second charge in an aimed encounter: nine collision endings disappear in the candidate set, but baseline Power records no kills in these two aggressive movement scripts. That warrants a targeted aiming test before accepting a default. Retain the other values pending their role-specific comparisons; these results are not a full-run pickup-strategy or human progression study.
