@@ -31,6 +31,71 @@ final class GameCenterServiceTests: XCTestCase {
 }
 
 @MainActor extension GameCenterServiceTests {
+    func testPreviousRulesQueuesAndAchievementCacheAreNotReused() throws {
+        let score = GameCenterScoreSubmission.classicSurvival(from: makeRunSummary(score: 100_000))
+        let progress = GameCenterAchievementProgress(achievement: .score100000, percentComplete: 100)
+        for suffix in ["", ".v\(ArenaRunContext.currentRulesVersion - 1)"] {
+            defaults.set(try JSONEncoder().encode([score]), forKey: "tiltArena.gameCenter.pendingScores\(suffix)")
+            defaults.set(try JSONEncoder().encode([progress]), forKey: "tiltArena.gameCenter.pendingAchievements\(suffix)")
+            defaults.set(try JSONEncoder().encode([progress.achievementID: 100.0]),
+                         forKey: "tiltArena.gameCenter.reportedAchievementProgress\(suffix)")
+        }
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
+        let service = makeService(localPlayer: client)
+        service.retryQueuedScores()
+        service.retryQueuedAchievements()
+        XCTAssertTrue(client.submittedScores.isEmpty)
+        XCTAssertTrue(scoreSubmissionStore.pendingSubmissions.isEmpty)
+        XCTAssertTrue(achievementProgressStore.pendingProgress.isEmpty)
+        XCTAssertEqual(achievementProgressStore.reportableProgress(from: [progress]), [progress])
+    }
+
+    func testPreviousRulesSummaryIsNotSubmittedOrReported() {
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
+        let service = makeService(localPlayer: client)
+        let summary = makeRunSummary(score: 100_000, rulesVersion: ArenaRunContext.currentRulesVersion - 1)
+        service.submitRunScore(summary)
+        XCTAssertTrue(client.submittedScores.isEmpty)
+        XCTAssertTrue(scoreSubmissionStore.pendingSubmissions.isEmpty)
+        XCTAssertTrue(GameCenterAchievementProgressMapper.progress(for: .runFinished(summary)).isEmpty)
+    }
+
+    func testAuthenticatedScoreIsDurableUntilItsRequestCompletes() {
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
+        client.defersScoreSubmissions = true
+        let service = makeService(localPlayer: client)
+        service.submitRunScore(makeRunSummary(score: 800))
+        XCTAssertEqual(GameCenterScoreSubmissionStore(defaults: defaults).pendingSubmissions.map(\.score), [800])
+        client.completeNextScoreSubmission()
+        XCTAssertTrue(scoreSubmissionStore.pendingSubmissions.isEmpty)
+    }
+
+    func testOlderAchievementFailurePreservesNewerQueuedProgress() {
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
+        client.defersAchievementReports = true
+        let service = makeService(localPlayer: client)
+        service.reportAchievementEvent(.runFinished(makeRunSummary(score: 10_000)))
+        service.reportAchievementEvent(.runFinished(makeRunSummary(score: 20_000)))
+        client.completeNextAchievementReport(error: NSError(domain: NSCocoaErrorDomain, code: NSFileReadNoPermissionError))
+        XCTAssertEqual(achievementProgressStore.pendingProgress.first {
+            $0.achievementID == GameCenterIdentifiers.Achievement.score100000.rawValue
+        }?.percentComplete, 20)
+    }
+
+    func testOlderAchievementRetryFailurePreservesNewerQueuedProgress() {
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: false)
+        let service = makeService(localPlayer: client)
+        service.reportAchievementEvent(.runFinished(makeRunSummary(score: 10_000)))
+        client.isAuthenticated = true
+        client.defersAchievementReports = true
+        service.retryQueuedAchievements()
+        service.reportAchievementEvent(.runFinished(makeRunSummary(score: 20_000)))
+        client.completeNextAchievementReport(error: NSError(domain: NSCocoaErrorDomain, code: NSFileReadNoPermissionError))
+        XCTAssertEqual(achievementProgressStore.pendingProgress.first {
+            $0.achievementID == GameCenterIdentifiers.Achievement.score100000.rawValue
+        }?.percentComplete, 20)
+    }
+
     func testUnsupportedClientDoesNotInstallAuthenticationHandler() {
         let client = FakeGameCenterLocalPlayerClient(isAvailable: false)
         let service = makeService(localPlayer: client)
@@ -400,7 +465,7 @@ final class GameCenterServiceTests: XCTestCase {
     }
 
     func testPendingScoreStoreRepairsMalformedPersistedSubmissions() throws {
-        let pendingKey = "tiltArena.gameCenter.pendingScores"
+        let pendingKey = "tiltArena.gameCenter.pendingScores.v\(ArenaRunContext.currentRulesVersion)"
         let submission = GameCenterScoreSubmission.classicSurvival(
             from: makeRunSummary(score: 100, timestamp: 1)
         )
@@ -624,8 +689,8 @@ final class GameCenterServiceTests: XCTestCase {
     }
 
     func testCorruptedAchievementProgressBlobsAreDiscardedAfterFirstFailedRead() {
-        let pendingKey = "tiltArena.gameCenter.pendingAchievements"
-        let reportedKey = "tiltArena.gameCenter.reportedAchievementProgress"
+        let pendingKey = "tiltArena.gameCenter.pendingAchievements.v\(ArenaRunContext.currentRulesVersion)"
+        let reportedKey = "tiltArena.gameCenter.reportedAchievementProgress.v\(ArenaRunContext.currentRulesVersion)"
         defaults.set(Data("not-json".utf8), forKey: pendingKey)
         defaults.set(Data("also-not-json".utf8), forKey: reportedKey)
 
@@ -638,7 +703,7 @@ final class GameCenterServiceTests: XCTestCase {
     }
 
     func testPendingAchievementStoreRepairsMalformedPersistedProgress() throws {
-        let pendingKey = "tiltArena.gameCenter.pendingAchievements"
+        let pendingKey = "tiltArena.gameCenter.pendingAchievements.v\(ArenaRunContext.currentRulesVersion)"
         let progress = try XCTUnwrap(
             GameCenterAchievementProgressMapper.progress(for: .weaponOrbCollected).first
         )
@@ -675,7 +740,7 @@ final class GameCenterServiceTests: XCTestCase {
     }
 
     func testCorruptedScoreQueueBlobIsDiscardedAfterFirstFailedRead() {
-        let pendingKey = "tiltArena.gameCenter.pendingScores"
+        let pendingKey = "tiltArena.gameCenter.pendingScores.v\(ArenaRunContext.currentRulesVersion)"
         defaults.set(Data("not-json".utf8), forKey: pendingKey)
 
         XCTAssertTrue(scoreSubmissionStore.pendingSubmissions.isEmpty)
@@ -707,7 +772,8 @@ final class GameCenterServiceTests: XCTestCase {
         maxCombo: Int = 3,
         enemiesDestroyed: Int = 4,
         timestamp: TimeInterval = 1,
-        mode: ArenaModeKind = .classic
+        mode: ArenaModeKind = .classic,
+        rulesVersion: Int = ArenaRunContext.currentRulesVersion
     ) -> RunSummary {
         RunSummary(
             score: score,
@@ -716,7 +782,8 @@ final class GameCenterServiceTests: XCTestCase {
             enemiesDestroyed: enemiesDestroyed,
             bestWeapon: .shockwave,
             timestamp: Date(timeIntervalSince1970: timestamp),
-            mode: mode
+            mode: mode,
+            rulesVersion: rulesVersion
         )
     }
 }

@@ -158,7 +158,7 @@ final class GameCenterService: GameCenterClient {
     }
 
     func submitRunScore(_ summary: RunSummary) {
-        guard summary.mode == .classic else {
+        guard summary.mode == .classic, summary.rulesVersion == ArenaRunContext.currentRulesVersion else {
             return
         }
 
@@ -261,7 +261,7 @@ final class GameCenterService: GameCenterClient {
 
             if let error {
                 if !GameCenterFailurePolicy.shouldQueue(error) {
-                    self.achievementProgressStore.removeProgress(withAchievementIDs: Set(progress.map(\.achievementID)))
+                    self.achievementProgressStore.discardFailedProgress(progress)
                 }
                 self.logger.warning(
                     "game_center.achievement_retry_failed",
@@ -366,6 +366,8 @@ final class GameCenterService: GameCenterClient {
     }
 
     private func submitScore(_ submission: GameCenterScoreSubmission) {
+        // Persist before starting the request so interruption cannot lose the run.
+        scoreSubmissionStore.enqueue(submission)
         localPlayer.submitScore(
             submission.score,
             context: submission.context,
@@ -383,6 +385,7 @@ final class GameCenterService: GameCenterClient {
                 return
             }
 
+            self.scoreSubmissionStore.removeSubmissions(withQueueKeys: [submission.queueKey])
             self.logger.notice("game_center.score_submitted", metadata: [
                 "leaderboardID": "\(submission.leaderboardID)",
                 "score": "\(submission.score)"
@@ -404,6 +407,7 @@ final class GameCenterService: GameCenterClient {
         )
 
         guard GameCenterFailurePolicy.shouldQueue(error) else {
+            scoreSubmissionStore.removeSubmissions(withQueueKeys: [submission.queueKey])
             logger.warning("game_center.score_submit_failed", error: error, metadata: metadata)
             return
         }
@@ -455,7 +459,7 @@ final class GameCenterService: GameCenterClient {
         ]) { _, new in new }
 
         guard GameCenterFailurePolicy.shouldQueue(error) else {
-            achievementProgressStore.removeProgress(withAchievementIDs: Set(progress.map(\.achievementID)))
+            achievementProgressStore.discardFailedProgress(progress)
             logger.warning("game_center.achievement_submit_failed", error: error, metadata: metadata)
             return
         }

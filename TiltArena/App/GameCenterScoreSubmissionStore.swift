@@ -51,7 +51,7 @@ final class GameCenterScoreSubmissionStore {
 
     init(
         defaults: UserDefaults = .standard,
-        pendingSubmissionsKey: String = "tiltArena.gameCenter.pendingScores",
+        pendingSubmissionsKey: String = "tiltArena.gameCenter.pendingScores.v\(ArenaRunContext.currentRulesVersion)",
         maxPendingSubmissions: Int = 25,
         logger: Logger = AppDiagnostics.logger(.gameCenter)
     ) {
@@ -220,6 +220,7 @@ enum GameCenterAchievementProgressMapper {
     }
 
     private static func runFinishedProgress(_ summary: RunSummary) -> [GameCenterAchievementProgress] {
+        guard summary.rulesVersion == ArenaRunContext.currentRulesVersion else { return [] }
         var progress = [
             completed(.firstRun),
             milestone(.combo10, currentValue: Double(summary.maxCombo), targetValue: 10),
@@ -261,8 +262,8 @@ final class GameCenterAchievementProgressStore {
 
     init(
         defaults: UserDefaults = .standard,
-        pendingProgressKey: String = "tiltArena.gameCenter.pendingAchievements",
-        reportedProgressKey: String = "tiltArena.gameCenter.reportedAchievementProgress",
+        pendingProgressKey: String = "tiltArena.gameCenter.pendingAchievements.v\(ArenaRunContext.currentRulesVersion)",
+        reportedProgressKey: String = "tiltArena.gameCenter.reportedAchievementProgress.v\(ArenaRunContext.currentRulesVersion)",
         maxPendingProgress: Int = 25,
         logger: Logger = AppDiagnostics.logger(.gameCenter)
     ) {
@@ -348,12 +349,10 @@ final class GameCenterAchievementProgressStore {
         }
     }
 
-    func removeProgress(withAchievementIDs achievementIDs: Set<String>) {
-        guard !achievementIDs.isEmpty else {
-            return
+    func discardFailedProgress(_ failed: [GameCenterAchievementProgress]) {
+        pendingProgress = pendingProgress.filter { pending in
+            !failed.contains { $0.achievementID == pending.achievementID && $0.percentComplete >= pending.percentComplete }
         }
-
-        pendingProgress = pendingProgress.filter { !achievementIDs.contains($0.achievementID) }
     }
 
     private var reportedProgressByAchievementID: [String: Double] {
