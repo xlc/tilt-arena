@@ -3,6 +3,58 @@ import XCTest
 @testable import TiltArena
 
 final class WeaponWaveExpansionTests: XCTestCase {
+    @MainActor
+    func testWaveAndRunExcludePausedTime() async throws {
+        let harness = try ArenaBalanceHarness()
+        defer { harness.close() }
+        let view = SKView(frame: CGRect(x: 0, y: 0, width: 718, height: 377))
+        let controller = UIViewController()
+        controller.view = view
+        let window = UIWindow(frame: view.frame)
+        window.rootViewController = controller
+        window.isHidden = false
+        defer { window.isHidden = true; view.presentScene(nil) }
+        view.presentScene(harness.scene)
+        harness.scene.prepareBalanceRunForTesting(tuning: ArenaBalanceVariant.baseline.tuning, seed: 91)
+        let boundary = SKNode()
+        boundary.setScale(0)
+        harness.scene.addWeaponEffectNodeForTesting(boundary)
+        boundary.run(harness.scene.waveExpansionAction(duration: 2, exponent: 1), withKey: "wave")
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertGreaterThan(boundary.xScale, 0)
+        harness.scene.pauseRunForTesting()
+        let scale = boundary.xScale
+        let survival = harness.scene.runSurvivalTimeForTesting
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertEqual(harness.scene.runSurvivalTimeForTesting, survival, accuracy: 0.001)
+        XCTAssertEqual(boundary.xScale, scale, accuracy: 0.01)
+        harness.scene.resumeRunForTesting()
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertGreaterThan(boundary.xScale, scale)
+        XCTAssertEqual(boundary.xScale, WeaponWaveExpansion.progress(
+            elapsed: harness.scene.runSurvivalTimeForTesting, duration: 2, exponent: 1
+        ), accuracy: 0.025)
+    }
+
+    @MainActor
+    func testVisibleWaveStaysWithGameplayAcrossDroppedFrames() throws {
+        let harness = try ArenaBalanceHarness()
+        defer { harness.close() }
+        harness.scene.prepareBalanceRunForTesting(tuning: ArenaBalanceVariant.baseline.tuning, seed: 91)
+        let boundary = SKNode()
+        boundary.setScale(0)
+        harness.scene.addWeaponEffectNodeForTesting(boundary)
+        boundary.run(harness.scene.waveExpansionAction(duration: 0.6, exponent: 3))
+        harness.step(at: 0)
+        for time in [1.0 / 60, 0.3, 0.35, 0.6] {
+            harness.step(at: time)
+            XCTAssertEqual(harness.scene.runSurvivalTimeForTesting, time, accuracy: 0.001)
+            XCTAssertEqual(boundary.xScale, WeaponWaveExpansion.progress(
+                elapsed: time, duration: 0.6, exponent: 3
+            ), accuracy: 0.001)
+        }
+    }
+
     func testResponsiveFrontNeverLosesLinearCoverageOrChangesLifetime() {
         for framesPerSecond in [30, 60, 120] {
             var linear = ShockwaveWaveState(center: .zero, maximumRadius: 90, expansionDuration: 0.6, holdDuration: 0.2)

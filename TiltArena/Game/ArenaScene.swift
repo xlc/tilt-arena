@@ -231,7 +231,8 @@ final class ArenaScene: SKScene {
         updateDiagnosticHealth(elapsedTime: positiveElapsedTime)
         updatePostRunTransition(deltaTime: positiveElapsedTime)
 
-        let deltaTime = min(1.0 / 15.0, positiveElapsedTime)
+        // SpriteKit actions advance by elapsed time, so gameplay must use that same clock.
+        let deltaTime = positiveElapsedTime
         guard deltaTime > 0 else {
             return
         }
@@ -567,6 +568,23 @@ extension ArenaScene {
     }
 
     private func updateGameplay(deltaTime: TimeInterval) {
+        var remaining = deltaTime
+        while remaining > 0, runController.phase == .active {
+            // Retain small collision steps without discarding time from the animation clock.
+            var step = min(1.0 / 15.0, remaining)
+            let boostRemaining = activeWeapons.flameTrailProtection.speedBoostTimeRemaining
+            if boostRemaining > 0 { step = min(step, boostRemaining) }
+            let nextRemaining = remaining - step
+            guard nextRemaining < remaining else {
+                reportInvalidFrameTime(reason: "unrepresentable_gameplay_step")
+                return
+            }
+            updateGameplayStep(deltaTime: step)
+            remaining = nextRemaining
+        }
+    }
+
+    private func updateGameplayStep(deltaTime: TimeInterval) {
         guard runController.phase == .active else {
             return
         }
@@ -695,6 +713,7 @@ extension ArenaScene {
         }
 
         runController.pause()
+        lastUpdateTime = nil
         audioController.pauseMusic()
         tiltInputController.resetSmoothedInput()
         setWeaponEffectPlaybackPaused(true)

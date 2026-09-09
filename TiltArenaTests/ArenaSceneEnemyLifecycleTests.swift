@@ -4,6 +4,55 @@ import XCTest
 
 @MainActor
 final class ArenaSceneEnemyLifecycleTests: XCTestCase {
+    func testDroppedFrameStillChecksTheTravelingPowerWaveBeforeItPassesAnEnemy() throws {
+        let harness = try ArenaBalanceHarness()
+        defer { harness.close() }
+        var tuning = ArenaBalanceVariant.baseline.tuning
+        tuning.startingWeapons.powerWaveChargeDuration = 0
+        tuning.startingWeapons.powerWaveRange = 20
+        tuning.startingWeapons.powerWaveExpansionDuration = 0.02
+        harness.scene.prepareBalanceRunForTesting(tuning: tuning, seed: 91)
+        let center = harness.scene.playerPositionForTesting
+        harness.scene.inputOverrideForTesting = CGVector(dx: 0.25, dy: 0)
+        harness.step(at: 0)
+        harness.step(at: 0.01)
+        harness.scene.inputOverrideForTesting = .zero
+        harness.scene.seedBalanceEnemiesForTesting([
+            ArenaEnemy(id: 100, position: CGPoint(x: center.x + 50, y: center.y), radius: 8, speed: 0)
+        ])
+        harness.scene.collectWeaponForTesting(.powerWave)
+        harness.step(at: 0.31)
+        XCTAssertTrue(harness.scene.enemyIDsForTesting.isEmpty)
+        XCTAssertFalse(harness.scene.isRunGameOverForTesting)
+    }
+
+    func testFlameBoostStopsAtItsDeadlineWithinAFrame() throws {
+        let harness = try ArenaBalanceHarness()
+        defer { harness.close() }
+        var tuning = ArenaBalanceVariant.baseline.tuning
+        tuning.flameTrail.duration = 0.01
+        harness.scene.prepareBalanceRunForTesting(tuning: tuning, seed: 91)
+        harness.scene.inputOverrideForTesting = CGVector(dx: 0.5, dy: 0)
+        let start = harness.scene.playerPositionForTesting
+        harness.scene.collectWeaponForTesting(.flameTrail)
+        harness.step(at: 0)
+        harness.step(at: 0.05)
+
+        let speed = tuning.playerMovement.maximumSpeed(in: harness.scene.currentGameplayBounds)
+        let distance = speed * (tuning.flameTrail.speedMultiplier * 0.01 + 0.5 * 0.04)
+        XCTAssertEqual(harness.scene.playerPositionForTesting.x, start.x + distance, accuracy: 0.001)
+    }
+
+    func testResumeWithoutPausedFramesExcludesBackgroundTime() {
+        let scene = makeActiveScene()
+        scene.update(1)
+        scene.update(1.02)
+        scene.pauseRunForTesting()
+        scene.resumeRunForTesting()
+        scene.update(100)
+        XCTAssertEqual(scene.runSurvivalTimeForTesting, 0.02, accuracy: 0.001)
+    }
+
     func testDailySimulationUsesTheSameWorldAcrossPhoneLayoutsAndResize() {
         let small = ArenaScene(size: CGSize(width: 667, height: 375))
         let large = ArenaScene(size: CGSize(width: 932, height: 430))
