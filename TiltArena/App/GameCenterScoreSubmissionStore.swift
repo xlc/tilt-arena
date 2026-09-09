@@ -139,7 +139,14 @@ final class GameCenterScoreSubmissionStore {
                 ? normalizedSubmission
                 : nil
         }
-        return Array(deduplicated.suffix(maxPendingSubmissions))
+        // Capacity must never evict an offline high score in favor of a later lower run.
+        return deduplicated.enumerated().sorted { lhs, rhs in
+            lhs.element.score == rhs.element.score
+                ? lhs.offset > rhs.offset
+                : lhs.element.score > rhs.element.score
+        }.prefix(maxPendingSubmissions)
+            .sorted { $0.offset < $1.offset }
+            .map(\.element)
     }
 }
 

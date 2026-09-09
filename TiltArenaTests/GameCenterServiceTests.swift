@@ -464,6 +464,20 @@ final class GameCenterServiceTests: XCTestCase {
         XCTAssertEqual(reloadedStore.pendingSubmissions.map(\.score), [200, 300])
     }
 
+    func testOfflineQueueRetainsTheHighScoreWhenLaterRunsFillItsCapacity() {
+        let boundedStore = GameCenterScoreSubmissionStore(defaults: defaults, maxPendingSubmissions: 2)
+        for (index, score) in [10_000, 200, 300].enumerated() {
+            boundedStore.enqueue(.classicSurvival(from: makeRunSummary(score: score, timestamp: Double(index))))
+        }
+        let reloadedStore = GameCenterScoreSubmissionStore(defaults: defaults, maxPendingSubmissions: 2)
+        XCTAssertEqual(reloadedStore.pendingSubmissions.map(\.score), [10_000, 300])
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
+        let service = makeService(localPlayer: client)
+        service.retryQueuedScores()
+        XCTAssertEqual(client.submittedScores.map(\.score), [10_000, 300])
+        XCTAssertTrue(reloadedStore.pendingSubmissions.isEmpty)
+    }
+
     func testPendingScoreStoreRepairsMalformedPersistedSubmissions() throws {
         let pendingKey = "tiltArena.gameCenter.pendingScores.v\(ArenaRunContext.currentRulesVersion)"
         let submission = GameCenterScoreSubmission.classicSurvival(
