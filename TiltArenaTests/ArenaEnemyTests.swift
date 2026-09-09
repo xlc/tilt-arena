@@ -452,8 +452,8 @@ final class ArenaEnemyTests: XCTestCase {
 
         enemy.advance(toward: CGPoint(x: 100, y: 100), deltaTime: 0.5)
 
-        XCTAssertEqual(enemy.position.x, 10, accuracy: 0.0001)
-        XCTAssertEqual(enemy.position.y, 10, accuracy: 0.0001)
+        XCTAssertEqual(enemy.position.x, 9, accuracy: 0.0001)
+        XCTAssertEqual(enemy.position.y, 9, accuracy: 0.0001)
         XCTAssertEqual(enemy.paddleTrapID, 3)
         XCTAssertNil(enemy.formationID)
         XCTAssertFalse(enemy.isLinearPatternEnemy)
@@ -467,6 +467,38 @@ final class ArenaEnemyTests: XCTestCase {
         XCTAssertEqual(velocity.dx, -4, accuracy: 0.0001)
         XCTAssertEqual(velocity.dy, -4, accuracy: 0.0001)
         XCTAssertEqual(remainingLifetime, 1.5, accuracy: 0.0001)
+    }
+
+    func testPaddlePuckRetainsBounceTravelAcrossFrameRates() {
+        var positions: [CGPoint] = []
+        for framesPerSecond in [30, 60, 120] {
+            var enemy = ArenaEnemy(
+                id: 1, position: CGPoint(x: 43, y: 17), radius: 4, speed: 145,
+                behavior: .paddleTrapDot(trapID: 1, velocity: CGVector(dx: 103, dy: -97),
+                                         bounds: CGRect(x: 0, y: 0, width: 126, height: 38), remainingLifetime: 8)
+            )
+            for _ in 0..<(framesPerSecond * 4) {
+                enemy.advance(toward: .zero, deltaTime: 1 / Double(framesPerSecond))
+            }
+            positions.append(enemy.position)
+        }
+        for point in positions.dropFirst() {
+            XCTAssertEqual(point.x, positions[0].x, accuracy: 0.0001)
+            XCTAssertEqual(point.y, positions[0].y, accuracy: 0.0001)
+        }
+        XCTAssertEqual(positions[0].x, 49, accuracy: 0.0001)
+        XCTAssertEqual(positions[0].y, 9, accuracy: 0.0001)
+    }
+
+    func testPaddlePuckCanCrossSeveralWallsWithinOneStep() {
+        var enemy = ArenaEnemy(id: 1, position: CGPoint(x: 3, y: 8), radius: 4, speed: 40,
+                               behavior: .paddleTrapDot(trapID: 1, velocity: CGVector(dx: -37, dy: 22),
+                                                        bounds: CGRect(x: 0, y: 0, width: 10, height: 10), remainingLifetime: 8))
+        enemy.advance(toward: .zero, deltaTime: 1)
+        XCTAssertEqual(enemy.position.x, 6, accuracy: 0.0001)
+        XCTAssertEqual(enemy.position.y, 10, accuracy: 0.0001)
+        guard case let .paddleTrapDot(_, velocity, _, _) = enemy.behavior else { return XCTFail("Expected puck") }
+        XCTAssertEqual(velocity, CGVector(dx: -37, dy: -22))
     }
 
     func testFrozenPaddleTrapStillExpiresOnWallClockTime() {

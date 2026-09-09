@@ -494,35 +494,38 @@ struct ArenaEnemy: Equatable, Identifiable {
               speedMultiplier.isFinite else {
             return
         }
-        var nextVelocity = velocity
-        var nextPosition = CGPoint(
-            x: position.x + velocity.dx * speedMultiplier * deltaTime,
-            y: position.y + velocity.dy * speedMultiplier * deltaTime
+        let horizontal = Self.reflectedAxis(
+            position: position.x, velocity: velocity.dx, distanceScale: speedMultiplier * deltaTime,
+            lower: bounds.minX, upper: bounds.maxX
         )
-
-        if nextPosition.x < bounds.minX {
-            nextPosition.x = bounds.minX
-            nextVelocity.dx = abs(nextVelocity.dx)
-        } else if nextPosition.x > bounds.maxX {
-            nextPosition.x = bounds.maxX
-            nextVelocity.dx = -abs(nextVelocity.dx)
-        }
-
-        if nextPosition.y < bounds.minY {
-            nextPosition.y = bounds.minY
-            nextVelocity.dy = abs(nextVelocity.dy)
-        } else if nextPosition.y > bounds.maxY {
-            nextPosition.y = bounds.maxY
-            nextVelocity.dy = -abs(nextVelocity.dy)
-        }
-
-        position = nextPosition
+        let vertical = Self.reflectedAxis(
+            position: position.y, velocity: velocity.dy, distanceScale: speedMultiplier * deltaTime,
+            lower: bounds.minY, upper: bounds.maxY
+        )
+        position = CGPoint(x: horizontal.position, y: vertical.position)
+        let nextVelocity = CGVector(dx: horizontal.velocity, dy: vertical.velocity)
         behavior = .paddleTrapDot(
             trapID: trapID,
             velocity: nextVelocity,
             bounds: bounds,
             remainingLifetime: remainingLifetime
         )
+    }
+
+    private static func reflectedAxis(
+        position: CGFloat, velocity: CGFloat, distanceScale: CGFloat, lower: CGFloat, upper: CGFloat
+    ) -> (position: CGFloat, velocity: CGFloat) {
+        let length = upper - lower
+        guard length.isFinite, length > 0 else { return (lower, 0) }
+        let start = min(upper, max(lower, position))
+        let distance = start - lower + velocity * distanceScale
+        let period = length * 2
+        guard distance.isFinite, period.isFinite else { return (start, 0) }
+        var phase = distance.truncatingRemainder(dividingBy: period)
+        if phase < 0 { phase += period }
+        if phase == 0 { return (lower, abs(velocity)) }
+        if phase == length { return (upper, -abs(velocity)) }
+        return phase < length ? (lower + phase, velocity) : (upper - (phase - length), -velocity)
     }
 
     private mutating func sanitizeTransientTimers() {
