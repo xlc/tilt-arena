@@ -96,7 +96,7 @@ final class WeaponApplicationCoordinatorTests: XCTestCase {
             using: &rng
         )
 
-        XCTAssertEqual(application.effect, .gravityWell(enemyIDs: [1]))
+        XCTAssertEqual(application.effect, .gravityWell)
         XCTAssertEqual(application.log.destroyedCount, 0)
         XCTAssertEqual(application.log.gravityTargetCount, 1)
     }

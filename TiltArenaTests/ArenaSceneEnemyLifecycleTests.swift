@@ -19,7 +19,6 @@ final class ArenaSceneEnemyLifecycleTests: XCTestCase {
         scene.addEnemyForTesting(outerEnemy)
         scene.activateGravityWellForTesting(
             center: pickupPosition,
-            enemyIDs: [centerEnemy.id, outerEnemy.id],
             configuration: StartingWeaponConfiguration(gravityWellClearRadius: 24)
         )
 
@@ -454,6 +453,33 @@ final class ArenaSceneEnemyLifecycleTests: XCTestCase {
         XCTAssertTrue(activation.hasQualifiedClear)
         scene.shatterFrozenContactEnemiesForTesting()
         XCTAssertEqual(activation.killCount, 2)
+    }
+
+    func testGravityFieldPullsLateEntrantsButDoesNotTetherOutsideEnemies() throws {
+        let scene = makeActiveScene()
+        scene.activateGravityWellForTesting(center: .zero, configuration: StartingWeaponConfiguration(
+            gravityWellRadius: 100, gravityWellActivationDelay: 0, gravityWellPullDuration: 2, gravityWellClearRadius: 10
+        ))
+        scene.addEnemyForTesting(ArenaEnemy(id: 800, position: CGPoint(x: 80, y: 0), radius: 2, speed: 0))
+        scene.addEnemyForTesting(ArenaEnemy(id: 801, position: CGPoint(x: 130, y: 0), radius: 2, speed: 0))
+        scene.updateGravityWellForTesting(deltaTime: 0.5)
+        XCTAssertEqual(try XCTUnwrap(scene.enemyPositionForTesting(id: 800)).x, 55, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(scene.enemyPositionForTesting(id: 801)).x, 130, accuracy: 0.0001)
+        scene.addEnemyForTesting(ArenaEnemy(id: 802, position: .zero, radius: 2, speed: 0))
+        scene.updateGravityWellForTesting(deltaTime: 0)
+        XCTAssertFalse(scene.enemyIDsForTesting.contains(802))
+    }
+
+    func testReplacingGravityWellRemovesOldFieldWithoutAnExtraClear() {
+        let scene = makeActiveScene()
+        let configuration = StartingWeaponConfiguration(gravityWellRadius: 50, gravityWellClearRadius: 10)
+        scene.activateGravityWellForTesting(center: .zero, configuration: configuration)
+        scene.activateGravityWellForTesting(center: CGPoint(x: 200, y: 0), configuration: configuration)
+        scene.addEnemyForTesting(ArenaEnemy(id: 803, position: .zero, radius: 2, speed: 0))
+        scene.addEnemyForTesting(ArenaEnemy(id: 804, position: CGPoint(x: 200, y: 0), radius: 2, speed: 0))
+        scene.updateGravityWellForTesting(deltaTime: 0.1)
+        XCTAssertTrue(scene.enemyIDsForTesting.contains(803))
+        XCTAssertFalse(scene.enemyIDsForTesting.contains(804))
     }
 
     private func makeActiveScene() -> ArenaScene {

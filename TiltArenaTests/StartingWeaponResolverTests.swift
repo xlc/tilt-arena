@@ -336,7 +336,6 @@ final class StartingWeaponResolverTests: XCTestCase {
         frozenEnemy.freeze(duration: 1, thawGraceDuration: 0.35)
         let state = GravityWellState(
             center: .zero,
-            enemyIDs: [1, 2, 3],
             timeRemaining: 0,
             clearRadius: 24
         )

@@ -4,7 +4,6 @@ import Foundation
 struct GravityWellState {
     let activation: WeaponActivation
     let center: CGPoint
-    let enemyIDs: Set<Int>
     let pullRadius: CGFloat
     let pullDuration: TimeInterval
     let clearRadius: CGFloat
@@ -13,7 +12,6 @@ struct GravityWellState {
 
     init(
         center: CGPoint,
-        enemyIDs: Set<Int>,
         timeRemaining: TimeInterval,
         activationDelayRemaining: TimeInterval = 0,
         pullRadius: CGFloat = StartingWeaponConfiguration().gravityWellRadius,
@@ -23,7 +21,6 @@ struct GravityWellState {
     ) {
         self.activation = activation
         self.center = center
-        self.enemyIDs = enemyIDs
         self.pullRadius = WeaponRuntimeSafetyLimits.distance(pullRadius)
         self.pullDuration = WeaponRuntimeSafetyLimits.duration(pullDuration)
         self.clearRadius = WeaponRuntimeSafetyLimits.distance(clearRadius)
@@ -53,12 +50,20 @@ struct GravityWellState {
         return pullDelta
     }
 
-    func collapseTargets(enemies: [ArenaEnemy]) -> Set<Int> {
-        let clearCircle = CollisionCircle(center: center, radius: max(0, clearRadius))
-        return Set(
-            enemies
-                .filter { enemyIDs.contains($0.id) && clearCircle.intersects($0.collisionCircle) }
-                .map(\.id)
-        )
+    func pullTargets(enemies: [ArenaEnemy]) -> Set<Int> {
+        let field = CollisionCircle(center: center, radius: pullRadius)
+        return Set(enemies.filter { field.intersects($0.collisionCircle) }.map(\.id))
+    }
+
+    func collapseTargets(enemies: [ArenaEnemy], previousPositions: [Int: CGPoint] = [:]) -> Set<Int> {
+        let core = CollisionCircle(center: center, radius: clearRadius)
+        return Set(enemies.filter { enemy in
+            core.intersects(enemy.collisionCircle)
+                || enemy.collisionCircle.firstIntersectionTimeDuringMovement(
+                    from: previousPositions[enemy.id] ?? enemy.position,
+                    with: core,
+                    movingFrom: center
+                ) != nil
+        }.map(\.id))
     }
 }

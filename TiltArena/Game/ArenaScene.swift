@@ -887,9 +887,12 @@ extension ArenaScene {
         updatePendingNovaBombClears(deltaTime: deltaTime)
         playerPosition = collectPickups(playerPosition: playerPosition)
         let previousDamageableEnemyPositions = damageableEnemyPositionsByID()
+        let gravityOrigins = activeWeapons.gravityWell == nil ? [:] : Dictionary(
+            uniqueKeysWithValues: enemies.map { ($0.id, $0.position) }
+        )
         advanceEnemies(deltaTime: deltaTime, playerPosition: playerPosition)
         updateTimeDilationAura(deltaTime: deltaTime, playerPosition: playerPosition)
-        updateGravityWell(deltaTime: deltaTime)
+        updateGravityWell(deltaTime: deltaTime, previousPositions: gravityOrigins)
         updateShockwaveWaves(deltaTime: deltaTime)
         updateFreezeBurstWaves(deltaTime: deltaTime)
         updatePowerWave(deltaTime: deltaTime, playerPosition: playerPosition)
@@ -1155,8 +1158,8 @@ extension ArenaScene {
             activateRazorShield(at: playerPosition, configuration: configuration, activation: activation)
         case .freezeBurstWave:
             activateFreezeBurstWave(at: playerPosition, configuration: configuration, activation: activation)
-        case .gravityWell(let enemyIDs):
-            activateGravityWell(at: playerPosition, enemyIDs: enemyIDs, configuration: configuration, activation: activation)
+        case .gravityWell:
+            activateGravityWell(at: playerPosition, configuration: configuration, activation: activation)
         case .chainLightning(let enemyIDs):
             playChainLightning(enemyIDs: enemyIDs, from: playerPosition, configuration: configuration, activation: activation)
             grantPostWeaponSafety(for: .chainLightning)
@@ -3371,10 +3374,17 @@ extension ArenaScene {
 
     func activateGravityWellForTesting(
         center: CGPoint,
-        enemyIDs: Set<Int>,
         configuration: StartingWeaponConfiguration
     ) {
-        activateGravityWell(at: center, enemyIDs: enemyIDs, configuration: configuration)
+        activateGravityWell(at: center, configuration: configuration)
+    }
+
+    func updateGravityWellForTesting(deltaTime: TimeInterval) {
+        updateGravityWell(deltaTime: deltaTime)
+    }
+
+    func enemyPositionForTesting(id: Int) -> CGPoint? {
+        enemyRegistry.enemy(id: id)?.position
     }
 
     func resolveSeekerExplosionForTesting(at target: WeaponImpactTarget) {
@@ -3651,13 +3661,11 @@ private extension ArenaScene {
 
     func activateGravityWell(
         at center: CGPoint,
-        enemyIDs: Set<Int>,
         configuration: StartingWeaponConfiguration,
         activation: WeaponActivation = WeaponActivation(kind: .gravityWell)
     ) {
         let state = GravityWellState(
             center: center,
-            enemyIDs: enemyIDs,
             timeRemaining: configuration.gravityWellPullDuration,
             activationDelayRemaining: configuration.gravityWellActivationDelay,
             pullRadius: configuration.gravityWellRadius,
@@ -3674,18 +3682,18 @@ private extension ArenaScene {
         destroyGravityWellCenterEnemies(state)
     }
 
-    func updateGravityWell(deltaTime: TimeInterval) {
+    func updateGravityWell(deltaTime: TimeInterval, previousPositions: [Int: CGPoint] = [:]) {
         guard var state = activeWeapons.gravityWell else {
             return
         }
 
-        destroyGravityWellCenterEnemies(state)
+        destroyGravityWellCenterEnemies(state, previousPositions: previousPositions)
         let pullDelta = state.consumePullDelta(deltaTime: deltaTime)
         let pullDuration = max(state.pullDuration, 0.001)
         let pullDistance = state.pullRadius / CGFloat(pullDuration) * CGFloat(pullDelta)
 
         if pullDistance > 0 {
-            enemyRegistry.update(ids: state.enemyIDs) { enemy in
+            enemyRegistry.update(ids: state.pullTargets(enemies: enemies)) { enemy in
                 enemy.pullToward(state.center, distance: pullDistance)
             }
             destroyGravityWellCenterEnemies(state)
@@ -3698,9 +3706,9 @@ private extension ArenaScene {
         }
     }
 
-    func destroyGravityWellCenterEnemies(_ state: GravityWellState) {
+    func destroyGravityWellCenterEnemies(_ state: GravityWellState, previousPositions: [Int: CGPoint] = [:]) {
         destroyEnemies(
-            ids: state.collapseTargets(enemies: enemies),
+            ids: state.collapseTargets(enemies: enemies, previousPositions: previousPositions),
             weaponKind: .gravityWell,
             activation: state.activation
         )

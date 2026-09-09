@@ -12,7 +12,7 @@ struct WeaponApplication: Equatable {
         case seekerSwarm(enemyIDs: Set<Int>)
         case razorShield
         case freezeBurstWave
-        case gravityWell(enemyIDs: Set<Int>)
+        case gravityWell
         case chainLightning(enemyIDs: [Int])
         case flameTrail
         case timeDilationAura
@@ -58,7 +58,7 @@ struct WeaponApplicationCoordinator {
         case .freezeBurst:
             return WeaponApplication(effect: .freezeBurstWave, log: log)
         case .gravityWell:
-            return WeaponApplication(effect: .gravityWell(enemyIDs: resolution.gravityWellEnemyIDs), log: log)
+            return WeaponApplication(effect: .gravityWell, log: log)
         case .chainLightning:
             return WeaponApplication(effect: .chainLightning(enemyIDs: resolution.chainLightningEnemyIDs), log: log)
         case .flameTrail:
