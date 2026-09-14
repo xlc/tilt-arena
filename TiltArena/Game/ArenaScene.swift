@@ -276,6 +276,7 @@ final class ArenaScene: SKScene {
     }
 
     func refreshGameCenterMenuStatus() {
+        navigationState.gameCenterStatusMessage = nil
         guard uiState == .home || uiState == .postRun else {
             return
         }

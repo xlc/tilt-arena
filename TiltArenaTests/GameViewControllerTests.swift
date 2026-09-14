@@ -286,6 +286,24 @@ final class GameViewControllerTests: XCTestCase {
     }
 
     @MainActor
+    func testGameCenterRecoveryReplacesRanksFailureOnHomeAndPostRun() {
+        for state in [ArenaUISceneState.home, .postRun] {
+            let scene = ArenaScene(size: CGSize(width: 852, height: 393))
+            let delegate = FakeArenaSceneGameCenterDelegate(result: .unavailable(.authenticationRequired))
+            scene.gameCenterDelegate = delegate
+            scene.prepareForVisualSnapshot(state: state)
+            scene.requestClassicLeaderboardForTesting()
+            XCTAssertEqual(scene.gameCenterStatusMessageForTesting, "SIGN IN TO VIEW RANKS")
+
+            delegate.menuStatus = .ready
+            scene.refreshGameCenterMenuStatus()
+
+            XCTAssertEqual(scene.gameCenterStatusMessageForTesting, "GAME CENTER READY")
+            XCTAssertEqual(scene.uiStateForTesting, state)
+        }
+    }
+
+    @MainActor
     func testHomeScreenSurfacesGameCenterReadyStatus() {
         let scene = ArenaScene(size: CGSize(width: 852, height: 393))
         let delegate = FakeArenaSceneGameCenterDelegate(menuStatus: .ready)
