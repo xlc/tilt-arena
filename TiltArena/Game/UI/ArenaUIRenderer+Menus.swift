@@ -130,33 +130,21 @@ extension ArenaUIRenderer {
             : theme.backgroundColor.withAlphaComponent(0.46)
         addPanel(frame: frame, stroke: strokeColor, fill: fillColor)
 
-        let compact = frame.height < 42
-        let iconRadius = min(compact ? 9 : 12, max(7, frame.height * 0.27))
-        let iconPosition = CGPoint(x: frame.minX + 15, y: frame.midY)
-        addWeaponCodexIcon(
-            kind: row.kind,
-            position: iconPosition,
-            radius: iconRadius,
-            isUnlocked: row.isUnlocked
-        )
-
-        let titleX = iconPosition.x + iconRadius + 8
-        let titleWidth = max(30, frame.maxX - titleX - 48)
-        addLabel(
-            truncatedText(row.title, fontSize: compact ? 7.4 : 8.4, width: titleWidth),
-            at: CGPoint(x: titleX, y: frame.maxY - (compact ? 9 : 11)),
-            fontSize: compact ? 7.4 : 8.4,
-            color: row.isUnlocked ? theme.playerColor : theme.borderColor.withAlphaComponent(0.78),
-            alignment: .left
-        )
-        addLabel(
-            row.statusText,
-            at: CGPoint(x: frame.maxX - 8, y: frame.maxY - (compact ? 9 : 11)),
-            fontSize: compact ? 5.8 : 6.6,
-            color: row.isUnlocked ? theme.playerAccentColor : theme.borderColor.withAlphaComponent(0.72),
-            alignment: .right
-        )
-        addWeaponCodexDetails(row, frame: frame, titleX: titleX, compact: compact)
+        addWeaponCodexIcon(kind: row.kind, position: CGPoint(x: frame.minX + 24, y: frame.maxY - 23),
+                           radius: 12, isUnlocked: row.isUnlocked)
+        addLabel(row.title, at: CGPoint(x: frame.minX + 46, y: frame.maxY - 16),
+                 fontSize: 14, color: theme.playerColor, alignment: .left)
+        addLabel(row.statusText, at: CGPoint(x: frame.minX + 46, y: frame.maxY - 33),
+                 fontSize: 10, color: theme.borderColor, alignment: .left)
+        let description = makeLabel(row.description, at: CGPoint(x: frame.minX + 14, y: frame.maxY - 50),
+                                    fontSize: 13, color: theme.playerColor, alignment: .left)
+        description.verticalAlignmentMode = .top
+        description.numberOfLines = 0
+        description.lineBreakMode = .byWordWrapping
+        description.preferredMaxLayoutWidth = frame.width - 28
+        root.addChild(description)
+        addLabel(row.unlockText, at: CGPoint(x: frame.minX + 14, y: frame.minY + 14),
+                 fontSize: 12, color: theme.playerColor, alignment: .left)
     }
 
     func addPostRunHighlights(_ highlights: [String], frame: CGRect) {
@@ -297,29 +285,6 @@ extension ArenaUIRenderer {
             fontSize: detailFontSize,
             color: theme.borderColor,
             alignment: .right
-        )
-    }
-
-    private func addWeaponCodexDetails(
-        _ row: WeaponCodexRow,
-        frame: CGRect,
-        titleX: CGFloat,
-        compact: Bool
-    ) {
-        let detailWidth = frame.maxX - titleX - 8
-        addLabel(
-            truncatedText(row.description.uppercased(), fontSize: compact ? 5.8 : 6.6, width: detailWidth),
-            at: CGPoint(x: titleX, y: frame.midY - 1),
-            fontSize: compact ? 5.8 : 6.6,
-            color: theme.playerColor.withAlphaComponent(row.isUnlocked ? 0.78 : 0.48),
-            alignment: .left
-        )
-        addLabel(
-            truncatedText(row.unlockText, fontSize: compact ? 5.8 : 6.4, width: detailWidth),
-            at: CGPoint(x: titleX, y: frame.minY + (compact ? 7 : 9)),
-            fontSize: compact ? 5.8 : 6.4,
-            color: theme.playerAccentColor.withAlphaComponent(row.isUnlocked ? 0.82 : 0.52),
-            alignment: .left
         )
     }
 

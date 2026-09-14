@@ -2133,10 +2133,12 @@ private extension ArenaScene {
                 layout: currentLandscapeLayout()
             )
         case .weaponCodex:
-            uiRenderer.renderWeaponCodex(
-                rows: ArenaMenuContent.weaponCodexRows(profile: runProfile),
-                layout: currentLandscapeLayout()
+            let layout = currentLandscapeLayout()
+            let rows = ArenaMenuContent.weaponCodexRows(profile: runProfile)
+            navigationState.weaponCodexPageIndex = min(
+                navigationState.weaponCodexPageIndex, (rows.count - 1) / layout.weaponCodexPageSize
             )
+            uiRenderer.renderWeaponCodex(rows: rows, pageIndex: navigationState.weaponCodexPageIndex, layout: layout)
         case .options:
             uiRenderer.renderOptions(
                 settings: tiltSettingsStore.settings,
@@ -2314,7 +2316,7 @@ private extension ArenaScene {
     }
 
     func currentDeveloperTuningMenu() -> ArenaDeveloperTuningMenu {
-        let contentFrame = uiRenderer.menuContentFrame(layout: currentLandscapeLayout())
+        let contentFrame = currentLandscapeLayout().menuContentFrame
         let layout = ArenaDeveloperTuningLayout(contentFrame: contentFrame)
         return navigationState.developerTuning.menu(tuning: gameTuning, pageSize: layout.pageSize)
     }
@@ -2646,6 +2648,9 @@ private extension ArenaScene {
             performNavigationAction(action)
         case .selectMode, .resume, .calibrate, .endRun:
             performRunControlAction(action)
+        case let .weaponCodexPage(index):
+            navigationState.weaponCodexPageIndex = index
+            rebuildUI()
         case .openDiagnostics:
             openDiagnostics()
         case .openClassicLeaderboard:
@@ -3624,6 +3629,12 @@ extension ArenaScene {
 
     var weaponEffectNodeCountForTesting: Int {
         weaponEffectsRoot.children.count
+    }
+
+    var weaponCodexPageIndexForTesting: Int { navigationState.weaponCodexPageIndex }
+
+    func activateControlForTesting(_ action: ArenaControlAction) {
+        perform(action)
     }
 
     var developerTuningPageIndexForTesting: Int {

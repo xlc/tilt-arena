@@ -37,6 +37,16 @@ struct ArenaLandscapeUILayout: Equatable {
         CGRect(x: controlRect.maxX - 156, y: controlRect.minY, width: 156, height: 48)
     }
 
+    var menuContentFrame: CGRect {
+        CGRect(x: safeRect.minX + 14, y: safeRect.minY + 16,
+               width: max(0, safeRect.width - 28), height: max(0, safeRect.height - 76))
+    }
+
+    var weaponCodexPageSize: Int {
+        // Two columns; each card needs room for a title, wrapped body, and unlock requirement.
+        2 * max(1, Int((menuContentFrame.height + 8) / 112))
+    }
+
     var postRunHighlightsFrame: CGRect {
         let baseFrame = rightColumnFrame(width: 230)
         let topY = safeRect.maxY - 32

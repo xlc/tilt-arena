@@ -76,6 +76,7 @@ struct ArenaNavigationState: Equatable {
     private(set) var optionsReturnDestination: ArenaUISceneState = .home
     private(set) var calibrationReturnDestination: ArenaUISceneState = .home
     private(set) var developerReturnDestination: ArenaUISceneState = .home
+    var weaponCodexPageIndex = 0
     var gameCenterStatusMessage: String?
     var isResetDataArmed = false
     var developerTuning = ArenaDeveloperTuningNavigationState()
@@ -142,6 +143,7 @@ struct ArenaNavigationState: Equatable {
         developerReturnDestination = .home
         gameCenterStatusMessage = nil
         isResetDataArmed = resetDataArmed
+        weaponCodexPageIndex = 0
         developerTuning.reset()
     }
     #endif

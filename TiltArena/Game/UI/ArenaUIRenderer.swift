@@ -11,6 +11,7 @@ enum ArenaControlAction: Equatable {
     case openModes
     case openAwards
     case openWeaponCodex
+    case weaponCodexPage(Int)
     case openOptions
     case openDeveloperTuning
     case openCalibrationPreview

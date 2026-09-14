@@ -86,7 +86,6 @@ final class ArenaMenuContentTests: XCTestCase {
 
         for row in rows {
             XCTAssertFalse(row.description.isEmpty, "Missing description for \(row.kind)")
-            XCTAssertLessThanOrEqual(row.description.count, 40, "Description is too long for \(row.kind)")
         }
 
         let descriptions = Dictionary(uniqueKeysWithValues: rows.map { ($0.kind, $0.description) })

@@ -120,34 +120,33 @@ extension ArenaUIRenderer {
         }
     }
 
-    func renderWeaponCodex(rows: [WeaponCodexRow], layout: ArenaLandscapeUILayout) {
+    func renderWeaponCodex(rows: [WeaponCodexRow], pageIndex: Int, layout: ArenaLandscapeUILayout) {
         let contentFrame = addMenuChrome(title: "WEAPON CODEX", layout: layout)
-
-        let columnCount = 3
-        let columnGap: CGFloat = 8
-        let rowGap: CGFloat = 8
-        let rowCount = Int(ceil(Double(rows.count) / Double(columnCount)))
-        let columnWidth = max(
-            0,
-            (contentFrame.width - CGFloat(columnCount - 1) * columnGap) / CGFloat(columnCount)
-        )
-        let rowHeight = max(
-            34,
-            (
-                contentFrame.height - CGFloat(max(0, rowCount - 1)) * rowGap
-            ) / CGFloat(max(1, rowCount))
-        )
-
-        for (index, row) in rows.enumerated() {
-            let column = index % columnCount
-            let rowIndex = index / columnCount
+        let pageSize = layout.weaponCodexPageSize
+        let pageCount = (rows.count - 1) / pageSize + 1
+        let rowCount = pageSize / 2
+        let columnWidth = (contentFrame.width - 8) / 2
+        let rowHeight = (contentFrame.height - CGFloat(rowCount - 1) * 8) / CGFloat(rowCount)
+        let visibleRows = rows.dropFirst(pageIndex * pageSize).prefix(pageSize)
+        for (index, row) in visibleRows.enumerated() {
             let frame = CGRect(
-                x: contentFrame.minX + CGFloat(column) * (columnWidth + columnGap),
-                y: contentFrame.maxY - rowHeight - CGFloat(rowIndex) * (rowHeight + rowGap),
-                width: columnWidth,
-                height: rowHeight
+                x: contentFrame.minX + CGFloat(index % 2) * (columnWidth + 8),
+                y: contentFrame.maxY - rowHeight - CGFloat(index / 2) * (rowHeight + 8),
+                width: columnWidth, height: rowHeight
             )
             addWeaponCodexRow(row, frame: frame)
+        }
+        let controlsY = layout.safeRect.maxY - 53
+        if pageIndex > 0 {
+            addButton("PREV", frame: CGRect(x: contentFrame.maxX - 188, y: controlsY, width: 56, height: 44),
+                      action: .weaponCodexPage(pageIndex - 1), style: .secondary, fontSize: 10)
+        }
+        addLabel("\(pageIndex + 1) / \(pageCount)",
+                 at: CGPoint(x: contentFrame.maxX - 94, y: controlsY + 22),
+                 fontSize: 12, color: theme.playerColor, alignment: .center)
+        if pageIndex + 1 < pageCount {
+            addButton("NEXT", frame: CGRect(x: contentFrame.maxX - 56, y: controlsY, width: 56, height: 44),
+                      action: .weaponCodexPage(pageIndex + 1), style: .secondary, fontSize: 10)
         }
     }
 
@@ -178,16 +177,7 @@ extension ArenaUIRenderer {
             color: theme.playerAccentColor.withAlphaComponent(0.9)
         )
 
-        return menuContentFrame(layout: layout)
-    }
-
-    func menuContentFrame(layout: ArenaLandscapeUILayout) -> CGRect {
-        CGRect(
-            x: layout.safeRect.minX + 14,
-            y: layout.safeRect.minY + 16,
-            width: max(0, layout.safeRect.width - 28),
-            height: max(0, layout.safeRect.height - 76)
-        )
+        return layout.menuContentFrame
     }
 
     func addMenuBackdrop(layout: ArenaLandscapeUILayout) {
