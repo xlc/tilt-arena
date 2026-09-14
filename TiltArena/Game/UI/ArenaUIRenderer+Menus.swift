@@ -6,7 +6,7 @@ extension ArenaUIRenderer {
             ArenaMenuButton(title: "MODES", action: .openModes, glyph: .radar),
             ArenaMenuButton(title: "AWARDS", action: .openAwards, glyph: .award),
             ArenaMenuButton(title: "WEAPONS", action: .openWeaponCodex, glyph: .weapon),
-            ArenaMenuButton(title: "RANKS", action: .openClassicLeaderboard, glyph: .ranks),
+            ArenaMenuButton(title: "RANKS", action: .openLeaderboards, glyph: .ranks),
             ArenaMenuButton(title: "OPTIONS", action: .openOptions, glyph: .settings)
         ]
         for (index, button) in buttons.enumerated() {
@@ -331,7 +331,7 @@ extension ArenaUIRenderer {
         let buttonWidth = min(104, max(72, (availableWidth - spacing * 2) / 3))
         let buttons = [
             ArenaMenuButton(title: "MODES", action: .openModes, glyph: .radar),
-            ArenaMenuButton(title: "RANKS", action: .openClassicLeaderboard, glyph: .ranks),
+            ArenaMenuButton(title: "RANKS", action: .openLeaderboards, glyph: .ranks),
             ArenaMenuButton(title: "HOME", action: .home, glyph: .home)
         ]
         for (index, button) in buttons.enumerated() {

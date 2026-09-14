@@ -13,7 +13,7 @@ protocol GameCenterClient: GameCenterRunReporting {
         allowsPrompt: Bool
     )
     func retryAuthentication(presenter: GameCenterAuthenticationPresenting?)
-    func presentClassicSurvivalLeaderboard(
+    func presentLeaderboards(
         presenter: GameCenterLeaderboardPresenting
     ) -> GameCenterLeaderboardPresentationResult
     func retryQueuedScores()
@@ -33,7 +33,7 @@ final class NoopGameCenterClient: GameCenterClient {
 
     func retryAuthentication(presenter: GameCenterAuthenticationPresenting?) {}
 
-    func presentClassicSurvivalLeaderboard(
+    func presentLeaderboards(
         presenter: GameCenterLeaderboardPresenting
     ) -> GameCenterLeaderboardPresentationResult {
         .unavailable(.unsupported)

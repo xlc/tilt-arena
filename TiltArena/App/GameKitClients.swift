@@ -7,12 +7,8 @@ import UIKit
 #if canImport(GameKit)
 @MainActor
 struct GameKitLeaderboardFactory: GameCenterLeaderboardFactory {
-    func makeClassicSurvivalLeaderboardViewController() -> UIViewController? {
-        GKGameCenterViewController(
-            leaderboardID: GameCenterIdentifiers.Leaderboard.classicSurvivalHighScore,
-            playerScope: .global,
-            timeScope: .allTime
-        )
+    func makeLeaderboardsViewController() -> UIViewController? {
+        GKGameCenterViewController(state: .leaderboards)
     }
 }
 
@@ -75,7 +71,7 @@ final class GameKitLocalPlayerClient: GameCenterLocalPlayerClient {
 #else
 @MainActor
 struct GameKitLeaderboardFactory: GameCenterLeaderboardFactory {
-    func makeClassicSurvivalLeaderboardViewController() -> UIViewController? {
+    func makeLeaderboardsViewController() -> UIViewController? {
         nil
     }
 }

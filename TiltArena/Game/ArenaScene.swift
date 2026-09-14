@@ -25,7 +25,7 @@ protocol ArenaSceneDiagnosticsDelegate: AnyObject {
 @MainActor
 protocol ArenaSceneGameCenterDelegate: AnyObject {
     func arenaSceneGameCenterMenuStatus(_ scene: ArenaScene) -> GameCenterMenuStatus
-    func arenaSceneRequestsClassicLeaderboard(_ scene: ArenaScene) -> GameCenterLeaderboardPresentationResult
+    func arenaSceneRequestsLeaderboards(_ scene: ArenaScene) -> GameCenterLeaderboardPresentationResult
 }
 
 final class ArenaScene: SKScene {
@@ -2653,8 +2653,8 @@ private extension ArenaScene {
             rebuildUI()
         case .openDiagnostics:
             openDiagnostics()
-        case .openClassicLeaderboard:
-            requestClassicLeaderboard()
+        case .openLeaderboards:
+            requestLeaderboards()
         case .sensitivityDown, .sensitivityUp, .preset, .toggleAudio, .toggleHaptics, .selectTheme, .resetData:
             performOptionsAction(action)
         case .developerTuningPreviousPage,
@@ -2669,8 +2669,8 @@ private extension ArenaScene {
         }
     }
 
-    func requestClassicLeaderboard() {
-        let result = gameCenterDelegate?.arenaSceneRequestsClassicLeaderboard(self)
+    func requestLeaderboards() {
+        let result = gameCenterDelegate?.arenaSceneRequestsLeaderboards(self)
             ?? .unavailable(.unsupported)
         switch result {
         case .presented:
@@ -3657,16 +3657,16 @@ extension ArenaScene {
         performNavigationAction(.openDeveloperTuning)
     }
 
-    var classicLeaderboardButtonCountForTesting: Int {
-        uiRenderer.hitTargets.filter { $0.action == .openClassicLeaderboard }.count
+    var leaderboardButtonCountForTesting: Int {
+        uiRenderer.hitTargets.filter { $0.action == .openLeaderboards }.count
     }
 
     var gameCenterStatusMessageForTesting: String? {
         currentGameCenterStatusMessage()
     }
 
-    func requestClassicLeaderboardForTesting() {
-        perform(.openClassicLeaderboard)
+    func requestLeaderboardsForTesting() {
+        perform(.openLeaderboards)
     }
 
     func advanceDeveloperTuningPageForTesting() {

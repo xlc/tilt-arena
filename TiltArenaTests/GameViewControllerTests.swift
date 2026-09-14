@@ -243,44 +243,45 @@ final class GameViewControllerTests: XCTestCase {
     }
 
     @MainActor
-    func testHomeScreenRendersClassicLeaderboardEntryPoint() {
+    func testHomeScreenRendersLeaderboardsEntryPoint() {
         let scene = ArenaScene(size: CGSize(width: 852, height: 393))
 
         scene.prepareForVisualSnapshot(state: .home)
 
-        XCTAssertEqual(scene.classicLeaderboardButtonCountForTesting, 1)
+        XCTAssertEqual(scene.leaderboardButtonCountForTesting, 1)
     }
 
     @MainActor
-    func testPostRunScreenRendersClassicLeaderboardEntryPoint() {
+    func testPostRunScreenRendersLeaderboardsEntryPoint() {
         let scene = ArenaScene(size: CGSize(width: 852, height: 393))
 
         scene.prepareForVisualSnapshot(state: .postRun)
 
-        XCTAssertEqual(scene.classicLeaderboardButtonCountForTesting, 1)
+        XCTAssertEqual(scene.leaderboardButtonCountForTesting, 1)
     }
 
     @MainActor
-    func testClassicLeaderboardActionRoutesToDelegate() {
-        let scene = ArenaScene(size: CGSize(width: 852, height: 393))
-        let delegate = FakeArenaSceneGameCenterDelegate(result: .presented)
-        scene.gameCenterDelegate = delegate
-        scene.prepareForVisualSnapshot(state: .home)
-
-        scene.requestClassicLeaderboardForTesting()
-
-        XCTAssertTrue(delegate.requestedScene === scene)
-        XCTAssertNil(scene.gameCenterStatusMessageForTesting)
+    func testLeaderboardsActionRoutesToDelegate() {
+        for state in [ArenaUISceneState.home, .postRun] {
+            let scene = ArenaScene(size: CGSize(width: 852, height: 393))
+            let delegate = FakeArenaSceneGameCenterDelegate(result: .presented)
+            scene.gameCenterDelegate = delegate
+            scene.prepareForVisualSnapshot(state: state)
+            scene.requestLeaderboardsForTesting()
+            XCTAssertTrue(delegate.requestedScene === scene)
+            XCTAssertNil(scene.gameCenterStatusMessageForTesting)
+            XCTAssertEqual(scene.uiStateForTesting, state)
+        }
     }
 
     @MainActor
-    func testClassicLeaderboardActionShowsSignedOutStatusWhenAuthenticationIsRequired() {
+    func testLeaderboardsActionShowsSignedOutStatusWhenAuthenticationIsRequired() {
         let scene = ArenaScene(size: CGSize(width: 852, height: 393))
         let delegate = FakeArenaSceneGameCenterDelegate(result: .unavailable(.authenticationRequired))
         scene.gameCenterDelegate = delegate
         scene.prepareForVisualSnapshot(state: .home)
 
-        scene.requestClassicLeaderboardForTesting()
+        scene.requestLeaderboardsForTesting()
 
         XCTAssertEqual(scene.gameCenterStatusMessageForTesting, "SIGN IN TO VIEW RANKS")
     }
@@ -292,7 +293,7 @@ final class GameViewControllerTests: XCTestCase {
             let delegate = FakeArenaSceneGameCenterDelegate(result: .unavailable(.authenticationRequired))
             scene.gameCenterDelegate = delegate
             scene.prepareForVisualSnapshot(state: state)
-            scene.requestClassicLeaderboardForTesting()
+            scene.requestLeaderboardsForTesting()
             XCTAssertEqual(scene.gameCenterStatusMessageForTesting, "SIGN IN TO VIEW RANKS")
 
             delegate.menuStatus = .ready
@@ -430,7 +431,7 @@ private final class RecordingGameCenterClient: GameCenterClient {
 
     func retryAuthentication(presenter: GameCenterAuthenticationPresenting?) {}
 
-    func presentClassicSurvivalLeaderboard(
+    func presentLeaderboards(
         presenter: GameCenterLeaderboardPresenting
     ) -> GameCenterLeaderboardPresentationResult {
         .presented
@@ -475,7 +476,7 @@ private final class FakeArenaSceneGameCenterDelegate: ArenaSceneGameCenterDelega
         menuStatus
     }
 
-    func arenaSceneRequestsClassicLeaderboard(_ scene: ArenaScene) -> GameCenterLeaderboardPresentationResult {
+    func arenaSceneRequestsLeaderboards(_ scene: ArenaScene) -> GameCenterLeaderboardPresentationResult {
         requestedScene = scene
         return result
     }

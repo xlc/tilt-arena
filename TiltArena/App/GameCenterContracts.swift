@@ -20,7 +20,7 @@ protocol GameCenterLeaderboardPresenting: AnyObject {
 
 @MainActor
 protocol GameCenterLeaderboardFactory {
-    func makeClassicSurvivalLeaderboardViewController() -> UIViewController?
+    func makeLeaderboardsViewController() -> UIViewController?
 }
 
 @MainActor

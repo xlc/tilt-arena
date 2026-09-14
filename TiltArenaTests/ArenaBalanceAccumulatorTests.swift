@@ -5,7 +5,7 @@ import XCTest
 final class ArenaBalanceAccumulatorTests: XCTestCase {
     @MainActor
     func testCustomTuningDoesNotSaveRecordsOrReportGameCenterAndResetsForTheNextRun() throws {
-        for startsCustom in [false, true] {
+        for (mode, startsCustom) in [(ArenaModeKind.classic, false), (.classic, true), (.redline, false), (.redline, true)] {
             let suite = "ArenaCustomRunTests.\(UUID())"
             let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
             defer { defaults.removePersistentDomain(forName: suite) }
@@ -25,7 +25,7 @@ final class ArenaBalanceAccumulatorTests: XCTestCase {
                 gameTuningStore: tuningStore,
                 gameCenterReporter: reporter
             )
-            scene.prepareActiveRunForTesting()
+            scene.prepareActiveRunForTesting(mode: mode)
             scene.pauseRunForTesting()
             if !startsCustom { scene.adjustTuningParameterForTesting(id: "run.itemPickupScore", direction: .increase) }
             scene.adjustTuningParameterForTesting(id: "run.itemPickupScore", direction: .decrease)
@@ -44,7 +44,7 @@ final class ArenaBalanceAccumulatorTests: XCTestCase {
                 add(attachment)
             }
 
-            scene.prepareActiveRunForTesting()
+            scene.prepareActiveRunForTesting(mode: mode)
             scene.collectWeaponForTesting(.shockwave)
             scene.finishRunForTesting()
             XCTAssertEqual(store.profile.totalRuns, 1)

@@ -3,6 +3,7 @@ import Foundation
 enum GameCenterIdentifiers {
     enum Leaderboard {
         static let classicSurvivalHighScore = "com.xlc.tiltarena.leaderboard.classic_survival_high_score"
+        static let redlineHighScore = "com.xlc.tiltarena.leaderboard.redline_high_score"
     }
 
     enum Achievement: String, CaseIterable {

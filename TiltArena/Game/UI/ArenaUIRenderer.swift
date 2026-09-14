@@ -29,7 +29,7 @@ enum ArenaControlAction: Equatable {
     case selectTheme(ArenaThemeKind)
     case resetData
     case openDiagnostics
-    case openClassicLeaderboard
+    case openLeaderboards
     case developerTuningPreviousPage
     case developerTuningNextPage
     case selectTuningGroup(String)

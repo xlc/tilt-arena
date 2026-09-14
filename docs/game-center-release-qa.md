@@ -29,11 +29,27 @@ private. Treat those dedicated accounts as the sandbox accounts for manual QA;
 do not assume prerelease scores or achievements are isolated from production
 Game Center visibility.
 
-Create one classic leaderboard:
+Create these two classic (non-recurring) leaderboards. Both use best-score
+submission, integer score format, and higher-is-better sorting. Keep Classic
+Survival as the default leaderboard.
 
 | Reference name | Leaderboard ID | Type | Sort | In-app source |
 | --- | --- | --- | --- | --- |
-| Classic Survival High Score | `com.xlc.tiltarena.leaderboard.classic_survival_high_score` | Classic | Higher score is better | `GameCenterScoreSubmission.classicSurvival(from:)` |
+| Classic Survival High Score | `com.xlc.tiltarena.leaderboard.classic_survival_high_score` | Classic | Higher score is better | `GameCenterScoreSubmission.highScore(from:)`, Classic |
+| Redline High Score | `com.xlc.tiltarena.leaderboard.redline_high_score` | Classic | Higher score is better | `GameCenterScoreSubmission.highScore(from:)`, Redline |
+
+Redline gives the harder survival mode its own fair comparison. Daily remains
+local-only; longest-survival and combo boards are not part of this set. Only
+standard runs using the current rules submit scores. Custom-tuned runs do not
+submit. The existing offline store retains each board's strongest pending score
+until successful submission; one mode cannot evict the other mode's score.
+
+For the Redline English localization, use **Redline High Score**, description
+**Survive Redline and set your highest score.**, and **point / points** suffixes.
+See Apple's [leaderboard fields](https://developer.apple.com/help/app-store-connect/reference/game-center/leaderboards/)
+for the matching App Store Connect controls. Verify the identifier by read-back
+before accepting a real submission. These instructions do not establish that the
+remote record has been created or verified.
 
 Create these achievements with matching IDs and upload the matching artwork from
 `Assets/GameCenterAchievements/final/`. The generated artwork and structured
@@ -50,7 +66,7 @@ metadata also live in `Assets/GameCenterAchievements/manifest.json`.
 | Survive 60 | `com.xlc.tiltarena.achievement.survive_60` | One-Minute Line | Survive 60 seconds in any mode. | You survived 60 seconds. | 100 | No | No | `survive-60.jpg` |
 | Score 100000 | `com.xlc.tiltarena.achievement.score_100000` | Six-Figure Signal | Score 100,000 in Classic. | You scored 100,000 in Classic. | 100 | No | No | `score-100000.jpg` |
 
-General achievements apply to Classic, Redline, and Daily. The 100,000-point achievement and leaderboard remain Classic-only. A multi-kill counts two actual kills from one pickup activation, even when its hits occur on different frames; it does not require a family cascade. Verify partial run-finished progress and live completion in all three modes.
+General achievements apply to Classic, Redline, and Daily. The 100,000-point achievement remains Classic-only; each survival mode has its own high-score leaderboard. A multi-kill counts two actual kills from one pickup activation, even when its hits occur on different frames; it does not require a family cascade. Verify partial run-finished progress and live completion in all three modes.
 
 For each leaderboard and achievement:
 
@@ -76,9 +92,10 @@ achievement progress can be inspected without polluting a personal account.
 | --- | --- | --- |
 | Authenticated launch | Sign in to Game Center, install the build, launch the app. | The home menu reaches `GAME CENTER READY`; no prompt appears during active gameplay. |
 | Signed out launch | Sign out of Game Center in iOS Settings, launch the app, tap `RANKS` from the home menu. | The app surfaces `SIGN IN TO VIEW RANKS`; any system auth prompt is user-initiated and does not interrupt a run. |
-| Leaderboard presentation | Sign in, open `RANKS` from home and from the post-run screen. | The native Game Center leaderboard opens for Classic Survival and closes back to the game. |
-| High-score submission | Sign in, finish a Classic run with a nonzero score, then open the leaderboard after Game Center has synced. | The submitted score appears on `com.xlc.tiltarena.leaderboard.classic_survival_high_score`. |
-| Offline game over | Sign in, disable network access, finish a Classic run, restart immediately. | The game-over flow is not blocked; restart remains one tap; the pending score is retained for retry. |
+| Leaderboard presentation | Sign in, open `RANKS` from home and from the post-run screen. | The native Game Center leaderboard list offers Classic Survival and Redline; either board closes back to the same game screen. |
+| High-score submission | Sign in, finish a Classic run and a Redline run with distinct nonzero scores, then open each board after syncing. | Each score appears only on the matching ID from the table above. |
+| Offline game over | Sign in, disable network access, finish Classic and Redline runs, restart immediately. | The game-over flow is not blocked; restart remains one tap; each board's strongest pending score is retained for retry. |
+| Custom and Daily score exclusion | Finish custom-tuned Classic/Redline runs and a normal Daily run, then open both boards. | None of these scores appears on either leaderboard. |
 | Achievement unlock | Use a fresh test account, collect a weapon orb, clear an enemy, build a combo milestone, and finish a run. | Matching achievements unlock or advance in Game Center with no active-gameplay interruption. |
 | Foreground retry | Create a pending score or achievement while offline, background the app, restore network access, foreground the app. | The menu or post-run screen may show `GAME CENTER SYNCING`; queued score and achievement progress retry and the status clears. |
 | Unavailable service | Test on a device/account where Game Center is disabled or unavailable. | The menu or post-run screen shows `GAME CENTER UNAVAILABLE`; gameplay remains playable. |

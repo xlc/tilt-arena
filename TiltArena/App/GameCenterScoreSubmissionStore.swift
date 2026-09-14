@@ -26,8 +26,15 @@ struct GameCenterScoreSubmission: Codable, Equatable {
         self.createdAt = createdAt
     }
 
-    static func classicSurvival(from summary: RunSummary) -> GameCenterScoreSubmission {
-        GameCenterScoreSubmission(
+    static func highScore(from summary: RunSummary) -> GameCenterScoreSubmission? {
+        guard summary.rulesVersion == ArenaRunContext.currentRulesVersion else { return nil }
+        let leaderboardID: String
+        switch summary.mode {
+        case .classic: leaderboardID = GameCenterIdentifiers.Leaderboard.classicSurvivalHighScore
+        case .redline: leaderboardID = GameCenterIdentifiers.Leaderboard.redlineHighScore
+        case .daily: return nil
+        }
+        return GameCenterScoreSubmission(
             runKey: [
                 summary.mode.rawValue,
                 String(summary.timestamp.timeIntervalSince1970.bitPattern),
@@ -35,8 +42,8 @@ struct GameCenterScoreSubmission: Codable, Equatable {
                 String(summary.maxCombo),
                 String(summary.enemiesDestroyed)
             ].joined(separator: ":"),
-            leaderboardID: GameCenterIdentifiers.Leaderboard.classicSurvivalHighScore,
-            score: max(0, summary.score),
+            leaderboardID: leaderboardID,
+            score: summary.score,
             context: 0,
             createdAt: Date()
         )
@@ -46,18 +53,15 @@ struct GameCenterScoreSubmission: Codable, Equatable {
 final class GameCenterScoreSubmissionStore {
     private let defaults: UserDefaults
     private let pendingSubmissionsKey: String
-    private let maxPendingSubmissions: Int
     private let logger: Logger
 
     init(
         defaults: UserDefaults = .standard,
         pendingSubmissionsKey: String = "tiltArena.gameCenter.pendingScores.v\(ArenaRunContext.currentRulesVersion)",
-        maxPendingSubmissions: Int = 25,
         logger: Logger = AppDiagnostics.logger(.gameCenter)
     ) {
         self.defaults = defaults
         self.pendingSubmissionsKey = pendingSubmissionsKey
-        self.maxPendingSubmissions = max(1, maxPendingSubmissions)
         self.logger = logger
     }
 
@@ -92,7 +96,9 @@ final class GameCenterScoreSubmissionStore {
     @discardableResult
     func enqueue(_ submission: GameCenterScoreSubmission) -> Bool {
         var submissions = pendingSubmissions
-        guard !submissions.contains(where: { $0.queueKey == submission.queueKey }) else {
+        guard !submissions.contains(where: {
+            $0.leaderboardID == submission.leaderboardID && $0.score >= submission.score
+        }) else {
             return false
         }
 
@@ -120,12 +126,12 @@ final class GameCenterScoreSubmissionStore {
     }
 
     private func normalized(_ submissions: [GameCenterScoreSubmission]) -> [GameCenterScoreSubmission] {
-        var seenQueueKeys = Set<String>()
-        let deduplicated = submissions.compactMap { submission -> GameCenterScoreSubmission? in
+        var strongestByBoard: [String: GameCenterScoreSubmission] = [:]
+        for submission in submissions {
             let runKey = submission.runKey.trimmingCharacters(in: .whitespacesAndNewlines)
             let leaderboardID = submission.leaderboardID.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !runKey.isEmpty, !leaderboardID.isEmpty else {
-                return nil
+                continue
             }
 
             let normalizedSubmission = GameCenterScoreSubmission(
@@ -135,18 +141,13 @@ final class GameCenterScoreSubmissionStore {
                 context: submission.context,
                 createdAt: submission.createdAt
             )
-            return seenQueueKeys.insert(normalizedSubmission.queueKey).inserted
-                ? normalizedSubmission
-                : nil
+            if let existing = strongestByBoard[leaderboardID], existing.score >= normalizedSubmission.score {
+                continue
+            }
+            strongestByBoard[leaderboardID] = normalizedSubmission
         }
-        // Capacity must never evict an offline high score in favor of a later lower run.
-        return deduplicated.enumerated().sorted { lhs, rhs in
-            lhs.element.score == rhs.element.score
-                ? lhs.offset > rhs.offset
-                : lhs.element.score > rhs.element.score
-        }.prefix(maxPendingSubmissions)
-            .sorted { $0.offset < $1.offset }
-            .map(\.element)
+        // These are best-score boards; a lower run never needs its own retry or displaces another mode.
+        return strongestByBoard.values.sorted { $0.leaderboardID < $1.leaderboardID }
     }
 }
 

@@ -2,11 +2,15 @@ import XCTest
 @testable import TiltArena
 
 final class GameCenterIdentifiersTests: XCTestCase {
-    func testClassicSurvivalLeaderboardIdentifierIsStable() {
+    func testHighScoreLeaderboardIdentifiersAreStableAndDistinct() {
         XCTAssertEqual(
             GameCenterIdentifiers.Leaderboard.classicSurvivalHighScore,
             "com.xlc.tiltarena.leaderboard.classic_survival_high_score"
         )
+        XCTAssertEqual(GameCenterIdentifiers.Leaderboard.redlineHighScore,
+                       "com.xlc.tiltarena.leaderboard.redline_high_score")
+        XCTAssertNotEqual(GameCenterIdentifiers.Leaderboard.classicSurvivalHighScore,
+                          GameCenterIdentifiers.Leaderboard.redlineHighScore)
     }
 
     func testInitialAchievementIdentifiersAreStableAndUnique() {

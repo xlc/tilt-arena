@@ -126,7 +126,7 @@ final class GameCenterService: GameCenterClient {
         authenticate(presenter: presenter, allowsPrompt: true)
     }
 
-    func presentClassicSurvivalLeaderboard(
+    func presentLeaderboards(
         presenter: GameCenterLeaderboardPresenting
     ) -> GameCenterLeaderboardPresentationResult {
         guard localPlayer.isAvailable else {
@@ -143,7 +143,7 @@ final class GameCenterService: GameCenterClient {
             return .unavailable(.authenticationRequired)
         }
 
-        guard let viewController = leaderboardFactory.makeClassicSurvivalLeaderboardViewController() else {
+        guard let viewController = leaderboardFactory.makeLeaderboardsViewController() else {
             logger.warning("game_center.leaderboard_unavailable", metadata: [
                 "reason": "unsupported"
             ])
@@ -151,18 +151,15 @@ final class GameCenterService: GameCenterClient {
         }
 
         presenter.presentGameCenterLeaderboard(viewController)
-        logger.notice("game_center.leaderboard_presented", metadata: [
-            "leaderboardID": "\(GameCenterIdentifiers.Leaderboard.classicSurvivalHighScore)"
-        ])
+        logger.notice("game_center.leaderboard_presented")
         return .presented
     }
 
     func submitRunScore(_ summary: RunSummary) {
-        guard summary.mode == .classic, summary.rulesVersion == ArenaRunContext.currentRulesVersion else {
+        guard let submission = GameCenterScoreSubmission.highScore(from: summary) else {
             return
         }
 
-        let submission = GameCenterScoreSubmission.classicSurvival(from: summary)
         guard localPlayer.isAvailable else {
             enqueueScoreSubmission(submission, reason: "unavailable")
             return

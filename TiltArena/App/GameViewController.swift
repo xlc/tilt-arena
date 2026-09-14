@@ -403,8 +403,8 @@ extension GameViewController: ArenaSceneGameCenterDelegate {
         gameCenterClient.menuStatus
     }
 
-    func arenaSceneRequestsClassicLeaderboard(_ scene: ArenaScene) -> GameCenterLeaderboardPresentationResult {
-        let result = gameCenterClient.presentClassicSurvivalLeaderboard(presenter: self)
+    func arenaSceneRequestsLeaderboards(_ scene: ArenaScene) -> GameCenterLeaderboardPresentationResult {
+        let result = gameCenterClient.presentLeaderboards(presenter: self)
         if result == .unavailable(.authenticationRequired) {
             gameCenterClient.retryAuthentication(presenter: self)
         }

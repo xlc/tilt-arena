@@ -32,7 +32,7 @@ final class GameCenterServiceTests: XCTestCase {
 
 @MainActor extension GameCenterServiceTests {
     func testPreviousRulesQueuesAndAchievementCacheAreNotReused() throws {
-        let score = GameCenterScoreSubmission.classicSurvival(from: makeRunSummary(score: 100_000))
+        let score = try XCTUnwrap(GameCenterScoreSubmission.highScore(from: makeRunSummary(score: 100_000)))
         let progress = GameCenterAchievementProgress(achievement: .score100000, percentComplete: 100)
         for suffix in ["", ".v\(ArenaRunContext.currentRulesVersion - 1)"] {
             defaults.set(try JSONEncoder().encode([score]), forKey: "tiltArena.gameCenter.pendingScores\(suffix)")
@@ -53,11 +53,14 @@ final class GameCenterServiceTests: XCTestCase {
     func testPreviousRulesSummaryIsNotSubmittedOrReported() {
         let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
         let service = makeService(localPlayer: client)
-        let summary = makeRunSummary(score: 100_000, rulesVersion: ArenaRunContext.currentRulesVersion - 1)
-        service.submitRunScore(summary)
+        for mode in [ArenaModeKind.classic, .redline] {
+            let summary = makeRunSummary(score: 100_000, mode: mode, rulesVersion: ArenaRunContext.currentRulesVersion - 1)
+            service.submitRunScore(summary)
+            XCTAssertNil(GameCenterScoreSubmission.highScore(from: summary))
+            XCTAssertTrue(GameCenterAchievementProgressMapper.progress(for: .runFinished(summary)).isEmpty)
+        }
         XCTAssertTrue(client.submittedScores.isEmpty)
         XCTAssertTrue(scoreSubmissionStore.pendingSubmissions.isEmpty)
-        XCTAssertTrue(GameCenterAchievementProgressMapper.progress(for: .runFinished(summary)).isEmpty)
     }
 
     func testAuthenticatedScoreIsDurableUntilItsRequestCompletes() {
@@ -323,6 +326,52 @@ final class GameCenterServiceTests: XCTestCase {
         )
     }
 
+    func testAuthenticatedRedlineRunSubmitsOnlyToRedline() {
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
+        let service = makeService(localPlayer: client)
+        service.submitRunScore(makeRunSummary(score: 1_200, mode: .redline))
+        XCTAssertEqual(client.submittedScores, [SubmittedGameCenterScore(
+            score: 1_200, context: 0, leaderboardIDs: [GameCenterIdentifiers.Leaderboard.redlineHighScore]
+        )])
+        XCTAssertTrue(scoreSubmissionStore.pendingSubmissions.isEmpty)
+    }
+
+    func testOfflineScoresPreserveEachBoardsBestAcrossReloadAndAuthenticationRecovery() {
+        let client = FakeGameCenterLocalPlayerClient()
+        let service = makeService(localPlayer: client)
+        service.submitRunScore(makeRunSummary(score: 300, mode: .redline))
+        service.submitRunScore(makeRunSummary(score: 200, mode: .redline))
+        for score in 1_000...1_030 { service.submitRunScore(makeRunSummary(score: score)) }
+
+        let expected = [
+            SubmittedGameCenterScore(score: 1_030, context: 0,
+                                     leaderboardIDs: [GameCenterIdentifiers.Leaderboard.classicSurvivalHighScore]),
+            SubmittedGameCenterScore(score: 300, context: 0,
+                                     leaderboardIDs: [GameCenterIdentifiers.Leaderboard.redlineHighScore])
+        ]
+        let reloaded = GameCenterScoreSubmissionStore(defaults: defaults)
+        XCTAssertEqual(reloaded.pendingSubmissions.map {
+            SubmittedGameCenterScore(score: $0.score, context: $0.context, leaderboardIDs: [$0.leaderboardID])
+        }, expected)
+        service.authenticate(presenter: nil)
+        client.isAuthenticated = true
+        client.completeAuthentication(viewController: nil, error: nil)
+        XCTAssertEqual(client.submittedScores, expected)
+        XCTAssertTrue(reloaded.pendingSubmissions.isEmpty)
+    }
+
+    func testOlderRedlineSubmissionFailurePreservesNewerPendingBest() {
+        let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
+        client.defersScoreSubmissions = true
+        let service = makeService(localPlayer: client)
+        service.submitRunScore(makeRunSummary(score: 100, mode: .redline))
+        service.submitRunScore(makeRunSummary(score: 200, mode: .redline))
+        client.completeNextScoreSubmission(error: NSError(domain: NSCocoaErrorDomain, code: NSFileReadNoPermissionError))
+        XCTAssertEqual(scoreSubmissionStore.pendingSubmissions.map(\.score), [200])
+        client.completeNextScoreSubmission()
+        XCTAssertTrue(scoreSubmissionStore.pendingSubmissions.isEmpty)
+    }
+
     func testRecoverableScoreSubmissionFailureQueuesClassicScore() {
         let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
         client.submitScoreError = NSError(domain: GKErrorDomain, code: GKError.Code.communicationsFailure.rawValue)
@@ -335,10 +384,10 @@ final class GameCenterServiceTests: XCTestCase {
         XCTAssertEqual(scoreSubmissionStore.pendingSubmissions.map(\.score), [700])
     }
 
-    func testRetryQueuedScoresRemovesSuccessfulSubmission() {
+    func testRetryQueuedScoresRemovesSuccessfulSubmission() throws {
         let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
         let service = makeService(localPlayer: client)
-        let submission = GameCenterScoreSubmission.classicSurvival(from: makeRunSummary(score: 500))
+        let submission = try XCTUnwrap(GameCenterScoreSubmission.highScore(from: makeRunSummary(score: 500)))
         scoreSubmissionStore.enqueue(submission)
 
         service.retryQueuedScores()
@@ -347,11 +396,11 @@ final class GameCenterServiceTests: XCTestCase {
         XCTAssertTrue(scoreSubmissionStore.pendingSubmissions.isEmpty)
     }
 
-    func testRetryQueuedScoresDiscardsNonrecoverableFailure() {
+    func testRetryQueuedScoresDiscardsNonrecoverableFailure() throws {
         let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
         client.submitScoreError = NSError(domain: NSCocoaErrorDomain, code: NSFileReadNoPermissionError)
         let service = makeService(localPlayer: client)
-        let submission = GameCenterScoreSubmission.classicSurvival(from: makeRunSummary(score: 500))
+        let submission = try XCTUnwrap(GameCenterScoreSubmission.highScore(from: makeRunSummary(score: 500)))
         scoreSubmissionStore.enqueue(submission)
 
         service.retryQueuedScores()
@@ -360,14 +409,14 @@ final class GameCenterServiceTests: XCTestCase {
         XCTAssertTrue(scoreSubmissionStore.pendingSubmissions.isEmpty)
     }
 
-    func testRetryQueuedScoresRetainsRecoverableFailure() {
+    func testRetryQueuedScoresRetainsRecoverableFailure() throws {
         let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
         client.submitScoreError = NSError(
             domain: GKErrorDomain,
             code: GKError.Code.communicationsFailure.rawValue
         )
         let service = makeService(localPlayer: client)
-        let submission = GameCenterScoreSubmission.classicSurvival(from: makeRunSummary(score: 500))
+        let submission = try XCTUnwrap(GameCenterScoreSubmission.highScore(from: makeRunSummary(score: 500)))
         scoreSubmissionStore.enqueue(submission)
 
         service.retryQueuedScores()
@@ -376,10 +425,10 @@ final class GameCenterServiceTests: XCTestCase {
         XCTAssertEqual(scoreSubmissionStore.pendingSubmissions.map(\.score), [500])
     }
 
-    func testAuthenticationSuccessRetriesQueuedScores() {
+    func testAuthenticationSuccessRetriesQueuedScores() throws {
         let client = FakeGameCenterLocalPlayerClient()
         let service = makeService(localPlayer: client)
-        let submission = GameCenterScoreSubmission.classicSurvival(from: makeRunSummary(score: 600))
+        let submission = try XCTUnwrap(GameCenterScoreSubmission.highScore(from: makeRunSummary(score: 600)))
         scoreSubmissionStore.enqueue(submission)
 
         service.authenticate(presenter: nil)
@@ -401,11 +450,11 @@ final class GameCenterServiceTests: XCTestCase {
         XCTAssertEqual(scoreSubmissionStore.pendingSubmissions.map(\.score), [400])
     }
 
-    func testRetryQueuedScoresIgnoresDuplicateInFlightRetry() {
+    func testRetryQueuedScoresIgnoresDuplicateInFlightRetry() throws {
         let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
         client.defersScoreSubmissions = true
         let service = makeService(localPlayer: client)
-        let submission = GameCenterScoreSubmission.classicSurvival(from: makeRunSummary(score: 800))
+        let submission = try XCTUnwrap(GameCenterScoreSubmission.highScore(from: makeRunSummary(score: 800)))
         scoreSubmissionStore.enqueue(submission)
 
         service.retryQueuedScores()
@@ -419,11 +468,11 @@ final class GameCenterServiceTests: XCTestCase {
         XCTAssertTrue(scoreSubmissionStore.pendingSubmissions.isEmpty)
     }
 
-    func testRetryQueuedScoresTimeoutReleasesInFlightGateAndRetainsSubmission() {
+    func testRetryQueuedScoresTimeoutReleasesInFlightGateAndRetainsSubmission() throws {
         let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
         client.defersScoreSubmissions = true
         let service = makeService(localPlayer: client, submissionTimeout: 0)
-        let submission = GameCenterScoreSubmission.classicSurvival(from: makeRunSummary(score: 850))
+        let submission = try XCTUnwrap(GameCenterScoreSubmission.highScore(from: makeRunSummary(score: 850)))
         scoreSubmissionStore.enqueue(submission)
 
         service.retryQueuedScores()
@@ -438,7 +487,7 @@ final class GameCenterServiceTests: XCTestCase {
         XCTAssertEqual(scoreSubmissionStore.pendingSubmissions.map(\.score), [850])
     }
 
-    func testNonClassicRunScoreIsNotSubmittedOrQueued() {
+    func testDailyRunScoreIsNotSubmittedOrQueued() {
         let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
         let service = makeService(localPlayer: client)
         let summary = makeRunSummary(score: 300, mode: .daily)
@@ -449,40 +498,53 @@ final class GameCenterServiceTests: XCTestCase {
         XCTAssertTrue(scoreSubmissionStore.pendingSubmissions.isEmpty)
     }
 
-    func testPendingScoreStorePersistsBoundsAndDeduplicates() {
-        let boundedStore = GameCenterScoreSubmissionStore(defaults: defaults, maxPendingSubmissions: 2)
-        let first = GameCenterScoreSubmission.classicSurvival(from: makeRunSummary(score: 100, timestamp: 1))
-        let second = GameCenterScoreSubmission.classicSurvival(from: makeRunSummary(score: 200, timestamp: 2))
-        let third = GameCenterScoreSubmission.classicSurvival(from: makeRunSummary(score: 300, timestamp: 3))
+    func testPendingScoreStorePersistsStrongestScoreAndDeduplicates() throws {
+        let store = GameCenterScoreSubmissionStore(defaults: defaults)
+        let first = try XCTUnwrap(GameCenterScoreSubmission.highScore(from: makeRunSummary(score: 100, timestamp: 1)))
+        let second = try XCTUnwrap(GameCenterScoreSubmission.highScore(from: makeRunSummary(score: 200, timestamp: 2)))
+        let third = try XCTUnwrap(GameCenterScoreSubmission.highScore(from: makeRunSummary(score: 300, timestamp: 3)))
 
-        XCTAssertTrue(boundedStore.enqueue(first))
-        XCTAssertFalse(boundedStore.enqueue(first))
-        XCTAssertTrue(boundedStore.enqueue(second))
-        XCTAssertTrue(boundedStore.enqueue(third))
+        XCTAssertTrue(store.enqueue(first))
+        XCTAssertFalse(store.enqueue(first))
+        XCTAssertTrue(store.enqueue(second))
+        XCTAssertTrue(store.enqueue(third))
 
-        let reloadedStore = GameCenterScoreSubmissionStore(defaults: defaults, maxPendingSubmissions: 2)
-        XCTAssertEqual(reloadedStore.pendingSubmissions.map(\.score), [200, 300])
+        let reloadedStore = GameCenterScoreSubmissionStore(defaults: defaults)
+        XCTAssertEqual(reloadedStore.pendingSubmissions.map(\.score), [300])
     }
 
-    func testOfflineQueueRetainsTheHighScoreWhenLaterRunsFillItsCapacity() {
-        let boundedStore = GameCenterScoreSubmissionStore(defaults: defaults, maxPendingSubmissions: 2)
+    func testOfflineQueueRetainsTheHighScoreWhenLaterRunsAreLower() throws {
+        let store = GameCenterScoreSubmissionStore(defaults: defaults)
         for (index, score) in [10_000, 200, 300].enumerated() {
-            boundedStore.enqueue(.classicSurvival(from: makeRunSummary(score: score, timestamp: Double(index))))
+            let summary = makeRunSummary(score: score, timestamp: Double(index))
+            store.enqueue(try XCTUnwrap(GameCenterScoreSubmission.highScore(from: summary)))
         }
-        let reloadedStore = GameCenterScoreSubmissionStore(defaults: defaults, maxPendingSubmissions: 2)
-        XCTAssertEqual(reloadedStore.pendingSubmissions.map(\.score), [10_000, 300])
+        let reloadedStore = GameCenterScoreSubmissionStore(defaults: defaults)
+        XCTAssertEqual(reloadedStore.pendingSubmissions.map(\.score), [10_000])
         let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
         let service = makeService(localPlayer: client)
         service.retryQueuedScores()
-        XCTAssertEqual(client.submittedScores.map(\.score), [10_000, 300])
+        XCTAssertEqual(client.submittedScores.map(\.score), [10_000])
         XCTAssertTrue(reloadedStore.pendingSubmissions.isEmpty)
+    }
+
+    func testStoredRunQueueCoalescesToEachBoardsStrongestScoreOnLoad() throws {
+        let summaries = [makeRunSummary(score: 100), makeRunSummary(score: 1_000),
+                         makeRunSummary(score: 50, mode: .redline), makeRunSummary(score: 40, mode: .redline)]
+        let submissions = try summaries.map { try XCTUnwrap(GameCenterScoreSubmission.highScore(from: $0)) }
+        let key = "tiltArena.gameCenter.pendingScores.v\(ArenaRunContext.currentRulesVersion)"
+        defaults.set(try JSONEncoder().encode(submissions), forKey: key)
+        let loaded = GameCenterScoreSubmissionStore(defaults: defaults).pendingSubmissions
+        XCTAssertEqual(loaded.map(\.score), [1_000, 50])
+        let persisted = try JSONDecoder().decode([GameCenterScoreSubmission].self, from: XCTUnwrap(defaults.data(forKey: key)))
+        XCTAssertEqual(persisted, loaded)
     }
 
     func testPendingScoreStoreRepairsMalformedPersistedSubmissions() throws {
         let pendingKey = "tiltArena.gameCenter.pendingScores.v\(ArenaRunContext.currentRulesVersion)"
-        let submission = GameCenterScoreSubmission.classicSurvival(
+        let submission = try XCTUnwrap(GameCenterScoreSubmission.highScore(
             from: makeRunSummary(score: 100, timestamp: 1)
-        )
+        ))
         let encoded = try JSONEncoder().encode([submission])
         var payload = try XCTUnwrap(
             JSONSerialization.jsonObject(with: encoded) as? [[String: Any]]
@@ -506,7 +568,7 @@ final class GameCenterServiceTests: XCTestCase {
         XCTAssertEqual(reloaded[0].score, 0)
     }
 
-    func testAuthenticatedLeaderboardPresentationPresentsClassicLeaderboard() {
+    func testAuthenticatedLeaderboardPresentationPresentsLeaderboards() {
         let client = FakeGameCenterLocalPlayerClient(isAuthenticated: true)
         let viewController = UIViewController()
         let presenter = FakeGameCenterLeaderboardPresenter()
@@ -517,7 +579,7 @@ final class GameCenterServiceTests: XCTestCase {
             )
         )
 
-        let result = service.presentClassicSurvivalLeaderboard(presenter: presenter)
+        let result = service.presentLeaderboards(presenter: presenter)
 
         XCTAssertEqual(result, .presented)
         XCTAssertTrue(presenter.presentedViewController === viewController)
@@ -528,7 +590,7 @@ final class GameCenterServiceTests: XCTestCase {
         let presenter = FakeGameCenterLeaderboardPresenter()
         let service = makeService(localPlayer: client)
 
-        let result = service.presentClassicSurvivalLeaderboard(presenter: presenter)
+        let result = service.presentLeaderboards(presenter: presenter)
 
         XCTAssertEqual(result, .unavailable(.authenticationRequired))
         XCTAssertNil(presenter.presentedViewController)
@@ -539,7 +601,7 @@ final class GameCenterServiceTests: XCTestCase {
         let presenter = FakeGameCenterLeaderboardPresenter()
         let service = makeService(localPlayer: client)
 
-        let result = service.presentClassicSurvivalLeaderboard(presenter: presenter)
+        let result = service.presentLeaderboards(presenter: presenter)
 
         XCTAssertEqual(result, .unavailable(.unsupported))
         XCTAssertNil(presenter.presentedViewController)
@@ -877,7 +939,7 @@ private struct FakeLeaderboardFactory: GameCenterLeaderboardFactory {
         self.viewController = viewController
     }
 
-    func makeClassicSurvivalLeaderboardViewController() -> UIViewController? {
+    func makeLeaderboardsViewController() -> UIViewController? {
         viewController
     }
 }
