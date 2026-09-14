@@ -75,7 +75,6 @@ enum GameCenterLeaderboardPresentationResult: Equatable {
 enum GameCenterAchievementUnavailableReason: String {
     case unsupported
     case authenticationDeclined
-    case authenticationFailed
 }
 
 enum GameCenterMenuStatus: Equatable {

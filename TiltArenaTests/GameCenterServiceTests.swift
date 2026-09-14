@@ -657,26 +657,38 @@ final class GameCenterServiceTests: XCTestCase {
         XCTAssertTrue(achievementProgressStore.pendingProgress.isEmpty)
     }
 
-    func testFailedAuthenticationDoesNotQueueAchievementProgress() {
+    func testAchievementsEarnedDuringFailedAuthenticationSyncAfterRecovery() {
         let client = FakeGameCenterLocalPlayerClient(isAuthenticated: false)
         let service = makeService(localPlayer: client)
 
         service.authenticate(presenter: nil)
         client.completeAuthentication(viewController: nil, error: NSError(domain: NSCocoaErrorDomain, code: 4099))
-        service.reportAchievementEvent(.weaponOrbCollected)
+        service.reportAchievementEvent(.runFinished(makeRunSummary(score: 50_000, maxCombo: 50)))
+        service.reportAchievementEvent(.runFinished(makeRunSummary(score: 10_000, maxCombo: 10)))
 
         XCTAssertTrue(client.submittedAchievementBatches.isEmpty)
+        let comboID = GameCenterIdentifiers.Achievement.combo50.rawValue
+        XCTAssertEqual(achievementProgressStore.pendingProgress.progressByAchievementID[comboID], 100)
+
+        client.isAuthenticated = true
+        service.authenticate(presenter: nil)
+
+        XCTAssertEqual(client.submittedAchievementBatches.count, 1)
+        XCTAssertEqual(client.submittedAchievementBatches.first?.first { $0.achievementID == comboID }?.percentComplete, 100)
         XCTAssertTrue(achievementProgressStore.pendingProgress.isEmpty)
+
+        service.authenticate(presenter: nil)
+        XCTAssertEqual(client.submittedAchievementBatches.count, 1)
     }
 
-    func testTerminalAuthenticationFailureLogsAchievementUnavailabilityOncePerEpisode() {
+    func testDeclinedAuthenticationLogsAchievementUnavailabilityOncePerEpisode() {
         let logRecorder = GameCenterLogRecorder()
         let client = FakeGameCenterLocalPlayerClient(isAuthenticated: false)
         let service = makeService(localPlayer: client, logger: logRecorder.logger)
         service.authenticate(presenter: nil)
         client.completeAuthentication(
             viewController: nil,
-            error: NSError(domain: NSCocoaErrorDomain, code: 4_099)
+            error: NSError(domain: GKErrorDomain, code: GKError.Code.cancelled.rawValue)
         )
 
         for _ in 0..<3 {

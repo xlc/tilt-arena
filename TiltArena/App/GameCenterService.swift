@@ -609,9 +609,7 @@ private extension GameCenterService {
             return .unsupported
         case .declined:
             return .authenticationDeclined
-        case .failed:
-            return .authenticationFailed
-        case .notStarted, .authenticating, .needsUserAuthentication, .authenticated:
+        case .notStarted, .authenticating, .needsUserAuthentication, .authenticated, .failed:
             return nil
         }
     }
