@@ -126,6 +126,72 @@ final class ArenaScreenSnapshotTests: XCTestCase {
         try assertScreenSnapshot(state: .postRun, themeKind: .whitePrecisionBoard, testName: #function)
     }
 
+    func testDarkSmallPhoneProgressionResults() throws {
+        try assertProgressionResults(size: CGSize(width: 667, height: 375), theme: .darkTacticalRadar)
+    }
+
+    func testWhiteSmallPhoneProgressionResults() throws {
+        try assertProgressionResults(size: CGSize(width: 667, height: 375), theme: .whitePrecisionBoard)
+    }
+
+    func testDarkLargePhoneProgressionResults() throws {
+        try assertProgressionResults(size: CGSize(width: 932, height: 430), theme: .darkTacticalRadar)
+    }
+
+    func testWhiteLargePhoneProgressionResults() throws {
+        try assertProgressionResults(size: CGSize(width: 932, height: 430), theme: .whitePrecisionBoard)
+    }
+
+    func testLongProgressionAndDailyHighlightsFitWithoutOverlap() throws {
+        for mode in ArenaModeKind.allCases {
+            var profile = RunProfile()
+            let summary = RunSummary(
+                score: 120_000, survivalTime: 180.5, maxCombo: 50, enemiesDestroyed: 350,
+                bestWeapon: .chainLightning, timestamp: Date(timeIntervalSince1970: 1),
+                mode: mode, sequenceSeed: 20_260_909
+            )
+            let result = profile.record(summary)
+            let highlights = Array(ArenaMenuContent.postRunHighlights(
+                summary: summary, profile: profile, previousBestScore: 90_000, progressionResult: result
+            ).dropFirst())
+            for size in [CGSize(width: 667, height: 375), CGSize(width: 932, height: 430)] {
+                let layout = ArenaLandscapeUILayout(sceneSize: size, safeAreaInsets: .zero, margin: 24)
+                let frame = layout.postRunHighlightsFrame
+                let renderer = ArenaUIRenderer()
+                renderer.begin(theme: ArenaThemeKind.darkTacticalRadar.theme, sceneSize: size)
+                renderer.addPostRunHighlights(highlights, frame: frame)
+                let labels = renderer.root.children.compactMap { $0 as? SKLabelNode }
+                XCTAssertEqual(labels.compactMap(\.text), highlights)
+                for label in labels {
+                    XCTAssertTrue(frame.contains(label.frame), "Overflow: \(label.text ?? "") \(label.frame)")
+                    XCTAssertGreaterThanOrEqual(label.fontSize, 12)
+                }
+                for (above, below) in zip(labels, labels.dropFirst()) {
+                    XCTAssertGreaterThanOrEqual(above.frame.minY, below.frame.maxY)
+                }
+            }
+        }
+    }
+
+    private func assertProgressionResults(
+        size: CGSize, theme: ArenaThemeKind, testName: String = #function
+    ) throws {
+        let scene = try makeSnapshotScene()
+        scene.size = size
+        var profile = RunProfile()
+        profile.totalEnemiesDestroyed = 90
+        profile.unlockedWeapons.insert(.freezeBurst)
+        let insets: UIEdgeInsets = size.width > 900
+            ? UIEdgeInsets(top: 0, left: 59, bottom: 21, right: 59) : .zero
+        let image = try SnapshotImageRenderer.render(scene: scene, safeAreaInsets: insets) {
+            scene.prepareRunStateVisualSnapshot(
+                state: .postRun, profile: profile,
+                localOptions: ArenaLocalOptions(audioEnabled: false, hapticsEnabled: false, themeKind: theme)
+            )
+        }
+        assertSnapshot(of: image, as: .image(precision: 0.99), testName: testName)
+    }
+
     func testDarkDailyPostRunScreen() throws {
         try assertScreenSnapshot(state: .postRun, themeKind: .darkTacticalRadar, selectedMode: .daily, testName: #function)
     }

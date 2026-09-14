@@ -37,6 +37,16 @@ struct ArenaLandscapeUILayout: Equatable {
         CGRect(x: controlRect.maxX - 156, y: controlRect.minY, width: 156, height: 48)
     }
 
+    var postRunHighlightsFrame: CGRect {
+        let baseFrame = rightColumnFrame(width: 230)
+        let topY = safeRect.maxY - 32
+        let bottomY = lowerRightButtonFrame.maxY + 12
+        return CGRect(
+            x: baseFrame.minX, y: min(bottomY, topY), width: baseFrame.width,
+            height: max(0, topY - bottomY)
+        )
+    }
+
     func rightColumnFrame(width: CGFloat) -> CGRect {
         let resolvedWidth = min(width, safeRect.width * 0.42)
         return CGRect(

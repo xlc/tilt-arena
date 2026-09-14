@@ -2588,20 +2588,8 @@ private extension ArenaScene {
             isCustomRun: isCustomRun
         )
         renderPostRunScore(summary: summary, recordText: highlights[0], layout: layout)
-        uiRenderer.addPostRunHighlights(Array(highlights.dropFirst()), frame: postRunHighlightsFrame(layout: layout))
+        uiRenderer.addPostRunHighlights(Array(highlights.dropFirst()), frame: layout.postRunHighlightsFrame)
         uiRenderer.addPostRunButtons(layout: layout)
-    }
-
-    func postRunHighlightsFrame(layout: ArenaLandscapeUILayout) -> CGRect {
-        let baseFrame = layout.rightColumnFrame(width: 230)
-        let topY = layout.safeRect.maxY - 32
-        let bottomY = layout.lowerRightButtonFrame.maxY + 12
-        return CGRect(
-            x: baseFrame.minX,
-            y: min(bottomY, topY),
-            width: baseFrame.width,
-            height: max(0, topY - bottomY)
-        )
     }
 
     func renderPostRunScore(summary: RunSummary?, recordText: String, layout: ArenaLandscapeUILayout) {

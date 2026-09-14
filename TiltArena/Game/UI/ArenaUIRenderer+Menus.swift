@@ -165,20 +165,34 @@ extension ArenaUIRenderer {
             stroke: theme.playerAccentColor.withAlphaComponent(0.54),
             accent: theme.playerAccentColor.withAlphaComponent(0.72)
         )
-        let compact = frame.height < 150
-        let topPadding: CGFloat = compact ? 16 : 22
-        let bottomPadding: CGFloat = compact ? 10 : 14
-        let availableHeight = max(0, frame.height - topPadding - bottomPadding)
-        let rowSpacing = highlights.count > 1
-            ? min(26, max(compact ? 14 : 18, availableHeight / CGFloat(highlights.count - 1)))
-            : 0
-
-        for (index, text) in highlights.enumerated() {
-            let position = CGPoint(
-                x: frame.minX + 14,
-                y: frame.maxY - topPadding - CGFloat(index) * rowSpacing
+        let fontSize: CGFloat = frame.height < 150 ? 10 : 12
+        let contentFrame = frame.insetBy(dx: 14, dy: 14)
+        let labels = highlights.enumerated().map { index, text in
+            let label = makeLabel(
+                text, at: .zero, fontSize: fontSize,
+                color: index == 1 ? theme.pickupAmber : theme.borderColor, alignment: .left
             )
-            addPostRunHighlight(text, index: index, position: position, compact: compact)
+            label.verticalAlignmentMode = .top
+            label.numberOfLines = 0
+            label.lineBreakMode = .byWordWrapping
+            label.preferredMaxLayoutWidth = contentFrame.width - 12
+            return label
+        }
+        let textHeight = labels.reduce(CGFloat.zero) { $0 + $1.frame.height }
+        let rowGap = labels.count > 1
+            ? min(12, max(0, (contentFrame.height - textHeight) / CGFloat(labels.count - 1)))
+            : 0
+        var topY = contentFrame.maxY
+        for (index, label) in labels.enumerated() {
+            label.position = CGPoint(x: contentFrame.minX + 12, y: topY)
+            root.addChild(label)
+            let marker = SKShapeNode(circleOfRadius: 2.5)
+            marker.position = CGPoint(x: contentFrame.minX, y: topY - fontSize / 2)
+            marker.zPosition = ArenaUIZPosition.label
+            marker.fillColor = index == 1 ? theme.pickupAmber : theme.playerAccentColor
+            marker.strokeColor = .clear
+            root.addChild(marker)
+            topY -= label.frame.height + rowGap
         }
     }
 
@@ -305,28 +319,6 @@ extension ArenaUIRenderer {
             at: CGPoint(x: titleX, y: frame.minY + (compact ? 7 : 9)),
             fontSize: compact ? 5.8 : 6.4,
             color: theme.playerAccentColor.withAlphaComponent(row.isUnlocked ? 0.82 : 0.52),
-            alignment: .left
-        )
-    }
-
-    private func addPostRunHighlight(
-        _ text: String,
-        index: Int,
-        position: CGPoint,
-        compact: Bool
-    ) {
-        let markerColor = index == 1 ? theme.pickupAmber : theme.playerAccentColor
-        let marker = SKShapeNode(circleOfRadius: 2.5)
-        marker.position = position
-        marker.zPosition = ArenaUIZPosition.label
-        marker.fillColor = markerColor
-        marker.strokeColor = .clear
-        root.addChild(marker)
-        addLabel(
-            text,
-            at: CGPoint(x: position.x + 12, y: position.y),
-            fontSize: compact ? 10 : 12,
-            color: index == 1 ? theme.pickupAmber : theme.borderColor,
             alignment: .left
         )
     }
