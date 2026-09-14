@@ -19,7 +19,7 @@ final class ArenaWeaponRuntime {
         effectTiming: WeaponEffectTiming
     ) {
         resolver.configuration = weaponConfiguration
-        self.effectTiming = effectTiming.sanitizedForRuntime()
+        self.effectTiming = effectTiming
     }
 
     func prepareRun(sequenceSeed: Int) {

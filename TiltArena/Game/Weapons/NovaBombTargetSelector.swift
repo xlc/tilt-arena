@@ -4,7 +4,7 @@ struct NovaBombTargetSelector: Equatable {
     let targetFraction: Double
 
     init(configuration: StartingWeaponConfiguration = StartingWeaponConfiguration()) {
-        targetFraction = configuration.sanitizedForRuntime().novaBombTargetFraction
+        targetFraction = configuration.novaBombTargetFraction
     }
 
     func targetCount(enemyCount: Int) -> Int {

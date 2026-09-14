@@ -21,7 +21,6 @@ enum RicochetLancePath {
         enemies: [ArenaEnemy],
         configuration: StartingWeaponConfiguration = StartingWeaponConfiguration()
     ) -> RicochetLanceResult {
-        let configuration = configuration.sanitizedForRuntime()
         let segments = segments(
             origin: origin,
             direction: direction,
@@ -64,10 +63,7 @@ enum RicochetLancePath {
 
         var start = clamped(origin, to: playableRect)
         var direction = resolvedDirection(rawDirection)
-        let maximumBounces = min(
-            WeaponRuntimeSafetyLimits.maximumRicochetBounceCount,
-            max(0, maximumBounces)
-        )
+        let maximumBounces = max(0, maximumBounces)
         var segments: [RicochetLanceSegment] = []
 
         for segmentIndex in 0...maximumBounces {

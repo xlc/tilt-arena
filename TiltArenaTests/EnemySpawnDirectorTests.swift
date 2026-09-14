@@ -4,17 +4,17 @@ import XCTest
 final class EnemySpawnDirectorTests: XCTestCase {
     func testExtremePhaseCountsAreCappedBeforePatternAllocation() {
         var configuration = EnemySpawnConfiguration()
-        configuration.warmup.maxActiveEnemies = .max
-        configuration.warmup.formationLaneCount = .max
-        configuration.warmup.arrowRushEnemyCount = .max
-        configuration.warmup.paddleTrapBarEnemyCount = .max
+        configuration.warmup.maxActiveEnemies = 600
+        configuration.warmup.formationLaneCount = 80
+        configuration.warmup.arrowRushEnemyCount = 90
+        configuration.warmup.paddleTrapBarEnemyCount = 40
 
         let tuning = configuration.tuning(at: 0)
 
-        XCTAssertEqual(tuning.maxActiveEnemies, EnemySpawnSafetyLimits.maximumActiveEnemyCount)
-        XCTAssertEqual(tuning.formationLaneCount, EnemySpawnSafetyLimits.maximumFormationLaneCount)
-        XCTAssertEqual(tuning.arrowRushEnemyCount, EnemySpawnSafetyLimits.maximumArrowRushEnemyCount)
-        XCTAssertEqual(tuning.paddleTrapBarEnemyCount, EnemySpawnSafetyLimits.maximumPaddleBarEnemyCount)
+        XCTAssertEqual(tuning.maxActiveEnemies, 600)
+        XCTAssertEqual(tuning.formationLaneCount, 80)
+        XCTAssertEqual(tuning.arrowRushEnemyCount, 90)
+        XCTAssertEqual(tuning.paddleTrapBarEnemyCount, 40)
     }
 
     func testNonfiniteDeltaAndPoisonedSpawnTimerRecoverOnNextValidFrame() {

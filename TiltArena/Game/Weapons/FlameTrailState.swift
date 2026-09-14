@@ -22,25 +22,8 @@ struct FlameTrailConfiguration: Equatable {
 }
 
 extension FlameTrailConfiguration {
-    func sanitizedForRuntime() -> FlameTrailConfiguration {
-        var configuration = self
-        configuration.duration = WeaponRuntimeSafetyLimits.duration(duration)
-        configuration.segmentLifetime = WeaponRuntimeSafetyLimits.duration(segmentLifetime)
-        configuration.segmentRadius = WeaponRuntimeSafetyLimits.distance(segmentRadius)
-        configuration.segmentSpacing = WeaponRuntimeSafetyLimits.distance(segmentSpacing)
-        configuration.maxSegments = min(
-            FlameTrailState.maximumSegmentCount,
-            max(0, maxSegments)
-        )
-        configuration.invulnerabilityDuration = WeaponRuntimeSafetyLimits.duration(invulnerabilityDuration)
-        configuration.speedMultiplier = speedMultiplier.isFinite
-            ? min(WeaponRuntimeSafetyLimits.maximumSpeedMultiplier, max(0, speedMultiplier))
-            : 0
-        return configuration
-    }
-
     func applying(chargeTier: WeaponPickupChargeTier) -> FlameTrailConfiguration {
-        var configuration = sanitizedForRuntime()
+        var configuration = self
         guard chargeTier > .base else {
             return configuration
         }
@@ -48,8 +31,8 @@ extension FlameTrailConfiguration {
         let level = CGFloat(chargeTier.rawValue)
         configuration.segmentLifetime *= 1 + level * 0.12
         configuration.segmentRadius *= 1 + level * 0.10
-        configuration.maxSegments += chargeTier.rawValue * 6
-        return configuration.sanitizedForRuntime()
+        configuration.maxSegments += min(chargeTier.rawValue * 6, Int.max - configuration.maxSegments)
+        return configuration
     }
 }
 
@@ -80,13 +63,7 @@ struct FlameTrailFrame: Equatable {
 }
 
 struct FlameTrailState {
-    static let maximumSegmentCount = 256
-
-    private var runtimeConfiguration: FlameTrailConfiguration
-    var configuration: FlameTrailConfiguration {
-        get { runtimeConfiguration }
-        set { runtimeConfiguration = newValue.sanitizedForRuntime() }
-    }
+    var configuration = FlameTrailConfiguration()
     private(set) var timeRemaining: TimeInterval = 0
     private(set) var segments: [FlameTrailSegment] = []
     private var activation: WeaponActivation?
@@ -95,7 +72,7 @@ struct FlameTrailState {
     private var distanceSinceLastSegment: CGFloat = 0
 
     init(configuration: FlameTrailConfiguration = FlameTrailConfiguration()) {
-        runtimeConfiguration = configuration.sanitizedForRuntime()
+        self.configuration = configuration
     }
 
     mutating func activate(

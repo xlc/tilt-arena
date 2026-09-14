@@ -21,12 +21,12 @@ final class FlameTrailStateTests: XCTestCase {
         XCTAssertEqual(frame.burnedEnemyIDs, [1, 2, 3])
     }
 
-    func testExtremeSegmentConfigurationStaysBoundedAndFinite() {
+    func testTrailHonorsConfiguredSegmentCountAboveFormerCeiling() {
         var state = FlameTrailState(configuration: FlameTrailConfiguration(
             duration: 1,
             segmentLifetime: 1,
-            segmentSpacing: .leastNonzeroMagnitude,
-            maxSegments: .max
+            segmentSpacing: 1,
+            maxSegments: 300
         ))
         state.activate(at: .zero)
 
@@ -36,20 +36,8 @@ final class FlameTrailStateTests: XCTestCase {
             enemies: []
         )
 
-        XCTAssertEqual(frame.segments.count, FlameTrailState.maximumSegmentCount)
+        XCTAssertEqual(frame.segments.count, 300)
         XCTAssertTrue(frame.segments.allSatisfy { $0.position.x.isFinite && $0.position.y.isFinite })
-    }
-
-    func testNonfiniteDurationsDoNotCreatePermanentTrailState() {
-        var state = FlameTrailState(configuration: FlameTrailConfiguration(
-            duration: .infinity,
-            segmentLifetime: .infinity
-        ))
-
-        state.activate(at: .zero)
-
-        XCTAssertEqual(state.timeRemaining, 0)
-        XCTAssertTrue(state.segments.isEmpty)
     }
 
     func testChargedConfigurationExtendsTrailControl() {

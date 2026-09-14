@@ -14,6 +14,82 @@ final class GameTuningConfigurationTests: XCTestCase {
         XCTAssertEqual(tuning.startingWeapons.ricochetLanceMaximumBounces, .max)
     }
 
+    func testChargeBonusesSaturateOnlyAtIntegerRepresentationLimit() {
+        let tuning = StartingWeaponConfiguration(seekerTargetLimit: .max, chainLightningTargetLimit: .max,
+                                                 ricochetLanceMaximumBounces: .max).applying(chargeTier: .overcharged)
+        XCTAssertEqual(tuning.seekerTargetLimit, .max)
+        XCTAssertEqual(tuning.chainLightningTargetLimit, .max)
+        XCTAssertEqual(tuning.ricochetLanceMaximumBounces, .max)
+        XCTAssertEqual(FlameTrailConfiguration(maxSegments: .max).applying(chargeTier: .overcharged).maxSegments, .max)
+    }
+
+    func testSeekerCatalogValuesSurvivePersistenceAndResolution() throws {
+        for adjustments in [1, 70] {
+            let suite = "SeekerTuning.\(UUID())"
+            let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+            defer { defaults.removePersistentDomain(forName: suite) }
+            let store = GameTuningStore(defaults: defaults)
+            var tuning = GameTuningConfiguration.defaults
+            let id = "startingWeapons.seekerTargetLimit"
+            for _ in 0..<adjustments { tuning.adjustParameter(id: id, direction: .increase) }
+            store.tuning = tuning
+            let loaded = GameTuningStore(defaults: defaults).tuning
+            let expected = 4 + adjustments
+            let parameter = try XCTUnwrap(GameTuningParameterCatalog.parameter(id: id))
+            XCTAssertEqual(parameter.displayValue(in: loaded), "\(expected)")
+            XCTAssertTrue(loaded.sourceSnapshot().contains("tuning.\(id) = \(expected)"))
+            let enemies = (0..<100).map {
+                ArenaEnemy(id: $0, position: CGPoint(x: $0 + 10, y: 10), radius: 2, speed: 0)
+            }
+            let resolver = StartingWeaponResolver(configuration: loaded.startingWeapons)
+            XCTAssertEqual(resolver.resolve(kind: .seekerSwarm, playerPosition: .zero, enemies: enemies)
+                .destroyedEnemyIDs.count, expected)
+            XCTAssertEqual(loaded.startingWeapons.applying(chargeTier: .overcharged).seekerTargetLimit, expected + 4)
+        }
+    }
+
+    func testReadyAndPickupCatalogValuesExecuteBeyondFormerCeilings() throws {
+        for adjustments in [1, 40] {
+            let suite = "ReadyPickupTuning.\(UUID())"
+            let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+            defer { defaults.removePersistentDomain(forName: suite) }
+            let store = GameTuningStore(defaults: defaults)
+            var tuning = GameTuningConfiguration.defaults
+            for _ in 0..<adjustments {
+                tuning.adjustParameter(id: "readyStart.requiredDuration", direction: .increase)
+                tuning.adjustParameter(id: "classic.pickupSpawnConfiguration.maxActivePickups", direction: .increase)
+            }
+            store.tuning = tuning
+            let loaded = GameTuningStore(defaults: defaults).tuning
+            let duration = 3 + Double(adjustments) * 0.25
+            var hold = ReadyStartHoldController(configuration: loaded.readyStart)
+            XCTAssertFalse(hold.update(playerPosition: .zero, startPoint: .zero, deltaTime: duration - 0.01).didComplete)
+            XCTAssertTrue(hold.update(playerPosition: .zero, startPoint: .zero, deltaTime: 0.02).didComplete)
+            XCTAssertEqual(hold.requiredDuration, duration)
+            var planner = PickupSpawnPlanner(configuration: loaded.classic.pickupSpawnConfiguration)
+            let pickups = planner.update(
+                deltaTime: 0, phase: .active, activePickupCount: 0,
+                playableRect: CGRect(x: 0, y: 0, width: 10_000, height: 10_000),
+                playerPosition: .zero, enemyCircles: [], configuration: loaded.classic.pickupSpawnConfiguration
+            )
+            XCTAssertEqual(pickups.count, 3 + adjustments)
+            XCTAssertTrue(loaded.sourceSnapshot().contains("tuning.readyStart.requiredDuration = \(String(format: "%.2f", duration))"))
+            XCTAssertEqual(loaded, tuning)
+        }
+    }
+
+    func testPickupChargingHonorsDeadlinesBeyondSixtySeconds() {
+        let configuration = PickupSpawnConfiguration(chargedPickupDelay: 70, overchargedPickupDelay: 80)
+        var pickup = WeaponPickup(id: 1, kind: .shockwave, position: .zero, radius: 8)
+        pickup.advanceCharge(deltaTime: 69, configuration: configuration)
+        XCTAssertEqual(pickup.chargeTier, .base)
+        pickup.advanceCharge(deltaTime: 1, configuration: configuration)
+        XCTAssertEqual(pickup.chargeTier, .charged)
+        pickup.advanceCharge(deltaTime: 10, configuration: configuration)
+        XCTAssertEqual(pickup.chargeTier, .overcharged)
+        XCTAssertEqual(pickup.timeOnScreen, 80)
+    }
+
     func testParameterCatalogIDsAreUnique() {
         let ids = GameTuningParameterCatalog.parameters.map(\.id)
 

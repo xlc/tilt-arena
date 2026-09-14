@@ -60,27 +60,9 @@ struct PickupSpawnConfiguration: Equatable {
 
         return .base
     }
-
-    func sanitizedForRuntime() -> PickupSpawnConfiguration {
-        var configuration = self
-        configuration.refillDelay = WeaponRuntimeSafetyLimits.duration(refillDelay)
-        configuration.chargedPickupDelay = WeaponRuntimeSafetyLimits.duration(chargedPickupDelay)
-        configuration.overchargedPickupDelay = WeaponRuntimeSafetyLimits.duration(overchargedPickupDelay)
-        configuration.maxActivePickups = min(
-            PickupSpawnPlanner.maximumActivePickupCount,
-            max(0, maxActivePickups)
-        )
-        configuration.pickupRadius = WeaponRuntimeSafetyLimits.distance(pickupRadius)
-        configuration.edgeInset = WeaponRuntimeSafetyLimits.distance(edgeInset)
-        configuration.playerClearance = WeaponRuntimeSafetyLimits.distance(playerClearance)
-        configuration.enemyClearance = WeaponRuntimeSafetyLimits.distance(enemyClearance)
-        return configuration
-    }
 }
 
 struct PickupSpawnPlanner {
-    static let maximumActivePickupCount = 16
-
     private static let spawnTimerEpsilon: TimeInterval = 0.000_001
     private static let candidatePositions: [(x: CGFloat, y: CGFloat)] = [
         (0.50, 0.28),
@@ -137,7 +119,6 @@ struct PickupSpawnPlanner {
         pickupCircles: [CollisionCircle] = [],
         configuration: PickupSpawnConfiguration = PickupSpawnConfiguration()
     ) -> [WeaponPickup] {
-        let configuration = configuration.sanitizedForRuntime()
         guard phase == .active else {
             return []
         }
@@ -176,7 +157,7 @@ struct PickupSpawnPlanner {
                 avoiding: playerPosition,
                 enemyCircles: enemyCircles,
                 pickupCircles: occupiedPickupCircles,
-                runtimeConfiguration: configuration
+                configuration: configuration
             ) else {
                 break
             }
@@ -196,29 +177,12 @@ struct PickupSpawnPlanner {
         pickupCircles: [CollisionCircle] = [],
         configuration: PickupSpawnConfiguration = PickupSpawnConfiguration()
     ) -> WeaponPickup? {
-        let configuration = configuration.sanitizedForRuntime()
-        return spawnPickup(
-            in: playableRect,
-            avoiding: playerPosition,
-            enemyCircles: enemyCircles,
-            pickupCircles: pickupCircles,
-            runtimeConfiguration: configuration
-        )
-    }
-
-    private mutating func spawnPickup(
-        in playableRect: CGRect,
-        avoiding playerPosition: CGPoint,
-        enemyCircles: [CollisionCircle],
-        pickupCircles: [CollisionCircle],
-        runtimeConfiguration configuration: PickupSpawnConfiguration
-    ) -> WeaponPickup? {
         guard playableRect.isFinite, playerPosition.isFinite else {
             return nil
         }
         let spawnRect = playableRect.insetBy(
-            dx: min(configuration.edgeInset, playableRect.width / 4),
-            dy: min(configuration.edgeInset, playableRect.height / 4)
+            dx: configuration.edgeInset,
+            dy: configuration.edgeInset
         )
 
         guard spawnRect.width > 0, spawnRect.height > 0 else {
@@ -265,7 +229,7 @@ struct PickupSpawnPlanner {
                 avoiding: playerPosition,
                 enemyCircles: enemyCircles,
                 pickupCircles: pickupCircles,
-                runtimeConfiguration: configuration
+                configuration: configuration
             ) else {
                 continue
             }
@@ -282,7 +246,7 @@ struct PickupSpawnPlanner {
                 avoiding: playerPosition,
                 enemyCircles: enemyCircles,
                 pickupCircles: pickupCircles,
-                runtimeConfiguration: configuration
+                configuration: configuration
             ) else {
                 continue
             }
@@ -299,23 +263,6 @@ struct PickupSpawnPlanner {
         enemyCircles: [CollisionCircle],
         pickupCircles: [CollisionCircle] = [],
         configuration: PickupSpawnConfiguration = PickupSpawnConfiguration()
-    ) -> Bool {
-        let configuration = configuration.sanitizedForRuntime()
-        return isSafePickupPosition(
-            position,
-            avoiding: playerPosition,
-            enemyCircles: enemyCircles,
-            pickupCircles: pickupCircles,
-            runtimeConfiguration: configuration
-        )
-    }
-
-    private func isSafePickupPosition(
-        _ position: CGPoint,
-        avoiding playerPosition: CGPoint,
-        enemyCircles: [CollisionCircle],
-        pickupCircles: [CollisionCircle],
-        runtimeConfiguration configuration: PickupSpawnConfiguration
     ) -> Bool {
         guard position.isFinite, playerPosition.isFinite else {
             return false
@@ -407,5 +354,4 @@ struct PickupSpawnPlanner {
         let remainder = value % divisor
         return remainder >= 0 ? remainder : remainder + divisor
     }
-
 }

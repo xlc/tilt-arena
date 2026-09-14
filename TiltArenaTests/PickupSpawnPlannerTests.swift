@@ -23,9 +23,9 @@ final class PickupSpawnPlannerTests: XCTestCase {
         XCTAssertEqual(pickup.chargeTier, .charged)
     }
 
-    func testExtremeActivePickupCountIsCappedPerFrame() {
+    func testConfiguredPickupCountAboveSixteenIsHonored() {
         let configuration = PickupSpawnConfiguration(
-            maxActivePickups: .max,
+            maxActivePickups: 20,
             pickupRadius: 0,
             edgeInset: 0,
             playerClearance: 0,
@@ -43,7 +43,7 @@ final class PickupSpawnPlannerTests: XCTestCase {
             configuration: configuration
         )
 
-        XCTAssertEqual(pickups.count, PickupSpawnPlanner.maximumActivePickupCount)
+        XCTAssertEqual(pickups.count, 20)
         XCTAssertTrue(pickups.allSatisfy { $0.position.x.isFinite && $0.position.y.isFinite })
     }
 

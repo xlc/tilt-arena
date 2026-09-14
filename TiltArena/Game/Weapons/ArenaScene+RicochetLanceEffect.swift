@@ -8,7 +8,7 @@ extension ArenaScene {
         configuration: StartingWeaponConfiguration? = nil,
         onImpact: @escaping (Set<Int>) -> Void
     ) -> TimeInterval {
-        let configuration = (configuration ?? weaponResolver.configuration).sanitizedForRuntime()
+        let configuration = (configuration ?? weaponResolver.configuration)
         guard !segments.isEmpty else {
             runRicochetImpactBatch(targets, delay: 0, onImpact: onImpact)
             return 0

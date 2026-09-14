@@ -9,7 +9,7 @@ extension ArenaScene {
         onImpact: ((Set<Int>) -> Void)? = nil,
         onComplete: (() -> Void)? = nil
     ) -> TimeInterval {
-        let configuration = (configuration ?? weaponResolver.configuration).sanitizedForRuntime()
+        let configuration = (configuration ?? weaponResolver.configuration)
         let accentColor = theme.weaponColor(for: .chainLightning)
         let coreColor = theme.playerColor
         let targetPositions = targets.isEmpty

@@ -41,8 +41,6 @@ struct PlayerMovementState: Equatable {
 }
 
 struct PlayerMovementController {
-    static let maximumSafeSpeed: CGFloat = 10_000
-
     var configuration = PlayerMovementConfiguration()
     private(set) var state = PlayerMovementState(position: .zero, velocity: .zero)
 
@@ -156,7 +154,7 @@ struct PlayerMovementController {
         state = PlayerMovementState(
             position: clampedPosition(state.position, in: arenaBounds),
             velocity: state.velocity.isFinite
-                ? state.velocity.clamped(toMaximumLength: Self.maximumSafeSpeed)
+                ? state.velocity
                 : .zero
         )
         return state
@@ -194,11 +192,7 @@ struct PlayerMovementController {
             return 0
         }
 
-        guard baseSpeed <= Self.maximumSafeSpeed / multiplier else {
-            return Self.maximumSafeSpeed
-        }
-
-        return min(Self.maximumSafeSpeed, baseSpeed * multiplier)
+        return baseSpeed * multiplier
     }
 
     private func safeVelocity(direction: CGVector, speed: CGFloat) -> CGVector {
@@ -211,7 +205,7 @@ struct PlayerMovementController {
             dy: direction.dy * speed
         )
         return velocity.isFinite
-            ? velocity.clamped(toMaximumLength: Self.maximumSafeSpeed)
+            ? velocity
             : .zero
     }
 }

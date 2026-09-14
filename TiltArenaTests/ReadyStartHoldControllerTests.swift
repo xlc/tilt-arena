@@ -56,10 +56,10 @@ final class ReadyStartHoldControllerTests: XCTestCase {
         XCTAssertEqual(state.elapsed, 0)
     }
 
-    func testExtremeFiniteConfigurationIsBoundedAndCompletes() {
+    func testLongConfiguredHoldCompletesAtItsOwnDeadline() {
         let configuration = ReadyStartHoldConfiguration(
-            requiredDuration: 1e308,
-            startCircleRadius: CGFloat.greatestFiniteMagnitude
+            requiredDuration: 12,
+            startCircleRadius: 600
         )
         var controller = ReadyStartHoldController(configuration: configuration)
         let startPoint = CGPoint(x: 100, y: 100)
@@ -67,10 +67,10 @@ final class ReadyStartHoldControllerTests: XCTestCase {
         let state = controller.update(
             playerPosition: startPoint,
             startPoint: startPoint,
-            deltaTime: 1e308
+            deltaTime: 12
         )
 
-        XCTAssertEqual(state.elapsed, ReadyStartHoldConfiguration.maximumRequiredDuration)
+        XCTAssertEqual(state.elapsed, 12)
         XCTAssertTrue(state.didComplete)
         XCTAssertEqual(
             state.progressFraction(requiredDuration: configuration.requiredDuration),
@@ -78,7 +78,7 @@ final class ReadyStartHoldControllerTests: XCTestCase {
         )
         XCTAssertEqual(
             configuration.effectiveStartCircleRadius,
-            ReadyStartHoldConfiguration.maximumStartCircleRadius
+            600
         )
     }
 

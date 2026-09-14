@@ -883,7 +883,7 @@ extension ArenaScene {
         }
 
         spawnDirector.configuration = modeTuning.enemySpawnConfiguration
-        pickupSpawnConfiguration = tunedPickupConfiguration.sanitizedForRuntime()
+        pickupSpawnConfiguration = tunedPickupConfiguration
     }
 
     private func resetPlayerFeedback() {

@@ -4,8 +4,6 @@ import Foundation
 struct ReadyStartHoldConfiguration: Equatable {
     static let defaultRequiredDuration: TimeInterval = 3
     static let defaultStartCircleRadius: CGFloat = 58
-    static let maximumRequiredDuration: TimeInterval = 10
-    static let maximumStartCircleRadius: CGFloat = 512
 
     var requiredDuration: TimeInterval = Self.defaultRequiredDuration
     var retryDuration: TimeInterval = 0.75
@@ -20,7 +18,7 @@ struct ReadyStartHoldConfiguration: Equatable {
             return Self.defaultStartCircleRadius
         }
 
-        return min(Self.maximumStartCircleRadius, max(0, startCircleRadius))
+        return max(0, startCircleRadius)
     }
 
     static func resolvedRequiredDuration(_ duration: TimeInterval) -> TimeInterval {
@@ -28,7 +26,7 @@ struct ReadyStartHoldConfiguration: Equatable {
             return Self.defaultRequiredDuration
         }
 
-        return min(maximumRequiredDuration, max(0, duration))
+        return max(0, duration)
     }
 }
 

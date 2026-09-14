@@ -209,7 +209,6 @@ final class PlayerMovementControllerTests: XCTestCase {
         XCTAssertTrue(state.position.y.isFinite)
         XCTAssertTrue(state.velocity.isFinite)
         XCTAssertTrue(state.velocity.length.isFinite)
-        XCTAssertLessThanOrEqual(state.velocity.length, PlayerMovementController.maximumSafeSpeed)
 
         state = controller.updateWithFixedSpeed(
             input: CGVector(dx: 1, dy: 1),
@@ -222,6 +221,5 @@ final class PlayerMovementControllerTests: XCTestCase {
         XCTAssertTrue(state.position.y.isFinite)
         XCTAssertTrue(state.velocity.isFinite)
         XCTAssertTrue(state.velocity.length.isFinite)
-        XCTAssertLessThanOrEqual(state.velocity.length, PlayerMovementController.maximumSafeSpeed)
     }
 }

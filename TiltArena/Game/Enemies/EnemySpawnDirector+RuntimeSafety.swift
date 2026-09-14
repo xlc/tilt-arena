@@ -2,28 +2,19 @@ import Foundation
 
 extension EnemySpawnDirector {
     var pendingTelegraphCapacity: Int {
-        min(
-            EnemySpawnSafetyLimits.maximumPendingTelegraphCount,
-            max(0, configuration.maxPendingEnemyTelegraphs)
-        )
+        configuration.maxPendingEnemyTelegraphs
     }
 
     var pendingSpawnWarningCapacity: Int {
-        min(
-            EnemySpawnSafetyLimits.maximumPendingTelegraphCount,
-            max(0, configuration.maxPendingSpawnWarnings)
-        )
+        configuration.maxPendingSpawnWarnings
     }
 
     var requiredFormationEnemyCount: Int {
-        min(
-            EnemySpawnSafetyLimits.maximumFormationLaneCount - 1,
-            max(1, configuration.minimumFormationEnemyCount)
-        )
+        configuration.minimumFormationEnemyCount
     }
 
     func telegraphDuration(_ duration: TimeInterval) -> TimeInterval {
-        EnemySpawnSafetyLimits.telegraphDuration(duration)
+        EnemySpawnSafetyLimits.statusDuration(duration)
     }
 
     @discardableResult

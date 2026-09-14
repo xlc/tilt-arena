@@ -10,7 +10,7 @@ extension ArenaScene {
         onImpact: @escaping (WeaponImpactTarget) -> Void
     ) -> TimeInterval {
         var lastImpact: TimeInterval = 0
-        let configuration = (configuration ?? weaponResolver.configuration).sanitizedForRuntime()
+        let configuration = (configuration ?? weaponResolver.configuration)
         for (index, target) in targets.enumerated() {
             let duration = seekerTravelDuration(
                 from: origin,

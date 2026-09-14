@@ -2,18 +2,15 @@ import XCTest
 @testable import TiltArena
 
 final class RicochetLancePathTests: XCTestCase {
-    func testExtremeBounceCountIsCappedWithoutOverflow() {
+    func testConfiguredBounceCountAboveSixteenIsHonored() {
         let segments = RicochetLancePath.segments(
             origin: CGPoint(x: 50, y: 50),
             direction: CGVector(dx: 1, dy: 0.5),
             playableRect: CGRect(x: 0, y: 0, width: 100, height: 100),
-            maximumBounces: .max
+            maximumBounces: 20
         )
 
-        XCTAssertLessThanOrEqual(
-            segments.count,
-            WeaponRuntimeSafetyLimits.maximumRicochetBounceCount + 1
-        )
+        XCTAssertEqual(segments.count, 21)
         XCTAssertTrue(segments.allSatisfy {
             $0.start.x.isFinite && $0.start.y.isFinite && $0.end.x.isFinite && $0.end.y.isFinite
         })

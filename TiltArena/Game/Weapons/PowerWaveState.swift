@@ -34,7 +34,6 @@ struct PowerWaveState: Equatable {
         activation: WeaponActivation = WeaponActivation(kind: .powerWave)
     ) {
         self.activation = activation
-        let configuration = configuration.sanitizedForRuntime()
         isCharging = true
         activeConfiguration = configuration
         chargeTimeRemaining = max(0, configuration.powerWaveChargeDuration)
