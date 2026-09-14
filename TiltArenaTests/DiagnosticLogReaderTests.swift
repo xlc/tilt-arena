@@ -91,7 +91,7 @@ final class DiagnosticLogReaderTests: XCTestCase {
         XCTAssertEqual(boundedRecord.message.count, DiagnosticLogLimits.maxMessageLength)
         XCTAssertEqual(boundedRecord.metadata.count, DiagnosticLogLimits.maxMetadataEntries)
 
-        let boundedValues = DiagnosticMetadataSanitizer.sanitized([
+        let boundedValues = DiagnosticMetadataFormatter.bounded([
             "array": .array(Array(
                 repeating: Logger.Metadata.Value.string("v"),
                 count: DiagnosticLogLimits.maxMetadataCollectionValues + 5
@@ -123,86 +123,73 @@ final class DiagnosticLogReaderTests: XCTestCase {
         )
     }
 
-    func testTypedErrorsOmitDescriptions() throws {
-        let secretDescription = "SECRET ERROR DESCRIPTION"
-        let merged = typedErrorMetadata(secretDescription: secretDescription)
-        let errorRecord = record(message: "operation.failed", metadata: merged)
-
+    func testTypedErrorsRetainDescriptionsAndCallerContext() throws {
+        let message = "Profile could not be read"
+        let errorRecord = record(message: "operation.failed", metadata: typedErrorMetadata(description: message))
         XCTAssertNotNil(errorRecord.metadata["error.type"])
         XCTAssertEqual(errorRecord.metadata["error.domain"], "com.example.persistence")
         XCTAssertEqual(errorRecord.metadata["error.code"], "42")
-        XCTAssertNil(errorRecord.metadata["error.message"])
-        XCTAssertNil(errorRecord.metadata["error.debugDescription"])
-        XCTAssertNil(errorRecord.metadata["error.localizedFailureReason"])
-        XCTAssertNil(errorRecord.metadata["error.localized_description"])
-        XCTAssertNil(errorRecord.metadata["error_message"])
-        XCTAssertFalse(try XCTUnwrap(String(data: JSONEncoder().encode(errorRecord), encoding: .utf8))
-            .contains(secretDescription))
+        XCTAssertEqual(errorRecord.metadata["error.message"], message)
+        XCTAssertTrue(try XCTUnwrap(errorRecord.metadata["error.description"]).contains(message))
+        XCTAssertEqual(errorRecord.metadata["error.debugDescription"], message)
     }
 
-    func testCallerSuppliedErrorNamespaceIsRemovedWithoutActualError() {
-        let merged = DiagnosticMetadataSanitizer.merged(
-            base: [
-                "error": "base-secret",
-                "error.type": "base-secret",
-                "error-domain": "base-secret",
-                "normal.base": "kept"
-            ],
-            provider: Logger.MetadataProvider {
-                [
-                    "ERROR.DOMAIN": "provider-secret",
-                    "error_debugDescription": "provider-secret",
-                    "normal.provider": "kept"
-                ]
-            },
-            explicit: [
-                "error.code": "999",
-                "error-message": "explicit-secret",
-                "normal.explicit": "kept"
-            ]
+    func testMetadataMergesNormallyWithoutFilteringErrorFields() {
+        let merged = DiagnosticMetadataFormatter.merged(
+            base: ["error.message": "base", "base": "kept"],
+            provider: Logger.MetadataProvider { ["error.message": "provider", "provider": "kept"] },
+            explicit: ["error.message": "explicit", "resource.identifier": "profile"]
         )
-
-        XCTAssertFalse(merged.keys.contains(where: isErrorMetadataKey))
-        let sanitized = DiagnosticMetadataSanitizer.sanitized(merged)
-        XCTAssertEqual(sanitized["normal.base"], "kept")
-        XCTAssertEqual(sanitized["normal.provider"], "kept")
-        XCTAssertEqual(sanitized["normal.explicit"], "kept")
+        let metadata = DiagnosticMetadataFormatter.bounded(merged)
+        XCTAssertEqual(metadata["error.message"], "explicit")
+        XCTAssertEqual(metadata["base"], "kept")
+        XCTAssertEqual(metadata["provider"], "kept")
+        XCTAssertEqual(metadata["resource.identifier"], "profile")
     }
 
-    func testActualErrorReplacesCallerSuppliedTypedErrorFields() {
-        let error = NSError(domain: "com.example.actual", code: 42)
-        let merged = DiagnosticMetadataSanitizer.merged(
-            base: [
-                "error.type": "spoofed-base-type",
-                "normal.base": "kept"
-            ],
-            provider: Logger.MetadataProvider {
-                [
-                    "ERROR.DOMAIN": "spoofed-provider-domain",
-                    "normal.provider": "kept"
-                ]
-            },
-            explicit: [
-                "error.code": "999",
-                "error.message": "spoofed-explicit-message",
-                "normal.explicit": "kept"
-            ],
+    func testActualErrorSuppliesItsFieldsAlongsideCallerContext() {
+        let error = NSError(domain: "com.example.actual", code: 42,
+                            userInfo: [NSLocalizedDescriptionKey: "Could not read profile"])
+        let merged = DiagnosticMetadataFormatter.merged(
+            base: ["error.type": "base", "normal.base": "kept"],
+            provider: Logger.MetadataProvider { ["normal.provider": "kept"] },
+            explicit: ["error.code": "999", "error.context": "Loading profile"],
             error: error
         )
+        let metadata = DiagnosticMetadataFormatter.bounded(merged)
+        XCTAssertEqual(metadata["error.type"], String(reflecting: NSError.self))
+        XCTAssertEqual(metadata["error.domain"], "com.example.actual")
+        XCTAssertEqual(metadata["error.code"], "42")
+        XCTAssertEqual(metadata["error.message"], "Could not read profile")
+        XCTAssertEqual(metadata["error.context"], "Loading profile")
+        XCTAssertEqual(metadata["normal.base"], "kept")
+        XCTAssertEqual(metadata["normal.provider"], "kept")
+    }
 
-        let sanitized = DiagnosticMetadataSanitizer.sanitized(merged)
-        XCTAssertEqual(sanitized["error.type"], String(reflecting: NSError.self))
-        XCTAssertEqual(sanitized["error.domain"], "com.example.actual")
-        XCTAssertEqual(sanitized["error.code"], "42")
-        XCTAssertNil(sanitized["ERROR.DOMAIN"])
-        XCTAssertNil(sanitized["error.message"])
-        XCTAssertEqual(sanitized["normal.base"], "kept")
-        XCTAssertEqual(sanitized["normal.provider"], "kept")
-        XCTAssertEqual(sanitized["normal.explicit"], "kept")
+    func testSwiftLogPersistsDecodingErrorPathAndExplanation() throws {
+        struct Payload: Decodable { let count: Int }
+        let store = makeStore(maxPendingRecordCount: 1)
+        let logger = Logger(label: "com.xlc.TiltArena.app") { label in
+            DiagnosticJSONLLogHandler(label: label, store: store, sessionID: "decode-test")
+        }
+        do {
+            _ = try JSONDecoder().decode(Payload.self, from: Data(#"{"count":"invalid"}"#.utf8))
+            XCTFail("Expected the invalid payload to fail decoding")
+        } catch {
+            logger.error("profile.load_failed", error: error)
+        }
+        store.flushPendingWrites()
+        let contents = try Data(contentsOf: store.currentLogFileURL)
+        let record = try JSONDecoder().decode(DiagnosticLogRecord.self, from: contents)
+        let description = try XCTUnwrap(record.metadata["error.description"])
+        XCTAssertTrue(description.contains("count"))
+        XCTAssertTrue(description.contains("Expected to decode Int"))
+        XCTAssertEqual(record.message, "profile.load_failed")
+        XCTAssertLessThanOrEqual(contents.count, DiagnosticLogLimits.maxEncodedLineBytes + 1)
     }
 
     func testTypedErrorFieldsSurviveMetadataEntryLimit() {
-        let merged = typedErrorMetadata(secretDescription: "secret")
+        let merged = typedErrorMetadata(description: "secret")
         var crowdedMetadata: Logger.Metadata = [:]
         for index in 0..<40 {
             crowdedMetadata[String(format: "a.%02d", index)] = "value"
@@ -212,6 +199,8 @@ final class DiagnosticLogReaderTests: XCTestCase {
         XCTAssertEqual(crowdedRecord.metadata["error.domain"], "com.example.persistence")
         XCTAssertEqual(crowdedRecord.metadata["error.code"], "42")
         XCTAssertNotNil(crowdedRecord.metadata["error.type"])
+        XCTAssertNotNil(crowdedRecord.metadata["error.description"])
+        XCTAssertNotNil(crowdedRecord.metadata["error.message"])
     }
 
     func testQueueDropsAreCoalescedIntoOneRecoveryRecordAndHealthIsCodable() async throws {
@@ -289,33 +278,25 @@ final class DiagnosticLogReaderTests: XCTestCase {
         )
     }
 
-    private func typedErrorMetadata(secretDescription: String) -> Logger.Metadata {
+    private func typedErrorMetadata(description: String) -> Logger.Metadata {
         let error = NSError(
             domain: "com.example.persistence",
             code: 42,
-            userInfo: [NSLocalizedDescriptionKey: secretDescription]
+            userInfo: [NSLocalizedDescriptionKey: description]
         )
-        return DiagnosticMetadataSanitizer.merged(
+        return DiagnosticMetadataFormatter.merged(
             base: [
-                "error.debugDescription": "\(secretDescription)",
-                "error.message": "\(secretDescription)",
-                "error_message": "\(secretDescription)"
+                "error.debugDescription": "\(description)",
+                "error.message": "\(description)",
+                "error_message": "\(description)"
             ],
             provider: nil,
             explicit: [
-                "error.localizedFailureReason": "\(secretDescription)",
-                "error.localized_description": "\(secretDescription)"
+                "error.localizedFailureReason": "\(description)",
+                "error.localized_description": "\(description)"
             ],
             error: error
         )
-    }
-
-    private func isErrorMetadataKey(_ key: String) -> Bool {
-        let lowercasedKey = key.lowercased()
-        return lowercasedKey == "error"
-            || lowercasedKey.hasPrefix("error.")
-            || lowercasedKey.hasPrefix("error_")
-            || lowercasedKey.hasPrefix("error-")
     }
 
     private func record(

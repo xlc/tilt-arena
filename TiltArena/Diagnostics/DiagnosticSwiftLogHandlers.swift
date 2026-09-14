@@ -37,7 +37,7 @@ struct DiagnosticJSONLLogHandler: LogHandler {
             level: event.level,
             label: label,
             message: event.message,
-            metadata: DiagnosticMetadataSanitizer.merged(
+            metadata: DiagnosticMetadataFormatter.merged(
                 base: metadata,
                 provider: metadataProvider,
                 explicit: event.metadata,
@@ -70,8 +70,8 @@ struct DiagnosticOSLogHandler: LogHandler {
     }
 
     func log(event: LogEvent) {
-        let metadata = DiagnosticMetadataSanitizer.sanitized(
-            DiagnosticMetadataSanitizer.merged(
+        let metadata = DiagnosticMetadataFormatter.bounded(
+            DiagnosticMetadataFormatter.merged(
                 base: metadata,
                 provider: metadataProvider,
                 explicit: event.metadata,

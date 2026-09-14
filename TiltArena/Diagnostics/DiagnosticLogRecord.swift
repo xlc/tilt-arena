@@ -76,7 +76,7 @@ struct DiagnosticLogRecord: Codable, Equatable, Sendable {
             message.description,
             to: DiagnosticLogLimits.maxMessageLength
         )
-        self.metadata = DiagnosticMetadataSanitizer.sanitized(metadata)
+        self.metadata = DiagnosticMetadataFormatter.bounded(metadata)
         self.source = DiagnosticLogLimits.bounded(source, to: DiagnosticLogLimits.maxSourceLength)
         self.file = DiagnosticLogLimits.bounded(
             URL(fileURLWithPath: file).lastPathComponent,
@@ -203,28 +203,16 @@ private final class DiagnosticISO8601FormatterCache: @unchecked Sendable {
     }
 }
 
-enum DiagnosticMetadataSanitizer {
-    private static let redactedKeyFragments = [
-        "email",
-        "password",
-        "secret",
-        "token",
-        "userid",
-        "user_id",
-        "vendor",
-        "identifier"
-    ]
-    private static let typedErrorKeys: Set<String> = [
-        "error.code",
-        "error.domain",
-        "error.type"
+enum DiagnosticMetadataFormatter {
+    static let errorKeys: Set<String> = [
+        "error.code", "error.domain", "error.type", "error.description", "error.message"
     ]
 
-    static func sanitized(_ metadata: Logger.Metadata) -> [String: String] {
+    static func bounded(_ metadata: Logger.Metadata) -> [String: String] {
         var result: [String: String] = [:]
         let sortedPairs = metadata.sorted { lhs, rhs in
-            let lhsIsTypedError = typedErrorKeys.contains(lhs.key.lowercased())
-            let rhsIsTypedError = typedErrorKeys.contains(rhs.key.lowercased())
+            let lhsIsTypedError = errorKeys.contains(lhs.key.lowercased())
+            let rhsIsTypedError = errorKeys.contains(rhs.key.lowercased())
             if lhsIsTypedError != rhsIsTypedError {
                 return lhsIsTypedError
             }
@@ -232,8 +220,8 @@ enum DiagnosticMetadataSanitizer {
         }
 
         for pair in sortedPairs.prefix(DiagnosticLogLimits.maxMetadataEntries) {
-            let key = sanitizedKey(pair.key)
-            result[key] = sanitizedValue(pair.value, redactionKey: pair.key, depth: 0)
+            let key = boundedKey(pair.key)
+            result[key] = boundedValue(pair.value, depth: 0)
         }
 
         return result
@@ -255,33 +243,26 @@ enum DiagnosticMetadataSanitizer {
             merged.merge(explicit, uniquingKeysWith: { _, explicit in explicit })
         }
 
-        for key in Array(merged.keys) where isErrorMetadataKey(key) {
-            merged.removeValue(forKey: key)
-        }
-
         if let error {
             let nsError = error as NSError
             merged["error.type"] = "\(String(reflecting: type(of: error)))"
             merged["error.domain"] = "\(nsError.domain)"
             merged["error.code"] = "\(nsError.code)"
+            merged["error.description"] = "\(error)"
+            merged["error.message"] = "\(error.localizedDescription)"
         }
 
         return merged
     }
 
-    private static func sanitizedKey(_ key: String) -> String {
+    private static func boundedKey(_ key: String) -> String {
         DiagnosticLogLimits.bounded(key, to: DiagnosticLogLimits.maxMetadataKeyLength)
     }
 
-    private static func sanitizedValue(
+    private static func boundedValue(
         _ value: Logger.Metadata.Value,
-        redactionKey: String? = nil,
         depth: Int
     ) -> String {
-        if let redactionKey, shouldRedact(key: redactionKey) {
-            return "<redacted>"
-        }
-
         let rendered: String
 
         switch value {
@@ -296,7 +277,7 @@ enum DiagnosticMetadataSanitizer {
 
             var renderedValues = values
                 .prefix(DiagnosticLogLimits.maxMetadataCollectionValues)
-                .map { sanitizedValue($0, depth: depth + 1) }
+                .map { boundedValue($0, depth: depth + 1) }
             if values.count > DiagnosticLogLimits.maxMetadataCollectionValues {
                 renderedValues.append("<truncated>")
             }
@@ -310,10 +291,9 @@ enum DiagnosticMetadataSanitizer {
             var renderedValues = sortedPairs
                 .prefix(DiagnosticLogLimits.maxMetadataCollectionValues)
                 .map { pair in
-                    let key = sanitizedKey(pair.key)
-                    let value = sanitizedValue(
+                    let key = boundedKey(pair.key)
+                    let value = boundedValue(
                         pair.value,
-                        redactionKey: pair.key,
                         depth: depth + 1
                     )
                     return "\(key)=\(value)"
@@ -328,25 +308,5 @@ enum DiagnosticMetadataSanitizer {
             rendered,
             to: DiagnosticLogLimits.maxMetadataValueLength
         )
-    }
-
-    private static func shouldRedact(key: String) -> Bool {
-        let lowercasedKey = key.lowercased()
-        return isUnsafeErrorMetadataKey(lowercasedKey)
-            || redactedKeyFragments.contains { lowercasedKey.contains($0) }
-    }
-
-    private static func isUnsafeErrorMetadataKey(_ key: String) -> Bool {
-        let lowercasedKey = key.lowercased()
-        return isErrorMetadataKey(lowercasedKey)
-            && !typedErrorKeys.contains(lowercasedKey)
-    }
-
-    private static func isErrorMetadataKey(_ key: String) -> Bool {
-        let lowercasedKey = key.lowercased()
-        return lowercasedKey == "error"
-            || lowercasedKey.hasPrefix("error.")
-            || lowercasedKey.hasPrefix("error_")
-            || lowercasedKey.hasPrefix("error-")
     }
 }

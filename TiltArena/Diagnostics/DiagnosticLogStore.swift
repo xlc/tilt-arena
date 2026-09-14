@@ -159,16 +159,10 @@ final class DiagnosticLogStore: @unchecked Sendable {
 
     private static let metadataTruncatedKey = "diagnostics.metadata_truncated"
 
-    private static let typedErrorMetadataKeys: Set<String> = [
-        "error.code",
-        "error.domain",
-        "error.type"
-    ]
-
     private func metadataRemovalOrder(_ metadata: [String: String]) -> [String] {
         metadata.keys.sorted { lhs, rhs in
-            let lhsIsTypedError = Self.typedErrorMetadataKeys.contains(lhs)
-            let rhsIsTypedError = Self.typedErrorMetadataKeys.contains(rhs)
+            let lhsIsTypedError = DiagnosticMetadataFormatter.errorKeys.contains(lhs)
+            let rhsIsTypedError = DiagnosticMetadataFormatter.errorKeys.contains(rhs)
             if lhsIsTypedError != rhsIsTypedError {
                 return !lhsIsTypedError
             }
@@ -238,8 +232,6 @@ final class DiagnosticLogStore: @unchecked Sendable {
 
     private func prepareDirectoryLocked() throws {
         try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        try markExcludedFromBackup(directoryURL)
-        try applyFileProtection(to: directoryURL)
     }
 
     private func shouldRotateCurrentLogLocked(appendingByteCount: Int) throws -> Bool {
@@ -298,7 +290,6 @@ final class DiagnosticLogStore: @unchecked Sendable {
     private func appendLocked(_ data: Data, to url: URL) throws {
         if !fileManager.fileExists(atPath: url.path) {
             fileManager.createFile(atPath: url.path, contents: nil)
-            try applyFileProtection(to: url)
         }
 
         let handle = try FileHandle(forWritingTo: url)
@@ -446,24 +437,6 @@ final class DiagnosticLogStore: @unchecked Sendable {
         } else {
             value += amount
         }
-    }
-
-    private func markExcludedFromBackup(_ url: URL) throws {
-        var mutableURL = url
-        var values = URLResourceValues()
-        values.isExcludedFromBackup = true
-        try mutableURL.setResourceValues(values)
-    }
-
-    private func applyFileProtection(to url: URL) throws {
-        #if os(iOS)
-        try fileManager.setAttributes(
-            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
-            ofItemAtPath: url.path
-        )
-        #else
-        _ = url
-        #endif
     }
 }
 

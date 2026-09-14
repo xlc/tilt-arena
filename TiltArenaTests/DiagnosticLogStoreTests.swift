@@ -196,23 +196,23 @@ final class DiagnosticLogStoreTests: XCTestCase {
         XCTAssertEqual(try store.logFileURLs(), [store.currentLogFileURL])
     }
 
-    func testMetadataSanitizerRedactsSensitiveKeys() {
+    func testMetadataFormatterPreservesKeysAndBoundsTheirLength() {
         let longSensitiveKey = "\(String(repeating: "x", count: 84))token"
-        let metadata = DiagnosticMetadataSanitizer.sanitized([
+        let metadata = DiagnosticMetadataFormatter.bounded([
             longSensitiveKey: "secret-token",
             "token": "secret-token",
             "userID": "abc",
             "mode": "classic"
         ])
 
-        XCTAssertEqual(metadata[String(longSensitiveKey.prefix(80))], "<redacted>")
-        XCTAssertEqual(metadata["token"], "<redacted>")
-        XCTAssertEqual(metadata["userID"], "<redacted>")
+        XCTAssertEqual(metadata[String(longSensitiveKey.prefix(80))], "secret-token")
+        XCTAssertEqual(metadata["token"], "secret-token")
+        XCTAssertEqual(metadata["userID"], "abc")
         XCTAssertEqual(metadata["mode"], "classic")
     }
 
-    func testMetadataSanitizerRedactsNestedSensitiveDictionaryKeys() {
-        let metadata = DiagnosticMetadataSanitizer.sanitized([
+    func testMetadataFormatterPreservesNestedDictionaryValues() {
+        let metadata = DiagnosticMetadataFormatter.bounded([
             "context": .dictionary([
                 "mode": "classic",
                 "nested": .dictionary([
@@ -225,7 +225,7 @@ final class DiagnosticLogStoreTests: XCTestCase {
 
         XCTAssertEqual(
             metadata["context"],
-            "mode=classic,nested=count=2,email=<redacted>,token=<redacted>"
+            "mode=classic,nested=count=2,email=player@example.com,token=secret-token"
         )
     }
 
@@ -270,7 +270,7 @@ final class DiagnosticLogStoreTests: XCTestCase {
         XCTAssertNil(localOptions["reducedEffects"])
     }
 
-    func testExportMetadataOmitsDeviceNameVendorIdentifierAndModelIdentifier() throws {
+    func testExportMetadataIncludesOSAndLocaleContext() throws {
         let metadata = DiagnosticExportMetadataFactory.make(
             generatedAt: Date(timeIntervalSince1970: 4),
             sessionID: "session-3",
@@ -280,9 +280,9 @@ final class DiagnosticLogStoreTests: XCTestCase {
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         let device = try XCTUnwrap(object["device"] as? [String: Any])
 
-        XCTAssertNil(device["modelIdentifier"])
-        XCTAssertNil(device["name"])
-        XCTAssertNil(device["identifierForVendor"])
+        XCTAssertEqual(device["osName"] as? String, "iOS")
+        XCTAssertEqual(device["osVersion"] as? String, ProcessInfo.processInfo.operatingSystemVersionString)
+        XCTAssertEqual(device["localeIdentifier"] as? String, Locale.autoupdatingCurrent.identifier)
     }
 
     private func makeStore(

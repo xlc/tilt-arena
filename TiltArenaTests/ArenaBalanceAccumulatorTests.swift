@@ -167,7 +167,7 @@ final class ArenaBalanceAccumulatorTests: XCTestCase {
         XCTAssertEqual(events.count, 14)
         for event in events {
             XCTAssertLessThanOrEqual(event.metadata.count, DiagnosticLogLimits.maxMetadataEntries)
-            let sanitized = DiagnosticMetadataSanitizer.sanitized(event.metadata)
+            let sanitized = DiagnosticMetadataFormatter.bounded(event.metadata)
             XCTAssertEqual(sanitized.count, event.metadata.count)
             XCTAssertFalse(sanitized.values.contains("<redacted>"))
         }

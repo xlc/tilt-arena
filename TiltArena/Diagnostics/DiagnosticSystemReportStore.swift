@@ -91,8 +91,6 @@ final class DiagnosticSystemReportStore: @unchecked Sendable {
 
             do {
                 try payloadJSON.write(to: reportURL, options: [.atomic])
-                try markExcludedFromBackup(reportURL)
-                try applyFileProtection(to: reportURL)
                 return reportURL
             } catch {
                 try? fileManager.removeItem(at: reportURL)
@@ -158,8 +156,6 @@ final class DiagnosticSystemReportStore: @unchecked Sendable {
 
     private func prepareDirectoryLocked() throws {
         try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        try markExcludedFromBackup(directoryURL)
-        try applyFileProtection(to: directoryURL)
     }
 
     private func reportFileName(
@@ -425,24 +421,6 @@ final class DiagnosticSystemReportStore: @unchecked Sendable {
             throw StoreError.quotaUnavailable
         }
         return size.intValue
-    }
-
-    private func markExcludedFromBackup(_ url: URL) throws {
-        var mutableURL = url
-        var values = URLResourceValues()
-        values.isExcludedFromBackup = true
-        try mutableURL.setResourceValues(values)
-    }
-
-    private func applyFileProtection(to url: URL) throws {
-        #if os(iOS)
-        try fileManager.setAttributes(
-            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
-            ofItemAtPath: url.path
-        )
-        #else
-        _ = url
-        #endif
     }
 }
 

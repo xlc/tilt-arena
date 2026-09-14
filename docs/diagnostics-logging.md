@@ -38,11 +38,11 @@ changes, `notice` for user-visible milestones, `warning` for recoverable
 abnormal states, and `error`/`critical` for failures and broken invariants.
 
 Do not log per-frame movement or raw motion samples. Metadata must remain small,
-scalar, and bounded. Never add tokens, email addresses, player or device names,
-vendor identifiers, or other user identifiers. The persistence handler also
-bounds messages, metadata count/depth/length, redacts sensitive-looking keys,
-and records Swift errors only as type plus `NSError` domain/code; arbitrary
-localized error descriptions are not persisted.
+scalar, and bounded. Both handlers retain supplied metadata without key-based
+redaction. SwiftLog's `error:` parameter records the error type, NSError
+domain/code, description, and localized message, so decoding paths and failure
+context remain useful. Metadata count/depth/UTF-8 lengths and encoded record
+size stay bounded; error fields take priority when shortening a record.
 
 ## Storage and Failure Isolation
 
@@ -58,8 +58,7 @@ Production retention is bounded as follows:
 - MetricKit: eight payload files, 8 MiB total.
 - Generated text reports: three files, 32 MiB total.
 
-Diagnostics directories and files are excluded from backup and use iOS file
-protection. Routine JSONL persistence is best-effort. MetricKit persistence
+Diagnostics use normal platform file attributes. Routine JSONL persistence is best-effort. MetricKit persistence
 refuses a new payload if it cannot first prove that the count and byte quotas
 will remain satisfied. Any persistence, rotation, or cleanup failure remains
 isolated from gameplay.
@@ -112,6 +111,6 @@ symbolicated, as required by Apple's
 SwiftLog already supplies the logging facade and multiplexing needed by the
 app. Apple's `OSLog`, MetricKit, Quick Look, and system share sheet cover the
 platform-specific pieces. A small app-owned JSONL handler remains necessary for
-the stable schema, privacy bounds, rotation policy, and shareable offline
+the stable schema, record bounds, rotation policy, and shareable offline
 report; adding CocoaLumberjack or another logging stack would duplicate the
 existing facade without removing that app-specific work.

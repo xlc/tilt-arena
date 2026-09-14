@@ -171,8 +171,6 @@ struct DiagnosticTextReportBuilder {
 
         do {
             try reportData.write(to: reportURL, options: [.atomic])
-            try markExcludedFromBackup(reportURL)
-            try applyFileProtection(to: reportURL)
             try pruneGeneratedReportsLocked(preserving: reportURL)
             guard fileManager.fileExists(atPath: reportURL.path) else {
                 throw CocoaError(.fileNoSuchFile)
@@ -189,8 +187,6 @@ struct DiagnosticTextReportBuilder {
             at: outputDirectoryURL,
             withIntermediateDirectories: true
         )
-        try markExcludedFromBackup(outputDirectoryURL)
-        try applyFileProtection(to: outputDirectoryURL)
         removeStaleLogSnapshotsLocked()
     }
 
@@ -352,24 +348,6 @@ struct DiagnosticTextReportBuilder {
     private func fileSize(_ url: URL) throws -> Int {
         let attributes = try fileManager.attributesOfItem(atPath: url.path)
         return (attributes[.size] as? NSNumber)?.intValue ?? 0
-    }
-
-    private func markExcludedFromBackup(_ url: URL) throws {
-        var mutableURL = url
-        var values = URLResourceValues()
-        values.isExcludedFromBackup = true
-        try mutableURL.setResourceValues(values)
-    }
-
-    private func applyFileProtection(to url: URL) throws {
-        #if os(iOS)
-        try fileManager.setAttributes(
-            [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
-            ofItemAtPath: url.path
-        )
-        #else
-        _ = url
-        #endif
     }
 }
 
